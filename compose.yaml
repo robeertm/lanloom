@@ -1,0 +1,56 @@
+# Lanloom - read-only circuit-board map of your local network.
+#
+#   docker compose up -d                        app only (manual updates)
+#   docker compose --profile updater up -d      app + one-click updater sidecar
+#
+# Then open http://<this-host>:7380 and enter the setup code from:  docker logs lanloom
+name: lanloom
+
+services:
+  lanloom:
+    image: ghcr.io/robeertm/lanloom:latest
+    container_name: lanloom
+    restart: unless-stopped
+    # Host networking lets Lanloom see the local network (neighbour table, mDNS, SSDP) and count
+    # this host's TCP bytes. It opens no privileges: the container runs as an unprivileged user,
+    # with a read-only file system and all capabilities dropped.
+    network_mode: host
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      LANLOOM_PORT: "7380"            # web port on this host
+      LANLOOM_UPDATE_CHECK: "1"       # 0 = never contact the release feed
+    volumes:
+      - lanloom-data:/data
+    labels:
+      org.lanloom.role: app
+
+  # Optional one-click updater. It needs the container runtime socket to pull the new image,
+  # test it, back up the database, swap the container and roll back on failure. Leave the
+  # profile off if you prefer to update by hand (docker compose pull && docker compose up -d).
+  updater:
+    image: ghcr.io/robeertm/lanloom:latest
+    container_name: lanloom-updater
+    profiles: ["updater"]
+    restart: unless-stopped
+    command: ["python", "-m", "updater"]
+    user: "0:0"
+    network_mode: host
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      LANLOOM_TARGET: lanloom
+    volumes:
+      - lanloom-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  lanloom-data:

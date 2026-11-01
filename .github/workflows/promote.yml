@@ -1,0 +1,37 @@
+# Points `:latest` and `:<major>` at a version that is already published AND tested.
+# Started by hand after the release checks ran against exactly that published image.
+# Nothing is rebuilt: the existing manifest gets additional tags, byte for byte the same.
+name: Promote to latest
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Tested version, e.g. 1.0.0"
+        required: true
+        type: string
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote
+        env:
+          V: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          echo "$V" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::not a version: $V"; exit 1; }
+          IMG="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker buildx imagetools inspect "$IMG:$V" >/dev/null
+          MAJOR="${V%%.*}"
+          docker buildx imagetools create -t "$IMG:latest" -t "$IMG:$MAJOR" "$IMG:$V"
+          docker buildx imagetools inspect "$IMG:latest"

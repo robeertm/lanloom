@@ -1,0 +1,43 @@
+Lanloom — Source-Available License
+Copyright © 2026 Robert Manuwald. All rights reserved.
+
+Lanloom is made available so that anyone can run it to map their own network.
+It is source-available, NOT open-source: the source code is visible, but the
+rights granted below are limited.
+
+GRANT
+You are granted a non-exclusive, non-transferable, royalty-free license to:
+  • download, install and run the Software on machines you own or control,
+    for personal or internal business use; and
+  • view the source code for the purpose of running, building and evaluating it.
+
+RESTRICTIONS
+Without the prior written permission of the copyright holder, you may NOT:
+  • modify, adapt, translate, or create derivative works of the Software;
+  • copy, redistribute, publish, sublicense, sell, rent, or host the Software
+    for others, in whole or in part, in original or modified form;
+  • remove or alter this license text or any copyright notice.
+
+YOUR DATA
+Everything Lanloom discovers or records about your network stays on the machine
+that runs it and belongs to you. This license covers Lanloom itself — not the
+data it collects for you.
+
+SCANNING
+Only scan networks you own or are explicitly allowed to scan. You are
+responsible for complying with the laws and rules that apply to you.
+
+THIRD-PARTY COMPONENTS
+Lanloom includes or links components that are licensed by their own authors
+under their own terms. They are listed in THIRD-PARTY-NOTICES.md. Nothing in
+this license limits the rights those licenses grant you for those components.
+
+NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+For any use beyond this license, contact the copyright holder.

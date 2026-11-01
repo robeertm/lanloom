@@ -1,0 +1,318 @@
+/* Lanloom — circuit board. Uses only tokens from tokens.css (light and dark). */
+
+.ll-board {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  overflow: hidden;
+  background: var(--ll-pcb-board);
+  color: var(--ll-text);
+  font-family: var(--ll-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  contain: layout paint;
+}
+.ll-board *, .ll-board *::before, .ll-board *::after { box-sizing: border-box; }
+
+.ll-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.ll-stage {
+  position: relative;
+  /* substrate: fine dot grid on the routing pitch */
+  background-image: radial-gradient(circle at 2px 2px, var(--ll-pcb-grid) 1px, transparent 1.4px);
+  background-size: 16px 16px;
+}
+.ll-board.is-compact .ll-stage { background-size: 12px 12px; }
+
+/* ---------------------------------------------------------------- zones */
+.ll-zone {
+  position: absolute;
+  border: 1px solid var(--ll-pcb-zone-line);
+  border-radius: var(--ll-radius-lg);
+  background: var(--ll-pcb-zone);
+  pointer-events: none;
+}
+/* silkscreen corner marks */
+.ll-zone::before, .ll-zone::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--ll-pcb-silk-2);
+  border-style: solid;
+  opacity: .55;
+}
+.ll-zone::before { right: 8px; top: 8px; border-width: 1.5px 1.5px 0 0; border-top-right-radius: 4px; }
+.ll-zone::after { left: 8px; bottom: 8px; border-width: 0 0 1.5px 1.5px; border-bottom-left-radius: 4px; }
+.ll-board.is-compact .ll-zone::before, .ll-board.is-compact .ll-zone::after { display: none; }
+.ll-zone__title {
+  position: absolute;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  /* knock the title out of the frame line: board colour above the line, zone colour below */
+  background: linear-gradient(var(--ll-pcb-board) 0 50%, var(--ll-pcb-zone) 50% 100%);
+  color: var(--ll-pcb-silk);
+  white-space: nowrap;
+}
+.ll-zone__name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--ll-fs-xs);
+  font-weight: var(--ll-fw-bold);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  line-height: 20px;
+}
+.ll-zone__count {
+  flex: none;
+  font-size: var(--ll-fs-2xs);
+  font-weight: var(--ll-fw-semibold);
+  line-height: 16px;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: var(--ll-radius-pill);
+  border: 1px solid var(--ll-pcb-zone-line);
+  color: var(--ll-pcb-silk-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- traces (SVG under the tiles) */
+.ll-traces { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.ll-trace {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: var(--ll-pcb-trace-rest);
+  transition: opacity var(--ll-dur) var(--ll-ease);
+}
+.ll-trace.ll-k-uplink { stroke: var(--ll-pcb-trace-uplink); stroke-width: 2.2; }
+.ll-trace.ll-k-lan { stroke: var(--ll-pcb-trace-lan); }
+.ll-trace.ll-k-service { stroke: var(--ll-pcb-trace-service); }
+.ll-trace.ll-k-flow { stroke: var(--ll-pcb-trace-flow); }
+.ll-trace.ll-k-integration { stroke: var(--ll-pcb-trace-integration); }
+.ll-trace.is-unmeasured { stroke-dasharray: 3 4; opacity: calc(var(--ll-pcb-trace-rest) * .75); }
+.ll-board.is-compact .ll-trace { stroke-width: 1.4; }
+.ll-board.is-compact .ll-trace.ll-k-uplink { stroke-width: 1.9; }
+.ll-pad { fill: var(--ll-pcb-copper); transition: opacity var(--ll-dur) var(--ll-ease); }
+.ll-via { fill: var(--ll-pcb-board); stroke: var(--ll-pcb-via); stroke-width: 1; opacity: .8; transition: opacity var(--ll-dur) var(--ll-ease); }
+
+/* ---------------------------------------------------------------- tiles (components) */
+.ll-tiles, .ll-ztitles, .ll-zones { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.ll-tile {
+  position: absolute;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: center;
+  margin: 0;
+  padding: 0 12px 0 11px;
+  border: 1px solid var(--ll-pcb-tile-line);
+  border-radius: var(--ll-radius-md);
+  background: var(--ll-pcb-tile);
+  box-shadow: var(--ll-pcb-tile-shadow);
+  color: var(--ll-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--ll-dur-fast) var(--ll-ease), opacity var(--ll-dur) var(--ll-ease), box-shadow var(--ll-dur-fast) var(--ll-ease);
+}
+.ll-tile:hover { border-color: var(--ll-pcb-tile-hover); }
+.ll-tile:focus { outline: none; }
+.ll-tile:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 2px; }
+.ll-tile__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--ll-pcb-icon-bg);
+  color: var(--ll-pcb-icon);
+}
+.ll-tile__icon .ll-icon { display: block; }
+.ll-tile__body { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ll-tile__title {
+  display: block;
+  margin-right: 14px;            /* room for the status LED */
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: var(--ll-fw-semibold);
+  line-height: 17px;
+  color: var(--ll-text);
+}
+.ll-tile__sub {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: var(--ll-fw-regular);
+  line-height: 15px;
+  color: var(--ll-text-2);
+}
+.ll-tile__meta { display: flex; align-items: center; gap: 6px; height: 18px; min-width: 0; }
+.ll-grade { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ll-grade-unknown); }
+.ll-tile[data-grade="realtime"] .ll-grade { background: var(--ll-grade-realtime); }
+.ll-tile[data-grade="near"] .ll-grade { background: var(--ll-grade-near); }
+.ll-tile[data-grade="periodic"] .ll-grade { background: var(--ll-grade-periodic); }
+.ll-tile[data-grade="sluggish"] .ll-grade { background: var(--ll-grade-sluggish); }
+.ll-tile[data-grade="interrupted"] .ll-grade { background: var(--ll-grade-interrupted); }
+.ll-tile__metric {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 14px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: var(--ll-fw-medium);
+  line-height: 15px;
+  color: var(--ll-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ll-tile__metric:empty::before { content: "\2014"; color: var(--ll-text-3); }
+.ll-tile__badges { display: flex; gap: 4px; flex: none; }
+.ll-badge {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--ll-pcb-badge-line);
+  border-radius: var(--ll-radius-xs);
+  background: var(--ll-pcb-badge-bg);
+  color: var(--ll-pcb-badge-text);
+  font-size: var(--ll-fs-2xs);
+  font-weight: var(--ll-fw-semibold);
+  line-height: 14px;
+  letter-spacing: .02em;
+}
+.ll-badge[hidden] { display: none; }
+.ll-led {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ll-muted);
+  box-shadow: 0 0 0 2px var(--ll-pcb-led-ring);
+}
+.ll-tile[data-status="up"] .ll-led { background: var(--ll-ok); }
+.ll-tile[data-status="down"] .ll-led { background: var(--ll-danger); }
+.ll-tile[data-status="unknown"] .ll-led { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ll-muted), 0 0 0 2px var(--ll-pcb-led-ring); }
+.ll-tile[data-status="up"] .ll-led { box-shadow: 0 0 0 2px var(--ll-pcb-led-ring), 0 0 var(--ll-pcb-led-glow) var(--ll-ok); }
+.ll-tile[data-status="down"] .ll-led { box-shadow: 0 0 0 2px var(--ll-pcb-led-ring), 0 0 var(--ll-pcb-led-glow) var(--ll-danger); }
+.ll-tile[data-status="down"] { border-color: var(--ll-pcb-tile-down); }
+.ll-tile[data-status="down"] .ll-tile__icon { color: var(--ll-danger-text); background: var(--ll-danger-soft); }
+.ll-tile[data-kind="internet"] .ll-tile__icon, .ll-tile[data-kind="router"] .ll-tile__icon { color: var(--ll-pcb-trace-uplink); }
+.ll-tile[data-kind="self"] { border-color: var(--ll-accent); }
+
+/* compact (phones): slightly smaller type, same structure */
+.ll-board.is-compact .ll-tile { grid-template-columns: 28px minmax(0, 1fr); column-gap: 8px; padding: 0 9px 0 8px; }
+.ll-board.is-compact .ll-tile__icon { width: 28px; height: 28px; border-radius: 7px; }
+.ll-board.is-compact .ll-tile__icon .ll-icon { width: 16px; height: 16px; }
+.ll-board.is-compact .ll-tile__title { font-size: 12.5px; line-height: 16px; margin-right: 12px; }
+.ll-board.is-compact .ll-tile__sub, .ll-board.is-compact .ll-tile__metric { font-size: 11px; line-height: 15px; }
+.ll-board.is-compact .ll-led { top: 8px; right: 8px; width: 7px; height: 7px; }
+
+/* ---------------------------------------------------------------- highlight */
+.ll-board.is-focus .ll-tile:not(.is-on) { opacity: .32; }
+.ll-board.is-focus .ll-trace:not(.is-on) { opacity: .08; }
+.ll-board.is-focus .ll-trace.is-on { opacity: 1; }
+.ll-board.is-focus .ll-pad:not(.is-on), .ll-board.is-focus .ll-via:not(.is-on) { opacity: .15; }
+.ll-tile.is-selected { border-color: var(--ll-accent); box-shadow: 0 0 0 1px var(--ll-accent), var(--ll-pcb-tile-shadow); }
+
+/* ---------------------------------------------------------------- live layers
+   Viewport-sized and sticky at the top of the scroll area; stacked above the traces and below titles and tiles. */
+.ll-live { position: sticky; top: 0; left: 0; width: 100%; z-index: 1; pointer-events: none; }
+.ll-layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.ll-zones { z-index: 0; }
+.ll-traces { z-index: 0; }
+.ll-ztitles { z-index: 2; }
+.ll-tiles { z-index: 3; }
+
+/* ---------------------------------------------------------------- legend */
+.ll-legend {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  max-width: calc(100% - 48px);
+  padding: 8px 14px;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--ll-radius-md);
+  background: var(--ll-pcb-legend-bg);
+  box-shadow: var(--ll-shadow-1);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: var(--ll-fs-sm);
+  line-height: 18px;
+  color: var(--ll-text-2);
+}
+.ll-legend[hidden] { display: none; }
+.ll-legend__item { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.ll-legend__item svg { display: block; flex: none; }
+.ll-legend__item b { color: var(--ll-text); font-weight: var(--ll-fw-semibold); }
+.ll-legend__sep { width: 1px; height: 16px; background: var(--ll-border); }
+.ll-legend__grades { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.ll-legend__grade { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ll-legend__grade i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--ll-grade-unknown); }
+.ll-legend__grade[data-grade="realtime"] i { background: var(--ll-grade-realtime); }
+.ll-legend__grade[data-grade="near"] i { background: var(--ll-grade-near); }
+.ll-legend__grade[data-grade="periodic"] i { background: var(--ll-grade-periodic); }
+.ll-legend__grade[data-grade="sluggish"] i { background: var(--ll-grade-sluggish); }
+.ll-legend__grade[data-grade="interrupted"] i { background: var(--ll-grade-interrupted); }
+.ll-legend__grade em { font-style: normal; color: var(--ll-text-3); }
+.ll-legend__grade.is-zero { display: none; }
+.ll-legend .ll-lg-trace { stroke: var(--ll-pcb-trace-lan); stroke-width: 1.6; }
+.ll-legend .ll-lg-dash { stroke: var(--ll-pcb-trace-lan); stroke-width: 1.6; stroke-dasharray: 3 4; opacity: .8; }
+.ll-legend .ll-lg-dot { fill: var(--ll-pcb-trace-lan); }
+.ll-legend .ll-lg-core { fill: var(--ll-pcb-dot-core); }
+/* compact: the legend sits below the board inside the scroll area instead of floating over it */
+.ll-legend.is-inline {
+  position: static;
+  margin: 0 12px 16px;
+  max-width: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ---------------------------------------------------------------- empty state */
+.ll-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--ll-space-5);
+  color: var(--ll-text-2);
+  font-size: var(--ll-fs-md);
+  text-align: center;
+}
+.ll-empty[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ll-tile, .ll-trace, .ll-pad, .ll-via { transition: none; }
+}
+@media (forced-colors: active) {
+  .ll-tile { border: 1px solid CanvasText; }
+  .ll-trace { stroke: CanvasText; }
+}

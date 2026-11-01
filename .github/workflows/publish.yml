@@ -1,0 +1,86 @@
+# Builds the image for amd64 and arm64 and publishes `:<version>` and `:edge`.
+# `:latest` and `:<major>` are NOT set here - see promote.yml. They move only after the
+# published image itself has been tested.
+name: Publish image
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: pip install -r requirements.txt pytest==8.3.4 httpx==0.28.1
+      - run: LANLOOM_DATA=$(mktemp -d) python -m lanloom --selftest
+      - run: python -m pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image name and version
+        id: meta
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+      # A published version tag never moves: promote.yml points `:latest` at an image that was
+      # tested, so overwriting that version later would hand users an untested image.
+      # Three outcomes: tag exists -> only `:edge`; tag missing -> version + edge; registry
+      # cannot be asked -> stop without publishing anything.
+      - name: Never overwrite a published version
+        id: tags
+        run: |
+          set -euo pipefail
+          IMG="${{ steps.meta.outputs.image }}"; V="${{ steps.meta.outputs.version }}"
+          out="$(docker buildx imagetools inspect "$IMG:$V" 2>&1)" && rc=0 || rc=$?
+          if [ "$rc" = 0 ]; then
+            echo "::warning::$IMG:$V is already published and stays as it is; only :edge is renewed. Raise VERSION for a new release."
+            TAGS="$IMG:edge"
+          elif printf '%s' "$out" | grep -qiE 'not found|manifest unknown|MANIFEST_UNKNOWN|denied'; then
+            TAGS="$(printf '%s\n%s' "$IMG:$V" "$IMG:edge")"
+          else
+            echo "::error::Could not ask the registry about $IMG:$V - nothing is published."
+            printf '%s\n' "$out"; exit 1
+          fi
+          { echo "tags<<END_OF_TAGS"; echo "$TAGS"; echo "END_OF_TAGS"; } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=${{ steps.meta.outputs.version }}
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+      - name: Self-test of the published image (both architectures)
+        run: |
+          IMG="${{ steps.meta.outputs.image }}:edge"
+          for p in linux/amd64 linux/arm64; do
+            docker run --rm --platform "$p" --network none --read-only "$IMG" python -m lanloom --selftest
+          done

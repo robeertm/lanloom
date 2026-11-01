@@ -1,0 +1,29 @@
+# Direct dependencies
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+argon2-cffi==23.1.0
+cryptography==44.0.3
+webauthn==2.5.2
+# Pinned transitive dependencies (reproducible images)
+annotated-types==0.8.0
+anyio==4.16.0
+argon2-cffi-bindings==26.1.0
+asn1crypto==1.5.1
+cbor2==6.1.5
+cffi==2.1.1
+click==8.5.0
+h11==0.16.0
+httptools==0.9.0
+idna==3.20
+pycparser==3.12
+pydantic==2.14.2
+pydantic_core==2.50.2
+pyOpenSSL==25.1.0
+python-dotenv==1.2.4
+PyYAML==6.0.3
+starlette==0.41.3
+typing_extensions==4.16.0
+typing-inspection==0.4.4
+uvloop==0.23.0
+watchfiles==1.3.0
+websockets==17.4

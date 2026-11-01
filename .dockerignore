@@ -1,0 +1,10 @@
+.git
+.github
+docs
+tests
+**/__pycache__
+**/*.pyc
+.pytest_cache
+*.md
+!THIRD-PARTY-NOTICES.md
+deploy
