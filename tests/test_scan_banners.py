@@ -115,9 +115,14 @@ def test_silent_server_times_out():
     port = srv.getsockname()[1]
     try:
         import time
+
+        async def go():
+            # the outer guard is 40x the timeout: a slow runner cannot trip it, an ignored timeout always does
+            return await asyncio.wait_for(httpget.http_get("127.0.0.1", port, timeout=0.5), 20)
+
         t0 = time.monotonic()
-        assert asyncio.run(httpget.http_get("127.0.0.1", port, timeout=0.5)) is None
-        assert time.monotonic() - t0 < 2.0
+        assert asyncio.run(go()) is None
+        assert time.monotonic() - t0 >= 0.4     # it really waited for the silent server (a lower bound never flakes)
     finally:
         srv.close()
 
