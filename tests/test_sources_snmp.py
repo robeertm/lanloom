@@ -220,7 +220,7 @@ def test_counter_jump_beyond_link_speed_is_discarded_and_counted():
     # unknown link speed: nothing to compare against, the delta is kept
     assert c.delta(3, "in", 0, 64, None, mono=0) is None
     assert c.delta(3, "in", 10 ** 12, 64, None, mono=10) == 10 ** 12
-    # full line rate (with timing slack) is real traffic
+    # full line rate (with some timing tolerance) is real traffic
     assert c.delta(4, "in", 0, 64, 1_000_000_000, mono=0) is None
     assert c.delta(4, "in", 1_400_000_000, 64, 1_000_000_000, mono=10) == 1_400_000_000
     assert c.discarded == 2

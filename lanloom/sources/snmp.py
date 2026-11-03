@@ -671,10 +671,10 @@ class SnmpClient:
 class CounterTracker:
     """Octet counter deltas per (interface, direction). 64-bit HC counters never wrap in practice, a decrease means
     a reset; 32-bit counters wrap once at 2^32 unless the implied rate is impossible for the link speed. Any delta
-    above RATE_SLACK x link speed (ifHighSpeed, else ifSpeed) is a counter discontinuity, not traffic: it is
+    above RATE_TOLERANCE x link speed (ifHighSpeed, else ifSpeed) is a counter discontinuity, not traffic: it is
     dropped, counted in ``discarded`` and the new value becomes the baseline."""
 
-    RATE_SLACK = 1.5
+    RATE_TOLERANCE = 1.5
 
     def __init__(self):
         self.last = {}           # (index, dir) -> (value, bits, mono)
@@ -684,7 +684,7 @@ class CounterTracker:
         self.last = {}
 
     def _impossible(self, d, speed_bps, elapsed):
-        return bool(speed_bps) and d * 8 > speed_bps * elapsed * self.RATE_SLACK
+        return bool(speed_bps) and d * 8 > speed_bps * elapsed * self.RATE_TOLERANCE
 
     def delta(self, index, direction, value, bits, speed_bps=None, mono=None):
         mono = time.monotonic() if mono is None else mono
