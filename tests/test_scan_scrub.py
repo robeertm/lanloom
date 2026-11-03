@@ -5,7 +5,7 @@ from lanloom.scan import banners, mdns, ssdp
 from lanloom.scan.scrub import HIDDEN, scrub
 
 # bait: shaped like real secrets, built at run time so the repository holds no secret-looking literal
-TOKEN = "x9" + "Kq3TzW8vB1nRf5Lh0YpCd7MsAe2GjUo4"          # 34 chars, letters and digits
+TOKEN = "x9Kq3TzW8vB1nRf5" + "Lh0YpCd7MsAe2GjUo4"          # 34 chars, letters and digits
 URL_PW = "http://admin:" + "s3cret-pw" + "@192.0.2.10:8080/cam"
 
 
@@ -14,7 +14,7 @@ def test_bait_is_removed():
     assert "s3cret" not in scrub(URL_PW)
     assert TOKEN not in scrub("Camera token=" + TOKEN + " ready")
     assert scrub("Camera token=" + TOKEN + " ready") == "Camera token=" + HIDDEN + " ready"
-    assert scrub("rtsp://u:p@cam.lan/live") == "rtsp://u:" + HIDDEN + "@cam.lan/live"
+    assert scrub("rtsp://u:" + "p@cam.lan/live") == "rtsp://u:" + HIDDEN + "@cam.lan/live"
 
 
 @pytest.mark.parametrize("text", [
@@ -23,6 +23,7 @@ def test_bait_is_removed():
     "esp32-a4cf12b3", "Brother HL-L2350DW series", "http://192.0.2.1:49000/igddesc.xml", "user@example.org",
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "1234567890123456789012345678901234567890",
     "Samsung 7 Series (55) UE55RU7179UXZG", "https://example.org/a/b?c=d",
+    "kitchen_light_2024_ceiling_lamp_left_side", "shelf-sensor-01-living-room-window-2",
 ])
 def test_harmless_device_text_is_kept(text):
     assert scrub(text) == text
