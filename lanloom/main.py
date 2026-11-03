@@ -89,8 +89,14 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     app.state.ll = state
 
     # ------------------------------------------------------------------ guards
-    def client_of(request: Request) -> str:
+    proxies = auth.parse_proxies(getattr(cfg, "trusted_proxies", ()))
+
+    def peer_of(request: Request) -> str:
         return request.client.host if request.client else "?"
+
+    def client_of(request: Request) -> str:
+        """Rate-limit key of the client (forwarding headers only from LANLOOM_TRUSTED_PROXIES)."""
+        return auth.limit_key(auth.client_address(peer_of(request), request.headers, proxies))
 
     def current_user(request: Request) -> Optional[dict]:
         return state.sessions.resolve(request.cookies.get(auth.SESSION_COOKIE))
@@ -100,11 +106,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             return True
         if cfg.cookie_secure == "never":
             return False
-        return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "") == "https"
+        if request.url.scheme == "https":
+            return True
+        return auth.from_trusted_proxy(peer_of(request), proxies) and request.headers.get("x-forwarded-proto", "") == "https"
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
         path = request.url.path
+        if cfg.probe and path.startswith("/api/") and path != "/api/health":
+            # trial start of an update candidate: the updater only reads the health check
+            return JSONResponse({"error": "app.err.probe"}, status_code=503)
         if path.startswith("/api/"):
             if request.method in STATE_CHANGING:
                 if request.headers.get("x-lanloom") != "1":
@@ -436,7 +447,7 @@ def selftest() -> int:
         store = Store(":memory:")
         cfg = SimpleNamespace(data_dir=Path("/nonexistent/lanloom-selftest"), host="127.0.0.1", port=0,
                               update_check=False, demo=True, probe=True, release_feed="", image_repo="", cookie_secure="never",
-                              trusted_origins=())
+                              trusted_origins=(), trusted_proxies=())
         c = core.Core(cfg, store, None)
         c.demo = demo.Demo()
         c.ingest({"hosts": [demo.scan_host(h) for h in demo.HOSTS]}, None)

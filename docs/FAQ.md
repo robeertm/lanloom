@@ -13,7 +13,7 @@ Classification uses deterministic rules on what a device reveals: announcements,
 Only measured bytes are animated. Dots appear for this host's own TCP flows, for the internet uplink when a router or switch is connected over SNMP, and for MQTT topic groups. Other traces are dashed, which means "connection known, traffic not measured".
 
 ### What leaves my network?
-Nothing, except the optional update check, which asks the public release feed for the latest version at most every 6 hours and only while the page is open. Turn it off with `LANLOOM_UPDATE_CHECK=0` or in the settings. There is no telemetry.
+Nothing, except the optional update check, which asks the public release feed for the latest version at most every 6 hours (15 minutes after a failed check) and only while the page is open. Turn it off with `LANLOOM_UPDATE_CHECK=0` or in the settings. There is no telemetry.
 
 ### Can Lanloom change anything on my devices?
 No. It is read-only by construction. The scanner only probes, the hub connection cannot call services, the MQTT client cannot publish and SNMP uses read operations only.

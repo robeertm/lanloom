@@ -198,6 +198,8 @@ class Core:
             return []
 
     def start_scan(self, cidrs: list, deep: bool = False, consent: bool = False, automatic: bool = False) -> dict:
+        if self.cfg.probe:
+            raise ValueError("app.err.probe")     # a trial start never sends a packet into the LAN
         if self._scan_task and not self._scan_task.done():
             raise ValueError("scan.err.running")
         if not cidrs:

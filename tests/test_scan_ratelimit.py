@@ -95,19 +95,20 @@ def test_limiter_releases_on_error_and_cancel():
     asyncio.run(asyncio.wait_for(go(), 2))
 
 
-def test_limiter_real_rate_is_bounded():
-    """With the real clock, 30 acquisitions at 100/s (burst 10) take at least ~0.2 s."""
-    import time
+def test_limiter_rate_is_bounded():
+    """30 acquisitions at 100/s (burst 10) through the full limiter take 0.2 s (fake clock, no wall-clock limit)."""
+    clock = FakeClock()
 
     async def go():
-        lim = Limiter(rate=100, concurrency=24, per_host=24)
-        t0 = time.monotonic()
+        lim = Limiter(rate=100, concurrency=24, per_host=24, clock=clock, sleep=clock.sleep)
 
         async def job():
             async with lim.slot("h"):
                 pass
 
         await asyncio.gather(*(job() for _ in range(30)))
-        return time.monotonic() - t0
+        return lim
 
-    assert asyncio.run(go()) >= 0.18
+    lim = asyncio.run(go())
+    assert clock.t == pytest.approx(0.2, abs=0.005)
+    assert lim.probes == 30

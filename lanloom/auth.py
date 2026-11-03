@@ -6,12 +6,15 @@
   (and written to <data>/setup-code.txt). Whoever reaches the page first cannot take over the instance without it.
 * State-changing requests need the header `X-Lanloom: 1` (forces a CORS preflight, so other sites cannot send it)
   and, when the browser sends an Origin header, an origin matching the Host header or LANLOOM_TRUSTED_ORIGINS.
-* Sign-in attempts are rate limited per client address.
+* Sign-in attempts are rate limited per client address (IPv6 per /64). Behind a reverse proxy the forwarding
+  headers count only when the direct peer is listed in LANLOOM_TRUSTED_PROXIES; by default only the peer counts.
 * Passkeys (WebAuthn) are offered in secure contexts (HTTPS or localhost) in addition to the password.
 """
 import hashlib
 import hmac
+import ipaddress
 import json
+import logging
 import os
 import secrets
 import threading
@@ -85,13 +88,91 @@ class SetupCode:
             pass
 
 
+# ---------------------------------------------------------------------------- client address
+log = logging.getLogger("lanloom.auth")
+
+
+def parse_proxies(entries) -> tuple:
+    """Trusted proxy addresses or networks (comma-separated text or a sequence); invalid entries are skipped."""
+    if isinstance(entries, str):
+        entries = entries.split(",")
+    nets = []
+    for raw in entries or ():
+        raw = str(raw).strip()
+        if not raw:
+            continue
+        try:
+            nets.append(ipaddress.ip_network(raw, strict=False))
+        except ValueError:
+            log.warning("LANLOOM_TRUSTED_PROXIES: ignoring %r (not an address or network)", raw)
+    return tuple(nets)
+
+
+def _ip(text: str):
+    """An address from a header entry ("a.b.c.d", "a.b.c.d:port", "[v6]:port", "v6"), or None."""
+    text = (text or "").strip()
+    if text.startswith("[") and "]" in text:
+        text = text[1:text.index("]")]
+    elif text.count(":") == 1:
+        text = text.split(":", 1)[0]
+    try:
+        ip = ipaddress.ip_address(text)
+    except ValueError:
+        return None
+    return ip.ipv4_mapped or ip if ip.version == 6 else ip
+
+
+def _trusted(ip, proxies) -> bool:
+    return ip is not None and any(ip.version == net.version and ip in net for net in proxies)
+
+
+def client_address(peer: str, headers, proxies) -> str:
+    """The address a request counts as. X-Forwarded-For / X-Real-IP are believed only when the direct peer is a
+    trusted proxy. X-Forwarded-For is read from the right: every proxy appends the address it saw, so the right-most
+    entry that is not itself a trusted proxy is the client; entries left of it may be forged by the client."""
+    peer_ip = _ip(peer)
+    if not proxies or not _trusted(peer_ip, proxies):
+        return peer
+    chain = [part for value in headers.getlist("x-forwarded-for") for part in value.split(",") if part.strip()]
+    if chain:
+        nearest = peer_ip
+        for entry in reversed(chain):
+            ip = _ip(entry)
+            if ip is None:
+                break               # garbage from the client side: stay with the last trusted hop
+            if not _trusted(ip, proxies):
+                return str(ip)
+            nearest = ip
+        return str(nearest)
+    real = _ip(headers.get("x-real-ip", ""))
+    return str(real) if real is not None else peer
+
+
+def from_trusted_proxy(peer: str, proxies) -> bool:
+    return bool(proxies) and _trusted(_ip(peer), proxies)
+
+
+def limit_key(address: str) -> str:
+    """Rate-limit bucket: IPv4 per address, IPv6 per /64 (one connection usually owns a whole /64)."""
+    ip = _ip(address)
+    if ip is None:
+        return address
+    if ip.version == 6:
+        return str(ipaddress.ip_network((ip, 64), strict=False))
+    return str(ip)
+
+
 # ---------------------------------------------------------------------------- rate limit
 class LoginLimiter:
-    """Per-client failure counter with growing lock-out (5 failures -> 60 s, doubling, max 1 h)."""
+    """Per-client failure counter with growing lock-out (5 failures -> 60 s, doubling, max 1 h).
 
-    def __init__(self):
+    Memory is bounded: when full, entries without an active lock-out go first (oldest first), so flooding the
+    limiter with fresh addresses cannot reset the lock-out of an attacker."""
+
+    def __init__(self, max_entries: int = 10000):
         self._lock = threading.Lock()
-        self._state = {}   # client -> [failures, locked_until]
+        self._state = {}   # client -> [failures, locked_until, last_failure]
+        self.max_entries = max_entries
 
     def wait_seconds(self, client: str) -> float:
         with self._lock:
@@ -102,12 +183,21 @@ class LoginLimiter:
 
     def failure(self, client: str) -> None:
         with self._lock:
-            entry = self._state.setdefault(client, [0, 0.0])
+            now = time.time()
+            entry = self._state.setdefault(client, [0, 0.0, now])
             entry[0] += 1
+            entry[2] = now
             if entry[0] >= 5:
-                entry[1] = time.time() + min(3600, 60 * 2 ** (entry[0] - 5))
-            if len(self._state) > 10000:
-                self._state.clear()
+                entry[1] = now + min(3600, 60 * 2 ** (entry[0] - 5))
+            if len(self._state) > self.max_entries:
+                self._prune(now, keep=client)
+
+    def _prune(self, now: float, keep: str) -> None:
+        # down to 90 % so the sort does not run on every failure once full
+        target = int(self.max_entries * 0.9)
+        order = sorted((k for k in self._state if k != keep), key=lambda k: (self._state[k][1] > now, self._state[k][2]))
+        for k in order[:max(0, len(self._state) - target)]:
+            del self._state[k]
 
     def success(self, client: str) -> None:
         with self._lock:

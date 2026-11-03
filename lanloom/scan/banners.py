@@ -5,6 +5,7 @@ import html
 import re
 
 from .httpget import http_get
+from .scrub import scrub
 
 BANNER_CAP = 32 * 1024
 MAX_TEXT = 160
@@ -13,7 +14,7 @@ _CHARSET_RE = re.compile(r"charset=([A-Za-z0-9_\-]+)", re.IGNORECASE)
 
 
 def clean_text(text, limit: int = MAX_TEXT) -> str | None:
-    """Collapse whitespace, drop control characters, cap length. None when empty."""
+    """Collapse whitespace, drop control characters, hide secret-looking parts, cap length. None when empty."""
     if text is None:
         return None
     if isinstance(text, bytes):
@@ -22,7 +23,7 @@ def clean_text(text, limit: int = MAX_TEXT) -> str | None:
     text = " ".join(text.split())
     if not text:
         return None
-    return text[:limit]
+    return scrub(text)[:limit]
 
 
 def extract_title(body: bytes, content_type: str | None = None) -> str | None:

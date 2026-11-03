@@ -329,7 +329,7 @@ def test_hub_ws_url(url, expected):
     assert m.hub_ws_url(url) == expected
 
 
-@pytest.mark.parametrize("url", ["", "ftp://x", "http://user:pw@192.168.1.10"])
+@pytest.mark.parametrize("url", ["", "ftp://x", "http://user:pw@192.168.1.10"])  # secret-scan: fake
 def test_hub_ws_url_invalid(url):
     with pytest.raises(m.SourceError):
         m.hub_ws_url(url)

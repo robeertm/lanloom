@@ -134,7 +134,12 @@ def test_deep_scan_needs_consent_outside_demo(tmp_path, monkeypatch):
     monkeypatch.setenv("LANLOOM_DATA", str(tmp_path))
     monkeypatch.setenv("LANLOOM_DEMO", "0")
     monkeypatch.setenv("LANLOOM_UPDATE_CHECK", "0")
-    monkeypatch.setenv("LANLOOM_PROBE", "1")       # no sources, no discovery loops in the test
+    from lanloom.core import Core
+
+    async def no_loops(self):        # no sources, no discovery loops in the test
+        return None
+
+    monkeypatch.setattr(Core, "start", no_loops)
     app = create_app(config_mod.load())
     with TestClient(app, base_url="http://lanloom.test") as c:
         c.data_dir = tmp_path
