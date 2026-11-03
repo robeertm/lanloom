@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 
 from . import mcast
 from .httpget import http_get, parse_head
+from .scrub import scrub
 
 log = logging.getLogger("lanloom.scan.ssdp")
 
@@ -44,7 +45,7 @@ def _clean(value, limit: int = MAX_FIELD) -> str | None:
     if value is None:
         return None
     text = " ".join("".join(ch if ch.isprintable() else " " for ch in str(value)).split())
-    return text[:limit] or None
+    return scrub(text)[:limit] or None
 
 
 def parse_response(data: bytes) -> dict | None:

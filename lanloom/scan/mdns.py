@@ -17,6 +17,7 @@ import logging
 
 from . import dnsmsg, mcast
 from .dnsmsg import T_A, T_PTR, T_SRV, T_TXT
+from .scrub import scrub
 
 log = logging.getLogger("lanloom.scan.mdns")
 
@@ -194,8 +195,9 @@ class MdnsCollector:
                 continue
             suffix = "." + stype
             label = inst[:-len(suffix)] if inst.lower().endswith(suffix) else inst
-            entry = {"type": _strip_local(stype), "name": label[:128],
-                     "port": srv["port"] if srv else 0, "txt": dict(self.txt.get(inst, {}))}
+            txt = {k: scrub(v) if isinstance(v, str) else v for k, v in self.txt.get(inst, {}).items()}
+            entry = {"type": _strip_local(stype), "name": scrub(label)[:128],
+                     "port": srv["port"] if srv else 0, "txt": txt}
             for ip in ips:
                 h = host(ip)
                 if entry not in h["services"]:
