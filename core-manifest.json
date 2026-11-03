@@ -1,0 +1,9 @@
+{
+  "core": 1,
+  "files": [
+    {"path": "lanloom/web/board/endmarks.js", "namespace": "Lanloom.Endmarks", "api": 1, "description": "End marks: labels at traces that leave the view (board edge, zone frame, view edge), bundling, drop-down list"},
+    {"path": "lanloom/web/board/endmarks.css", "namespace": "Lanloom.Endmarks", "api": 1, "description": "End mark styles; theme via --ll-endmark-* with Lanloom token fallbacks"},
+    {"path": "lanloom/web/board/portmarks.js", "namespace": "Lanloom.Portmarks", "api": 1, "description": "Port marks: port, radio or service port at the ends of a trace, from neutral host facts"},
+    {"path": "lanloom/web/board/portmarks.css", "namespace": "Lanloom.Portmarks", "api": 1, "description": "Port mark styles; theme via --ll-portmark-* with Lanloom token fallbacks"}
+  ]
+}

@@ -3,6 +3,7 @@ import asyncio
 import ipaddress
 import json
 import logging
+import math
 import time
 from typing import Optional
 from urllib.parse import urlparse
@@ -15,6 +16,9 @@ log = logging.getLogger("lanloom")
 
 PRESENCE_INTERVAL = 120.0
 FLOW_KEEP = 3600.0
+PEER_TAU = 60.0          # weight of an outside peer / a seen port decays with this time constant (s) …
+PEER_KEEP = 600.0        # … and entries older than this are dropped
+PEER_MAX = 14            # outside peers per frame (the end-mark list shows 14 rows)
 DEFAULT_SETTINGS = {
     "rescan_hours": 6,          # 0 = never; automatic rescans are always gentle
     "rescan_cidrs": [],
@@ -40,6 +44,20 @@ def _is_private(ip: str) -> bool:
     return addr.is_private and not addr.is_loopback and not addr.is_link_local
 
 
+_LAN_NETS = [ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7")]
+
+
+def _is_outside(ip: str) -> bool:
+    """A peer beyond the local network (no tile on the map): not private LAN space, loopback, link-local or multicast."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    if addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_unspecified:
+        return False
+    return not any(addr.version == n.version and addr in n for n in _LAN_NETS)
+
+
 class Core:
     def __init__(self, cfg, store: Store, vault: Optional[Vault]):
         self.cfg = cfg
@@ -60,6 +78,8 @@ class Core:
         self.gateway_ip: Optional[str] = None
         self.presence: dict = {}           # device id -> last confirmed alive (ts)
         self.flow_seen: dict = {}          # device id -> last ts with host flow bytes
+        self.outside_peers: dict = {}      # peer ip -> {"out", "in", "w", "t"} decaying bytes of this host with peers beyond the LAN
+        self.flow_ports: dict = {}         # device id -> {port: [decaying count, last ts]} target ports seen in host flows
         self.pending_bytes: dict = {}      # trace id -> [b0, b1]
         self.spread: dict = {}             # trace id -> [bytes0, bytes1, seconds left] (counters polled every N s)
         self.self_iface: dict = {}         # iface -> [tx/s, rx/s]
@@ -532,8 +552,60 @@ class Core:
             if dev_id and dev_id != self_id:
                 self._add_bytes(flow_trace(self_id, dev_id), tx, rx)
                 self.flow_seen[dev_id] = now
-            elif router_id:
-                self._add_bytes(lan_trace(router_id, self_id), rx, tx)     # router -> self is "a -> b"
+                self._book_port(dev_id, fl.get("peer_port"), now)
+            else:
+                if router_id:
+                    self._add_bytes(lan_trace(router_id, self_id), rx, tx)     # router -> self is "a -> b"
+                if not dev_id and _is_outside(peer):
+                    self._book_outside(peer, tx, rx, now)
+
+    @staticmethod
+    def _decay(value: float, since: float, now: float) -> float:
+        return value * math.exp(-max(0.0, now - since) / PEER_TAU)
+
+    def _book_outside(self, peer: str, tx, rx, now: float) -> None:
+        e = self.outside_peers.get(peer)
+        if e is None:
+            if len(self.outside_peers) >= 512:          # bounded: forget the lightest peer
+                del self.outside_peers[min(self.outside_peers, key=lambda k: self.outside_peers[k]["w"])]
+            e = self.outside_peers[peer] = {"out": 0.0, "in": 0.0, "w": 0.0, "t": now}
+        k = math.exp(-max(0.0, now - e["t"]) / PEER_TAU)
+        out, inn = max(0, int(tx or 0)), max(0, int(rx or 0))
+        e["out"] = e["out"] * k + out
+        e["in"] = e["in"] * k + inn
+        e["w"] = e["w"] * k + out + inn
+        e["t"] = now
+
+    def _book_port(self, dev_id: str, port, now: float) -> None:
+        if not isinstance(port, int) or not 0 < port < 65536:
+            return
+        ports = self.flow_ports.setdefault(dev_id, {})
+        c = ports.get(port)
+        ports[port] = [(self._decay(c[0], c[1], now) if c else 0.0) + 1.0, now]
+
+    def outside_list(self, now: float) -> list:
+        """Outside peers of the last PEER_KEEP seconds, heaviest first (for the end marks at the internet tile)."""
+        for peer in [p for p, e in self.outside_peers.items() if now - e["t"] > PEER_KEEP]:
+            del self.outside_peers[peer]
+        rows = []
+        for peer, e in self.outside_peers.items():
+            k = math.exp(-max(0.0, now - e["t"]) / PEER_TAU)
+            rows.append({"id": peer, "out": round(e["out"] * k), "in": round(e["in"] * k), "weight": round(e["w"] * k)})
+        rows.sort(key=lambda r: (-r["weight"], r["id"]))
+        return rows[:PEER_MAX]
+
+    def seen_ports(self, now: float) -> dict:
+        """Target ports seen in host flows per device (most frequent first, at most two), last PEER_KEEP seconds."""
+        out = {}
+        for dev_id, ports in list(self.flow_ports.items()):
+            for p in [p for p, c in ports.items() if now - c[1] > PEER_KEEP]:
+                del ports[p]
+            if not ports:
+                del self.flow_ports[dev_id]
+                continue
+            ranked = sorted(ports.items(), key=lambda pc: (-self._decay(pc[1][0], pc[1][1], now), pc[0]))
+            out[dev_id] = [p for p, _ in ranked[:2]]
+        return out
 
     def _book_mqtt(self, integ_id, ev: dict, now: float) -> None:
         entry = self.mqtt.setdefault(integ_id, {"topics": {}, "t": now, "broker": {}})
@@ -649,6 +721,15 @@ class Core:
         frame = {"t": round(now, 3), "q": self.quant.q, "dots": dots, "rates": rates, "grades": grades, "metrics": metrics,
                  "overall": {"grade": live.typical([s["grade"] for s in sources]), "sources": sources},
                  "structure": self.structure_version}
+        # what the end and port marks of the board show: peers beyond the LAN (at the internet tile) and target ports of host flows
+        router_id = self.ip_to_device.get(self.gateway_ip) if self.gateway_ip else None
+        peers = self.outside_list(now)
+        if peers and router_id:
+            frame["peers"] = {"internet": peers}
+        self_id = self.ip_to_device.get(self.self_ip) if self.self_ip else None
+        ports = self.seen_ports(now)
+        if ports:
+            frame["ports"] = {flow_trace(self_id or "self", dev_id): p for dev_id, p in ports.items()}
         self.last_frame = frame
         return frame
 

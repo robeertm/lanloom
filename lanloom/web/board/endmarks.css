@@ -1,0 +1,61 @@
+/* Lanloom — end marks: labels at traces that leave the view (pad at the board/zone edge, view edge when zooming).
+   Theme: only the --ll-endmark-* variables below, each falling back to a Lanloom token (css/tokens.css). A host sets them on
+   .ll-em-layer / .ll-em-list to its own tokens. The trace colour comes as currentColor (host.color()). */
+.ll-em-layer, .ll-em-ends, .ll-em-edges { position: absolute; inset: 0; pointer-events: none; z-index: var(--ll-endmark-z, 4); }
+.ll-em-ends { will-change: transform; }
+.ll-em-layer .ll-em-mark { position: absolute; left: 0; top: 0; box-sizing: border-box; height: var(--ll-em-h, 18px); padding: 0 6px; margin: 0; display: inline-flex; align-items: center;
+  border: 1px solid color-mix(in srgb, currentColor 46%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--ll-endmark-surface, var(--ll-surface)) 94%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ll-endmark-text, var(--ll-text)) 10%, transparent); font-family: inherit; font-weight: 600; font-size: var(--ll-em-fs, 11px); line-height: 1;
+  letter-spacing: .01em; white-space: nowrap; overflow: hidden; pointer-events: auto; cursor: pointer; opacity: var(--ll-em-g, 1);
+  transition: opacity .9s linear, border-color .18s ease; -webkit-tap-highlight-color: transparent; }
+.ll-em-layer .ll-em-mark .ll-em-txt { display: block; white-space: nowrap; }
+.ll-em-layer .ll-em-mark:hover, .ll-em-layer .ll-em-mark:focus-visible { border-color: currentColor; outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 22%, transparent); }
+/* edge mark: the triangle shows where the trace continues (like in map apps) — not to be confused with the traffic arrows → ← */
+.ll-em-layer .ll-em-edge { border-color: color-mix(in srgb, currentColor 70%, transparent); gap: 4px; padding: 0 6px 0 5px; }
+.ll-em-layer .ll-em-edge::before { content: ''; flex: none; width: 0; height: 0; border: 4px solid transparent; }
+.ll-em-layer .ll-em-edge.ll-em-s-l::before { border-right: 5px solid currentColor; border-left-width: 0; }
+.ll-em-layer .ll-em-edge.ll-em-s-r { flex-direction: row-reverse; padding: 0 5px 0 6px; }
+.ll-em-layer .ll-em-edge.ll-em-s-r::before { border-left: 5px solid currentColor; border-right-width: 0; }
+.ll-em-layer .ll-em-edge.ll-em-s-t::before { border-bottom: 5px solid currentColor; border-top-width: 0; }
+.ll-em-layer .ll-em-edge.ll-em-s-b::before { border-top: 5px solid currentColor; border-bottom-width: 0; }
+/* hover (chain view): own labels in full, foreign ones almost gone */
+.ll-em-layer .ll-em-mark.ll-em-on { opacity: 1; border-color: currentColor; z-index: 1; }
+.ll-em-layer .ll-em-mark.ll-em-off { opacity: calc(var(--ll-em-g, 1) * .16); }
+/* list */
+.ll-em-list { position: absolute; left: 0; top: 0; z-index: var(--ll-endmark-list-z, 7); min-width: 200px; max-width: 320px; max-height: min(420px, calc(100% - 16px)); overflow-y: auto;
+  background: var(--ll-endmark-surface, var(--ll-surface)); color: var(--ll-endmark-text, var(--ll-text)); border: 1px solid var(--ll-endmark-line, var(--ll-border));
+  border-top: 3px solid var(--ll-em-color, var(--ll-endmark-line, var(--ll-border))); border-radius: 12px;
+  box-shadow: var(--ll-endmark-shadow, var(--ll-shadow-2)); padding: 6px; font-size: 12.5px; cursor: default; scrollbar-width: thin; }
+.ll-em-list[hidden] { display: none; }
+.ll-em-head { display: flex; flex-direction: column; gap: 1px; padding: 4px 8px 7px; border-bottom: 1px solid var(--ll-endmark-line, var(--ll-border)); margin-bottom: 4px; min-width: 0; }
+.ll-em-head b { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ll-em-head span { font-size: 11.5px; color: var(--ll-endmark-text3, var(--ll-text-3)); }
+.ll-em-rows { display: flex; flex-direction: column; gap: 1px; }
+.ll-em-row { display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 5px 8px; border: 0; border-radius: 8px; background: none;
+  color: var(--ll-endmark-text, var(--ll-text)); font: inherit; text-align: left; min-width: 0; }
+button.ll-em-row { cursor: pointer; }
+button.ll-em-row:hover, button.ll-em-row:focus-visible { background: var(--ll-endmark-surface2, var(--ll-surface-2)); outline: none; }
+.ll-em-row i { font-style: normal; width: 14px; flex: none; text-align: center; color: var(--ll-em-color, var(--ll-endmark-text2, var(--ll-text-2))); font-weight: 700; }
+.ll-em-row .ll-em-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ll-em-row small { flex: none; color: var(--ll-endmark-text3, var(--ll-text-3)); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ll-em-row-static { color: var(--ll-endmark-text2, var(--ll-text-2)); }
+.ll-em-more { padding: 4px 8px 2px; color: var(--ll-endmark-text3, var(--ll-text-3)); font-size: 11.5px; }
+@media (prefers-reduced-motion: reduce) { .ll-em-layer .ll-em-mark { transition: none; } }
+/* exit: the label hangs at the end of the straight lead. The edge where the lead arrives is squarer, a plug in trace colour sits
+   there (instead of a free pad); the other corners stay round. */
+.ll-em-layer .ll-em-exit { border-color: color-mix(in srgb, currentColor 62%, transparent); overflow: visible; }
+.ll-em-layer .ll-em-exit .ll-em-txt { overflow: hidden; }
+.ll-em-layer .ll-em-exit::before { content: ''; position: absolute; background: currentColor; border-radius: 1.5px; pointer-events: none; }
+.ll-em-layer .ll-em-exit.ll-em-s-r { border-radius: 4px 999px 999px 4px; padding: 0 6px 0 8px; }
+.ll-em-layer .ll-em-exit.ll-em-s-l { border-radius: 999px 4px 4px 999px; padding: 0 8px 0 6px; }
+.ll-em-layer .ll-em-exit.ll-em-s-r::before { left: -1px; width: 3px; top: calc(var(--ll-em-ay, 9px) - 5px); height: 10px; }
+.ll-em-layer .ll-em-exit.ll-em-s-l::before { right: -1px; width: 3px; top: calc(var(--ll-em-ay, 9px) - 5px); height: 10px; }
+.ll-em-layer .ll-em-exit.ll-em-s-t { border-radius: 9px 9px 4px 4px; }
+.ll-em-layer .ll-em-exit.ll-em-s-b { border-radius: 4px 4px 9px 9px; }
+.ll-em-layer .ll-em-exit.ll-em-s-t::before { bottom: -1px; height: 3px; left: calc(var(--ll-em-ax, 50%) - 5px); width: 10px; }
+.ll-em-layer .ll-em-exit.ll-em-s-b::before { top: -1px; height: 3px; left: calc(var(--ll-em-ax, 50%) - 5px); width: 10px; }
+/* while dragging (until the next placement): an end mark that would hit an edge mark or a control steps back */
+.ll-em-layer .ll-em-mark.ll-em-hidden { visibility: hidden; }
+/* emergency: leash from the last visible point of the lead to the label (thin, trace colour) */
+.ll-em-layer .ll-em-leashes { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.ll-em-layer .ll-em-leashes line { stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; }

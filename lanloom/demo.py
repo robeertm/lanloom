@@ -171,20 +171,23 @@ class Demo:
             wave = 0.5 + 0.5 * math.sin(el / 23.0)
             burst = 1.0 if (el % 90) < 40 else 0.08
             flows = [
-                ("192.168.50.10", 6_000_000 * burst * (0.6 + 0.4 * rng.random()), 90_000),     # backup to storage
-                ("192.168.50.30", 2_200_000 * (0.7 + 0.3 * wave), 40_000),                    # streaming to the TV
-                ("192.168.50.13", 9_000 + 4_000 * rng.random(), 22_000 + 6_000 * rng.random()),
-                ("192.168.50.14", 30_000 * (0.5 + rng.random()), 140_000 * (0.5 + rng.random())),
-                ("192.168.50.20", 380_000 * wave, 1_200_000 * wave),
-                ("192.168.50.12", 900_000 * (1 - burst + 0.1), 30_000),
-                ("192.168.50.31", 160_000 * (0.8 + 0.2 * rng.random()), 4_000),
-                ("203.0.113.20", 250_000 * (0.5 + rng.random()), 1_900_000 * (0.5 + rng.random())),   # documentation address (RFC 5737)
+                ("192.168.50.10", 445, 6_000_000 * burst * (0.6 + 0.4 * rng.random()), 90_000),     # backup to storage
+                ("192.168.50.30", 8009, 2_200_000 * (0.7 + 0.3 * wave), 40_000),                    # streaming to the TV
+                ("192.168.50.13", 1883, 9_000 + 4_000 * rng.random(), 22_000 + 6_000 * rng.random()),
+                ("192.168.50.14", 8123, 30_000 * (0.5 + rng.random()), 140_000 * (0.5 + rng.random())),
+                ("192.168.50.20", 22, 380_000 * wave, 1_200_000 * wave),
+                ("192.168.50.12", 873, 900_000 * (1 - burst + 0.1), 30_000),
+                ("192.168.50.31", 1400, 160_000 * (0.8 + 0.2 * rng.random()), 4_000),
+                # documentation addresses (RFC 5737): peers beyond the LAN, shown as end marks at the internet tile
+                ("203.0.113.20", 443, 250_000 * (0.5 + rng.random()), 1_900_000 * (0.5 + rng.random())),
+                ("198.51.100.7", 443, 40_000 * (0.5 + rng.random()), 260_000 * (0.5 + rng.random())),
+                ("192.0.2.53", 853, 3_000 + 2_000 * rng.random(), 6_000 + 3_000 * rng.random()),
             ]
             core.on_event("host", None, {"type": "bytes", "source": "host", "t": now, "flows": [
-                {"local_ip": "192.168.50.11", "local_port": 40000 + i, "peer_ip": ip, "peer_port": 443, "tx": int(tx), "rx": int(rx)}
-                for i, (ip, tx, rx) in enumerate(flows)]})
-            core.on_event("host", None, {"type": "iface", "t": now, "ifaces": [{"name": "eth0", "tx": int(sum(f[1] for f in flows)),
-                                                                               "rx": int(sum(f[2] for f in flows))}]})
+                {"local_ip": "192.168.50.11", "local_port": 40000 + i, "peer_ip": ip, "peer_port": port, "tx": int(tx), "rx": int(rx)}
+                for i, (ip, port, tx, rx) in enumerate(flows)]})
+            core.on_event("host", None, {"type": "iface", "t": now, "ifaces": [{"name": "eth0", "tx": int(sum(f[2] for f in flows)),
+                                                                               "rx": int(sum(f[3] for f in flows))}]})
             if "snmp" in ids and int(el) % 10 == 0:
                 down = int((1_200_000 + 4_500_000 * wave) * 10)
                 up = int((250_000 + 300_000 * rng.random()) * 10)

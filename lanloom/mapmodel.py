@@ -86,8 +86,8 @@ def build(core, view: str = "overview") -> dict:
         if zid not in zones:
             zones[zid] = {"id": zid, "title": title or "", "title_key": title_key, "kind": zid.split(":")[0], "span": span, "order": order}
 
-    def add_trace(tid, a, b, kind, measured):
-        traces.append({"id": tid, "a": a, "b": b, "kind": kind, "measured": bool(measured)})
+    def add_trace(tid, a, b, kind, measured, **extra):
+        traces.append(dict({"id": tid, "a": a, "b": b, "kind": kind, "measured": bool(measured)}, **extra))
 
     if router:
         zone("edge", "zone.edge", span="full", order=0)
@@ -191,7 +191,9 @@ def build(core, view: str = "overview") -> dict:
     if self_dev:
         for dev in devices:
             if dev["id"] != self_dev["id"] and now - core.flow_seen.get(dev["id"], 0) < FLOW_KEEP:
-                add_trace(flow_trace(self_dev["id"], dev["id"]), self_dev["id"], dev["id"], "flow", True)
+                # open ports of the target from the scan: the port marks name them when no live port has been seen
+                listed = sorted({p["port"] for p in dev.get("ports") or [] if isinstance(p.get("port"), int) and p.get("proto", "tcp") == "tcp"})
+                add_trace(flow_trace(self_dev["id"], dev["id"]), self_dev["id"], dev["id"], "flow", True, listed=listed)
 
     ids = {c["id"] for c in comps}
     traces = [t for t in traces if t["a"] in ids and t["b"] in ids]
