@@ -57,7 +57,7 @@
 
     // ------------------------------------------------------------ geometry
     setGeometry(list) {
-      // list: [{id, pts, kind, measured}]
+      // list: [{id, pts, kind, measured, members}] (members: traces sharing the busiest trunk of this trace)
       const oldIdx = this.idx, oldTarget = this.glowTarget, oldNow = this.glowNow, oldSeen = this.glowSeen;
       this.geo = []; this.idx = new Map();
       list.forEach(t => {
@@ -71,7 +71,7 @@
           x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]);
         });
         this.idx.set(t.id, this.geo.length);
-        this.geo.push({ id: t.id, a, c, n, L, kind: Math.max(0, KINDS.indexOf(t.kind)), measured: !!t.measured, box: [x0, y0, x1, y1] });
+        this.geo.push({ id: t.id, a, c, n, L, kind: Math.max(0, KINDS.indexOf(t.kind)), measured: !!t.measured, members: Math.max(1, t.members || 1), box: [x0, y0, x1, y1] });
       });
       const N = this.geo.length;
       this.glowTarget = new Float32Array(N); this.glowNow = new Float32Array(N); this.glowSeen = new Float64Array(N);
@@ -134,7 +134,9 @@
         const key = gi * 2 + dir;
         const total = (d[2] || 0) + (this.rest.get(key) || 0);
         if (total < 1) { if (total > 0) this.rest.set(key, total); else this.rest.delete(key); continue; }
-        const z = decompose(total, Math.min(this.perTrace, free));
+        // bundled traces share the dot budget of their trunk (√n instead of n): more and, past the cap, larger dots on it
+        const per = g.members > 1 ? Math.max(3, Math.round(this.perTrace / Math.sqrt(g.members))) : this.perTrace;
+        const z = decompose(total, Math.min(per, free));
         const count = z.counts[0] + z.counts[1] + z.counts[2];
         // carry at most ~10 s worth, so a long overload never grows without bound
         const carry = Math.min(z.rest + (total - Math.floor(total)), Math.max(64, (d[2] || 0) * 10));

@@ -11,7 +11,11 @@
   const DESKTOP = {
     margin: 24, zoneGap: 24, padX: 24, padTop: 40, padBottom: 24,
     tileW: 196, tileH: 68, gapX: 44, gapY: 36, maxGapX: 96,
-    grid: 4, clearance: 2, legend: 72
+    grid: 4, clearance: 2, legend: 72,
+    // Router tuning of this board (host option of the core router): large tiles on a 4 px grid make the default, nearly exact
+    // search far too slow, so the A* weighting is greedier; all costs stay at the router defaults (bundled traces need its
+    // mostly orthogonal runs, which is also why the optional straightening pass stays off)
+    router: { weight: 2.4 }
   };
   const COMPACT = {
     margin: 12, zoneGap: 18, padX: 12, padTop: 30, padBottom: 14,
@@ -151,6 +155,7 @@
   }
 
   // Router input from a layout and the view's traces (only traces whose both ends are visible)
+  // opts = { Router, titleWidth: {zone: px}, groupOf(trace, end) → bundle key | null }
   function routerSpec(layout, view, opts) {
     opts = opts || {};
     const m = layout.m;
@@ -166,11 +171,16 @@
     (view.traces || []).forEach(t => {
       if (!t || t.a === t.b || !layout.tiles[t.a] || !layout.tiles[t.b] || seen.has(t.id)) return;
       seen.add(t.id);
-      nets.push({ id: String(t.id), a: t.a, b: t.b, kind: t.kind || 'lan' });
+      const n = { id: String(t.id), a: t.a, b: t.b, kind: t.kind || 'lan' };
+      // bundled traces: members of one group (same key at an end) may share cells and pads in the router
+      if (opts.groupOf) { const ga = opts.groupOf(t, t.a), gb = opts.groupOf(t, t.b); if (ga) n.groupA = ga; if (gb) n.groupB = gb; }
+      nets.push(n);
     });
     const R = opts.Router;
     const ordered = R ? R.orderNets(nets, layout.tiles) : nets;
-    return { w: layout.w, h: Math.ceil(layout.h), p: m.grid, kl: m.clearance, tiles, soft, lines, nets: ordered };
+    const spec = { w: layout.w, h: Math.ceil(layout.h), p: m.grid, kl: m.clearance, tiles, soft, lines, nets: ordered };
+    if (m.router) Object.assign(spec, m.router);
+    return spec;
   }
 
   // Structure key: changes only when ids or positions change (not on live frames or text edits)

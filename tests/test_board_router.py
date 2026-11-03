@@ -38,3 +38,24 @@ def test_dot_decomposition_conserves_quanta():
     for d in out["decompose"]:
         assert d["conserved"], d
         assert d["withinCap"], d
+
+
+def test_core_api_and_bundle_groups():
+    out = run_node("router_test.js")
+    assert out["api"]["api"] == 1 and out["api"]["version"] == 6 and out["api"]["names"] == [], out["api"]
+    g = out["groups"]
+    assert g["routed"] == 5 and g["failed"] == 0 and g["issues"] == [], g
+    assert g["sharedPads"] < g["separatePads"] == 5, g   # members share the pad at their common target, separate nets never do
+
+
+def test_rim_nodes_and_worker_grids():
+    out = run_node("router_test.js")
+    r = out["rim"]
+    assert r["padRim"] and abs(r["padX"] - 220) <= 6 and r["oct"] and r["turned"], r
+    assert out["workerGrids"] == {"keptBefore": True, "droppedAfter": True}
+
+
+def test_build_nets_with_host_vocabulary():
+    n = run_node("router_test.js")["nets"]
+    assert n["n"] == 2 and n["first"] is True and n["both"] is True, n
+    assert n["kind"] == "sync" and n["data"] == 2 and n["hits"] == [True], n

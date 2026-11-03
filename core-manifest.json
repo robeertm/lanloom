@@ -1,0 +1,17 @@
+{
+  "core": 1,
+  "files": [
+    {
+      "path": "lanloom/web/board/router.js",
+      "namespace": "Lanloom.Router",
+      "api": 1,
+      "description": "Circuit-board trace router: octilinear traces between tiles, pads, vias, buses, rim nodes, bundle groups; window, Web Worker and Node."
+    },
+    {
+      "path": "lanloom/web/board/bundles.js",
+      "namespace": "Lanloom.Bundles",
+      "api": 1,
+      "description": "Bundled traces: pulls lanes to the same target and port onto one trunk; pure geometry without DOM."
+    }
+  ]
+}

@@ -41,7 +41,7 @@ const out = { cases: [] };
 for (const [n, w, traces] of [[10, 1512, 0], [40, 1512, 0], [120, 1512, 200], [120, 2560, 200]]) {
   const v = F.makeView(n, { traces });
   const lay = L.compute(v, { width: w });
-  const spec = L.routerSpec(lay, v, { Router: R });
+  const spec = L.routerSpec(lay, v, { Router: R, groupOf: (t, X) => X + '|' + t.kind + '|' });   // bundle groups as on the board
   const t0 = Date.now();
   const res = R.routeAll(spec);
   const ms = Date.now() - t0;
@@ -61,6 +61,55 @@ for (const [n, w, traces] of [[10, 1512, 0], [40, 1512, 0], [120, 1512, 200], [1
     const one = msgs.find(m => m.type === 'trace');
     out.worker = { done: !!done, all: done ? done.all.length : 0, nets: spec.nets.length, parts: msgs.filter(m => m.type === 'part').length, single: !!(one && one.trace) };
   }
+}
+// stable core API
+out.api = { api: R.API, version: R.VERSION, names: ['Grid', 'Heap', 'routeAll', 'buildGrid', 'buildNets', 'tracesFor', 'kindFromText', 'orderNets',
+  'fallbackRoute', 'railRoutes', 'chamferPts', 'offset', 'isOctilinear', 'octilinear', 'octilinearize', 'simplify', 'length', 'decay', 'refresh',
+  'startWorker', 'hash', 'cacheKey'].filter(k => typeof R[k] !== 'function') };
+// bundled traces: members of one group share cells and the pad at their common target; other traces never do
+{
+  const tiles = [{ id: 'hub', x: 300, y: 40, w: 120, h: 40 }];
+  for (let i = 0; i < 5; i++) tiles.push({ id: 's' + i, x: 40 + i * 150, y: 300, w: 100, h: 40 });
+  const nets = [0, 1, 2, 3, 4].map(i => ({ id: 'n' + i, a: 's' + i, b: 'hub', kind: 'flow', groupB: 'hub|flow|' }));
+  const spec = { w: 840, h: 400, p: 4, kl: 2, tiles, soft: [], lines: [], nets };
+  const res = R.routeAll(spec);
+  const sep = R.routeAll(Object.assign({}, spec, { nets: nets.map(n => ({ id: n.id, a: n.a, b: n.b, kind: n.kind })) }));
+  const padsB = new Set(res.traces.map(r => r.padB.x + ',' + r.padB.y));
+  const padsSep = new Set(sep.traces.map(r => r.padB.x + ',' + r.padB.y));
+  out.groups = { routed: res.traces.length, failed: res.failed.length, sharedPads: padsB.size, separatePads: padsSep.size,
+    issues: checkRoutes(res.traces, spec).concat(checkRoutes(sep.traces, spec)).slice(0, 10) };
+}
+// rim node: a zone frame to dock on; as target the result is turned back, the rim pad sits at the end
+{
+  const mk = () => { const g = new R.Grid({ w: 420, h: 300, p: 2, kl: 2 });
+    g.tile('outer', 330, 100, 60, 30); g.tile('inner', 60, 150, 60, 30); g.tile('block', 150, 90, 40, 60);
+    g.area(222, 80, 40, 50); g.rim('zone', 20, 20, 200, 220, 14); return g; };
+  const a = mk().route({ id: 'a', a: 'zone', b: 'outer', kind: 'api', hardText: true });
+  const u = mk().route({ id: 'u', a: 'outer', b: 'zone', kind: 'api' });
+  out.rim = { padRim: !!(a && a.padA.rim), padX: a && a.padA.x, oct: !!(a && R.isOctilinear(a.pts)),
+    turned: !!(u && u.a === 'outer' && u.b === 'zone' && u.padB.rim && !u.padA.rim && u.pts[u.pts.length - 1][0] === u.padB.x && u.pts[u.pts.length - 1][1] === u.padB.y) };
+}
+// worker: grids per uid are kept unless a route job is exclusive
+{
+  const msgs = []; const fake = { postMessage: m => msgs.push(m) };
+  R.startWorker(fake);
+  const spec = { w: 400, h: 200, p: 4, kl: 2, tiles: [{ id: 'x', x: 40, y: 40, w: 80, h: 40 }, { id: 'y', x: 260, y: 120, w: 80, h: 40 }], soft: [], lines: [], nets: [] };
+  fake.onmessage({ data: { type: 'route', uid: 'u1', job: 1, spec } });
+  fake.onmessage({ data: { type: 'route', uid: 'u2', job: 2, spec } });
+  fake.onmessage({ data: { type: 'net', uid: 'u1', job: 3, net: { id: 'k', a: 'x', b: 'y', kind: 'lan' } } });
+  fake.onmessage({ data: { type: 'route', uid: 'u3', job: 4, spec, exclusive: true } });
+  fake.onmessage({ data: { type: 'net', uid: 'u1', job: 5, net: { id: 'k', a: 'x', b: 'y', kind: 'lan' } } });
+  const tr = msgs.filter(m => m.type === 'trace');
+  out.workerGrids = { keptBefore: !!tr[0].trace, droppedAfter: tr[1].trace === null };
+}
+// nets of a view: curated edges first, data edges with host vocabulary
+{
+  const nodes = { p: { x: 0, y: 0, w: 10, h: 10, sys: ['A'] }, q: { x: 100, y: 0, w: 10, h: 10, sys: ['B'] }, r: { x: 300, y: 0, w: 10, h: 10, sys: ['C'] } };
+  const nb = R.buildNets({ nodes, curated: [{ from: 'p', to: 'q', kind: 'lan' }, { from: 'q', to: 'p', kind: 'lan' }],
+    systems: [{ id: 'A', talksTo: [{ target: 'C', kind: 'Backup job' }, { target: 'B', kind: 'x' }] }, { id: 'C', host: 'cloud', talksTo: [] }],
+    kindRules: [[/backup/, 'sync']], refineKind: (k, s) => (k === 'api' && s && s.host === 'cloud' ? 'cloud' : k) });
+  out.nets = { n: nb.nets.length, first: nb.order[0].curated, both: nb.nets[0].both, kind: nb.nets[1].kind, data: nb.data.length,
+    hits: R.tracesFor('A', 'C', nb.sysNodes, [{ a: 'r', b: 'p' }]).map(h => h[1]) };
 }
 // compact rail routes
 out.rail = [];

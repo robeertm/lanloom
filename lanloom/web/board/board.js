@@ -1,13 +1,15 @@
 /* Lanloom — circuit-board map engine.
-   Lanloom.Board.mount(el, {view, theme, compact, onSelect, t, locale}) → {update, live, setTheme, highlight, destroy}
-   Load order: router.js, layout.js, icons.js, dots.js, board.js (plus css/tokens.css and css/board.css).
+   Lanloom.Board.mount(el, {view, theme, compact, onSelect, t, locale, bundle, port}) → {update, live, setTheme, highlight, destroy}
+   Load order: router.js, bundles.js, layout.js, icons.js, dots.js, board.js (plus css/tokens.css and css/board.css).
+   Bundled traces: traces that end at the same tile with the same kind share one trunk there (their dots add up on it).
+   port(trace, end) → port key at that end ('' = any, null = never bundle there); bundle: false switches bundling off.
    Zones and tiles are DOM (crisp text, focusable buttons), traces are SVG under the tiles, glow and dots are two
    viewport-sized canvases above. Traces are routed in a Web Worker (window fallback) and only when the structure
    (ids/positions) changes — never on live frames. */
 (function (root) {
   'use strict';
   const LL = root.Lanloom = root.Lanloom || {};
-  const Router = LL.Router, Layout = LL.Layout, Icons = LL.Icons, Dots = LL.Dots;
+  const Router = LL.Router, Bundles = LL.Bundles, Layout = LL.Layout, Icons = LL.Icons, Dots = LL.Dots;
   const SCRIPT = (document.currentScript && document.currentScript.src) || '';
   const BASE = SCRIPT ? SCRIPT.replace(/[^/]*$/, '') : '';
   const NS = 'http://www.w3.org/2000/svg';
@@ -158,7 +160,7 @@
       this.key = null; this.layout = null; this.view = null; this.frameQ = null;
       this.highlighted = null; this.gradeOf = new Map();
       this.ready = new Promise(res => { this._resolveReady = res; });
-      this.stats = { routeMs: null, routed: 0, failed: 0, fallback: 0, fromCache: false, layouts: 0, worker: null };
+      this.stats = { routeMs: null, routed: 0, failed: 0, fallback: 0, bundled: 0, fromCache: false, layouts: 0, worker: null };
       this.build();
       this.setTheme(this.o.theme || 'light');
       this.update(this.o.view || { zones: [], components: [], traces: [] });
@@ -255,8 +257,9 @@
       // traces
       this.traceInfo = new Map(this.view.traces.map(t => [String(t.id), t]));
       const titleWidth = {}; this.zones.forEach((z, id) => { titleWidth[id] = z.titleW || 160; });
-      const spec = Layout.routerSpec(lay, this.view, { Router, titleWidth });
-      if (this.o.router) { if (this.o.router.weight) spec.weight = this.o.router.weight; if (this.o.router.cost) spec.cost = this.o.router.cost; }   // tuning hook
+      const groupOf = !compact && this.bundling() ? (t, X) => this.bundleKey(t, X) : null;
+      const spec = Layout.routerSpec(lay, this.view, { Router, titleWidth, groupOf });
+      if (this.o.router) { if (this.o.router.weight) spec.weight = this.o.router.weight; if (this.o.router.cost) spec.cost = this.o.router.cost; if (this.o.router.smooth != null) spec.smooth = !!this.o.router.smooth; }   // tuning hook
       const key = Layout.structureKey(spec);
       if (key !== this.key) {
         this.key = key;
@@ -439,7 +442,7 @@
           if (have.has(n.id)) return;
           routes.push(Router.fallbackRoute(n, this.layout.tiles[n.a], this.layout.tiles[n.b])); fb++;
         });
-        this.applyRoutes(routes);
+        this.applyRoutes(compact ? routes : this.bundle(routes, spec));
         this.stats.routeMs = ms == null ? Math.round(performance.now() - t0) : ms;
         this.stats.routed = routes.length; this.stats.failed = (failedIds || []).length; this.stats.fallback = fb; this.stats.fromCache = !!fromCache;
         if (!fromCache && !compact) cachePut(slot, ck, routes.filter(r => !r.fallback));
@@ -454,7 +457,7 @@
       if (w) {
         this.stats.worker = true;
         const partial = [];
-        job({ type: 'route', uid: slot, spec }, m => {
+        job({ type: 'route', uid: slot, spec, exclusive: true }, m => {
           if (token !== this._routeToken || this.dead) return;
           if (m.type === 'part') { m.traces.forEach(r => partial.push(r)); this.applyRoutes(partial.slice(), true); }
           else if (m.type === 'done') finish(m.all, (m.failed || []).map(x => x.id), false, m.ms);
@@ -482,13 +485,35 @@
       };
       step();
     }
+    // ---------------------------------------------------------------- bundled traces
+    bundling() { return this.o.bundle !== false && !!Bundles; }
+    // Key per trace end: same tile + same kind (colour) + same port; null = never bundle at this end (when in doubt, separate)
+    bundleKey(t, X) {
+      if (!t) return null;
+      const port = typeof this.o.port === 'function' ? this.o.port(t, X) : '';
+      if (port == null) return null;
+      return X + '|' + (TRACE_KINDS.includes(t.kind) ? t.kind : 'lan') + '|' + port;
+    }
+    // Final routes → drawn routes: members of a group are pulled onto one trunk (copies; the cached routes stay raw)
+    bundle(routes, spec) {
+      if (!this.bundling() || !this.layout) return routes;
+      const tiles = Object.values(this.layout.tiles).map(k => [k.x + 0.6, k.y + 0.6, k.x + k.w - 0.6, k.y + k.h - 0.6]);
+      const free = (x0, y0, x1, y1) => !tiles.some(q => x0 < q[2] && x1 > q[0] && y0 < q[3] && y1 > q[1]);
+      const out = Bundles.bundleAll(routes, {
+        keyOf: (r, X) => (r.fallback ? null : this.bundleKey(this.traceInfo.get(r.id), X)),
+        free, chamfer: spec.p || 2
+      });
+      this.stats.bundled = out.filter(r => r.bundles).length;
+      return out;
+    }
+
     applyRoutes(list, partial) {
       this.routes = new Map(list.map(r => [r.id, r]));
       this.renderTraces();
       if (!partial || list.length) {
         this.dots.setGeometry(list.map(r => {
           const t = this.traceInfo.get(r.id) || {};
-          return { id: r.id, pts: r.pts, kind: t.kind || 'lan', measured: !!t.measured };
+          return { id: r.id, pts: r.pts, kind: t.kind || 'lan', measured: !!t.measured, members: r.members || 1 };
         }));
       }
     }
