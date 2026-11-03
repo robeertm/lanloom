@@ -204,6 +204,28 @@ def test_counter_tracker_hc_and_32bit_wrap():
     assert set(k[0] for k in c.last) == {1}
 
 
+def test_counter_jump_beyond_link_speed_is_discarded_and_counted():
+    c = m.CounterTracker()
+    # 1 Gbit/s link, 10 s between polls: at most ~1.25 GB can pass; a 64-bit counter that jumps by 1 TB is a
+    # discontinuity (interface re-initialised, agent glitch), not traffic
+    assert c.delta(1, "in", 1_000, 64, 1_000_000_000, mono=0) is None
+    assert c.delta(1, "in", 1_000 + 10 ** 12, 64, 1_000_000_000, mono=10) is None
+    assert c.discarded == 1
+    # the jump is the new baseline: normal traffic right after it counts again
+    assert c.delta(1, "in", 1_000 + 10 ** 12 + 500_000_000, 64, 1_000_000_000, mono=20) == 500_000_000
+    # same for 32-bit counters without a wrap
+    assert c.delta(2, "out", 0, 32, 10_000_000, mono=0) is None
+    assert c.delta(2, "out", 100_000_000, 32, 10_000_000, mono=10) is None
+    assert c.discarded == 2
+    # unknown link speed: nothing to compare against, the delta is kept
+    assert c.delta(3, "in", 0, 64, None, mono=0) is None
+    assert c.delta(3, "in", 10 ** 12, 64, None, mono=10) == 10 ** 12
+    # full line rate (with timing slack) is real traffic
+    assert c.delta(4, "in", 0, 64, 1_000_000_000, mono=0) is None
+    assert c.delta(4, "in", 1_400_000_000, 64, 1_000_000_000, mono=10) == 1_400_000_000
+    assert c.discarded == 2
+
+
 # ================================================================== fake agent
 IF_DESCR = (1, 3, 6, 1, 2, 1, 2, 2, 1, 2)
 IF_SPEED = (1, 3, 6, 1, 2, 1, 2, 2, 1, 5)
