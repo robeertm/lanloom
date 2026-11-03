@@ -1,0 +1,24 @@
+/* Lanloom — port marks: small connection marks at the ends of the traces (RJ45 socket with port number, radio with band/SSID,
+   service port). Theme: only the --ll-portmark-* variables below, each falling back to a Lanloom token (css/tokens.css); a host
+   sets them on .ll-pm-layer / .ll-pm-chip. The trace colour comes as currentColor. Below the end marks, above the board. */
+.ll-pm-layer { position: absolute; inset: 0; pointer-events: none; z-index: var(--ll-portmark-z, 3); }
+.ll-pm-layer .ll-pm-mark { position: absolute; left: 0; top: 0; box-sizing: border-box; height: var(--ll-pm-h, 15px); padding: 0 4px 0 3px; display: inline-flex;
+  align-items: center; justify-content: center; gap: 2px; border: 1px solid color-mix(in srgb, currentColor 55%, transparent); border-radius: 4px;
+  background: var(--ll-portmark-surface, var(--ll-surface)); font-family: inherit; font-weight: 600; font-size: var(--ll-pm-fs, 10px); line-height: 1; letter-spacing: .01em;
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; pointer-events: none; opacity: .92;
+  transition: opacity .18s ease, border-color .18s ease; }
+.ll-pm-layer .ll-pm-sym { display: inline-flex; flex: none; }
+.ll-pm-layer .ll-pm-ic { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.15; stroke-linecap: round; stroke-linejoin: round; }
+.ll-pm-layer .ll-pm-txt { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ll-pm-layer .ll-pm-empty { padding: 0 2px; }
+.ll-pm-layer .ll-pm-empty .ll-pm-txt { display: none; }
+/* in full (hovering the trace or the device, selected tile): full text, stronger border, above everything else of the layer */
+.ll-pm-layer .ll-pm-mark.ll-pm-on { opacity: 1; border-color: currentColor; z-index: 1; padding: 0 6px 0 4px; gap: 3px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent), 0 1px 3px color-mix(in srgb, var(--ll-portmark-text, var(--ll-text)) 14%, transparent); }
+.ll-pm-layer .ll-pm-mark.ll-pm-off { opacity: .14; }
+@media (prefers-reduced-motion: reduce) { .ll-pm-layer .ll-pm-mark { transition: none; } }
+/* details panel: the same mark as a chip */
+.ll-pm-chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 6px; border: 1px solid var(--ll-portmark-line, var(--ll-border)); border-radius: 6px;
+  background: var(--ll-portmark-surface2, var(--ll-surface-2)); color: var(--ll-portmark-text, var(--ll-text)); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%; overflow: hidden; }
+.ll-pm-chip > span { overflow: hidden; text-overflow: ellipsis; }
+.ll-pm-chip .ll-pm-ic { width: 13px; height: 13px; flex: none; fill: none; stroke: var(--ll-portmark-accent, var(--ll-accent)); stroke-width: 1.15; stroke-linecap: round; stroke-linejoin: round; }

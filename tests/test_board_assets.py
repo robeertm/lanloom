@@ -68,7 +68,7 @@ def test_text_contrast_wcag_aa():
 
 
 def test_engine_files_english_only():
-    for name in ("router.js", "bundles.js", "layout.js", "board.js", "dots.js", "icons.js"):
+    for name in ("router.js", "bundles.js", "layout.js", "board.js", "dots.js", "icons.js", "endmarks.js", "portmarks.js", "endmarks.css", "portmarks.css"):
         src = read("board", name)
         assert not re.search(r"[äöüÄÖÜß]", src), name
     for name in ("tokens.css", "board.css"):
