@@ -179,6 +179,8 @@ class FakeRuntime:
             c["State"].update(Status="exited", Running=False, ExitCode=beh.get("selftest", 0))
             secret = [e for e in c["Config"]["Env"] if e.startswith("API_TOKEN=")]
             self.log_lines[c["Id"]] = ["selftest running", "token is " + "hunter2-secret-value"]
+            if beh.get("selftest", 0) == 0:
+                self.log_lines[c["Id"]].append(f"selftest: ok {version}")
             return
         if labels.get("org.lanloom.role") == "app" and beh.get("app") == "start_fails":
             raise RuntimeAPIError(500, "cannot start")
@@ -579,10 +581,11 @@ def test_downgrade_refused_and_rollback_flag(env):
     fake, upd, data, old = env
     fake.add_image("0.9.0")
     st = request(upd, version="0.9.0")
-    assert st["state"] == "failed" and st["message_key"] == "update.err.downgrade_refused"
+    # a refusal changed nothing, so it is not a failure
+    assert st["state"] == "idle" and st["message_key"] == "update.err.downgrade_refused"
     assert fake.pulls == []
     st = request(upd, version="1.0.0")
-    assert st["message_key"] == "update.err.already_current"
+    assert st["state"] == "idle" and st["message_key"] == "update.err.already_current"
     st = request(upd, version="0.9.0", rollback=True)
     assert st["state"] == "done", st["log"]
     assert fake.version_of(fake.by_name("lanloom")) == "0.9.0"
@@ -786,3 +789,42 @@ def test_refuses_to_target_itself(env, monkeypatch):
     st = request(upd)
     assert st["state"] == "failed" and st["message_key"] == "update.err.target_not_found"
     assert fake.pulls == []
+
+
+def test_second_request_after_success_keeps_done(env):
+    fake, upd, data, old = env
+    st = request(upd)
+    assert st["state"] == "done"
+    # double click / second tab: the same request arrives once more after the swap
+    st = request(upd)
+    assert st["state"] == "done" and st["message_key"] == "update.msg.done", st
+    assert st["version"] == "1.1.0" and st["from"] == "1.0.0"
+    assert fake.pulls == [(REPO, "1.1.0")]
+
+
+def test_refusal_after_a_failed_run_is_not_reported_as_failure(env):
+    fake, upd, data, old = env
+    fake.behaviours["1.1.0"] = {"selftest": 3}
+    assert request(upd)["state"] == "failed"
+    st = request(upd, version="1.0.0")
+    assert st["state"] == "idle" and st["message_key"] == "update.err.already_current"
+
+
+def test_selftest_needs_the_ok_line_with_the_target_version(env):
+    fake, upd, data, old = env
+    real_start = fake.container_start
+
+    def start(ref):
+        real_start(ref)
+        c = fake._resolve(ref)
+        if "--selftest" in (c["Config"]["Cmd"] or []):
+            fake.log_lines[c["Id"]] = lines
+
+    fake.container_start = start
+    for lines in (["something else entirely"], ["selftest: ok 1.0.0"], ["selftest: ok 1.1.0 extra"],
+                  ["selftest: FAIL x", "xselftest: ok 1.1.0"]):
+        st = request(upd)
+        assert st["state"] == "failed" and st["message_key"] == "update.err.selftest_failed", (lines, st)
+        assert fake.by_name("lanloom")["Id"] == old
+    lines = ["selftest: ok 1.1.0"]
+    assert request(upd)["state"] == "done"

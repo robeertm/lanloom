@@ -322,6 +322,7 @@
  "update.done": "Updated to {v}. Reloading …",
  "update.err.already_current": "This version is already installed.",
  "update.err.backup_failed": "The backup failed. Nothing was changed.",
+ "update.err.busy": "An update is already running or waiting. Please wait until it has finished.",
  "update.err.downgrade_refused": "Going back to an older version was refused.",
  "update.err.health_failed": "The new version did not become healthy. The previous version is running again.",
  "update.err.internal": "Internal updater error.",

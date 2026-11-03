@@ -322,6 +322,7 @@
  "update.done": "Auf {v} aktualisiert. Seite lädt neu …",
  "update.err.already_current": "Diese Fassung ist schon installiert.",
  "update.err.backup_failed": "Die Sicherung ist fehlgeschlagen. Nichts wurde verändert.",
+ "update.err.busy": "Ein Update läuft bereits oder wartet. Bitte warten, bis es fertig ist.",
  "update.err.downgrade_refused": "Zurück auf eine ältere Fassung wurde abgelehnt.",
  "update.err.health_failed": "Die neue Fassung wurde nicht gesund. Die vorige Fassung läuft wieder.",
  "update.err.internal": "Interner Fehler des Updaters.",

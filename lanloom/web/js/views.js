@@ -255,19 +255,23 @@
     const manual = h('div', { class: 'callout' }, h('p', {}, t('update.manual')), h('code', { class: 'cmd' }, 'docker compose pull && docker compose up -d'));
     const apply = u.sidecar ? h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
       apply.disabled = true;
-      try { await api('/api/update/apply', { method: 'POST', body: { version: u.latest } }); followUpdate(msg, u.latest); }
+      try { const req = await api('/api/update/apply', { method: 'POST', body: { version: u.latest } }); followUpdate(msg, u.latest, req.nonce); }
       catch (e) { LL.msg(msg, LL.errText(e), 'error'); apply.disabled = false; }
     } }, t('update.apply', { v: u.latest })) : null;
     dialog(t('update.title', { v: u.latest }), h('div', { class: 'stack' }, h('p', {}, t('update.lead', { cur: u.current, v: u.latest })), notes, u.sidecar ? h('p', { class: 'muted' }, t('update.sidecar_text')) : manual, msg),
       h('div', { class: 'btn-row' }, u.url ? h('a', { class: 'btn btn--ghost', href: u.url, target: '_blank', rel: 'noopener noreferrer' }, t('update.notes_link')) : null, apply));
   }
-  function followUpdate(msg, version) {
+  function followUpdate(msg, version, nonce) {
     const timer = setInterval(async () => {
       let s; try { s = await api('/api/update', { allow401: true }); } catch (e) { LL.msg(msg, t('update.restarting'), 'info'); return; }
       const st = s.status || {};
-      LL.msg(msg, t('update.state.' + (st.state || 'idle')) + (st.message_key ? ' — ' + t(st.message_key) : ''), st.state === 'failed' || st.state === 'rolled_back' ? 'error' : 'info');
-      if (s.current === version) { clearInterval(timer); LL.msg(msg, t('update.done', { v: version }), 'ok'); setTimeout(() => location.reload(), 1500); }
-      if (st.state === 'failed' || st.state === 'rolled_back') clearInterval(timer);
+      if (s.current === version) { clearInterval(timer); LL.msg(msg, t('update.done', { v: version }), 'ok'); setTimeout(() => location.reload(), 1500); return; }
+      // until the sidecar picks up this request, status.json still describes an earlier run
+      if (nonce && st.nonce !== nonce) { LL.msg(msg, t('update.state.idle'), 'info'); return; }
+      const bad = st.state === 'failed' || st.state === 'rolled_back';
+      if (st.state === 'idle' && st.message_key) { clearInterval(timer); LL.msg(msg, t(st.message_key), 'info'); return; }
+      LL.msg(msg, t('update.state.' + (st.state || 'idle')) + (st.message_key ? ' — ' + t(st.message_key) : ''), bad ? 'error' : 'info');
+      if (bad) clearInterval(timer);
     }, 2000);
   }
 

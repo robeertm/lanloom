@@ -8,7 +8,9 @@ The app and the sidecar talk only through files on the shared data volume:
 
 Failures before the swap leave everything as it was (state "failed"). Failures after
 the swap began restore the previous container and, if needed, the database
-(state "rolled_back").
+(state "rolled_back"). A refused request (version already running, downgrade) changes
+nothing and is not a failure: the state becomes "idle" with the reason, and a repeated
+request for the version a finished run just installed leaves that "done" status in place.
 """
 
 from __future__ import annotations
@@ -37,6 +39,8 @@ from .runtimeapi import DEFAULT_SOCKET, RuntimeAPI, RuntimeAPIError, NotFound, U
 STATES = ("idle", "pulling", "selftest", "probe", "backup", "swap", "health",
           "done", "rolled_back", "failed")
 TERMINAL = ("idle", "done", "rolled_back", "failed")
+# Refusals before anything was touched: reported as "idle" with the reason, never as "failed".
+REFUSALS = ("update.err.already_current", "update.err.downgrade_refused")
 
 ROLE_LABEL = "org.lanloom.role"
 ROLE_APP = "app"
@@ -85,6 +89,7 @@ MESSAGE_KEYS = (
     "update.err.rollback_failed",
     "update.err.interrupted",
     "update.err.internal",
+    "update.err.busy",
 )
 
 
@@ -602,6 +607,7 @@ class Updater:
     # -------------------------------------------------------------- main
     def handle_request(self, req: dict | None) -> dict:
         """Validate and perform one request. Always ends in a terminal state."""
+        previous = dict(self.status)
         self.status = {"state": "pulling", "version": None, "from": None, "message_key": None,
                        "log": [], "nonce": None, "t": 0}
         try:
@@ -616,10 +622,23 @@ class Updater:
             version, nonce, rollback, repository = self.validate_request(req)
             self.perform(version, nonce, rollback, repository)
         except UpdateError as exc:
-            self.set_state("failed", exc.key, f"failed: {exc.detail or exc.key}")
+            if exc.key in REFUSALS:
+                self.refuse(exc, previous)
+            else:
+                self.set_state("failed", exc.key, f"failed: {exc.detail or exc.key}")
         except Exception as exc:  # pragma: no cover - last resort, never leak details
             self.set_state("failed", "update.err.internal", f"internal error: {type(exc).__name__}")
         return self.status
+
+    def refuse(self, exc: UpdateError, previous: dict) -> None:
+        """A refusal changed nothing. A second request for the version a run just installed (double click,
+        second tab) must not turn the visible "done" into an error, so that status stays as it was."""
+        running = self.status.get("from")
+        if previous.get("state") == "done" and running and previous.get("version") == running:
+            self.status = previous
+            self.log(f"ignored a repeated request: {exc.detail or exc.key}")
+            return
+        self.set_state("idle", exc.key, f"refused: {exc.detail or exc.key}")
 
     def perform(self, version: str, nonce: str, rollback: bool, repository: str | None) -> None:
         run = _Run(nonce=nonce, version=version)
@@ -701,12 +720,15 @@ class Updater:
             self.sleep(min(self.s.check_interval, 0.5))
         return None
 
-    def _tail_logs(self, cid: str, prefix: str, n: int = 8) -> None:
+    def _tail_logs(self, cid: str, prefix: str, n: int = 8) -> list[str]:
+        """Copy the last log lines into the status; returns them stripped (empty if unreadable)."""
         try:
-            for line in self.api.container_logs(cid, tail=n):
-                self.log(f"{prefix}: {line}")
+            lines = [str(line).strip() for line in self.api.container_logs(cid, tail=n)]
         except RuntimeAPIError:
-            pass
+            return []
+        for line in lines:
+            self.log(f"{prefix}: {line}")
+        return lines
 
     def _remove_quietly(self, cid: str | None) -> None:
         if not cid:
@@ -733,11 +755,14 @@ class Updater:
             cid = self.api.container_create(f"{run.name}-selftest-{run.nonce[:8]}", body)
             self.api.container_start(cid)
             code = self._wait_exit(cid, self.s.selftest_timeout)
-            self._tail_logs(cid, "selftest")
+            lines = self._tail_logs(cid, "selftest")
             if code is None:
                 raise UpdateError("update.err.selftest_failed", "selftest timed out")
             if code != 0:
                 raise UpdateError("update.err.selftest_failed", f"selftest exit code {code}")
+            # exit code 0 alone is not enough: an image whose command was replaced could exit 0 without testing
+            if f"selftest: ok {run.version}" not in lines:
+                raise UpdateError("update.err.selftest_failed", "selftest did not report ok for this version")
             self.log("selftest passed")
         except RuntimeAPIError as exc:
             raise UpdateError("update.err.selftest_failed", f"selftest: {exc.message}") from None

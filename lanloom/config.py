@@ -39,7 +39,7 @@ def load() -> Config:
         demo=_flag("LANLOOM_DEMO", False),
         probe=_flag("LANLOOM_PROBE", False),
         # identifier: public release feed of this repository (the only outbound connection, can be switched off)
-        release_feed=os.environ.get("LANLOOM_RELEASE_FEED", "https://api.github.com/repos/robeertm/lanloom/releases/latest"),
+        release_feed=os.environ.get("LANLOOM_RELEASE_FEED", "https://api.github.com/repos/robeertm/lanloom/releases?per_page=30"),
         image_repo=os.environ.get("LANLOOM_IMAGE", "ghcr.io/robeertm/lanloom"),
         cookie_secure=os.environ.get("LANLOOM_COOKIE_SECURE", "auto").strip().lower(),
         trusted_origins=origins,
