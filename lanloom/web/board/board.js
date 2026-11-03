@@ -754,7 +754,7 @@
       if (this.marks || this.dead || (!Endmarks && !Portmarks)) return;
       const host = this.markHost();
       this.marks = { em: null, pm: null };
-      if (Endmarks) this.marks.em = Endmarks.create(host, { edgeSides: 'tb' });   // the board only scrolls vertically
+      if (Endmarks) this.marks.em = Endmarks.create(host, { edgeSides: 'tb', edgeOverTiles: false });   // the board only scrolls vertically
       if (Portmarks) this.marks.pm = Portmarks.create(host);
     }
     marksReposition() { if (this.marks) { if (this.marks.em) this.marks.em.reposition(); if (this.marks.pm) this.marks.pm.reposition(); } }

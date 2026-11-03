@@ -17,7 +17,8 @@
 ## What it does
 
 - **Draws the network as a PCB.** Zones for the Internet edge, Network, Servers and services, Computers and phones, Media and cameras, Smart home, Printers and other. Hub rooms and MQTT topic groups appear when those integrations are connected.
-- **Routes traces like a board.** Orthogonal and 45° segments, buses and vias.
+- **Routes traces like a board.** Orthogonal and 45° segments, buses and vias. Traces that end at the same component and port share one trunk, and their dots add up on it.
+- **Says where traces go.** End marks name peers outside your network where a trace leaves the board; port marks show the destination port or protocol at the end of a live trace.
 - **Animates only what is measured.** Each dot stands for a fixed number of bytes ("1 dot ≈ 64 KiB"; the quantum is chosen automatically in powers of two) and bytes are conserved. Traces without measurements stay dashed.
 - **Shows how fresh the data is.** Every source and component carries a live grade: realtime (cadence up to 2 s), near (up to 15 s), periodic (up to 10 min), sluggish, interrupted, or unknown.
 - **Two views.** *Map* is an overview by kind; *Network* shows the gateway and one zone per subnet.
@@ -144,7 +145,7 @@ Sign-in is mandatory; there is no open mode. The first account can only be creat
 - **With the updater sidecar:** an "Update" button appears when a new version is available. It pulls the image, runs a self-test without network, starts a trial on a copy of your data, backs up the database and tags the previous image, swaps the container, checks health, and rolls back automatically on failure.
 - **Without it:** `docker compose pull && docker compose up -d`.
 
-Image tags: `:1.0.0` is immutable; `:1` and `:latest` move only after the published image has been tested; `:edge` is the latest build of the main branch.
+Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move only after the published image has been tested; `:edge` is the latest build of the main branch.
 
 ## Requirements
 
@@ -156,6 +157,7 @@ Image tags: `:1.0.0` is immutable; `:1` and `:latest` move only after the publis
 
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, uninstall
 - [docs/FAQ.md](docs/FAQ.md): frequently asked questions
+- [docs/ARCHITECTURE-CORE.md](docs/ARCHITECTURE-CORE.md): how the board engine is structured as a versioned core
 - [SECURITY.md](SECURITY.md): security model and reporting
 - [CHANGELOG.md](CHANGELOG.md): release notes
 

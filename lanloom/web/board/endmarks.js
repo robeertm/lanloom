@@ -42,7 +42,8 @@
    The host calls: place() after structure/theme changes, reposition() on every pan/zoom, focus() when hover/selection changes,
    destroy() when the board goes away. state() returns the placed labels (tests, measurements).
    options: {classAlias: {role: 'extra-class'} (extra class names per element role), locale (name ordering, default 'en'),
-             edgeSides: view edges that can cut traces, default 'lrtb' (a board that only scrolls vertically passes 'tb')} */
+             edgeSides: view edges that can cut traces, default 'lrtb' (a board that only scrolls vertically passes 'tb'),
+             edgeOverTiles: default true; false drops an edge mark that finds no free spot instead of letting it cover a tile} */
 (function (root) {
   'use strict';
   const LL = root.Lanloom = root.Lanloom || {};
@@ -202,6 +203,7 @@
     constructor(host, options) {
       this.host = host; this.o = Object.assign({}, options || {}); this.dead = false; this.ends = []; this.specs = [];
       this.alias = this.o.classAlias || {}; this.locale = this.o.locale || 'en'; this.edgeSides = this.o.edgeSides || 'lrtb';
+      this.edgeOverTiles = this.o.edgeOverTiles !== false;   // false: an edge mark that finds no free spot is dropped instead of covering a tile
       this.t = (k, v) => { const r = typeof host.t === 'function' ? host.t(k, v) : null; return r == null || r === k ? fill(STRINGS[k] || k, v) : r; };
       this.marks = new Map(); this._lz = 0; this._lt = 0; this._base = null;
       const layer = this.el = document.createElement('div'); layer.className = this.cls('layer');
@@ -700,7 +702,7 @@
           else cand.push((w, h) => atEdge(bd.pos - w / 2 + d * (w / 2 + 8), s === 't' ? VR.y0 : VR.y1 - h, w, h));
         }
         // first close to the exit without covering tiles/labels, otherwise at the edge over the tile (the label is opaque)
-        const pl = placeAt(variants.slice(0, -1), cand.slice(0, 5), [hard, taken, soft], TIP) || placeAt(variants, cand, [hard, taken], TIP);
+        const pl = placeAt(variants.slice(0, -1), cand.slice(0, 5), [hard, taken, soft], TIP) || (this.edgeOverTiles ? placeAt(variants, cand, [hard, taken], TIP) : null);
         if (!pl) continue;
         taken.push(pl.r);
         const b0 = bd.f[0].b;
