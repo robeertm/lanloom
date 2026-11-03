@@ -82,9 +82,21 @@ Set environment variables in the compose file.
 | `LANLOOM_DATA` | `/data` | data directory |
 | `LANLOOM_UPDATE_CHECK` | `1` | `0` = never contact the release feed |
 | `LANLOOM_TRUSTED_ORIGINS` | empty | comma-separated public origins when behind a reverse proxy |
+| `LANLOOM_TRUSTED_PROXIES` | empty | comma-separated addresses or networks of your reverse proxies; only they may set `X-Forwarded-For`, `X-Real-IP` and `X-Forwarded-Proto` |
 | `LANLOOM_COOKIE_SECURE` | `auto` | `auto`, `always` or `never` |
 | `LANLOOM_SECRET_KEY_FILE` | in data directory | location of the encryption key file |
 | `LANLOOM_DEMO` | `0` | `1` = fictional demo network, nothing is scanned (add `LANLOOM_DEMO_SEED=1` to seed it) |
+
+## Behind a reverse proxy
+
+Put Lanloom behind a TLS reverse proxy for remote access and passkeys. Two settings matter:
+
+- `LANLOOM_TRUSTED_ORIGINS`: the public origin the browser sees, for example `https://lanloom.example.org`.
+- `LANLOOM_TRUSTED_PROXIES`: the address (or network) the proxy connects from, for example `127.0.0.1` or `172.18.0.0/16`.
+
+With `LANLOOM_TRUSTED_PROXIES` set, the sign-in rate limit counts the client address the proxy reports in `X-Forwarded-For` (read from the right: the right-most entry that is not one of your proxies) or `X-Real-IP`, and `X-Forwarded-Proto: https` marks the session cookie `Secure`. The headers are ignored from every other address. IPv6 clients are counted per /64.
+
+Leave it empty when nothing sits in front of Lanloom. Without it, all sign-ins through a proxy share the proxy's address: one person typing wrong passwords then locks everybody out for a while. List only proxies you control. A wrong entry lets anybody who can reach Lanloom from that address choose their own client address and slip past the rate limit.
 
 ## Image tags
 
@@ -92,7 +104,7 @@ Set environment variables in the compose file.
 
 ## Updating
 
-With the updater sidecar, an "Update" button appears when a new version is available. It pulls the image, runs a self-test without network, starts a trial on a copy of the data, backs up the database to `/data/backups` (5 are kept) and tags the old image `:previous`, swaps the container, checks health and rolls back automatically on failure.
+With the updater sidecar, an "Update" button appears when a new version is available. It pulls the image, runs a self-test without network, starts a trial on a copy of the data, backs up the database to `/data/backups` (5 are kept) and tags the old image `:previous`, swaps the container, checks health and rolls back automatically on failure. Only one update runs at a time; a second request while one is waiting or running is refused. The update check takes the highest stable version from the list of releases, so a later bug-fix release for an older line never hides a newer version.
 
 Without the sidecar:
 
