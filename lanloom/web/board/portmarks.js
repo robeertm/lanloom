@@ -163,8 +163,9 @@
   const MEDIUM = m => { const s = String(m || '').toUpperCase(); return /SFP\+|SFP28|SFP/.test(s) ? s.match(/SFP28|SFP\+|SFP/)[0] : ''; };
   // "Port 4" or "SFP+ 9" (medium only if it is not an ordinary copper port)
   const portText = (n, medium, t) => n ? `${MEDIUM(medium) || (t || tDefault)('portmarks.port')} ${n}` : '';
+  // open protocol names only; product-specific names come from the host (fact.protocols)
   const PROTOCOL = { 1883: 'MQTT', 8883: 'MQTTS', 22: 'SSH', 445: 'SMB', 139: 'SMB', 2049: 'NFS', 53: 'DNS', 3493: 'NUT', 5900: 'VNC', 873: 'rsync',
-    2055: 'NetFlow', 5353: 'mDNS', 25: 'SMTP', 587: 'SMTP', 993: 'IMAPS', 143: 'IMAP', 32400: 'Plex', 8086: 'InfluxDB', 51820: 'WireGuard', 41641: 'Tailscale' };  // identifier: well-known protocol names
+    5353: 'mDNS', 25: 'SMTP', 587: 'SMTP', 993: 'IMAPS', 143: 'IMAP' };  // identifier: well-known protocol names
   const portLabel = (p, names) => { const n = (names && names[p]) || PROTOCOL[p]; return `:${p}${n ? ' ' + n : ''}`; };
 
   // fact → mark {b, ende, kind, short, long, title, pair, group, data} (null = nothing known)

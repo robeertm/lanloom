@@ -461,7 +461,7 @@ def selftest() -> int:
         en, de = load_i18n("en"), load_i18n("de")
         if not en or set(en) != set(de):
             problems.append("i18n keys differ (%d en / %d de)" % (len(en), len(de)))
-        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "css/tokens.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "css/tokens.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

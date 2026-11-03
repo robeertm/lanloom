@@ -80,7 +80,11 @@ def test_manifest_files_exist_and_declare_api():
         assert os.path.isfile(p), e["path"]
         src = open(p, encoding="utf-8").read()
         name = e["namespace"].split(".", 1)[1]
-        assert "root.Lanloom." + name + " = " in src, e["path"]
+        if p.endswith(".css"):                     # styles of a core module: themed only through --ll-* custom properties
+            assert "--ll-" in src, e["path"]
+            assert any(f["namespace"] == e["namespace"] and f["path"].endswith(".js") for f in manifest()["files"]), e["path"]
+            continue
+        assert re.search(r"(root\.Lanloom|\bLL)\.%s\s*=" % name, src), e["path"]
         assert re.search(r"const API = %d;" % e["api"], src), e["path"]
         assert "API = %d" % e["api"] in src.split("*/", 1)[0], e["path"]   # listed in the header as stable API
 
