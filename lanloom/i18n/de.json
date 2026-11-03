@@ -1,5 +1,6 @@
 {
  "app.demo": "Demo",
+ "app.err.probe": "Das ist ein Probestart für ein Update. Er beantwortet nur die Gesundheitsabfrage und scannt nicht.",
  "app.readonly": "nur lesend · keine Telemetrie",
  "app.tagline": "Dein Netz als Leiterplatte",
  "auth.err.header": "Die Anfrage wurde blockiert (Kopfzeile fehlt).",

@@ -1,5 +1,6 @@
 {
  "app.demo": "Demo",
+ "app.err.probe": "This is a trial start of an update. It only answers the health check and does not scan.",
  "app.readonly": "read-only · no telemetry",
  "app.tagline": "Your network as a circuit board",
  "auth.err.header": "The request was blocked (missing header).",

@@ -113,6 +113,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.middleware("http")
     async def guard(request: Request, call_next):
         path = request.url.path
+        if cfg.probe and path.startswith("/api/") and path != "/api/health":
+            # trial start of an update candidate: the updater only reads the health check
+            return JSONResponse({"error": "app.err.probe"}, status_code=503)
         if path.startswith("/api/"):
             if request.method in STATE_CHANGING:
                 if request.headers.get("x-lanloom") != "1":
