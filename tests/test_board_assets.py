@@ -73,3 +73,10 @@ def test_engine_files_english_only():
         assert not re.search(r"[äöüÄÖÜß]", src), name
     for name in ("tokens.css", "board.css"):
         assert not re.search(r"[äöüÄÖÜß]", read("css", name)), name
+
+
+def test_board_stage_is_not_selectable():
+    """Dragging over the board (or double-clicking a tile) must not select label text; panels outside the stage stay selectable."""
+    css = read("css", "board.css")
+    stage = re.search(r"\n\.ll-stage \{(.*?)\n\}", css, re.S).group(1)
+    assert "user-select: none" in stage and "-webkit-user-select: none" in stage

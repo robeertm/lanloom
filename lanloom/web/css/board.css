@@ -26,6 +26,9 @@
 }
 .ll-stage {
   position: relative;
+  /* dragging across the board never selects tile labels (the details panel stays selectable) */
+  -webkit-user-select: none;
+  user-select: none;
   /* substrate: fine dot grid on the routing pitch */
   background-image: radial-gradient(circle at 2px 2px, var(--ll-pcb-grid) 1px, transparent 1.4px);
   background-size: 16px 16px;
