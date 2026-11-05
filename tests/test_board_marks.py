@@ -37,6 +37,22 @@ def test_placement_takes_the_first_free_spot_and_shortens():
     assert all(s.endswith("…") for s in p["steps"]) and len(set(p["steps"])) == 3
 
 
+def test_labels_are_shortened_at_a_word_boundary():
+    out = run_node("marks_test.js")
+    c = out["place"]["cut"]
+    assert c["hyphen"].startswith("↔ 9 peers: living") and c["hyphen"].endswith("…")
+    shown = c["hyphen"][len("↔ 9 peers: "):-1]
+    assert c["peer"].startswith(shown) and c["peer"][len(shown)] == "-"                     # the next character is a separator
+    assert c["spaced"].startswith("→ garden") and c["spaced"].endswith("…") and c["spaced"][-2] not in " ·-,"
+    assert c["oneWord"] == "↔ 9 peers …"                                                    # no word fits: only the lead-in stays
+    assert c["oneWordSingle"] == "→ …"
+    assert c["fits"] == "→ nas"
+    assert c["stepsOneWord"] == [] and c["stepsOneWordArrow"] == []                         # a bare "…" or "→ …" is no step
+    s = out["shorten"]
+    assert s["long"].endswith("…") and "storage · port 12 ⇄ eth0, seen in the last minute".startswith(s["long"][:-1])
+    assert s["long"][:-1][-1] not in " ·-," and s["fits"] == "port 12" and s["oneWord"] == "…"
+
+
 def test_equal_edge_targets_become_one_label():
     b = run_node("marks_test.js")["bundle"]
     same = b["same"]
@@ -74,8 +90,16 @@ def test_host_interface_documented():
     for name in ("endmarks.js", "portmarks.js"):
         src = read("board", name)
         assert "API = 1" in src and "const API = 1;" in src, name
-        for fn in ("host.el", "host.ready()", "host.traces()", "host.view()", "host.t(key, params)"):
+        for fn in ("host.el", "host.ready()", "host.traces()", "host.view()", "host.keepClear(rect)", "host.t(key, params)"):
             assert fn in src, (name, fn)
+
+
+def test_marks_never_cover_kept_clear_titles():
+    em, pm, board = read("board", "endmarks.js"), read("board", "portmarks.js"), read("board", "board.js")
+    assert "placeFree(variants, cand, [clear, ...lists], extra)" in em       # every placement, also the last fallbacks
+    assert "free(rp, [clear, hard, tiles, taken])" in em                     # the emergency search on a leash as well
+    assert "clear = host.keepClear ? host.keepClear(er) : []" in pm
+    assert "keepClear: er =>" in board
 
 
 def test_theme_variables_fall_back_to_lanloom_tokens():

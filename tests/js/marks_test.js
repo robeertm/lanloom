@@ -51,6 +51,18 @@ I.setFont(11);
   out.place = { height: H, a: a && [a.r.x0, a.r.y0, a.short], b: b && [b.r.x0, b.r.y0], c: c && [c.text === long, c.r.x1 <= V.x1], d: d && [d.text, d.short], e };
   // labels are never wider than MAXW: the text is shortened with an ellipsis
   out.place.steps = I.steps('→ ', 'a-very-long-peer-name-that-does-not-fit-anywhere.example', '');
+  // shortened at a word boundary (space, "·", "-", ","), never inside a word
+  const peer = 'living-room-tv-the-first-of-many-screens-in-this-house';
+  out.place.cut = {
+    peer,
+    hyphen: I.fitting('↔ 9 peers: ', peer, ' …', 170),
+    spaced: I.fitting('→ ', 'garden shed · energy, solar and storage on the roof of the house', '', 120),
+    oneWord: I.fitting('↔ 9 peers: ', 'x'.repeat(60), ' …', 170),
+    oneWordSingle: I.fitting('→ ', 'x'.repeat(60), '', 120),
+    fits: I.fitting('→ ', 'nas', '', 120),
+    stepsOneWord: I.steps('', 'x'.repeat(60), ''),
+    stepsOneWordArrow: I.steps('→ ', 'x'.repeat(60), '')
+  };
 }
 
 // ------------------------------------------------------------------ bundling equal edge targets into one label
@@ -115,5 +127,10 @@ out.arrow = [I.arrowFor(100, 0), I.arrowFor(0, 100), I.arrowFor(100, 20), I.arro
     chip: PM.chipHtml({ link: 'wired', port: 10, portMedium: 'SFP+', ownPort: 'eth0' }),
     chipNone: PM.chipHtml({ link: 'radio', radio: {} })
   };
+}
+{
+  const S = PM._internals.shorten;
+  PM._internals.setMeasure(t => t.length * 6);
+  out.shorten = { long: S('storage · port 12 ⇄ eth0, seen in the last minute', 100, 11, 'x'), fits: S('port 12', 100, 11, 'x'), oneWord: S('x'.repeat(60), 100, 11, 'x') };
 }
 console.log(JSON.stringify(out));

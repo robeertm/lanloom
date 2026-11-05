@@ -14,7 +14,7 @@
    ---------------------------------------------------------------------------------------------------- host interface, API = 1
    Same conventions as Lanloom.Endmarks (board units, view() maps to screen px):
      host.el, host.ready(), host.view(), host.size(), host.measure(), host.animUntil(), host.tiles(), host.labels(), host.kindFilter(),
-     host.chain(), host.highlighted(), host.obstacles(rect), host.color(kind), host.t(key, params)   — as in endmarks.js
+     host.chain(), host.highlighted(), host.obstacles(rect), host.keepClear(rect), host.color(kind), host.t(key, params)   — as in endmarks.js
      host.network            bool: this board shows the cabling (network marks) instead of logical services
      host.traces()           → [trace] with {id, a, b, kind, pts, padA, padB, edgeEnd, bundles: [{key}] (bundle trunks this trace
                                belongs to; key starts with "<tile id>|")}
@@ -100,9 +100,13 @@
   function shorten(t, max, fs, family) {
     t = String(t || '');
     if (width(t, fs, family) <= max) return t;
-    let n = t;
-    while (n.length > 2 && width(n + '…', fs, family) > max) n = n.slice(0, -1);
-    return n.trimEnd() + '…';
+    // at a word boundary (separators: space, "·", "-", ","), never inside a word; not even one word fits: only the "…" stays
+    for (let i = t.length - 1; i > 0; i--) {
+      if (!/[\s·\-,]/.test(t[i])) continue;
+      const cut = t.slice(0, i).replace(/[\s·\-,]+$/, '');
+      if (cut && width(cut + '…', fs, family) <= max) return cut + '…';
+    }
+    return '…';
   }
 
   // ---------------------------------------------------------------- geometry
@@ -351,7 +355,7 @@
       const specs = [];
       if (show.length) {
         const T = this.measureTexts(L, er);
-        const hard = this.uiRects(er);
+        const hard = this.uiRects(er), clear = host.keepClear ? host.keepClear(er) : [];
         const tiles = [];
         Object.entries(host.tiles() || {}).forEach(([id, k]) => tiles.push({ id, r: { x0: tx(k.x), y0: ty(k.y), x1: tx(k.x + k.w), y1: ty(k.y + k.h) } }));
         const texts = T.free.map(q => ({ x0: tx(q.x0), y0: ty(q.y0), x1: tx(q.x1), y1: ty(q.y1) }));
@@ -383,15 +387,19 @@
           const bids = new Set(x.traces.map(b => b.id));
           const own = id => bids.has(id);
           const text = bright ? (x.long || x.short) : x.short;
-          const variants = [...new Set([bright ? shorten(text, 260, fs, family) : text, ...(bright && x.short ? [x.short] : [])])].filter(v => v != null);
+          const variants = [...new Set([bright ? shorten(text, 260, fs, family) : text, ...(bright && x.short ? [x.short] : [])])].filter(v => v != null && v !== '…');
           const band = BAND_DEPTH * L.s;
           // check of a rectangle: never over foreign tiles, tile texts, texts, end marks, port marks, controls;
           // foreign traces and free labels (group titles) only at rest — while hovering they step back anyway and the mark lies
           // opaque above; the own tile only in the band at the edge (there is never text there)
+          // kept-clear titles: at rest always (they are among the texts); while hovering first too — on a tile right under its title
+          // with no other spot the mark may lie over the title as long as the hover lasts
+          let strict = bright && clear.length > 0;
           const check = (r, withTraces) => {
             if (!inImage(r)) return false;
             const rp = grow(r, GAP);
             for (const o of hard) if (intersects(rp, o)) return false;
+            if (strict) for (const o of clear) if (intersects(rp, o)) return false;
             for (const o of taken) if (intersects(rp, o)) return false;
             for (const o of em) if (intersects(rp, o)) return false;
             for (const k of tiles) {
@@ -405,8 +413,7 @@
             if (withTraces && grid.hits(grow(r, 1), own)) return false;
             return true;
           };
-          let pl = null;
-          for (const tv of variants) {
+          const search = () => { for (const tv of variants) {
             const w = Math.min(290, width(tv, fs, family) + (tv ? (bright ? 28 : 23) : 19)), h = H0;   // symbol 11 + gap + padding + border
             const cand = [];
             // 1. socket at the tile edge: the end of the trace is plugged into the mark, part of it reaches into the own tile's band
@@ -431,10 +438,11 @@
             }
             for (const [kx, ky, kind] of cand) {
               const r = rect(Math.round(kx), Math.round(ky), w, h);
-              if (check(r, !bright)) { pl = { r, text: tv, kind }; break; }
+              if (check(r, !bright)) return { r, text: tv, kind };
             }
-            if (pl) break;
-          }
+          } return null; };
+          let pl = search();
+          if (!pl && strict) { strict = false; pl = search(); }
           if (!pl) continue;
           taken.push(pl.r); if (once) placed.add(once);
           specs.push({ key: x.group + '|' + x.traces.map(b => b.id).join(','), x, r: pl.r, text: pl.text, on: bright, spot: pl.kind, color: this.color(x.b), anchor: E });
@@ -517,7 +525,7 @@
     API, STRINGS, THRESHOLD, PROTOCOL,
     create: (host, options) => new Portmarks(host, options),
     Portmarks, chipHtml, symbolSvg,
-    _internals: { markOf: (f, t) => markOf(f, t || tDefault), detail, portLabel, portText, bandText, MEDIUM, setMeasure: f => { measureHook = f; measured.clear(); } }
+    _internals: { markOf: (f, t) => markOf(f, t || tDefault), shorten, detail, portLabel, portText, bandText, MEDIUM, setMeasure: f => { measureHook = f; measured.clear(); } }
   };
   LL.Portmarks = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

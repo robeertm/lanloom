@@ -732,6 +732,11 @@
           const r = this.legendEl.getBoundingClientRect();
           return r.width && r.height ? [{ x0: r.left - er.left - 3, y0: r.top - er.top - 3, x1: r.right - er.left + 3, y1: r.bottom - er.top + 3 }] : [];
         },
+        keepClear: er => {
+          const out = [];
+          this.zones.forEach(z => { const r = z.title.getBoundingClientRect(); if (r.width >= 1 && r.height >= 1) out.push(rel(r, er)); });
+          return out;
+        },
         // port marks
         network: false,
         facts: () => this.portFacts(),

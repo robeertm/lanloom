@@ -37,6 +37,8 @@
      host.goTo(nid)          moves the camera to a tile; host.hover(nid) (optional) shows the tile's chain
      host.mayFit() / host.fit(animated)   (optional) re-fit the board after the labels' room grew
      host.obstacles(rect)    → [{x0, y0, x1, y1}] fixed controls above the board in px relative to rect (bounding rect of host.el)
+     host.keepClear(rect)    → [{x0, y0, x1, y1}] (optional) zone titles and trace labels in px relative to rect: no label ever covers them.
+                               Unlike an obstacle they do not push a label off the edge; without a free spot the label drops or shortens
      host.setUnlabeled(trace, bool)       (optional) the exit lead of this trace has no label (host may draw a plug instead)
      host.t(key, params)     → text (optional; English built in, see STRINGS)
    The host calls: place() after structure/theme changes, reposition() on every pan/zoom, focus() when hover/selection changes,
@@ -146,16 +148,28 @@
     }
     return w;
   }
-  // Shorten the text so the label is at most MAXW wide (never overflow inside the label)
+  // Longest start of the text that ends right before a separator and still fits ('' = not even the first word); never inside a word
+  const SEPARATOR = /[\s·\-,]/, SEPARATORS_END = /[\s·\-,]+$/;
+  function cutAtWord(text, fits) {
+    for (let i = text.length - 1; i > 0; i--) {
+      if (!SEPARATOR.test(text[i])) continue;
+      const cut = text.slice(0, i).replace(SEPARATORS_END, '');
+      if (cut && fits(cut)) return cut;
+    }
+    return '';
+  }
+  // Shorten the text at a word boundary so the label is at most MAXW wide (never overflow inside the label)
   function fitting(front, name, back, max) {
     const room = (max || MAXW) - PAD;
     if (width(front + name + back) <= room) return front + name + back;
-    let n = name;
-    while (n.length > 3 && width(front + n + '…') > room) n = n.slice(0, -1);
-    return front + n.trimEnd() + '…';      // shortened: the "…" already shows that it goes on
+    const n = cutAtWord(name, c => width(front + c + '…') <= room);
+    if (n) return front + n + '…';         // shortened: the "…" already shows that it goes on
+    return (front.replace(/[:\s]+$/, '') + ' …').trim();   // not even one whole word fits: only the lead-in stays
   }
+  // Only the arrow and "…" (not even one whole word fitted) say nothing: no step of its own, the count form follows
+  const says = v => !/^\S? ?…$/.test(v);
   // Length steps of a label: full, shorter, even shorter (depending on room)
-  function steps(front, name, back, extra) { return [...new Set([MAXW, 170, 120].map(m => fitting(front, name, back, m - (extra || 0))))]; }
+  function steps(front, name, back, extra) { return [...new Set([MAXW, 170, 120].map(m => fitting(front, name, back, m - (extra || 0))))].filter(says); }
   // Detail level: font size of the labels at a scale
   function fontFor(s) { return Math.max(11, Math.min(13, Math.round(9.5 * s))); }
 
@@ -511,7 +525,8 @@
       const inside = (x, y, R) => x >= R.x0 && x <= R.x1 && y >= R.y0 && y <= R.y1;
       const inImage = r => r.x0 >= V.x0 && r.y0 >= V.y0 && r.x1 <= V.x1 && r.y1 <= V.y1;
       const specs = [];
-      const placeAt = makePlacer(inImage);
+      const clear = host.keepClear ? host.keepClear(er) : [];
+      const placeFree = makePlacer(inImage), placeAt = (variants, cand, lists, extra) => placeFree(variants, cand, [clear, ...lists], extra);
 
       // 1) end marks at visible pads
       const edgeLeft = [];   // pad outside the picture → edge mark at the tile's side
@@ -527,7 +542,8 @@
         const z = e.peers, out = z.reduce((a, q) => a + q.out, 0), inn = z.reduce((a, q) => a + q.in, 0);
         const p = arrowFor(out, inn), first = e.host ? t('endmarks.self', { name: this.peerName(z[0].id) }) : this.peerName(z[0].id);
         const word = p === '→' ? 'endmarks.targets' : p === '←' ? 'endmarks.sources' : 'endmarks.peers';
-        const variants = z.length === 1 ? [...new Set([...steps(p + ' ', first, ''), fitting(p + ' ', first, '', 84), ...(e.b.exit ? [p + ' 1'] : [])])]
+        const named = [...new Set([...steps(p + ' ', first, ''), fitting(p + ' ', first, '', 84)])].filter(says);
+        const variants = z.length === 1 ? (e.b.exit || !named.length ? [...named, p + ' 1'] : named)
           : [...steps(`${p} ${t(word, { n: z.length })}: `, first, ' …'), `${p} ${t(word, { n: z.length })}`, `${p} ${z.length}`];
         // exit: the smallest form is always direction + count ("↔ 4", "→ 1") — never "…" or a bare number; tappable, the list names all
         const s = exit ? exit.s : e.pad.s, a = 6, h2 = HEIGHT / 2;
@@ -594,7 +610,7 @@
               const w = Math.min(MAXW, width(text) + PAD);
               for (const k of circle) {
                 const [x, y] = k(w), r = rect(Math.round(x), Math.round(y), w, HEIGHT), rp = { x0: r.x0 - GAP, y0: r.y0 - GAP, x1: r.x1 + GAP, y1: r.y1 + GAP };
-                if (!inImage(r) || !free(rp, [hard, tiles, taken])) continue;
+                if (!inImage(r) || !free(rp, [clear, hard, tiles, taken])) continue;
                 const nx = Math.max(r.x0, Math.min(r.x1, a0[0])), ny = Math.max(r.y0, Math.min(r.y1, a0[1]));   // nearest point of the label
                 if (crosses(a0[0], a0[1], nx, ny, withTiles)) continue;
                 pl = { r, text, w, short: text !== variants[0] }; leash = [a0[0], a0[1], nx, ny]; anc = [nx, ny];
@@ -741,6 +757,10 @@
         m.style.setProperty('--ll-em-g', sp.kind === 'end' ? (0.5 + 0.5 * Math.min(1, sp.g * 1.6)).toFixed(2) : '1');
         const target = sp.entries.length === 1 ? sp.entries[0].name : t('endmarks.targets', { n: sp.entries.length });
         m.setAttribute('aria-label', t(sp.kind === 'end' ? 'endmarks.ariaEnd' : 'endmarks.ariaEdge', { target }));
+        // the label may be shortened, the tooltip names all peers in full
+        const names = sp.entries.slice(0, LIST_MAX).map(e => e.name), rest = sp.entries.length - names.length;
+        const tip = names.join(' · ') + (rest > 0 ? ' · ' + t('endmarks.more', { n: rest }) : '');
+        if (m.title !== tip) m.title = tip;
         m._spec = sp;
       }
       this.marks.forEach(m => this.toggle(m, 'hidden', false));
