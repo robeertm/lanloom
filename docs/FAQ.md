@@ -16,7 +16,7 @@ Only measured bytes are animated. Dots appear for this host's own TCP flows, for
 Nothing, except the optional update check, which asks the public release feed for the latest version at most every 6 hours (15 minutes after a failed check) and only while the page is open. Turn it off with `LANLOOM_UPDATE_CHECK=0` or in the settings. There is no telemetry.
 
 ### Can Lanloom change anything on my devices?
-No. It is read-only by construction. The scanner only probes, the hub connection cannot call services, the MQTT client cannot publish and SNMP uses read operations only.
+No. It is read-only by construction. The scanner only probes, the hub connection cannot call services, the MQTT client cannot publish and SNMP uses read operations only. The firewall editor runs as a simulation against a sample network unless you set up the separate executor service with your own controller adapter and arm it explicitly; see [FIREWALL-EDITOR.md](FIREWALL-EDITOR.md).
 
 ### Does it support IPv6?
 Not in 1.0. Scanning is IPv4 only.

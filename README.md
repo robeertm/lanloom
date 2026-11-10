@@ -10,6 +10,7 @@
 > - **It stores credentials you give it.** Optional integrations (home-automation hub, MQTT broker, router or switch) need secrets. They are stored encrypted (AES-256-GCM) and never shown again, but the key file lives next to the data: whoever controls the host controls them. Use read-only or least-privilege accounts.
 > - **Host networking.** To see your network, the container shares the host's network stack. It runs unprivileged, with a read-only root file system and all capabilities dropped, but it can reach whatever the host can reach.
 > - **The optional updater sidecar gets the container-runtime socket.** Access to that socket is root-equivalent on the host. Skip the sidecar (`--no-updater`) if you prefer to update by hand.
+> - **The firewall editor only simulates unless you arm it.** Real changes need the optional executor service, a controller adapter you provide and an explicit arming step. A real change can interrupt the wireless network for minutes and can lock you out if your network has paths the gate does not know. Read [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md) first.
 > - **Values are observations, not guarantees.** Classifications are heuristics, and traffic and liveness figures depend on what could be measured. Do not base security or safety decisions on them.
 > - **Provided as is, without warranty.** See [LICENSE](LICENSE).
 > - **Written with AI assistance.** Parts of this software were written with the help of AI tools; the code is reviewed and covered by automated tests and release checks.
@@ -24,7 +25,8 @@
 - **Two views.** *Map* is an overview by kind; *Network* shows the gateway and one zone per subnet.
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, and options to rename, re-type or hide a component.
 - **Device list** with search, light/dark/auto theme, a phone layout with bottom tabs, English and German UI.
-- **Read-only by construction.** It observes; it cannot change your devices.
+- **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network (or tap it and choose "Move to…" on a phone), collect moves in a draft and get a plain-language preview: what the device may do afterwards, what it may no longer do, and what to watch out for. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
+- **Read-only by construction.** The map observes; the app cannot change your devices. Real firewall changes are only possible through the separate, optional executor service, with a passkey signature per change and an explicit arming step by the operator.
 
 ## Screenshots
 
@@ -69,6 +71,17 @@ All screenshots show the built-in demo network with invented names and addresses
 
 ![Live grade](docs/screenshots/live-grade.png)
 
+### Firewall editor
+
+![Firewall editor in change mode with a draft of three moves](docs/screenshots/firewall-draft-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/firewall-preview-light.png" width="100%" alt="Plain-language preview"><br><sub>Preview: what changes, what it may and may no longer do, what to watch out for</sub></td>
+<td width="50%"><img src="docs/screenshots/firewall-progress-dark.png" width="100%" alt="Change in progress"><br><sub>Backed up, changed, watched; undo for 24 hours</sub></td>
+</tr>
+</table>
+
 ### Devices and settings
 
 ![Device list](docs/screenshots/devices-light.png)
@@ -84,6 +97,8 @@ All screenshots show the built-in demo network with invented names and addresses
 <td><img src="docs/screenshots/phone-detail.png" width="200" alt="Phone component card"></td>
 <td><img src="docs/screenshots/phone-devices.png" width="200" alt="Phone device list"></td>
 <td><img src="docs/screenshots/phone-wizard-scan.png" width="200" alt="Phone wizard scan step"></td>
+<td><img src="docs/screenshots/phone-firewall-move.png" width="200" alt="Phone: move a device to another network"></td>
+<td><img src="docs/screenshots/phone-firewall-preview.png" width="200" alt="Phone: firewall preview"></td>
 </tr>
 </table>
 

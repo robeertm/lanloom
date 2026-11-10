@@ -25,6 +25,8 @@ services:
     environment:
       LANLOOM_PORT: "7380"            # web port on this host
       LANLOOM_UPDATE_CHECK: "1"       # 0 = never contact the release feed
+      LANLOOM_FW_EXECUTOR: "${LANLOOM_FW_EXECUTOR:-simulation}"   # firewall editor: simulation | external
+      LANLOOM_EXECUTOR_TOKEN: "${LANLOOM_EXECUTOR_TOKEN:-}"       # only for external, same value as the executor
     volumes:
       - lanloom-data:/data
     labels:
@@ -52,5 +54,33 @@ services:
       - lanloom-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
 
+  # Optional executor for the firewall editor, off by default. It is the only part that could ever write to a
+  # network controller. Without a controller adapter and the explicit arming step it only rehearses against its
+  # own sample network. Read docs/FIREWALL-EDITOR.md first. The app then needs LANLOOM_FW_EXECUTOR=external and
+  # the same LANLOOM_EXECUTOR_TOKEN (put both in a .env file next to this compose file).
+  executor:
+    image: ghcr.io/robeertm/lanloom:latest
+    container_name: lanloom-executor
+    profiles: ["executor"]
+    restart: unless-stopped
+    command: ["python", "-m", "lanloom.executor", "run"]
+    network_mode: host
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      LANLOOM_EXECUTOR_APP: "http://127.0.0.1:7380"
+      LANLOOM_EXECUTOR_TOKEN: "${LANLOOM_EXECUTOR_TOKEN:-}"
+      LANLOOM_EXECUTOR_TARGET: "${LANLOOM_EXECUTOR_TARGET:-simulation}"
+      LANLOOM_EXECUTOR_ORIGINS: "${LANLOOM_EXECUTOR_ORIGINS:-}"
+      LANLOOM_EXECUTOR_STATE: /state
+    volumes:
+      - lanloom-executor:/state
+
 volumes:
   lanloom-data:
+  lanloom-executor:

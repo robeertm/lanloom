@@ -18,11 +18,11 @@
 
   // ------------------------------------------------------------------ app frame (header + nav)
   function frame(app, active, content) {
-    const tabs = [['map', 'nav.map'], ['network', 'nav.network'], ['devices', 'nav.devices'], ['settings', 'nav.settings']];
+    const tabs = [['map', 'nav.map'], ['network', 'nav.network'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['settings', 'nav.settings']];
     const nav = h('nav', { class: 'tabs', 'aria-label': t('nav.label') }, tabs.map(([k, label]) =>
       h('a', { href: '#/' + k, class: 'tab' + (k === active ? ' is-active' : ''), 'aria-current': k === active ? 'page' : null },
         h('span', { class: 'tab__icon', 'aria-hidden': 'true' }), h('span', { class: 'tab__label' }, t(label)))));
-    nav.querySelectorAll('.tab__icon').forEach((el, i) => { el.innerHTML = NAV_ICONS[tabs[i][0]]; });
+    nav.querySelectorAll('.tab__icon').forEach((el, i) => { el.innerHTML = NAV_ICONS[tabs[i][0]] || LL.FW_ICON || ''; });
     const gradePill = h('button', { class: 'grade-pill', type: 'button', title: t('live.overall'), onclick: () => openSources() },
       h('i', { class: 'grade-pill__dot' }), h('span', { class: 'grade-pill__text' }, t('board.grade.unknown')));
     const updateBtn = h('button', { class: 'update-pill', type: 'button', hidden: true, onclick: () => openUpdate() }, t('update.available_short'));
@@ -394,6 +394,8 @@
     }, 1200);
   }
 
+  LL.frame = frame;
+  LL.dialog = dialog;
   LL.view('map', mapView('overview'));
   LL.view('network', mapView('network'));
   LL.view('devices', devicesView);

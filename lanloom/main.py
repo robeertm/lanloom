@@ -61,6 +61,8 @@ class App:
         self.setup_code = auth.SetupCode(cfg.data_dir, store)
         self.core = Core(cfg, store, vault)
         self.updates = Updates(cfg, store)
+        from .firewall.editor import Editor
+        self.firewall = Editor(cfg, store)
         if cfg.demo:
             from .demo import Demo
             self.core.demo = Demo()
@@ -122,7 +124,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                     return JSONResponse({"error": "auth.err.header"}, status_code=403)
                 if not auth.origin_allowed(request.headers.get("origin"), request.headers.get("host"), cfg.trusted_origins):
                     return JSONResponse({"error": "auth.err.origin"}, status_code=403)
-            if path not in PUBLIC_API and not path.startswith("/api/i18n/"):
+            if path.startswith("/api/executor/"):
+                if not state.firewall.token_ok(request.headers.get("authorization", "")):
+                    return JSONResponse({"error": "auth.err.required"}, status_code=401)   # token of the executor service, no session
+            elif path not in PUBLIC_API and not path.startswith("/api/i18n/"):
                 user = current_user(request)
                 if not user:
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)
@@ -395,6 +400,97 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         except ValueError as exc:
             return err(str(exc))
 
+    # ------------------------------------------------------------------ firewall editor
+    from .firewall.model import Refused
+
+    def refused(exc: Refused, status: int = 409) -> JSONResponse:
+        return JSONResponse({"error": exc.key, "vars": exc.vars}, status_code=status)
+
+    def requester_ip(request: Request) -> str:
+        return auth.client_address(peer_of(request), request.headers, proxies)
+
+    @app.get("/api/firewall")
+    async def fw_view(request: Request):
+        return state.firewall.view(request.state.user, requester_ip(request))
+
+    @app.put("/api/firewall/draft")
+    async def fw_draft(request: Request):
+        data = await body(request)
+        moves = data.get("moves") if isinstance(data.get("moves"), dict) else {}
+        try:
+            return state.firewall.set_draft(request.state.user, moves)
+        except Refused as exc:
+            return refused(exc)
+
+    @app.delete("/api/firewall/draft")
+    async def fw_draft_clear(request: Request):
+        state.firewall.clear_draft(request.state.user)
+        return {"ok": True}
+
+    @app.post("/api/firewall/preview")
+    async def fw_preview(request: Request):
+        try:
+            return state.firewall.preview(request.state.user, requester_ip(request))
+        except Refused as exc:
+            return refused(exc)
+
+    @app.post("/api/firewall/plan")
+    async def fw_plan(request: Request):
+        data = await body(request)
+        confirmed = data.get("confirmed") if isinstance(data.get("confirmed"), list) else []
+        try:
+            return state.firewall.make_plan(request.state.user, requester_ip(request), confirmed, rp_of(request)[0])
+        except Refused as exc:
+            return refused(exc)
+
+    @app.post("/api/firewall/approve")
+    async def fw_approve(request: Request):
+        data = await body(request)
+        rp_id, origin = rp_of(request)
+        try:
+            return state.firewall.approve(request.state.user, str(data.get("plan") or ""), data.get("assertion"), rp_id, origin)
+        except Refused as exc:
+            return refused(exc)
+
+    @app.post("/api/firewall/undo")
+    async def fw_undo(request: Request):
+        data = await body(request)
+        try:
+            return state.firewall.undo(request.state.user, str(data.get("plan") or ""))
+        except Refused as exc:
+            return refused(exc)
+
+    @app.post("/api/firewall/reset")
+    async def fw_reset():
+        try:
+            state.firewall.reset_simulation()
+        except Refused as exc:
+            return refused(exc)
+        return {"ok": True}
+
+    @app.get("/api/firewall/keys")
+    async def fw_keys(request: Request):
+        rp_id, origin = rp_of(request)
+        keys = [{k: v for k, v in key.items() if k != "name"} for key in state.firewall.user_keys(request.state.user, rp_id)]
+        return {"keys": keys, "origin": origin, "names": [k["name"] for k in state.firewall.user_keys(request.state.user, rp_id)]}
+
+    @app.get("/api/executor/plans")
+    async def ex_plans(target: str = "controller"):
+        return {"plans": state.firewall.executor_take_plans(target)}
+
+    @app.post("/api/executor/state")
+    async def ex_state(request: Request):
+        try:
+            state.firewall.executor_push_state(await body(request))
+        except Refused as exc:
+            return refused(exc, 400)
+        return {"ok": True}
+
+    @app.post("/api/executor/report")
+    async def ex_report(request: Request):
+        state.firewall.on_progress(await body(request))
+        return {"ok": True}
+
     # ------------------------------------------------------------------ live
     @app.websocket("/api/live")
     async def live_feed(ws: WebSocket):
@@ -443,6 +539,10 @@ def selftest() -> int:
     problems = []
     try:
         from . import classify, core, demo, live, scan, sources  # noqa: F401 - import check
+        from .firewall import adapter as fw_adapter, model as fw_model
+        st = fw_adapter.sample_state()
+        if not fw_model.preview(st, {"d10": "n_work"})["steps"]:
+            problems.append("firewall preview")
         import updater  # noqa: F401
         store = Store(":memory:")
         cfg = SimpleNamespace(data_dir=Path("/nonexistent/lanloom-selftest"), host="127.0.0.1", port=0,
@@ -461,7 +561,7 @@ def selftest() -> int:
         en, de = load_i18n("en"), load_i18n("de")
         if not en or set(en) != set(de):
             problems.append("i18n keys differ (%d en / %d de)" % (len(en), len(de)))
-        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "css/tokens.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "css/firewall.css", "css/tokens.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()
