@@ -20,7 +20,7 @@ def test_bait_is_removed():
 @pytest.mark.parametrize("text", [
     "Living-Room-TV-4K", "Router 7590 AX!", "webserver/1.25.3", "httpd/2.4.58 (Unix) OpenSSL/3.0.11",
     "uuid:2f402f80-da50-11e1-9b23-001788102201", "urn:schemas-upnp-org:device:MediaRenderer:1",
-    "esp32-a4cf12b3", "Brother HL-L2350DW series", "http://192.0.2.1:49000/igddesc.xml", "user@example.org",
+    "esp32-a4cf12b3", "Laser Printer LP-2350DW series", "http://192.0.2.1:49000/igddesc.xml", "user@example.org",
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "1234567890123456789012345678901234567890",
     "TV 7 Series (55) XE55RU7179UXZG", "https://example.org/a/b?c=d",
     "kitchen_light_2024_ceiling_lamp_left_side", "shelf-sensor-01-living-room-window-2",

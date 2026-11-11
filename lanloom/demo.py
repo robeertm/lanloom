@@ -30,11 +30,11 @@ HOSTS = [
      "ports": [_port(80, "http", "Switch management"), _port(443, "https", "Switch management")]},
     {"ip": "192.168.50.3", "n": 3, "names": ["ap-upstairs.lan"],
      "ports": [_port(443, "https", "Access point")],
-     "ssdp": [{"st": "urn:schemas-wifialliance-org:device:WLANAccessPointDevice:1", "friendly_name": "Access point upstairs",  # identifier: UPnP device type
+     "ssdp": [{"st": "urn:schemas-upnp-org:device:WLANAccessPointDevice:1", "friendly_name": "Access point upstairs",  # identifier: UPnP device type
                "model": None, "manufacturer": None, "device_type": None, "server": None}]},
     {"ip": "192.168.50.4", "n": 4, "names": ["ap-garden.lan"],
      "ports": [_port(443, "https", "Access point")],
-     "ssdp": [{"st": "urn:schemas-wifialliance-org:device:WLANAccessPointDevice:1", "friendly_name": "Access point garden",  # identifier: UPnP device type
+     "ssdp": [{"st": "urn:schemas-upnp-org:device:WLANAccessPointDevice:1", "friendly_name": "Access point garden",  # identifier: UPnP device type
                "model": None, "manufacturer": None, "device_type": None, "server": None}]},
     {"ip": "192.168.50.10", "n": 10, "names": ["storage.local"],
      "ports": [_port(22, "ssh"), _port(80, "http"), _port(443, "https"), _port(445, "smb"), _port(5000, "web-alt", "Storage"),
