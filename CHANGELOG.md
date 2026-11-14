@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] – 2026-11-14
+
+### Changed
+- Internal quality gate only, no behaviour change: the check for third-party product and vendor names now also accepts an optional private list kept outside the repository, uses word boundaries and ignores case, adds roughly seventy more common home-network, hosting and database names, treats package names in requirements files as technical identifiers, and has its own self-tests that run before the leak check. A full run over every tracked file, interface text in all languages, file names and screenshots found nothing to reword.
+
 ## [1.2.1] – 2026-11-11
 
 ### Changed
