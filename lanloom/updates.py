@@ -36,6 +36,12 @@ def parse_version(text: str) -> Optional[tuple]:
     return tuple(int(x) for x in m.groups()) if m else None
 
 
+def is_older(a: str, b: str) -> bool:
+    """True when both are MAJOR.MINOR.PATCH and a is older than b."""
+    va, vb = parse_version(str(a or "")), parse_version(str(b or ""))
+    return bool(va and vb and va < vb)
+
+
 def pick_release(feed) -> dict:
     """The highest stable release of a release list (no drafts, no pre-releases, only MAJOR.MINOR.PATCH tags)."""
     if not isinstance(feed, list):

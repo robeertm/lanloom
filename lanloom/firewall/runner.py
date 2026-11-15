@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from . import model
+from . import steps as stepkinds
 from .canon import digest
 from .signature import Invalid, verify_assertion
 
@@ -126,7 +127,7 @@ class Runner:
         result = {"plan": active.get("plan"), "status": "rolled_back", "reason": "fw.res.recovered"}
         try:
             if snap and active.get("applied"):
-                self.adapter.restore(snap["snapshot"])
+                self.adapter.restore(self._with_created(snap["snapshot"], active.get("created")))
         except Exception as exc:
             result = {"plan": active.get("plan"), "status": "failed", "reason": "fw.res.rollback_failed", "detail": type(exc).__name__}
         os.unlink(self.dir / "active.json")
@@ -174,13 +175,18 @@ class Runner:
             write_private(self.dir / "nonces.json", (nonces + [plan["nonce"]])[-NONCE_KEEP:])
             self._emit(pid, "gate")
             state = self.adapter.read()
+            caps = self.adapter.capabilities() if hasattr(self.adapter, "capabilities") else None
             model.gate(state, plan, target=self.target, now=now, quiet=model.in_quiet_hours(self.quiet_hours, now),
-                       busy=(self.dir / "active.json").exists(), healthy=self.adapter.health())
+                       busy=(self.dir / "active.json").exists(), healthy=self.adapter.health(), caps=caps)
+            for st in plan["steps"]:
+                extra = self.adapter.lockout(state, st) if hasattr(self.adapter, "lockout") else None
+                if extra:
+                    raise model.Refused(extra)
         except model.Refused as exc:
             return self._refuse(plan, exc)
         self.active = pid
         steps = plan["steps"]
-        ids = [s["device"] for s in steps]
+        ids = [stepkinds.step_object(s) for s in steps]
         # backup and the way back exist before the first write
         self._emit(pid, "backup")
         snap = self.adapter.snapshot(ids)
@@ -189,11 +195,22 @@ class Runner:
         back = model.inverse(steps)
         write_private(self.dir / "active.json", {"plan": pid, "applied": False, "t": started})
         result = {"plan": pid, "status": "done", "reason": "fw.res.done", "inverse": back, "started": started, "key": key_id}
+        created = {}
         try:
             self._emit(pid, "apply")
             write_private(self.dir / "active.json", {"plan": pid, "applied": True, "t": started})
             for st in steps:
-                self.adapter.apply(st)
+                out = self.adapter.apply(st)
+                if stepkinds.KINDS[st["kind"]].verb == "create":
+                    if not isinstance(out, dict) or not isinstance(out.get("id"), str):
+                        raise RuntimeError("create without an id")
+                    created[st["object"]] = out["id"]
+                    # the id the controller gave the new object is known before anything else can go wrong
+                    write_private(self.dir / "active.json", {"plan": pid, "applied": True, "t": started,
+                                                             "created": sorted(created.values())})
+            if created:
+                snap = self._with_created(snap, sorted(created.values()))
+                result["inverse"] = model.inverse(steps, created)
             self._emit(pid, "settle")
             self.adapter.settle(steps)
             until = self.clock() + self.watch_s
@@ -201,7 +218,7 @@ class Runner:
             result.update(self._watch(pid, steps, snap, until))
         except Exception as exc:
             log.warning("apply failed: %s", type(exc).__name__)
-            result.update(self._rollback(pid, snap, None, "fw.res.apply_failed"))
+            result.update(self._rollback(pid, self._with_created(snap, sorted(created.values())), None, "fw.res.apply_failed"))
         try:
             os.unlink(self.dir / "active.json")
         except FileNotFoundError:
@@ -235,7 +252,7 @@ class Runner:
     def _rollback(self, pid, snap, only, reason) -> dict:
         """At most one automatic rollback: everything, or only the devices that did not come back."""
         self._emit(pid, "rollback")
-        part = snap if not only or "devices" not in snap else {"devices": [d for d in snap["devices"] if d.get("id") in only]}
+        part = snap if not only else self._only(snap, set(only))
         try:
             self.adapter.restore(part)
             self.adapter.settle([])
@@ -243,3 +260,25 @@ class Runner:
             log.error("rollback failed: %s", type(exc).__name__)
             return {"status": "failed", "reason": "fw.res.rollback_failed", "inverse": None}
         return {"status": "rolled_back", "reason": reason, "inverse": None, "rolled_back": only or "all"}
+
+    @staticmethod
+    def _with_created(snap: dict, created) -> dict:
+        """The snapshot plus the ids a plan created (the way back removes them)."""
+        if not created:
+            return snap
+        return dict(snap or {}, created=sorted(set((snap or {}).get("created") or []) | set(created)))
+
+    @staticmethod
+    def _only(snap: dict, ids: set) -> dict:
+        """The part of a snapshot that belongs to some objects (partial rollback)."""
+        if "devices" not in snap:                          # a shape without per-object lists: everything goes back
+            return snap
+        if len(snap) == 1:                                 # the v1 shape, as in earlier releases
+            return {"devices": [d for d in snap["devices"] if d.get("id") in ids]}
+        out = {}
+        for area, items in snap.items():
+            if area == "created":
+                out[area] = [i for i in items if i in ids]
+            elif isinstance(items, list):
+                out[area] = [o for o in items if isinstance(o, dict) and o.get("id") in ids]
+        return out

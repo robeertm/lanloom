@@ -15,8 +15,10 @@ Environment:
   LANLOOM_EXECUTOR_TOKEN[_FILE] shared token, at least 24 characters, same value as in the app
   LANLOOM_EXECUTOR_STATE        state directory (default /state)
   LANLOOM_EXECUTOR_TARGET       simulation (default) | controller
-  LANLOOM_EXECUTOR_ADAPTER      package.module:ClassName of a controller adapter (target controller only)
-  LANLOOM_EXECUTOR_ADAPTER_OPTIONS  path of a JSON file with the adapter's options (credentials stay there)
+  LANLOOM_EXECUTOR_ADAPTER      family id of a built-in write adapter (target controller only); see
+                                docs/COMPATIBILITY.md. Nothing outside the built-in list can be loaded.
+  LANLOOM_EXECUTOR_ADAPTER_OPTIONS  path of the adapter's JSON options file with the write credentials:
+                                mode 0600, owned by the executor's user, no symbolic link
   LANLOOM_EXECUTOR_ARM          must be exactly I-UNDERSTAND, and <state>/armed must exist, before real writes
   LANLOOM_EXECUTOR_ORIGINS      comma-separated origins the app is opened from, e.g. https://lanloom.example
   LANLOOM_EXECUTOR_WATCH_S      watch time after a change (default 3600)
@@ -30,9 +32,13 @@ import time
 import urllib.request
 from pathlib import Path
 
-from . import __version__
-from .firewall.adapter import SimulatedController, load_adapter
+from . import __version__, integrations
+from .updates import is_older as _older
+from .firewall.adapter import SimulatedController
 from .firewall.runner import Runner, read_private, write_private
+from .firewall.steps import PLAN_VERSION_MAX
+from .integrations import capabilities as capmod
+from .integrations.credentials import CredentialError, load_write_options
 
 log = logging.getLogger("lanloom.executor")
 ARM_PHRASE = "I-UNDERSTAND"
@@ -80,10 +86,39 @@ def build_adapter(s: Settings):
     if not s.armed():
         raise SystemExit("Real writes are not armed. Set LANLOOM_EXECUTOR_ARM=%s and create %s by hand "
                          "after reading docs/FIREWALL-EDITOR.md." % (ARM_PHRASE, s.state / "armed"))
+    family = s.adapter
+    if ":" in family or "." in family:
+        raise SystemExit("LANLOOM_EXECUTOR_ADAPTER takes the id of a built-in adapter family (see docs/COMPATIBILITY.md); "
+                         "loading adapter classes from elsewhere is not supported")
+    try:
+        manifest = integrations.get(family)
+    except KeyError:
+        raise SystemExit("unknown adapter family %r (built in: %s)" % (family, ", ".join(
+            m.family for m in integrations.families() if m.write and m.family != "simulation") or "none yet"))
+    if family == "simulation" or not manifest.write:
+        raise SystemExit("family %r has no write adapter for the controller target "
+                         "(use LANLOOM_EXECUTOR_TARGET=simulation to rehearse)" % family)
     options = {}
     if s.adapter_options:
-        options = json.loads(Path(s.adapter_options).read_text(encoding="utf-8"))
-    return load_adapter(s.adapter, options)
+        try:
+            options = load_write_options(s.adapter_options, secret_fields=manifest.write_secret_fields)
+        except CredentialError as exc:
+            raise SystemExit("adapter options: %s" % exc)
+    return integrations.load_write(family, **options)
+
+
+def executor_info(s: Settings, adapter) -> dict:
+    """What the executor tells the app about itself (no credentials, no addresses)."""
+    caps = adapter.capabilities() if hasattr(adapter, "capabilities") else None
+    try:
+        caps = capmod.validate(caps) if caps else None
+    except capmod.CapabilityError:
+        caps = None
+    return {"target": s.target, "armed": s.armed(), "adapter": getattr(adapter, "label", "adapter"), "version": __version__,
+            "family": getattr(adapter, "family", None), "capabilities": capmod.public(caps) if caps else None,
+            "plan_version_max": PLAN_VERSION_MAX, "api_level": integrations.INTEGRATION_API}
+
+
 
 
 def _http(s: Settings, method: str, path: str, payload=None):
@@ -116,12 +151,17 @@ def run(s: Settings, once: bool = False) -> int:
     recovered = runner.recover()
     if recovered:
         log.warning("recovered an interrupted run: %s", recovered.get("status"))
-    info = {"target": s.target, "armed": s.armed(), "adapter": getattr(adapter, "label", "adapter"), "version": __version__,
-            "keys": [k.get("fingerprint") for k in keys]}
+    info = dict(executor_info(s, adapter), keys=[k.get("fingerprint") for k in keys])
     log.info("executor ready: target=%s armed=%s keys=%d", s.target, info["armed"], len(keys))
+    warned = set()
     while True:
         try:
-            _http(s, "POST", "/api/executor/state", {"state": adapter.read(), "executor": info})
+            reply = _http(s, "POST", "/api/executor/state", {"state": adapter.read(), "executor": info})
+            app = (reply or {}).get("app") if isinstance(reply, dict) else None
+            if isinstance(app, dict) and app.get("version") and _older(__version__, app["version"]) and app["version"] not in warned:
+                warned.add(app["version"])
+                log.warning("this executor (%s) is older than the app (%s): update it by hand; plans of a newer "
+                            "version are refused, never half-understood", __version__, app["version"])
             for item in _http(s, "GET", "/api/executor/plans?target=" + s.target).get("plans") or []:
                 runner.run(item.get("plan"), item.get("assertion"))
                 _http(s, "POST", "/api/executor/state", {"state": adapter.read(), "executor": info})
@@ -150,6 +190,7 @@ def trust_key(s: Settings, text: str) -> int:
 
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    integrations.mark_executor_process()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     s = Settings()
     cmd = argv[0] if argv else "run"
@@ -163,6 +204,7 @@ def main(argv=None) -> int:
         return 0
     if cmd == "status":
         print(json.dumps({"target": s.target, "armed": s.armed(), "keys": len(read_private(keys_path(s), [])),
+                          "version": __version__, "plan_version_max": PLAN_VERSION_MAX, "api_level": integrations.INTEGRATION_API,
                           "last": Runner(SimulatedController(settle_s=0), s.state, target=s.target).history(5)}, indent=1))
         return 0
     print(__doc__)

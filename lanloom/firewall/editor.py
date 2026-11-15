@@ -13,8 +13,10 @@ import time
 from pathlib import Path
 
 from . import model
+from . import steps as stepkinds
 from .adapter import SimulatedController
 from .canon import digest
+from ..updates import is_older as _older
 from .signature import Invalid, b64u, cose_to_xy, key_fingerprint, verify_assertion
 
 DRAFT_TTL_S = 24 * 3600
@@ -51,6 +53,7 @@ class Editor:
         self.progress = {}         # plan id -> last progress event
         self.ext_state = None      # external: last state published by the executor
         self.ext_info = {}
+        self.ext_caps = None
         self.ext_seen = 0.0
         self._lock = threading.Lock()
         self._sim = None
@@ -72,6 +75,21 @@ class Editor:
                                   require_signature=False, watch_s=_env_int("LANLOOM_FW_SIM_WATCH_S", 20), check_s=2,
                                   quiet_hours=self.quiet_hours, report=self.on_progress)
         return self._runner
+
+    # ------------------------------------------------------------------ capabilities
+    def capabilities(self) -> dict:
+        """Validated capability list of the adapter behind the editor. An executor of an earlier release sends
+        none: then the v1 contract applies (moves only)."""
+        from ..integrations import capabilities as capmod
+        if self.mode == "simulation":
+            return capmod.validate(self.sim().capabilities())
+        return self.ext_caps or capmod.V1_DEFAULT
+
+    def plan_version_max(self) -> int:
+        if self.mode == "simulation":
+            return stepkinds.PLAN_VERSION_MAX
+        v = self.ext_info.get("plan_version_max")
+        return v if isinstance(v, int) and not isinstance(v, bool) and v >= 1 else 1
 
     # ------------------------------------------------------------------ state
     def state(self):
@@ -101,6 +119,9 @@ class Editor:
                 clean[dev_id] = net_id
         if len(clean) > model.MAX_OBJECTS:
             raise model.Refused("fw.block.too_many", n=len(clean), max=model.MAX_OBJECTS)
+        from ..integrations import capabilities as capmod
+        if clean and not capmod.can(self.capabilities(), "move"):
+            raise model.Refused("fw.block.capability", kind="move")
         prev = self.draft(user)
         d = {"moves": clean, "t": int(prev.get("t") or time.time()) if clean else 0,
              "undo_of": undo_of if undo_of is not None else (prev.get("undo_of") if clean else None)}
@@ -114,12 +135,17 @@ class Editor:
         st = self.state()
         out = {"mode": self.mode, "state": None, "targets": {}, "draft": self.draft(user), "quiet": self.is_quiet(),
                "quiet_hours": self.quiet_hours, "executor": self.executor_status(), "running": self.running(),
-               "history": self.history(), "requester": None, "max_objects": model.MAX_OBJECTS}
+               "history": self.history(), "requester": None, "max_objects": model.MAX_OBJECTS,
+               "capabilities": self.public_capabilities()}
         if st is not None:
             out["state"] = st
             out["targets"] = {d["id"]: model.drop_targets(st, d) for d in st.get("devices") or []}
             out["requester"] = next((d["id"] for d in st.get("devices") or [] if d.get("ip") == client_ip), None)
         return out
+
+    def public_capabilities(self) -> dict:
+        from ..integrations import capabilities as capmod
+        return capmod.public(self.capabilities())
 
     def is_quiet(self) -> bool:
         return model.in_quiet_hours(self.quiet_hours, time.time())
@@ -144,6 +170,9 @@ class Editor:
         target = "simulation" if self.mode == "simulation" else (self.ext_info.get("target") or "controller")
         plan = model.build_plan(self.state(), pv, target=target, user=user["username"], confirmed=confirmed,
                                 undo_of=self.draft(user).get("undo_of"))
+        if plan["v"] > self.plan_version_max():
+            raise model.Refused("fw.block.executor_old", v=plan["v"], max=self.plan_version_max())
+        model.check_capabilities(plan, self.capabilities())
         now = time.time()
         with self._lock:
             for k in [k for k, v in self.pending.items() if now - v["t"] > model.PLAN_TTL_S]:
@@ -186,6 +215,8 @@ class Editor:
         job = next((j for j in self.history() if j["plan"] == plan_id), None)
         if not job or job.get("status") != "done" or not job.get("inverse") or not job.get("undo_until") or time.time() > job["undo_until"]:
             raise model.Refused("fw.err.undo_gone")
+        if any(s.get("kind") != "move" for s in job["inverse"]):
+            raise model.Refused("fw.err.undo_gone")      # only moves are drafted in the editor so far
         moves = {s["device"]: s["after"]["network"] for s in job["inverse"]}
         return self.set_draft(user, moves, undo_of=plan_id)
 
@@ -198,8 +229,16 @@ class Editor:
     def _remember_job(self, plan, user) -> None:
         st = self.state() or {}
         _, nets, devs = model.index(st)
-        summary = [{"name": (devs.get(s["device"]) or {}).get("name", "?"), "from": (nets.get(s["before"]["network"]) or {}).get("name", "?"),
-                    "to": (nets.get(s["after"]["network"]) or {}).get("name", "?")} for s in plan["steps"]]
+        from . import neutral
+        summary = []
+        for s in plan["steps"]:
+            if s["kind"] == "move":
+                summary.append({"name": (devs.get(s["device"]) or {}).get("name", "?"), "from": (nets.get(s["before"]["network"]) or {}).get("name", "?"),
+                                "to": (nets.get(s["after"]["network"]) or {}).get("name", "?")})
+            else:
+                obj = neutral.find(st, s) or {}
+                summary.append({"name": obj.get("name") or s["after"].get("name") or s["before"].get("name") or "?",
+                                "kind": s["kind"], "fields": stepkinds.changed_fields(s)})
         jobs = self.history()
         jobs.insert(0, {"plan": plan["id"], "user": user["username"], "t": int(time.time()), "status": "running", "stage": "queued",
                         "summary": summary, "undo_of": plan.get("undo_of"), "inverse": None, "undo_until": None})
@@ -254,9 +293,15 @@ class Editor:
         if self.mode == "simulation":
             return {"kind": "built-in", "connected": True, "target": "simulation", "armed": False}
         age = time.time() - self.ext_seen if self.ext_seen else None
+        from .. import __version__
+        from ..integrations import INTEGRATION_API
+        ver = self.ext_info.get("version")
         return {"kind": "external", "connected": age is not None and age < STATE_STALE_S, "age_s": int(age) if age is not None else None,
                 "target": self.ext_info.get("target"), "armed": bool(self.ext_info.get("armed")),
-                "adapter": self.ext_info.get("adapter"), "version": self.ext_info.get("version"), "keys": self.ext_info.get("keys")}
+                "adapter": self.ext_info.get("adapter"), "version": ver, "keys": self.ext_info.get("keys"),
+                "family": self.ext_info.get("family"), "plan_version_max": self.plan_version_max(),
+                "outdated": bool(ver) and _older(str(ver), __version__)
+                or (self.ext_info.get("api_level") not in (None, INTEGRATION_API))}
 
     def token_ok(self, header: str) -> bool:
         import hmac
@@ -266,12 +311,28 @@ class Editor:
         return hmac.compare_digest(given.encode(), self.token.encode())
 
     def executor_push_state(self, data: dict) -> None:
+        from . import neutral
+        from ..integrations import capabilities as capmod
         st = data.get("state")
-        if not isinstance(st, dict) or not isinstance(st.get("devices"), list) or not isinstance(st.get("networks"), list):
+        try:
+            neutral.validate(st)
+        except neutral.ModelError:
             raise model.Refused("fw.block.format")
         self.ext_state = st
         info = data.get("executor") if isinstance(data.get("executor"), dict) else {}
-        self.ext_info = {k: info.get(k) for k in ("target", "armed", "adapter", "version", "keys")}
+        self.ext_info = {k: info.get(k) for k in ("target", "armed", "adapter", "version", "keys", "family",
+                                                     "plan_version_max", "api_level")}
+        caps = info.get("capabilities")
+        self.ext_caps = None
+        if isinstance(caps, dict) and caps.get("write") is not None:
+            try:      # the executor sends the public form; rebuild a checked list from it (never wider than declared)
+                self.ext_caps = capmod.validate({"family": caps.get("family") or "controller",
+                                                 "api": caps.get("api") or {"kind": "local", "version": ""},
+                                                 "read": caps.get("read") or [], "write": caps.get("write") or {},
+                                                 "limits": {"objects_per_plan": caps.get("objects_per_plan") or model.MAX_OBJECTS}})
+            except capmod.CapabilityError:
+                self.ext_caps = {"family": "controller", "api": {"kind": "local", "version": ""}, "read": [], "write": {},
+                                 "rollback": {}, "limits": {"objects_per_plan": model.MAX_OBJECTS}, "lockout": []}
         self.ext_seen = time.time()
 
     def executor_take_plans(self, target: str) -> list:
@@ -280,3 +341,5 @@ class Editor:
             take = [q for q in self.queue if q["plan"]["target"] == target and now <= q["plan"]["expires"]]
             self.queue = [q for q in self.queue if q not in take and now <= q["plan"]["expires"]]
         return take
+
+

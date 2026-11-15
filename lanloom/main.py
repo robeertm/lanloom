@@ -366,7 +366,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     # ------------------------------------------------------------------ integrations
     @app.get("/api/integrations")
     async def integrations():
-        return {"integrations": state.core.integrations()}
+        from . import integrations as registry
+        return {"integrations": state.core.integrations(), "families": registry.public_list(),
+                "api_level": registry.INTEGRATION_API}
 
     @app.post("/api/integrations/test")
     async def integration_test(request: Request):
@@ -492,7 +494,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             state.firewall.executor_push_state(await body(request))
         except Refused as exc:
             return refused(exc, 400)
-        return {"ok": True}
+        from .firewall.steps import PLAN_VERSION_MAX
+        from .integrations import INTEGRATION_API
+        return {"ok": True, "app": {"version": __version__, "plan_version_max": PLAN_VERSION_MAX, "api_level": INTEGRATION_API}}
 
     @app.post("/api/executor/report")
     async def ex_report(request: Request):
@@ -551,6 +555,9 @@ def selftest() -> int:
         st = fw_adapter.sample_state()
         if not fw_model.preview(st, {"d10": "n_work"})["steps"]:
             problems.append("firewall preview")
+        from . import integrations as registry
+        if not registry.BUILTIN or any(m.validate() is None for m in registry.BUILTIN):
+            problems.append("integration registry")
         import updater  # noqa: F401
         store = Store(":memory:")
         cfg = SimpleNamespace(data_dir=Path("/nonexistent/lanloom-selftest"), host="127.0.0.1", port=0,

@@ -17,9 +17,10 @@ import ipaddress
 import secrets
 import time
 
+from . import neutral, steps as stepkinds
 from .canon import digest_hex, fingerprint
 
-MAX_OBJECTS = 10
+from .steps import MAX_OBJECTS  # noqa: E402  (re-exported: model.MAX_OBJECTS)
 PLAN_TTL_S = 300
 CLIENT_KINDS = {"computer", "laptop", "desktop", "phone", "tablet", "workstation"}
 
@@ -178,8 +179,9 @@ def preview(state: dict, moves: dict, *, requester_ip: str = None, quiet: bool =
 
 
 def build_plan(state: dict, pv: dict, *, target: str, user: str, confirmed: list, undo_of: str = None, now: int = None) -> dict:
+    """The plan keeps the lowest version that expresses its steps: moves only -> v1 (as in earlier releases)."""
     now = int(now or time.time())
-    return {"v": 1, "id": "p_%d_%s" % (now, secrets.token_hex(4)), "target": target, "base": pv["base"],
+    return {"v": stepkinds.plan_version(pv["steps"]), "id": "p_%d_%s" % (now, secrets.token_hex(4)), "target": target, "base": pv["base"],
             "created": now, "expires": now + PLAN_TTL_S, "nonce": secrets.token_hex(16),
             "requester": {"user": user, "device": pv.get("requester")}, "steps": pv["steps"],
             "warnings": sorted({w[0] for w in pv["warnings"]}), "confirmed": sorted(set(confirmed)),
@@ -191,9 +193,16 @@ def plan_hash(plan: dict) -> str:
 
 
 def validate_plan(plan) -> None:
-    """Shape check before anything else looks at a plan."""
-    if not isinstance(plan, dict) or plan.get("v") != 1:
+    """Shape check before anything else looks at a plan. v1: moves only; v2: every kind in ``steps.KINDS``.
+    A plan version above ``PLAN_VERSION_MAX`` is refused as such (never half-understood)."""
+    if not isinstance(plan, dict) or isinstance(plan.get("v"), bool) or not isinstance(plan.get("v"), int):
         raise Refused("fw.block.format")
+    if plan["v"] > stepkinds.PLAN_VERSION_MAX:
+        raise Refused("fw.block.version", v=plan["v"], max=stepkinds.PLAN_VERSION_MAX)
+    if plan["v"] < 1:
+        raise Refused("fw.block.format")
+    if plan["v"] == 2:
+        return _validate_v2(plan)
     for key, typ in (("id", str), ("target", str), ("base", str), ("created", int), ("expires", int), ("nonce", str),
                      ("steps", list), ("confirmed", list), ("requester", dict)):
         if not isinstance(plan.get(key), typ) or isinstance(plan.get(key), bool):
@@ -215,9 +224,30 @@ def validate_plan(plan) -> None:
                     raise Refused("fw.block.format")
 
 
-def gate(state: dict, plan: dict, *, target: str, now: float, quiet: bool, busy: bool, healthy: tuple) -> None:
-    """Hard checks right before writing, against a fresh controller read. Raises Refused."""
+def _validate_v2(plan) -> None:
+    for key, typ in (("id", str), ("target", str), ("base", str), ("created", int), ("expires", int), ("nonce", str),
+                     ("steps", list), ("confirmed", list), ("requester", dict)):
+        if not isinstance(plan.get(key), typ) or isinstance(plan.get(key), bool):
+            raise Refused("fw.block.format")
+    if not plan["steps"]:
+        raise Refused("fw.block.empty")
+    if stepkinds.plan_version(plan["steps"]) != 2:
+        raise Refused("fw.block.format")          # a plan of moves only must stay v1
+    for st in plan["steps"]:
+        if isinstance(st, dict) and st.get("kind") not in stepkinds.KINDS:
+            raise Refused("fw.block.kind", kind=str(st.get("kind"))[:40])
+        try:
+            stepkinds.check_step(st)
+        except stepkinds.FieldError:
+            raise Refused("fw.block.format")
+
+
+def gate(state: dict, plan: dict, *, target: str, now: float, quiet: bool, busy: bool, healthy: tuple, caps: dict = None) -> None:
+    """Hard checks right before writing, against a fresh controller read. Raises Refused.
+    ``caps``: the adapter's capability list (None = the v1 contract: moves only)."""
     validate_plan(plan)
+    if plan["v"] == 2:
+        return _gate_v2(state, plan, target=target, now=now, quiet=quiet, busy=busy, healthy=healthy, caps=caps)
     if plan["target"] != target:
         raise Refused("fw.block.target")
     if not (plan["created"] - 60 <= now <= plan["expires"]) or plan["expires"] - plan["created"] > 600:
@@ -229,6 +259,7 @@ def gate(state: dict, plan: dict, *, target: str, now: float, quiet: bool, busy:
         raise Refused("fw.block.health", why=why or "")
     if len(plan["steps"]) > MAX_OBJECTS:
         raise Refused("fw.block.too_many", n=len(plan["steps"]), max=MAX_OBJECTS)
+    check_capabilities(plan, caps)
     if fingerprint(state) != plan["base"]:
         raise Refused("fw.block.conflict")
     zones, nets, devs = index(state)
@@ -262,6 +293,102 @@ def gate(state: dict, plan: dict, *, target: str, now: float, quiet: bool, busy:
         raise Refused("fw.block.quiet")
 
 
+def check_capabilities(plan: dict, caps: dict = None) -> None:
+    """Every step must be within the adapter's capability list; stage C is refused in this release."""
+    from ..integrations import capabilities as capmod
+    caps = caps or capmod.V1_DEFAULT
+    limit = min(MAX_OBJECTS, (caps.get("limits") or {}).get("objects_per_plan") or MAX_OBJECTS)
+    if len(plan["steps"]) > limit:
+        raise Refused("fw.block.too_many", n=len(plan["steps"]), max=limit)
+    for st in plan["steps"]:
+        stage = capmod.stage_for(caps, st)
+        if stage is None:
+            raise Refused("fw.block.capability", kind=st["kind"])
+        if stage == "C" and not capmod.STAGE_C_ENABLED:
+            raise Refused("fw.block.stage", kind=st["kind"])
+
+
+def _gate_common(state, plan, *, target, now, busy, healthy) -> None:
+    if plan["target"] != target:
+        raise Refused("fw.block.target")
+    if not (plan["created"] - 60 <= now <= plan["expires"]) or plan["expires"] - plan["created"] > 600:
+        raise Refused("fw.block.expired")
+    if busy:
+        raise Refused("fw.block.busy")
+    ok, why = healthy
+    if not ok:
+        raise Refused("fw.block.health", why=why or "")
+    if fingerprint(state) != plan["base"]:
+        raise Refused("fw.block.conflict")
+
+
+def lockout_reason(state: dict, step: dict):
+    """Neutral lockout rules for every family (adapters may add their own). Returns a refusal key or None."""
+    kind = stepkinds.KINDS[step["kind"]]
+    obj = neutral.find(state, step) or {}
+    if obj.get("protected"):
+        return "fw.block.protected"
+    if obj.get("editable") is False or obj.get("builtin"):
+        return "fw.block.builtin"
+    if kind.verb == "delete" and not obj.get("own"):
+        return "fw.block.not_own"
+    if kind.area == "networks" and obj.get("management"):
+        return "fw.block.management"
+    if kind.area == "ports" and obj.get("is_uplink"):
+        return "fw.block.uplink"
+    if kind.area == "policies" and kind.verb != "delete":
+        after = dict(obj, **step["after"])
+        mgmt = neutral.management_zones(state)
+        zones = {(after.get("src") or {}).get("zone"), (after.get("dst") or {}).get("zone")}
+        if after.get("action") in ("block", "reject") and zones & (mgmt | {"*"}):
+            return "fw.block.management"
+    if kind.area == "devices":
+        nets = {n["id"]: n for n in state.get("networks") or []}
+        target = step["after"].get("network")
+        if target and (nets.get(target) or {}).get("management"):
+            return "fw.block.management"
+    return None
+
+
+def _gate_v2(state, plan, *, target, now, quiet, busy, healthy, caps) -> None:
+    _gate_common(state, plan, target=target, now=now, busy=busy, healthy=healthy)
+    check_capabilities(plan, caps)
+    seen = set()
+    req = plan["requester"].get("device")
+    for st in plan["steps"]:
+        kind = stepkinds.KINDS[st["kind"]]
+        oid = stepkinds.step_object(st)
+        if oid in seen:
+            raise Refused("fw.block.unknown")
+        seen.add(oid)
+        obj = neutral.find(state, st)
+        if kind.verb == "create":
+            if obj is not None:
+                raise Refused("fw.block.conflict")
+        else:
+            if obj is None:
+                raise Refused("fw.block.unknown")
+            if any(obj.get(f) != v for f, v in st["before"].items()):
+                raise Refused("fw.block.conflict")
+        if kind.name == "move":
+            dev = obj
+            net = (neutral.objects(state, "networks")).get(st["after"]["network"])
+            why = drop_targets(state, dev).get(st["after"]["network"]) if net else "fw.why.same"
+            if why:
+                raise Refused({"fw.why.protected": "fw.block.protected", "fw.why.management": "fw.block.management",
+                               "fw.why.shared_port": "fw.block.shared_port", "fw.why.same": "fw.block.format"}[why],
+                              name=dev.get("name", ""), reason=dev.get("protected") or "")
+        why = lockout_reason(state, st)
+        if why:
+            raise Refused(why, name=(obj or {}).get("name", ""), reason=(obj or {}).get("protected") or "")
+        if req and oid == req and "self" not in plan["confirmed"]:
+            raise Refused("fw.block.confirm")
+        if stepkinds.needs_confirmation(st) and stepkinds.confirm_token(st) not in plan["confirmed"]:
+            raise Refused("fw.block.confirm")
+    if quiet and "quiet" not in plan["confirmed"]:
+        raise Refused("fw.block.quiet")
+
+
 def apply_moves(state: dict, steps: list) -> dict:
     """The state after the steps (used by the simulation and to check a plan against itself)."""
     import copy
@@ -273,8 +400,10 @@ def apply_moves(state: dict, steps: list) -> dict:
     return new
 
 
-def inverse(steps: list) -> list:
-    return [{"kind": "move", "device": s["device"], "before": dict(s["after"]), "after": dict(s["before"])} for s in reversed(steps)]
+def inverse(steps: list, created: dict = None) -> list:
+    """The steps that undo ``steps``, newest first. ``created`` maps ``new:`` ids to the ids the adapter assigned."""
+    created = created or {}
+    return [stepkinds.inverse_step(s, created.get(stepkinds.step_object(s))) for s in reversed(steps)]
 
 
 def in_quiet_hours(spec: str, now: float) -> bool:

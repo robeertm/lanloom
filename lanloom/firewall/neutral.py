@@ -1,0 +1,112 @@
+"""Neutral configuration model, version 2: what every adapter publishes, whatever the vendor.
+
+Version 1 (the firewall editor since 1.2.0) knew zones, allowed zone pairs, networks and the end devices that can
+be moved between networks. Version 2 keeps every v1 key with its meaning (so the editor, the simulation and an
+executor that has not been updated yet keep working) and adds optional lists::
+
+    v1  zones         [{id, name, internet, discovery, builtin?}]
+    v1  allow         [[from_zone, to_zone], ...]          derived from policies when an adapter has them
+    v1  networks      [{id, name, zone, cidr, vlan, management, dhcp?, internet?, purpose?, own?}]
+    v1  devices       [{id, name, kind, network, ip, fixed, wired, alone_on_port, private_address, protected,
+                        fixed_ip?, parent?, band?, blocked?}]       end devices ("clients" in vendor terms)
+    v2  equipment     [{id, name, kind, model, firmware, mgmt_ip, uplink {device, port}}]   network equipment
+    v2  ports         [{id, device, idx, name, link, speed, poe {capable, on}, profile, native_vlan, tagged[],
+                        is_uplink, lldp_neighbor}]
+    v2  policies      [{id, name, src {zone, net?, group?}, dst {...}, action, proto, ports, return_traffic,
+                        enabled, order, hits?, builtin?, editable?, vendor_ref?}]
+    v2  ssids         [{id, name, network, bands[], security, hidden, enabled}]
+    v2  guests        [{id, host, kind (vm|lxc), name, status, cpu, mem, disk, protected?}]
+    v2  guest_nics    [{id, guest, bridge, vlan}]          guest_rules [{id, guest, name, direction, action, ...}]
+    v2  bridges       [{id, host, name, vlan_aware, ports[], vnets[]}]
+    v2  dhcp_reservations [{id, client, ip}]   port_forwards [{id, name, proto, wan_port, dst_ip, dst_port, enabled}]
+    v2  raw           [{id, area, title, editable: false}]  vendor objects that do not map; shown, never written
+
+Rules for every list: ``id`` is an opaque, stable text (a hash, never a hardware address); ``own: true`` marks an
+object Lanloom created (only those may be deleted); ``protected`` (a reason key) and ``is_uplink`` keep an object
+out of every plan; ``editable: false`` objects are shown but never written.
+"""
+import re
+
+from . import steps
+
+V2_LISTS = ("equipment", "ports", "policies", "ssids", "guests", "guest_nics", "guest_rules", "bridges",
+            "dhcp_reservations", "port_forwards", "raw")
+V1_LISTS = ("zones", "networks", "devices")
+ALL_LISTS = V1_LISTS + V2_LISTS
+MAC_LIKE = re.compile(r"\A[0-9a-fA-F]{2}([:-]?)[0-9a-fA-F]{2}(?:\1[0-9a-fA-F]{2}){4}\Z")
+MAX_ITEMS = 20000
+
+
+class ModelError(ValueError):
+    pass
+
+
+def validate(state) -> None:
+    """Shape check of a published state (v1 or v2). Raises ModelError with a short reason."""
+    if not isinstance(state, dict):
+        raise ModelError("state")
+    if not isinstance(state.get("devices"), list) or not isinstance(state.get("networks"), list):
+        raise ModelError("v1 lists")
+    for key in ALL_LISTS:
+        items = state.get(key)
+        if items is None:
+            continue
+        if not isinstance(items, list) or len(items) > MAX_ITEMS:
+            raise ModelError(key)
+        seen = set()
+        for it in items:
+            if not isinstance(it, dict) or not isinstance(it.get("id"), str) or not it["id"]:
+                raise ModelError(key + " id")
+            if MAC_LIKE.match(it["id"]):
+                raise ModelError(key + " id is a hardware address")
+            if it["id"] in seen:
+                raise ModelError(key + " duplicate id")
+            seen.add(it["id"])
+    for it in state.get("raw") or []:
+        if it.get("editable") is not False:
+            raise ModelError("raw must be editable: false")
+    allow = state.get("allow")
+    if allow is not None and (not isinstance(allow, list) or not all(isinstance(p, list) and len(p) == 2 for p in allow)):
+        raise ModelError("allow")
+
+
+def objects(state: dict, area: str) -> dict:
+    return {o["id"]: o for o in state.get(area) or [] if isinstance(o, dict) and "id" in o}
+
+
+def find(state: dict, step: dict):
+    """The object a step acts on, from a (fresh) state; None when it does not exist."""
+    kind = steps.KINDS.get(step.get("kind"))
+    if kind is None:
+        return None
+    return objects(state, kind.area).get(steps.step_object(step))
+
+
+def management_zones(state: dict) -> set:
+    return {n.get("zone") for n in state.get("networks") or [] if n.get("management") and n.get("zone")}
+
+
+def derive_allow(state: dict, default: str = "block") -> list:
+    """Zone pairs [[from, to]] that may talk, from ``policies`` (first enabled match by ``order`` wins, only policies
+    without a port restriction and without a network/group narrowing decide a whole zone pair). ``default`` is the
+    vendor's verdict for pairs no policy decides. Used by adapters that publish policies to fill the v1 ``allow``."""
+    zones = [z["id"] for z in state.get("zones") or []]
+    pols = sorted((p for p in state.get("policies") or [] if p.get("enabled", True)),
+                  key=lambda p: (p.get("order", 0), p.get("id")))
+    out = []
+    for a in zones:
+        for b in zones:
+            if a == b:
+                continue
+            verdict = default
+            for p in pols:
+                src, dst = p.get("src") or {}, p.get("dst") or {}
+                if set(src) - {"zone"} or set(dst) - {"zone"} or (p.get("ports") or "") not in ("",) \
+                        or p.get("proto", "any") != "any":
+                    continue
+                if src.get("zone") in (a, "*") and dst.get("zone") in (b, "*"):
+                    verdict = p.get("action")
+                    break
+            if verdict == "allow":
+                out.append([a, b])
+    return out

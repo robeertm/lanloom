@@ -38,8 +38,30 @@ def digest_hex(obj) -> str:
     return digest(obj).hex()
 
 
+def _writable_fields() -> dict:
+    """area -> the fields some plan step may write there (from the step registry)."""
+    from .steps import KINDS
+    out = {}
+    for kind in KINDS.values():
+        out.setdefault(kind.area, set()).update(kind.fields)
+    return out
+
+
 def fingerprint(state: dict) -> str:
-    """Short fingerprint of the parts of a controller state a plan depends on."""
+    """Short fingerprint of the parts of a controller state a plan depends on.
+
+    v1 parts as in earlier releases (the same states give the same fingerprint). The v2 lists count only when
+    present, and only with their id and the fields a step may write - counters, link state and the like change all
+    the time and must not make every plan a conflict."""
     core = {"networks": state.get("networks") or [], "zones": state.get("zones") or [], "allow": state.get("allow") or [],
             "devices": [{k: d.get(k) for k in ("id", "network", "ip")} for d in state.get("devices") or []]}
+    fields = None
+    for area in ("ports", "policies", "ssids", "guests", "guest_nics", "guest_rules", "bridges", "dhcp_reservations",
+                 "port_forwards"):
+        items = state.get(area)
+        if not items:
+            continue
+        fields = fields or _writable_fields()
+        keep = ("id",) + tuple(sorted(fields.get(area, ())))
+        core[area] = [{k: it.get(k) for k in keep if k in it} for it in items if isinstance(it, dict)]
     return "fp:" + digest_hex(core)[:20]

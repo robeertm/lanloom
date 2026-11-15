@@ -10,7 +10,7 @@
 > - **It stores credentials you give it.** Optional integrations (home-automation hub, MQTT broker, router or switch, switch controller) need secrets. They are stored encrypted (AES-256-GCM) and never shown again, but the key file lives next to the data: whoever controls the host controls them. Use read-only or least-privilege accounts.
 > - **Host networking.** To see your network, the container shares the host's network stack. It runs unprivileged, with a read-only root file system and all capabilities dropped, but it can reach whatever the host can reach.
 > - **The optional updater sidecar gets the container-runtime socket.** Access to that socket is root-equivalent on the host. Skip the sidecar (`--no-updater`) if you prefer to update by hand.
-> - **The firewall editor only simulates unless you arm it.** Real changes need the optional executor service, a controller adapter you provide and an explicit arming step. A real change can interrupt the wireless network for minutes and can lock you out if your network has paths the gate does not know. Read [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md) first.
+> - **The firewall editor only simulates unless you arm it.** Real changes need the optional executor service, a built-in adapter for your controller family (none ships yet) and an explicit arming step. A real change can interrupt the wireless network for minutes and can lock you out if your network has paths the gate does not know. Read [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md) first.
 > - **Values are observations, not guarantees.** Classifications are heuristics, and traffic and liveness figures depend on what could be measured. Do not base security or safety decisions on them.
 > - **Provided as is, without warranty.** See [LICENSE](LICENSE).
 > - **Written with AI assistance.** Parts of this software were written with the help of AI tools; the code is reviewed and covered by automated tests and release checks.
@@ -161,6 +161,8 @@ Dots appear only where bytes are actually measured:
 - **MQTT broker** topics are grouped; Lanloom only counts messages and lengths per group. It connects, subscribes to `#`, and cannot publish. Payloads are never stored. TLS is optional.
 - **Home-automation hub (WebSocket API)** adds rooms, devices and entities and state-change events, using a long-lived access token (a non-admin user is enough). A strict allow-list limits it to read commands, and it cannot call services.
 
+Supported integrations: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
+
 All integrations are optional. Credentials are encrypted at rest with a key file (`secret.key`, mode 0600) in the data volume, never displayed again and never logged.
 
 ## Security and privacy
@@ -184,10 +186,14 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, uninstall
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
+- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): supported integrations, what each can read and write
+- [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): how device-family adapters are built (read and write halves, capabilities, plan steps, credentials)
+- [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md): the firewall editor, the executor service and its safety checks
 - [docs/FAQ.md](docs/FAQ.md): frequently asked questions
 - [docs/ARCHITECTURE-CORE.md](docs/ARCHITECTURE-CORE.md): how the board engine is structured as a versioned core
 - [SECURITY.md](SECURITY.md): security model and reporting
 - [CHANGELOG.md](CHANGELOG.md): release notes
+- [CONTRIBUTING.md](CONTRIBUTING.md): ideas, bug reports and adapter requests (as issues)
 
 ## License
 

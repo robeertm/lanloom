@@ -41,12 +41,17 @@
       function unstage(devId) { const m = Object.assign({}, st.view.draft.moves); delete m[devId]; return setMoves(m); }
 
       // ---------------------------------------------------------------- rendering
+      // controls appear only for what the connected controller can do (capability list from the server)
+      function canMove(v) { const w = v.capabilities && v.capabilities.write; return !w || Object.prototype.hasOwnProperty.call(w, 'move'); }
+
       function render() {
         const v = st.view;
+        if (!canMove(v)) st.mode = 'view';
         if (!v.state) { page.replaceChildren(head(v), h('div', { class: 'empty-state' }, h('h2', {}, t('fw.nostate.title')), h('p', { class: 'muted' }, t('fw.nostate.text')))); bar.hidden = true; return; }
         const kids = [head(v)];
         if (v.mode === 'simulation') kids.push(h('div', { class: 'callout fw-sim' }, h('strong', {}, t('fw.sim.title')), ' ', t('fw.sim.text'),
           h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: resetSim, disabled: !!v.running }, t('fw.sim.reset'))));
+        if (!canMove(v)) kids.push(h('div', { class: 'callout' }, t('fw.executor.readonly')));
         if (v.quiet) kids.push(h('div', { class: 'callout callout--warn' }, t('fw.quiet.now', { hours: v.quiet_hours })));
         if (v.running) kids.push(progressCard(v.running));
         kids.push(board(v));
@@ -66,7 +71,7 @@
           : h('span', { class: 'chip ' + (v.executor.connected ? 'chip--ok' : 'chip--danger') }, t(v.executor.connected ? 'fw.chip.connected' : 'fw.chip.offline'));
         return h('div', { class: 'page__head fw-head' },
           h('div', { class: 'fw-head__title' }, h('h1', {}, t('nav.firewall')), h('div', { class: 'fw-head__meta' }, chip, ctrl.label ? h('span', { class: 'muted' }, ctrl.label) : null)),
-          h('div', { class: 'fw-head__tools' }, seg, h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
+          h('div', { class: 'fw-head__tools' }, canMove(v) ? seg : null, h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
       }
 
       function board(v) {
@@ -307,6 +312,7 @@
         const rows = [[t('fw.executor.mode'), t(v.mode === 'simulation' ? 'fw.executor.mode_sim' : 'fw.executor.mode_ext')],
           [t('fw.executor.target'), ex.target || '—'], [t('fw.executor.armed'), t(ex.armed ? 'fw.executor.yes' : 'fw.executor.no')]];
         if (v.mode === 'external') rows.push([t('fw.executor.seen'), ex.age_s != null ? LL.fmtAge(ex.age_s) : '—']);
+        if (v.mode === 'external' && ex.version) rows.push([t('fw.executor.version'), ex.version + (ex.outdated ? ' · ' + t('fw.executor.outdated') : '')]);
         const keyBox = h('div', { class: 'fw-keys' });
         const body = h('div', {}, h('p', { class: 'muted' }, t(v.mode === 'simulation' ? 'fw.executor.lead_sim' : 'fw.executor.lead_ext')),
           h('table', { class: 'mini-table' }, h('tbody', {}, rows.map(r => h('tr', {}, h('td', {}, r[0]), h('td', {}, r[1]))))),

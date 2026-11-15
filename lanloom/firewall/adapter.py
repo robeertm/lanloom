@@ -1,40 +1,49 @@
 """Controller adapters: the only code that would ever talk to a network controller.
 
-An adapter turns the vendor's model into the neutral state of ``model.py`` and back. Lanloom ships exactly one:
-``SimulatedController``, an in-memory sample network that writes nothing anywhere. A real adapter is a small class
-the operator provides and loads explicitly in the executor (see docs/FIREWALL-EDITOR.md); it is never loaded by the
-web app.
+An adapter turns the vendor's model into the neutral state of ``neutral.py`` and back. Adapters are built in only:
+the write halves listed in ``lanloom.integrations.BUILTIN`` (loaded by the executor service, never by the web
+app) and ``SimulatedController``, an in-memory sample network that writes nothing anywhere. There is no way to
+load an adapter from elsewhere.
 
 Contract of an adapter (all methods synchronous, called from the executor thread):
 
-* ``read() -> dict``            fresh neutral state; device ids must be stable opaque hashes (no hardware addresses)
+* ``read() -> dict``            fresh neutral state; object ids must be stable opaque hashes (no hardware addresses)
+* ``capabilities() -> dict``    capability list (see ``lanloom.integrations.capabilities``); default: moves only
 * ``snapshot(ids) -> dict``     raw backup of the touched objects, JSON-serialisable, may contain internals
-* ``apply(step) -> None``       one move; must be idempotent (current == after: do nothing)
-* ``restore(snapshot) -> None`` put the touched objects back exactly as in the snapshot
+* ``apply(step) -> dict|None``  one plan step; must be idempotent (current == after: do nothing). A ``*.create``
+                                returns ``{"id": <the id the controller gave the new object>}``
+* ``restore(snapshot) -> None`` put the touched objects back exactly as in the snapshot; ids listed in
+                                ``snapshot["created"]`` were created by the plan and are removed
 * ``health() -> (ok, reason)``  is the controller fit for a change right now (memory, other jobs, ...)
 * ``settle(steps) -> None``     wait until the controller finished provisioning (may sleep)
-* ``probe(steps) -> dict``      watch probe: {"global_ok": bool, "missing": [device ids not back in the target]}
+* ``probe(steps) -> dict``      watch probe: {"global_ok": bool, "missing": [object ids not as planned]}
+* ``lockout(state, step)``      extra family-specific lockout rule: a refusal key or None (neutral rules always run)
 """
 import copy
-import importlib
 import json
 import threading
 import time
 
+from . import steps as stepkinds
 from .model import apply_moves
 
 
 class ControllerAdapter:
     label = "controller"
     kind = "controller"
+    family = "controller"
 
     def read(self) -> dict:
         raise NotImplementedError
 
+    def capabilities(self) -> dict:
+        from ..integrations.capabilities import V1_DEFAULT
+        return copy.deepcopy(V1_DEFAULT)
+
     def snapshot(self, ids) -> dict:
         raise NotImplementedError
 
-    def apply(self, step: dict) -> None:
+    def apply(self, step: dict):
         raise NotImplementedError
 
     def restore(self, snapshot: dict) -> None:
@@ -49,17 +58,8 @@ class ControllerAdapter:
     def probe(self, steps: list) -> dict:
         return {"global_ok": True, "missing": []}
 
-
-def load_adapter(spec: str, options: dict) -> ControllerAdapter:
-    """``package.module:ClassName`` -> instance. Only the executor calls this, and only when writes are armed."""
-    mod_name, _, cls_name = (spec or "").partition(":")
-    if not mod_name or not cls_name:
-        raise ValueError("adapter must look like package.module:ClassName")
-    cls = getattr(importlib.import_module(mod_name), cls_name)
-    inst = cls(**(options or {}))
-    if not isinstance(inst, ControllerAdapter):
-        raise TypeError("adapter must subclass lanloom.firewall.adapter.ControllerAdapter")
-    return inst
+    def lockout(self, state: dict, step: dict):
+        return None
 
 
 # ---------------------------------------------------------------------------- the sample network
@@ -136,40 +136,100 @@ def sample_state() -> dict:
 
 
 class SimulatedController(ControllerAdapter):
-    """In-memory sample network. Writes nothing outside this object (and the optional ``persist`` callback)."""
+    """In-memory sample network. Writes nothing outside this object (and the optional ``persist`` callback).
+
+    Also the stand-in device for adapter tests: any neutral state, any capability list (default: the sample
+    family's, moves only), faults on order (``fail_devices`` never come back, ``fail_after_writes`` breaks the
+    n-th write, ``fail_restore`` breaks the way back)."""
 
     label = "Sample network"
     kind = "simulation"
+    family = "simulation"
 
-    def __init__(self, state: dict = None, persist=None, settle_s: float = 2.0, fail_devices=()):
+    def __init__(self, state: dict = None, persist=None, settle_s: float = 2.0, fail_devices=(), capabilities=None,
+                 fail_after_writes: int = 0, fail_restore: bool = False):
         self._state = copy.deepcopy(state) if state else sample_state()
         self._persist = persist
         self._lock = threading.Lock()
         self.settle_s = settle_s
         self.fail_devices = set(fail_devices)      # test hook: these devices never come back after a move
+        self.fail_after_writes = fail_after_writes
+        self.fail_restore = fail_restore
+        self._caps = copy.deepcopy(capabilities) if capabilities else None
+        self._next = 0
         self.writes = []
+
+    def capabilities(self) -> dict:
+        if self._caps:
+            return copy.deepcopy(self._caps)
+        from ..integrations.simulation import CAPABILITIES
+        return copy.deepcopy(CAPABILITIES)
 
     def read(self) -> dict:
         with self._lock:
             return copy.deepcopy(self._state)
 
     def snapshot(self, ids) -> dict:
+        ids = set(ids)
         with self._lock:
-            return {"devices": [copy.deepcopy(d) for d in self._state["devices"] if d["id"] in set(ids)]}
+            out = {"devices": [copy.deepcopy(d) for d in self._state["devices"] if d["id"] in ids]}
+            for area, items in self._state.items():
+                if area != "devices" and isinstance(items, list):
+                    hit = [copy.deepcopy(o) for o in items if isinstance(o, dict) and o.get("id") in ids]
+                    if hit:
+                        out[area] = hit
+            return out
 
-    def apply(self, step: dict) -> None:
+    def apply(self, step: dict):
         with self._lock:
-            dev = next(d for d in self._state["devices"] if d["id"] == step["device"])
-            if dev["network"] == step["after"]["network"] and dev["ip"] == step["after"]["ip"]:
-                return
-            self._state = apply_moves(self._state, [step])
-            self.writes.append(step["device"])
+            if self.fail_after_writes and len(self.writes) + 1 >= self.fail_after_writes:
+                raise RuntimeError("simulated write failure")
+            if step["kind"] == "move":
+                dev = next(d for d in self._state["devices"] if d["id"] == step["device"])
+                if dev["network"] == step["after"]["network"] and dev["ip"] == step["after"]["ip"]:
+                    return None
+                self._state = apply_moves(self._state, [step])
+                self.writes.append(step["device"])
+                self._save()
+                return None
+            kind = stepkinds.KINDS[step["kind"]]
+            items = self._state.setdefault(kind.area, [])
+            oid = step["object"]
+            if kind.verb == "create":
+                self._next += 1
+                new_id = "sim%04d" % self._next
+                items.append(dict(step["after"], id=new_id, own=True))
+                self.writes.append(new_id)
+                self._save()
+                return {"id": new_id}
+            obj = next((o for o in items if o.get("id") == oid), None)
+            if kind.verb == "delete":
+                if obj is not None:
+                    items.remove(obj)
+                    self.writes.append(oid)
+            elif obj is not None and any(obj.get(f) != v for f, v in step["after"].items()):
+                obj.update(copy.deepcopy(step["after"]))
+                self.writes.append(oid)
             self._save()
+            return None
 
     def restore(self, snapshot: dict) -> None:
         with self._lock:
+            if self.fail_restore:
+                raise RuntimeError("simulated restore failure")
+            created = set(snapshot.get("created") or [])
             by_id = {d["id"]: d for d in snapshot.get("devices") or []}
             self._state["devices"] = [copy.deepcopy(by_id.get(d["id"], d)) for d in self._state["devices"]]
+            for area, saved in snapshot.items():
+                if area in ("devices", "created") or not isinstance(saved, list):
+                    continue
+                items = self._state.setdefault(area, [])
+                keep = {o["id"]: o for o in saved}
+                items[:] = [copy.deepcopy(keep.pop(o.get("id"), o)) for o in items]
+                items.extend(copy.deepcopy(o) for o in keep.values())     # deleted by the plan: back again
+            for area, items in self._state.items():
+                if created and isinstance(items, list):
+                    items[:] = [o for o in items if not (isinstance(o, dict) and o.get("id") in created)]
             self._save()
 
     def settle(self, steps: list) -> None:
@@ -177,7 +237,7 @@ class SimulatedController(ControllerAdapter):
             time.sleep(self.settle_s)
 
     def probe(self, steps: list) -> dict:
-        return {"global_ok": True, "missing": [s["device"] for s in steps if s["device"] in self.fail_devices]}
+        return {"global_ok": True, "missing": [stepkinds.step_object(s) for s in steps if stepkinds.step_object(s) in self.fail_devices]}
 
     def reset(self) -> None:
         with self._lock:

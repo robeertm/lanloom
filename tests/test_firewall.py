@@ -301,10 +301,12 @@ def test_trust_key_pins_and_lists(tmp_path, capsys):
     assert executor_mod.trust_key(s, "{}") == 2
 
 
-def test_adapter_loader_requires_the_base_class():
-    with pytest.raises(TypeError):
-        adapter.load_adapter("json:JSONDecoder", {})
-    assert isinstance(adapter.load_adapter("lanloom.firewall.adapter:SimulatedController", {"settle_s": 0}), adapter.ControllerAdapter)
+def test_executor_loads_only_built_in_adapter_families(tmp_path):
+    (tmp_path / "armed").write_text("")
+    env = {"LANLOOM_EXECUTOR_STATE": str(tmp_path), "LANLOOM_EXECUTOR_TARGET": "controller", "LANLOOM_EXECUTOR_ARM": "I-UNDERSTAND"}
+    for spec in ("lanloom.firewall.adapter:SimulatedController", "json:JSONDecoder", "some.module", "nosuchfamily", "simulation"):
+        with pytest.raises(SystemExit):
+            executor_mod.build_adapter(executor_mod.Settings(dict(env, LANLOOM_EXECUTOR_ADAPTER=spec)))
 
 
 # ---------------------------------------------------------------------------- API

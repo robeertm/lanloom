@@ -38,6 +38,20 @@ INTEGRATION_FIELDS = {
 }
 
 
+def integration_fields(kind: str):
+    """(plain config fields, secret fields) of a generic source kind or of a built-in family with a read half."""
+    if kind in INTEGRATION_FIELDS:
+        return INTEGRATION_FIELDS[kind]
+    from . import integrations
+    try:
+        m = integrations.get(kind)
+    except KeyError:
+        return None
+    if not m.read or not m.selectable:
+        return None
+    return tuple(m.config_fields), tuple(m.secret_fields)
+
+
 def _is_private(ip: str) -> bool:
     try:
         addr = ipaddress.ip_address(ip)
@@ -430,7 +444,7 @@ class Core:
         for row in self.store.query("SELECT * FROM integrations ORDER BY id"):
             cfg = json.loads(row["config"])
             secrets_set = {f: bool(self.vault and self.vault.has("int:%d:%s" % (row["id"], f)))
-                           for f in INTEGRATION_FIELDS.get(row["kind"], ((), ()))[1]}
+                           for f in (integration_fields(row["kind"]) or ((), ()))[1]}
             st = self.source_status.get("int:%d" % row["id"], {})
             out.append({"id": row["id"], "kind": row["kind"], "name": row["name"], "config": cfg, "secrets": secrets_set,
                         "enabled": bool(row["enabled"]), "status": st,
@@ -439,11 +453,25 @@ class Core:
 
     @staticmethod
     def clean_integration(kind: str, config: dict, secrets: dict) -> tuple:
-        if kind not in INTEGRATION_FIELDS:
+        fields = integration_fields(kind)
+        if fields is None:
             raise ValueError("integration.err.kind")
-        plain_fields, secret_fields = INTEGRATION_FIELDS[kind]
+        plain_fields, secret_fields = fields
         cfg = {k: config.get(k) for k in plain_fields if config.get(k) not in (None, "")}
         sec = {k: str(secrets.get(k)) for k in secret_fields if secrets.get(k) not in (None, "")}
+        if kind not in INTEGRATION_FIELDS:            # a built-in family: plain settings are short text or flags
+            for k, v in list(cfg.items()):
+                if isinstance(v, bool):
+                    continue
+                v = str(v).strip()
+                if len(v) > 256 or any(ord(c) < 32 for c in v):
+                    raise ValueError("integration.err.value")
+                cfg[k] = v
+            if "url" in plain_fields:
+                parsed = urlparse(str(cfg.get("url") or ""))
+                if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+                    raise ValueError("integration.err.url")
+                cfg["url"] = cfg["url"].rstrip("/")
         if kind in ("hub", "controller"):
             url = str(cfg.get("url") or "").strip()
             parsed = urlparse(url)
@@ -491,12 +519,28 @@ class Core:
         if kind == "controller":
             return sources.Controller(cfg["url"], cfg.get("username") or "", sec.get("password") or "", site=cfg.get("site") or "default",
                                       allow_self_signed=bool(cfg.get("allow_self_signed")))
+        if integration_fields(kind) is not None:       # read half of a built-in family; credentials wrapped
+            from . import integrations
+            from .integrations.credentials import Secret
+            return integrations.load_read(kind, **cfg, **{k: Secret(v) for k, v in sec.items()})
         raise ValueError("integration.err.kind")
+
+    @staticmethod
+    async def _scope_refused(src) -> bool:
+        """A read half that can tell its account can write is refused (read-only accounts only)."""
+        from .integrations.credentials import refuse_write_capable
+        check = getattr(src, "account_scope", None)
+        if check is None:
+            return False
+        try:
+            return refuse_write_capable(await asyncio.wait_for(check(), 25))
+        except Exception:
+            return False
 
     async def test_integration(self, kind: str, config: dict, secrets: dict, existing_id: Optional[int] = None) -> dict:
         cfg, sec = self.clean_integration(kind, config, secrets)
         if existing_id and self.vault:
-            for field in INTEGRATION_FIELDS[kind][1]:
+            for field in integration_fields(kind)[1]:
                 if field not in sec:
                     stored = self.vault.get("int:%d:%s" % (existing_id, field))
                     if stored:
@@ -505,6 +549,8 @@ class Core:
             return {"ok": True, "key": "source.%s.ok" % ("hostnet" if kind == "host" else kind), "details": self.demo.test_details(kind)}
         try:
             src = self._build_source(kind, cfg, sec)
+            if await self._scope_refused(src):
+                return {"ok": False, "key": "integration.err.can_write", "details": {}}
             ok, key, details = await asyncio.wait_for(src.test(), 25)
         except asyncio.TimeoutError:
             ok, key, details = False, "source.%s.timeout" % kind, {}
@@ -549,7 +595,7 @@ class Core:
     def _start_integration(self, integ: dict) -> None:
         sec = {}
         if self.vault:
-            for field in INTEGRATION_FIELDS[integ["kind"]][1]:
+            for field in (integration_fields(integ["kind"]) or ((), ()))[1]:
                 value = self.vault.get("int:%d:%s" % (integ["id"], field))
                 if value:
                     sec[field] = value
@@ -565,6 +611,9 @@ class Core:
                     src = self._build_source(kind, cfg, sec or {})
             except Exception as exc:
                 self.source_status[key] = {"ok": False, "key": getattr(exc, "key", "source.%s.config" % kind), "t": time.time()}
+                return
+            if kind not in INTEGRATION_FIELDS and kind != "host" and await self._scope_refused(src):
+                self.source_status[key] = {"ok": False, "key": "integration.err.can_write", "t": time.time()}
                 return
             await src.run(lambda ev: self.on_event(key, integ_id, ev))
 

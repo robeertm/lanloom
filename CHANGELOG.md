@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] – 2026-11-15
+
+### Added
+- Foundation for device-family adapters (no vendor adapter yet): a fixed registry of built-in families, each with a read half for the web app and a write half for the executor that share one translation module. Described in [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md); supported families are listed in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
+- Capability lists: every adapter declares what it can read and which changes it may make (stage B, or B* with its own confirmation); the executor's gate refuses everything else, and the firewall tab only shows controls the connected controller supports. `GET /api/integrations` also lists the families with their capabilities.
+- Neutral configuration model version 2: network equipment, switch ports, firewall policies, wireless networks, virtualization guests and bridges, address reservations and port forwards, next to the version 1 parts, which keep their meaning.
+- Plan steps version 2: client settings, networks, zones, policies (including order), switch ports, wireless networks, reservations, forwards and guests, each with exactly the fields it may change and its way back. Firmware, restarts, accounts, keys, remote access, VPN and WAN settings, port mirroring and factory resets are no step kind at all. Mass and structural changes stay unavailable.
+- New lockout rules for the new kinds: uplink ports, built-in rules, the management network and objects Lanloom did not create are never changed or deleted.
+- One send path per adapter with an allow-list below the adapter: read halves can only read; write halves name the exact body fields and allowed values of every request.
+- Separate credentials: read-only accounts in the app (an account that reports it can write is refused where that is checkable), write credentials only in the executor's options file, which must be mode 0600, belong to the executor's user and not be a symbolic link. Secrets never appear in logs, exception texts or `repr()`.
+- [CONTRIBUTING.md](CONTRIBUTING.md): ideas, bug reports and adapter requests are welcome as issues; pull requests are read but not merged, accepted ideas are re-implemented.
+
+### Changed
+- The executor loads only built-in adapters: `LANLOOM_EXECUTOR_ADAPTER` now takes a family id from the registry instead of a module path. There is no way to load adapter code from elsewhere.
+- Plans keep the lowest version that can express them, so plans of moves only stay identical to earlier releases and an executor that has not been updated yet keeps taking them. A plan of a newer version is refused with a clear message instead of being half-understood; the executor logs when it is older than the app, and the executor dialog shows it.
+- The executor's state report is checked against the neutral model (opaque ids, no hardware addresses as ids).
+- The simulation is unchanged: same sample network, same preview, same plans.
+- The setup wizard screenshots are new.
+
+### Fixed
+- Setup wizard, networks step: the hint below "Add a network range" no longer overlaps the field label; it sits below the input field.
+
 ## [1.3.0] – 2026-11-15
 
 ### Added
