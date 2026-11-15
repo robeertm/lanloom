@@ -265,7 +265,8 @@ class Core:
         devices = {}
         for dev in self.store.devices():
             data = dev["data"]
-            devices[dev["id"]] = {"title": dev.get("user_title") or dev["title"] or "", "ip": dev["ip"],
+            title = "" if data.get("is_self") else (dev.get("user_title") or dev["title"] or "")     # like the map: "This host"
+            devices[dev["id"]] = {"title": title, "ip": dev["ip"],
                                   "kind": dev.get("user_kind") or dev["kind"], "self": bool(data.get("is_self"))}
         devices.setdefault("self", {"title": "", "ip": self.self_ip, "kind": "server", "self": True})
         out = self.paths.summary(window, devices)
