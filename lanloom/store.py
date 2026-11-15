@@ -64,6 +64,13 @@ CREATE TABLE IF NOT EXISTS devices (
     last_scan INTEGER
 );
 CREATE INDEX IF NOT EXISTS devices_ip ON devices(ip);
+CREATE TABLE IF NOT EXISTS phys_manual (
+    device_id TEXT PRIMARY KEY,
+    parent_id TEXT NOT NULL,
+    port TEXT,
+    medium TEXT NOT NULL,
+    updated REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS scans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started REAL NOT NULL,

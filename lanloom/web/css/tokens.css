@@ -118,6 +118,9 @@
   --ll-pcb-trace-service: #2C66D4;
   --ll-pcb-trace-flow: #7446D4;
   --ll-pcb-trace-integration: #BD3A7A;
+  --ll-pcb-trace-cable: #0C8574;
+  --ll-pcb-trace-radio: #1A78B4;
+  --ll-pcb-trace-virtual: #6A6E8C;
   --ll-pcb-dot-core: #FFFFFF;
   --ll-pcb-badge-bg: #F1F5F2;
   --ll-pcb-badge-line: #D3DCD6;
@@ -185,6 +188,9 @@
   --ll-pcb-trace-service: #6FA3FF;
   --ll-pcb-trace-flow: #B496FF;
   --ll-pcb-trace-integration: #EF7DB5;
+  --ll-pcb-trace-cable: #34C8AE;
+  --ll-pcb-trace-radio: #5DC2F2;
+  --ll-pcb-trace-virtual: #A8ADD0;
   --ll-pcb-dot-core: #FFFFFF;
   --ll-pcb-badge-bg: #13241D;
   --ll-pcb-badge-line: #2B4237;
@@ -253,6 +259,9 @@
     --ll-pcb-trace-service: #6FA3FF;
     --ll-pcb-trace-flow: #B496FF;
     --ll-pcb-trace-integration: #EF7DB5;
+    --ll-pcb-trace-cable: #34C8AE;
+    --ll-pcb-trace-radio: #5DC2F2;
+    --ll-pcb-trace-virtual: #A8ADD0;
     --ll-pcb-dot-core: #FFFFFF;
     --ll-pcb-badge-bg: #13241D;
     --ll-pcb-badge-line: #2B4237;

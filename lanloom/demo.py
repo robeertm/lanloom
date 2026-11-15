@@ -16,6 +16,10 @@ def _mac(n: int) -> str:
     return "02:4c:4c:00:00:%02x" % n          # locally administered, not a real vendor prefix
 
 
+def _vmac(n: int) -> str:
+    return "52:54:00:4c:00:%02x" % n          # the address block hypervisors hand to virtual network cards
+
+
 def _port(port, service, title=None, server=None):
     banner = {"title": title, "server": server} if (title or server) else None
     return {"port": port, "proto": "tcp", "service": service, "banner": banner}
@@ -44,12 +48,14 @@ HOSTS = [
      "ports": [_port(22, "ssh"), _port(80, "http"), _port(443, "https"), _port(8080, "http-alt")]},
     {"ip": "192.168.50.12", "n": 12, "names": ["backup.lan"],
      "ports": [_port(22, "ssh"), _port(873, "rsync")], "title": "Backup server"},
-    {"ip": "192.168.50.13", "n": 13, "names": ["broker.lan"],
+    {"ip": "192.168.50.13", "n": 13, "vm": True, "names": ["broker.lan"],
      "ports": [_port(1883, "mqtt"), _port(8883, "mqtts")],
      "mdns": [{"type": "_mqtt._tcp", "name": "Message broker", "port": 1883, "txt": {}}]},
-    {"ip": "192.168.50.14", "n": 14, "names": ["automation.local"],
+    {"ip": "192.168.50.14", "n": 14, "vm": True, "names": ["automation.local"],
      "ports": [_port(8123, "web-alt", "Automation")],
      "mdns": [{"type": "_home-assistant._tcp", "name": "Automation hub", "port": 8123, "txt": {}}]},  # identifier: demo DNS-SD type
+    {"ip": "192.168.50.15", "n": 15, "names": ["virtualization-host.lan"],
+     "ports": [_port(22, "ssh"), _port(443, "https", "Virtualization host")], "title": "Virtualization host"},
     {"ip": "192.168.50.20", "n": 20, "names": ["office-laptop.lan"],
      "ports": [_port(22, "ssh")],
      "mdns": [{"type": "_workstation._tcp", "name": "Office laptop", "port": 9, "txt": {}}]},
@@ -93,6 +99,56 @@ TOPICS = [("sensors/climate", 6.0, 180), ("energy/meter", 4.0, 220), ("home/pres
           ("solar/inverter", 1.0, 400), ("radio/bridge", 9.0, 160), ("lights/state", 1.5, 120)]
 
 
+# Physical layout of the demo network: who hangs on which switch port or access point (host number -> link).
+SWITCH, AP_1, AP_2, GATEWAY = 2, 3, 4, 1
+WIRED = {AP_1: "2", 10: "3", 11: "4", 12: "5", 15: "6", 13: "6", 14: "6", 21: "7", 30: "8", 40: "10"}
+RADIO = {20: (AP_1, "5ghz"), 22: (AP_1, "5ghz"), 31: (AP_1, "5ghz"), 32: (AP_1, "5ghz"), 60: (AP_1, "2.4ghz"),
+         61: (AP_1, "2.4ghz"), 62: (AP_1, "2.4ghz"), 63: (AP_1, "2.4ghz"), 23: (AP_2, "5ghz"), 50: (AP_2, "2.4ghz"),
+         51: (AP_2, "2.4ghz"), 64: (AP_2, "2.4ghz"), 65: (AP_2, "2.4ghz"), 66: (AP_2, "2.4ghz")}
+MANUAL = {40: (SWITCH, "9")}          # the printer was re-plugged: the manual entry wins over the controller's older view
+SSID = "Home"
+
+
+def _host(n: int) -> dict:
+    return next(h for h in HOSTS if h["n"] == n)
+
+
+def _hmac(n: int) -> str:
+    return _vmac(n) if _host(n).get("vm") else _mac(n)
+
+
+def controller_event(now: float) -> dict:
+    """What a switch / access point controller would report for the demo network (see sources/controller.py)."""
+    devices = [
+        {"mac": _mac(SWITCH), "ip": _host(SWITCH)["ip"], "name": "Core switch", "role": "switch", "model": "SW-8",
+         "uplink": {"mac": _mac(GATEWAY), "port": None, "own_port": "1", "medium": "wired"}},
+        {"mac": _mac(AP_1), "ip": _host(AP_1)["ip"], "name": "Access point upstairs", "role": "ap", "model": "AP-2",
+         "uplink": {"mac": _mac(SWITCH), "port": "2", "own_port": "1", "medium": "wired"}},
+        {"mac": _mac(AP_2), "ip": _host(AP_2)["ip"], "name": "Access point garden", "role": "ap", "model": "AP-2",
+         "uplink": {"mac": _mac(AP_1), "port": None, "own_port": None, "medium": "radio"}},
+    ]
+    clients = []
+    for n, port in WIRED.items():
+        if n in (AP_1,):
+            continue
+        clients.append({"mac": _hmac(n), "ip": _host(n)["ip"], "name": None, "medium": "wired", "parent_mac": _mac(SWITCH),
+                        "port": port, "band": None, "ssid": None})
+    for n, (ap, band) in RADIO.items():
+        clients.append({"mac": _hmac(n), "ip": _host(n)["ip"], "name": None, "medium": "radio", "parent_mac": _mac(ap),
+                        "port": None, "band": band, "ssid": SSID})
+    return {"type": "topology", "source": "controller", "t": now, "devices": devices, "clients": clients}
+
+
+def router_topology_event(now: float) -> dict:
+    """LLDP neighbours of the demo router over SNMP (see sources/snmp.py): the core switch on its LAN port."""
+    return {"type": "topology", "source": "snmp", "host": _host(GATEWAY)["ip"], "t": now,
+            "agent": {"ip": _host(GATEWAY)["ip"], "mac": _mac(GATEWAY), "name": "router"},
+            "lldp": [{"local_port": "lan1", "local_port_num": 2, "chassis_mac": _mac(SWITCH), "chassis_ip": None, "chassis_text": None,
+                      "port_id": "1", "port_mac": None, "port_desc": "Port 1", "sys_name": "core-switch", "caps": ["bridge"],
+                      "mgmt_ip": _host(SWITCH)["ip"]}],
+            "fdb": []}
+
+
 def scan_host(h: dict) -> dict:
     title = h.get("title")
     ports = list(h.get("ports") or [])
@@ -100,7 +156,7 @@ def scan_host(h: dict) -> dict:
         p0 = dict(ports[0])
         p0["banner"] = {"title": title, "server": None}
         ports[0] = p0
-    return {"ip": h["ip"], "mac": _mac(h["n"]), "hostnames": list(h.get("names") or []),
+    return {"ip": h["ip"], "mac": _vmac(h["n"]) if h.get("vm") else _mac(h["n"]), "hostnames": list(h.get("names") or []),
             "sources": ["arp"] + (["mdns"] if h.get("mdns") else []) + (["ssdp"] if h.get("ssdp") else []) + (["tcp"] if ports else []),
             "ports": ports, "mdns": list(h.get("mdns") or []), "ssdp": list(h.get("ssdp") or []),
             "is_gateway": bool(h.get("gw")), "is_self": bool(h.get("self")), "rtt_ms": round(random.uniform(0.4, 6.0), 2)}
@@ -116,7 +172,8 @@ class Demo:
 
     def test_details(self, kind: str) -> dict:
         return {"hub": {"version": "demo", "entities": 121, "devices": 27}, "mqtt": {"topics": len(TOPICS)},
-                "snmp": {"name": "router", "descr": "Demo router", "ifaces": 4}}.get(kind, {})
+                "snmp": {"name": "router", "descr": "Demo router", "ifaces": 4, "lldp": 1, "fdb": 0},
+                "controller": {"clients": len(WIRED) - 1 + len(RADIO), "devices": 3}}.get(kind, {})
 
     async def scan(self, plan: dict, progress) -> dict:
         hosts = [scan_host(h) for h in HOSTS]
@@ -143,6 +200,16 @@ class Demo:
                                      (time.time() - 60, time.time() - 45, "gentle", '["%s"]' % NET, "done", len(HOSTS))).lastrowid
         core.ingest({"hosts": [scan_host(h) for h in HOSTS]}, scan_id)
         core.store.set_setting("rescan_cidrs", [NET])
+        self.seed_manual(core)
+
+    def seed_manual(self, core) -> None:
+        for n, (parent, port) in MANUAL.items():
+            child_id, parent_id = "d-" + _hmac(n).replace(":", ""), "d-" + _hmac(parent).replace(":", "")
+            if core.store.device(child_id) and core.store.device(parent_id) and not core.store.one(
+                    "SELECT device_id FROM phys_manual WHERE device_id=?", (child_id,)):
+                core.store.execute("INSERT INTO phys_manual(device_id, parent_id, port, medium, updated) VALUES(?,?,?,?,?)",
+                                   (child_id, parent_id, port, "wired", time.time() - 86400))
+        core._manual_ver += 1
 
     def seed_integrations(self, core) -> None:
         if core.store.one("SELECT id FROM integrations LIMIT 1"):
@@ -150,7 +217,9 @@ class Demo:
         import json as _json
         for kind, name, cfg in (("hub", "Automation hub", {"url": "http://192.168.50.14:8123"}),
                                 ("mqtt", "Message broker", {"host": "192.168.50.13", "port": 1883, "tls": False}),
-                                ("snmp", "Router counters", {"host": "192.168.50.1", "version": "2c"})):
+                                ("snmp", "Router counters", {"host": "192.168.50.1", "version": "2c"}),
+                                ("controller", "Network controller", {"url": "https://192.168.50.11:8443", "username": "map-viewer",
+                                                                      "site": "default"})):
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
                                (kind, name, _json.dumps(cfg), time.time()))
 
@@ -159,6 +228,7 @@ class Demo:
         rng = self.rng
         t0 = time.time()
         hub_sent = 0
+        topo_sent = 0
         while True:
             await asyncio.sleep(1.0)
             if not core.store.one("SELECT id FROM devices LIMIT 1"):
@@ -197,6 +267,14 @@ class Demo:
                                {"index": 2, "name": "lan1", "oper": "up", "speed": 1_000_000_000, "in": up, "out": down},
                                {"index": 3, "name": "lan2", "oper": "up", "speed": 1_000_000_000, "in": 0, "out": 0},
                                {"index": 4, "name": "wlan", "oper": "up", "speed": 600_000_000, "in": up // 3, "out": down // 3}]})
+            if now - topo_sent >= 30:
+                topo_sent = now
+                for row in core.store.query("SELECT id FROM devices"):     # simulated presence check: every demo device answers
+                    core.presence[row["id"]] = now
+                if "controller" in ids:
+                    core.on_event("int:%d" % ids["controller"], ids["controller"], controller_event(now))
+                if "snmp" in ids:
+                    core.on_event("int:%d" % ids["snmp"], ids["snmp"], router_topology_event(now))
             if "mqtt" in ids:
                 topics = []
                 for root, rate, size in TOPICS:

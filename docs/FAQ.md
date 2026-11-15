@@ -10,13 +10,13 @@ No. Probing is rate-limited to about 40 new connections per second, 24 concurren
 Classification uses deterministic rules on what a device reveals: announcements, device descriptions, open ports and neutral words in titles and host names. Devices that reveal nothing stay unknown. Open the component card to see the reasons and rename or re-type the device yourself.
 
 ### Why do some traces have no moving dots?
-Only measured bytes are animated. Dots appear for this host's own TCP flows, for the internet uplink when a router or switch is connected over SNMP, and for MQTT topic groups. Other traces are dashed, which means "connection known, traffic not measured".
+Only measured bytes are animated. Dots appear for this host's own TCP flows, for the internet uplink when a router or switch is connected over SNMP, for MQTT topic groups, and in the Network view along the known cabling between this host and its peers. Other traces are dashed, which means "connection known, traffic not measured".
 
 ### What leaves my network?
 Nothing, except the optional update check, which asks the public release feed for the latest version at most every 6 hours (15 minutes after a failed check) and only while the page is open. Turn it off with `LANLOOM_UPDATE_CHECK=0` or in the settings. There is no telemetry.
 
 ### Can Lanloom change anything on my devices?
-No. It is read-only by construction. The scanner only probes, the hub connection cannot call services, the MQTT client cannot publish and SNMP uses read operations only. The firewall editor runs as a simulation against a sample network unless you set up the separate executor service with your own controller adapter and arm it explicitly; see [FIREWALL-EDITOR.md](FIREWALL-EDITOR.md).
+No. It is read-only by construction. The scanner only probes, the hub connection cannot call services, the MQTT client cannot publish, SNMP uses read operations only and the switch controller connection only reads two lists with a view-only account. The firewall editor runs as a simulation against a sample network unless you set up the separate executor service with your own controller adapter and arm it explicitly; see [FIREWALL-EDITOR.md](FIREWALL-EDITOR.md).
 
 ### Does it support IPv6?
 Not in 1.0. Scanning is IPv4 only.
@@ -38,3 +38,7 @@ There is no remote reset. Stop the container, delete `lanloom.db` in the data vo
 
 ### Can I try it without scanning my network?
 Yes. Set `LANLOOM_DEMO=1` (optionally with `LANLOOM_DEMO_SEED=1`) to run a fictional network. Nothing is scanned.
+
+## How does Lanloom know which device is on which switch port?
+
+From up to four sources, in this order of precedence: a manual "connected via" entry on the component card, a switch controller with a view-only account, LLDP neighbours over SNMP and the switch address table over SNMP. Without any of them the Network view shows the gateway and one zone per subnet as before. Details: [TOPOLOGY.md](TOPOLOGY.md).

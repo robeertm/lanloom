@@ -7,7 +7,7 @@
   'use strict';
   const LL = root.Lanloom = root.Lanloom || {};
 
-  const KINDS = ['uplink', 'lan', 'service', 'flow', 'integration'];
+  const KINDS = ['uplink', 'lan', 'service', 'flow', 'integration', 'cable', 'radio', 'virtual'];
   const SIZES = [1, 8, 64];             // dot size classes in quanta (larger dots carry 8× / 64× q)
 
   function decompose(n, cap) {

@@ -54,7 +54,7 @@
   // ------------------------------------------------------------------ translation of map views
   function localise(view) {
     const v = JSON.parse(JSON.stringify(view));
-    v.zones.forEach(z => { if (z.title_key) z.title = t(z.title_key); });
+    v.zones.forEach(z => { if (z.title_key) z.title = t(z.title_key, z.vars || {}); });
     v.components.forEach(c => {
       if (c.title_key && !c.title) c.title = t(c.title_key) + (c.title_suffix ? ' ' + c.title_suffix : '');
       if (c.subtitle_key && !c.subtitle) c.subtitle = t(c.subtitle_key, c.vars || {});
@@ -122,7 +122,23 @@
     if (d.series && d.series.length) {
       sections.push(section(t('detail.traffic'), h('div', { class: 'spark-wrap' }, chart, chartLegend)));
     }
-    if (d.device) sections.push(deviceSection(d.device, d));
+    const devSec = d.device ? deviceSection(d.device, d) : null;
+    const foot = devSec && devSec.querySelector(':scope > .detail__foot');   // "Hide from the map" stays the last button of the card
+    if (foot) foot.remove();
+    if (d.physical && (d.physical.link || d.physical.children || d.physical.choices || d.physical.unknown)) {
+      const phys = h('div', {}, physicalSection(d.physical, id));
+      const edit = h('div', {}, d.physical.choices ? manualEditor(d.physical, id, refreshPhysical) : null);
+      sections.push(phys);
+      if (devSec) sections.push(devSec);
+      sections.push(edit);
+      async function refreshPhysical() {
+        try {
+          const nd = await api('/api/component/' + encodeURIComponent(id)), np = nd.physical || {};
+          phys.replaceChildren(physicalSection(np, id));
+          edit.replaceChildren(np.choices ? manualEditor(np, id, refreshPhysical) : '');
+        } catch (e) { /* keep */ }
+      }
+    } else if (devSec) sections.push(devSec);
     if (d.snmp) sections.push(snmpSection(d.snmp));
     if (d.broker) sections.push(brokerSection(d.broker));
     if (d.topic) sections.push(section(t('detail.topic'), facts([[t('detail.rate'), d.topic.msgs_s + ' ' + t('unit.msg_s')], [t('detail.bytes'), LL.fmtRate(d.topic.bytes_s)],
@@ -131,6 +147,7 @@
     if (d.ifaces && Object.keys(d.ifaces).length) sections.push(section(t('detail.ifaces'), facts(Object.entries(d.ifaces).map(([n, v]) => [n, '↑ ' + LL.fmtRate(v[0]) + '  ↓ ' + LL.fmtRate(v[1])]))));
     sections.push(section(t('detail.links'), h('ul', { class: 'link-list' }, d.traces.length ? d.traces.map(tr => h('li', {},
       h('span', { class: 'trace-sw trace-sw--' + tr.kind }), t('board.trace.' + tr.kind), h('span', { class: 'muted' }, ' · ' + (tr.measured ? t('detail.measured') : t('detail.unmeasured'))))) : [h('li', { class: 'muted' }, t('detail.no_links'))])));
+    if (foot) sections.push(foot);
     panel.replaceChildren(h('div', { class: 'detail__head' }, LL.kindIcon(c.kind), h('div', { class: 'detail__titles' }, h('h2', {}, c.title || '—'), h('div', { class: 'muted mono' }, c.subtitle || t('kind.' + c.kind))), close),
       h('div', { class: 'detail__chips' }, h('span', { class: 'chip' }, t('kind.' + c.kind)), statusEl, gradeEl),
       h('div', { class: 'detail__body' }, sections));
@@ -194,6 +211,75 @@
     const hide = h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
     return h('div', {}, section(t('detail.device'), facts(rows)), ports ? section(t('device.ports'), ports) : null,
       ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, h('div', { class: 'detail__foot' }, hide));
+  }
+
+  // ------------------------------------------------------------------ physical connection (manual > controller > LLDP > address table)
+  const refName = r => (r ? (r.title || t('kind.' + (r.kind || 'unknown')) + (r.ip ? ' ' + r.ip : '')) : '—');
+  function portChip(p) {
+    const P = LL.Portmarks;
+    let f = null;
+    if (p.medium === 'radio') f = { link: 'radio', radio: { band: p.band || '', ssid: p.ssid || '' } };
+    else if (p.medium !== 'virtual' && p.port) f = { link: 'wired', port: p.port, ownPort: p.own_port || '' };
+    const html = f && P && P.chipHtml ? P.chipHtml(f, LL.t) : '';
+    if (!html) return null;
+    const el = h('span', {}); el.innerHTML = html; return el.firstChild;
+  }
+  const mediumText = m => t('topo.medium.' + (m || 'unknown'));
+  const sourceText = s => t('topo.source.' + s);
+  function physicalSection(p) {
+    const out = [];
+    const l = p.link;
+    if (l) {
+      const via = h('span', { class: 'phys-via' }, h('span', {}, refName(l.parent_ref)), portChip(l));
+      const src = sourceText(l.source) + (l.age_s != null ? ' · ' + t('device.presence_ago', { age: LL.fmtAge(l.age_s) }) : '');
+      const rows = [[t('topo.via'), via], [t('topo.medium'), mediumText(l.medium)], [t('topo.source'), src]];
+      if (l.own_port) rows.push([t('topo.own_port'), h('span', { class: 'mono' }, l.own_port)]);
+      if (l.reason) rows.push([t('topo.why'), t(l.reason, { via: refName(l.vars.via_ref), port: l.vars.port || '', n: l.vars.n || 0 })]);
+      if (l.also && l.also.length) rows.push([t('topo.also'), l.also.map(sourceText).join(', ')]);
+      const box = [facts(rows)];
+      const disagree = (l.conflicts || []).concat(l.loop || []);
+      if (disagree.length) {
+        box.push(h('div', { class: 'callout callout--warn phys-conflict' },
+          disagree.map(c => h('p', {}, t((l.loop || []).includes(c) ? 'topo.loop' : 'topo.conflict', {
+            source: sourceText(c.source), where: refName(c.parent_ref) + (c.port ? ' · ' + t('portmarks.port') + ' ' + c.port : ''), winner: sourceText(l.source) }))),
+          h('p', { class: 'muted' }, t('topo.rule'))));
+      }
+      out.push(section(t('topo.title'), h('div', { class: 'stack-sm' }, box)));
+    }
+    if (p.children && p.children.length) {
+      const shown = p.children.slice(0, 80);
+      const rows = shown.map(c => h('tr', { title: sourceText(c.source) }, h('td', { class: 'phys-port' }, portChip(c) || h('span', { class: 'muted' }, mediumText(c.medium))),
+        h('td', { class: 'truncate' }, refName(c))));
+      const extra = (p.unknown || []).map(u => h('p', { class: 'muted' }, t('topo.unknown', { n: u.count, port: u.port })));
+      out.push(section(t('topo.children', { n: p.children.length }), h('div', {}, h('table', { class: 'mini-table phys-table' },
+        h('thead', {}, h('tr', {}, h('th', {}, t('device.port')), h('th', {}, t('device.name')))), h('tbody', {}, rows)),
+        p.children.length > shown.length ? h('p', { class: 'muted' }, t('topo.more', { n: p.children.length - shown.length })) : null, extra)));
+    } else if (p.unknown && p.unknown.length) {
+      out.push(section(t('topo.children', { n: 0 }), h('div', {}, p.unknown.map(u => h('p', { class: 'muted' }, t('topo.unknown', { n: u.count, port: u.port }))))));
+    }
+    return h('div', {}, out);
+  }
+  function manualEditor(p, id, refresh) {
+    const m = p.manual || null;
+    const parent = h('select', { class: 'select select--sm' }, [h('option', { value: '' }, t('topo.manual.none'))].concat(
+      p.choices.map(c => h('option', { value: c.id }, refName(c) + (c.title && c.ip ? ' · ' + c.ip : '')))));
+    parent.value = m ? m.parent : '';
+    const port = h('input', { class: 'input-sm', value: m && m.port ? m.port : '', maxlength: '24', placeholder: t('topo.manual.port_ph'), spellcheck: 'false', autocomplete: 'off' });
+    const medium = h('select', { class: 'select select--sm' }, ['wired', 'radio', 'virtual'].map(k => h('option', { value: k }, mediumText(k))));
+    medium.value = m ? m.medium : 'wired';
+    const msg = h('div', { class: 'msg' });
+    const sync = () => { port.disabled = medium.value === 'virtual' || !parent.value; medium.disabled = !parent.value; };
+    parent.addEventListener('change', sync); medium.addEventListener('change', sync); sync();
+    const send = async link => {
+      try { await api('/api/devices/' + encodeURIComponent(id), { method: 'PATCH', body: { link } }); LL.toast(t('device.saved'), 'ok'); refresh(); }
+      catch (e) { LL.msg(msg, LL.errText(e), 'error'); }
+    };
+    const save = h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => send(parent.value ? { parent: parent.value, port: port.value.trim(), medium: medium.value } : null) }, t('topo.manual.save'));
+    const clear = m ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => send(null) }, t('topo.manual.clear')) : null;
+    return section(t('topo.manual.title'), h('div', { class: 'stack-sm phys-edit' },
+      h('p', { class: 'muted' }, t('topo.manual.lead')),
+      LL.field(t('topo.manual.parent'), parent), h('div', { class: 'phys-edit__row' }, LL.field(t('device.port'), port), LL.field(t('topo.medium'), medium)),
+      msg, h('div', { class: 'btn-row phys-edit__actions' }, clear, save)));
   }
 
   function snmpSection(s) {
@@ -337,7 +423,7 @@
     async function renderInteg() {
       const list = (await api('/api/integrations')).integrations;
       integWrap.replaceChildren(...list.map(i => LL.integrationCard(i.kind, i, renderInteg)),
-        h('div', { class: 'btn-row btn-row--wrap' }, ['hub', 'mqtt', 'snmp'].map(k => h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => integWrap.insertBefore(LL.integrationCard(k, null, renderInteg), integWrap.lastChild) }, t('integ.add.' + k)))));
+        h('div', { class: 'btn-row btn-row--wrap' }, ['hub', 'mqtt', 'snmp', 'controller'].map(k => h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => integWrap.insertBefore(LL.integrationCard(k, null, renderInteg), integWrap.lastChild) }, t('integ.add.' + k)))));
     }
     page.append(card(t('settings.integrations'), [h('p', { class: 'muted' }, t('wizard.connect.safety')), integWrap]));
     renderInteg();

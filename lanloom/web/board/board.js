@@ -16,7 +16,8 @@
   const BASE = SCRIPT ? SCRIPT.replace(/[^/]*$/, '') : '';
   const NS = 'http://www.w3.org/2000/svg';
   const GRADES = ['realtime', 'near', 'periodic', 'sluggish', 'interrupted', 'unknown'];
-  const TRACE_KINDS = ['uplink', 'lan', 'service', 'flow', 'integration'];
+  const TRACE_KINDS = ['uplink', 'lan', 'service', 'flow', 'integration', 'cable', 'radio', 'virtual'];
+  const PHYS_DASH = { radio: '4 3', virtual: '0.5 3.5' };   // legend swatches; the traces get the same pattern from board.css
   const STATUSES = ['up', 'down', 'unknown'];
   const ELL = '…';
   const SAFETY = 1.5;   // px reserve between canvas measurement and DOM rendering
@@ -47,6 +48,9 @@
     "board.trace.service": "Service",
     "board.trace.flow": "Flow",
     "board.trace.integration": "Integration",
+    "board.trace.cable": "Cable",
+    "board.trace.radio": "Wireless",
+    "board.trace.virtual": "Virtual",
     "board.kind.internet": "Internet",
     "board.kind.router": "Router",
     "board.kind.switch": "Switch",
@@ -600,7 +604,7 @@
       const kinds = new Set(this.view ? this.view.traces.filter(x => this.layout && this.layout.tiles[x.a] && this.layout.tiles[x.b]).map(x => x.kind) : []);
       const dotSvg = '<svg width="40" height="12" viewBox="0 0 40 12" aria-hidden="true"><path d="M1 6H39" class="ll-lg-trace"/><circle cx="9" cy="6" r="2.4" class="ll-lg-dot"/><circle cx="9" cy="6" r="1" class="ll-lg-core"/><circle cx="21" cy="6" r="2.4" class="ll-lg-dot"/><circle cx="21" cy="6" r="1" class="ll-lg-core"/><circle cx="33" cy="6" r="3.4" class="ll-lg-dot"/><circle cx="33" cy="6" r="1.4" class="ll-lg-core"/></svg>';
       const dashSvg = '<svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6H27" class="ll-lg-dash"/></svg>';
-      const kindSw = k => `<svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><path d="M1 6H17" style="stroke:var(--ll-pcb-trace-${k});stroke-width:${k === 'uplink' ? 2.4 : 1.8}"/></svg>`;
+      const kindSw = k => `<svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><path d="M1 6H17" style="stroke:var(--ll-pcb-trace-${k});stroke-width:${k === 'uplink' ? 2.4 : k === 'virtual' ? 2.2 : 1.8}${PHYS_DASH[k] ? ';stroke-dasharray:' + PHYS_DASH[k] + ';stroke-linecap:round' : ''}"/></svg>`;
       const parts = [];
       parts.push(`<span class="ll-legend__item ll-legend__q">${dotSvg}<span>${q ? esc(t('board.legend.dot', { size: formatBytes(q, this.locale) })) : esc(t('board.legend.waiting'))}</span></span>`);
       parts.push(`<span class="ll-legend__item">${dashSvg}<span>${esc(t('board.legend.unmeasured'))}</span></span>`);
@@ -684,7 +688,17 @@
     // port marks: target port of a flow — seen in live connections, else the first open port from the scan; unknown → nothing
     portFacts() {
       const out = [];
+      const name = nid => { const e = this.tiles.get(nid); return e ? (e.data.title || this.t('board.kind.' + (e.kind || 'unknown'))) : ''; };
       this.traceViews().forEach(v => {
+        const ph = (this.traceInfo.get(v.id) || {}).phys;
+        if (ph && v.b !== EDGE) {
+          // physical link: at the device end the port of the switch it is plugged into, or the radio with band / network name
+          const data = { parent: v.a, device: v.b, port: ph.port || null, medium: ph.medium || null };
+          if (ph.uplink) out.push({ trace: v, end: 'b', link: 'uplink', parentName: name(v.a), deviceName: name(v.b), uplinkPort: ph.port || '', ownPort: ph.own_port || '', radio: ph.medium === 'radio', data });
+          else if (ph.medium === 'radio') { if (ph.band || ph.ssid) out.push({ trace: v, end: 'b', link: 'radio', parentName: name(v.a), radio: { band: ph.band || '', ssid: ph.ssid || '' }, data }); }
+          else if (ph.medium !== 'virtual' && ph.port) out.push({ trace: v, end: 'b', link: 'wired', parentName: name(v.a), port: ph.port, ownPort: ph.own_port || '', data });
+          return;
+        }
         if (v.kind !== 'flow') return;
         const t = this.traceInfo.get(v.id) || {}, seen = Array.isArray(this.seenPorts[v.id]) ? this.seenPorts[v.id].filter(Number.isInteger) : [];
         const listed = Array.isArray(t.listed) ? t.listed.filter(Number.isInteger) : [];
@@ -738,7 +752,7 @@
           return out;
         },
         // port marks
-        network: false,
+        network: !!(this.view && this.view.view === 'network'),
         facts: () => this.portFacts(),
         endmarkRects: () => (this.marks && this.marks.em ? this.marks.em.specs.map(sp => sp.r) : []),
         isTile: el => !!(el.closest && el.closest('.ll-tile')),

@@ -637,6 +637,6 @@ def test_source_test_details(agents):
     src = m.Snmp("127.0.0.1", version="2c", community=COMMUNITY, port=agent.port, timeout=1.0)
     ok, key, details = asyncio.run(src.test())
     assert (ok, key) == (True, "source.snmp.ok")
-    assert details == {"name": "switch-a", "descr": "test switch 24 port", "ifaces": 3}
+    assert details == {"name": "switch-a", "descr": "test switch 24 port", "ifaces": 3, "lldp": 0, "fdb": 0}
     bad = m.Snmp("127.0.0.1", version="2c", community="nope", port=agent.port, timeout=0.2, retries=1)
     assert asyncio.run(bad.test()) == (False, "source.snmp.timeout", {})

@@ -337,8 +337,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.patch("/api/devices/{device_id}")
     async def patch_device(device_id: str, request: Request):
         data = await body(request)
-        dev = state.core.patch_device(device_id, data)
+        try:
+            dev = state.core.patch_device(device_id, data)
+        except ValueError as exc:
+            return err(str(exc))
         return dev if dev else err("device.err.missing", 404)
+
+    @app.get("/api/topology")
+    async def get_topology():
+        topo = state.core.topology()
+        return {k: topo[k] for k in ("links", "nodes", "children", "trunks", "unknown", "infra")}
 
     @app.delete("/api/devices/{device_id}")
     async def delete_device(device_id: str):

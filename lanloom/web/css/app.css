@@ -222,6 +222,18 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .trace-sw { display: inline-block; width: 18px; height: 3px; border-radius: 2px; margin-right: 8px; vertical-align: middle; background: var(--ll-pcb-trace-lan); }
 .trace-sw--uplink { background: var(--ll-pcb-trace-uplink); } .trace-sw--service { background: var(--ll-pcb-trace-service); }
 .trace-sw--flow { background: var(--ll-pcb-trace-flow); } .trace-sw--integration { background: var(--ll-pcb-trace-integration); }
+.trace-sw--cable { background: var(--ll-pcb-trace-cable); }
+.trace-sw--radio { background: repeating-linear-gradient(90deg, var(--ll-pcb-trace-radio) 0 4px, transparent 4px 7px); }
+.trace-sw--virtual { background: repeating-linear-gradient(90deg, var(--ll-pcb-trace-virtual) 0 2px, transparent 2px 5px); }
+/* physical connection on the component card */
+.stack-sm { display: flex; flex-direction: column; gap: 10px; }
+.phys-via { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+.phys-conflict p { font-size: var(--ll-fs-sm); }
+.phys-table th:first-child, .phys-table td.phys-port { width: 46%; }
+.phys-table td.phys-port .ll-pm-chip { max-width: 100%; }
+.phys-edit .select--sm, .phys-edit .input-sm { width: 100%; margin-bottom: 0; }
+.phys-edit__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.phys-edit__actions { justify-content: flex-end; }
 .spark-wrap { display: flex; flex-direction: column; gap: 6px; }
 .spark { width: 100%; height: 96px; display: block; }
 .spark-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--ll-fs-xs); }

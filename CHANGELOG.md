@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] – 2026-11-15
+
+### Added
+- Physical topology in the Network view: which device hangs on which switch port, which clients use which access point, and which guests run on a virtualization host. Switches and access points get their own band below the router, guests their own zone next to their host. Cables are solid traces, wireless links dashed with a radio mark (band and network name at the device), guests dotted; the switch port number sits at the device end of the trace. Without topology data the view stays as before.
+- Four read-only sources with a fixed order of precedence: a manual "connected via" entry on the component card, a switch controller, LLDP neighbours over SNMP, and the switch address table over SNMP. Within one source the more specific observation wins; agreeing sources fill in missing details, and links that would close a loop are skipped.
+- Component card: a Connection section (connected via, port, link type, source and age, why a device was placed behind another one, which sources agree, what disagreeing sources report and the order of precedence), the devices on each port of a switch or access point, addresses that are not in the device list, and a "Connected via (manual)" editor with device, port and link type (cable, wireless, virtual).
+- New integration "Switch controller": signs in with a local view-only account and reads the client and device lists every minute (two common API styles, detected automatically, optional self-signed certificate). One code path makes every request and refuses anything but the sign-in and the two lists; a static test checks this. The password is stored encrypted.
+- The SNMP integration also reads LLDP neighbours (LLDP-MIB, with management addresses and capabilities) and the forwarding database (Q-BRIDGE-MIB, BRIDGE-MIB fallback, bridge port to interface name) about once a minute. Agents without these tables contribute nothing and the counters keep working.
+- Shared switch ports are read sensibly: devices behind exactly one switch or access point (or behind a device set by hand) hang below it; virtual network cards next to exactly one ordinary device become guests of that host; a port with very many addresses and no switch is treated as a trunk and not assigned from the address table.
+- This host's measured traffic travels along the physical links in the Network view (up to the switch and down to the peer, or up to the router for internet traffic).
+- `GET /api/topology` (signed in) returns the resolved links for bug reports.
+- The demo network has a switch, two access points (one with a wireless uplink) with wireless clients, a virtualization host with two guests and one manual entry that overrides the controller.
+- Documentation: [docs/TOPOLOGY.md](docs/TOPOLOGY.md) (sources, view-only account, LLDP and SNMP, shared ports, troubleshooting).
+
+### Changed
+- Screenshots of the map, the Network view and the component card are new.
+
 ## [1.2.2] – 2026-11-14
 
 ### Changed

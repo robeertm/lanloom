@@ -108,6 +108,10 @@
 .ll-trace.ll-k-flow { stroke: var(--ll-pcb-trace-flow); }
 .ll-trace.ll-k-integration { stroke: var(--ll-pcb-trace-integration); }
 .ll-trace.is-unmeasured { stroke-dasharray: 3 4; opacity: calc(var(--ll-pcb-trace-rest) * .75); }
+/* physical links (network view): cable solid, wireless dashed, virtual (guest on a host) dotted — never "not measured" */
+.ll-trace.ll-k-cable, .ll-trace.ll-k-cable.is-unmeasured { stroke: var(--ll-pcb-trace-cable); stroke-width: 1.8; stroke-dasharray: none; opacity: var(--ll-pcb-trace-rest); }
+.ll-trace.ll-k-radio, .ll-trace.ll-k-radio.is-unmeasured { stroke: var(--ll-pcb-trace-radio); stroke-dasharray: 4 3; opacity: var(--ll-pcb-trace-rest); }
+.ll-trace.ll-k-virtual, .ll-trace.ll-k-virtual.is-unmeasured { stroke: var(--ll-pcb-trace-virtual); stroke-width: 2.2; stroke-dasharray: .5 3.5; opacity: var(--ll-pcb-trace-rest); }
 .ll-board.is-compact .ll-trace { stroke-width: 1.4; }
 .ll-board.is-compact .ll-trace.ll-k-uplink { stroke-width: 1.9; }
 .ll-pad { fill: var(--ll-pcb-copper); transition: opacity var(--ll-dur) var(--ll-ease); }

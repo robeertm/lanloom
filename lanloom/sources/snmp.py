@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import logging
 import os
 import socket
 import threading
@@ -28,6 +29,7 @@ from . import _aes as aes
 from . import _ber as ber
 from ._common import Backoff, SourceError, StatusTracker, clip, emit_event, error_key, now, short_test
 
+log = logging.getLogger(__name__)
 MODULE = "snmp"
 SOURCE = "snmp"
 
@@ -339,19 +341,20 @@ class SnmpClient:
         self.close()
 
     # ------------------------------------------------------------ public
-    def get(self, oids) -> dict:
-        """{oid: value} for the requested OIDs (GetRequest)."""
+    def get(self, oids, raw=False) -> dict:
+        """{oid: value} for the requested OIDs (GetRequest). ``raw=True``: OCTET STRING values as bytes."""
         if isinstance(oids, str):
             oids = [oids]
         oid_list = [self._oid(o) for o in oids]
         if not oid_list:
             return {}
         with self._lock:
-            return {ber.oid_text(o): self._value(w) for o, w in self._request(PDU_GET, oid_list)}
+            return {ber.oid_text(o): self._value(w, raw) for o, w in self._request(PDU_GET, oid_list)}
 
-    def walk(self, base_oid, repetitions=25) -> list:
+    def walk(self, base_oid, repetitions=25, raw=False, limit=None) -> list:
         """[(oid, value)] below base_oid via GetBulk. Stops when leaving the subtree, at endOfMibView or when the
-        agent does not answer in increasing order."""
+        agent does not answer in increasing order. ``raw=True``: OCTET STRING values as bytes; ``limit``: stop
+        after that many rows (the rows read so far are returned)."""
         base = self._oid(base_oid)
         n = len(base)
         repetitions = max(1, min(int(repetitions), 1000))
@@ -366,7 +369,9 @@ class SnmpClient:
                 if node[0] in (ber.T_END_OF_MIB, ber.T_NO_SUCH_OBJECT, ber.T_NO_SUCH_INSTANCE) \
                         or oid[:n] != base or oid <= last:
                     return out
-                out.append((ber.oid_text(oid), self._value(node)))
+                out.append((ber.oid_text(oid), self._value(node, raw)))
+                if limit is not None and len(out) >= limit:
+                    return out
                 last = oid
         raise SnmpError("walk aborted after too many rounds")
 
@@ -393,9 +398,9 @@ class SnmpClient:
             raise SnmpError("invalid OID", "source.snmp.config") from None
 
     @staticmethod
-    def _value(node):
+    def _value(node, raw=False):
         try:
-            return ber.value_of(node)
+            return ber.value_of(node, raw)
         except ber.BerError:
             raise SnmpError("invalid value in reply") from None
 
@@ -768,13 +773,253 @@ def read_interfaces(client: SnmpClient) -> list[dict]:
     return rows
 
 
+# ================================================================== topology (LLDP + forwarding table)
+OID_LLDP_REM = "1.0.8802.1.1.2.1.4.1.1"          # lldpRemEntry
+OID_LLDP_MAN = "1.0.8802.1.1.2.1.4.2.1"          # lldpRemManAddrEntry
+OID_LLDP_LOC = "1.0.8802.1.1.2.1.3.7.1"          # lldpLocPortEntry
+OID_BRIDGE_ADDR = "1.3.6.1.2.1.17.1.1.0"         # dot1dBaseBridgeAddress
+OID_BASE_PORT_IF = "1.3.6.1.2.1.17.1.4.1.2"      # dot1dBasePortIfIndex
+OID_Q_FDB_PORT = "1.3.6.1.2.1.17.7.1.2.2.1.2"    # dot1qTpFdbPort
+OID_Q_FDB_STATUS = "1.3.6.1.2.1.17.7.1.2.2.1.3"  # dot1qTpFdbStatus
+OID_D_FDB_PORT = "1.3.6.1.2.1.17.4.3.1.2"        # dot1dTpFdbPort
+OID_D_FDB_STATUS = "1.3.6.1.2.1.17.4.3.1.3"      # dot1dTpFdbStatus
+
+MAX_FDB = 4096
+MAX_LLDP = 512
+LLDP_CAPS = ("other", "repeater", "bridge", "ap", "router", "phone", "docsis", "station")
+_FDB_LEARNED = 3
+_LLDP_REM_COLS = (4, 5, 6, 7, 8, 9, 11, 12)
+_TIMEOUT_KEYS = ("source.snmp.timeout", "source.snmp.unreachable")
+_HEX = frozenset("0123456789abcdefABCDEF")
+
+
+def _fmt_mac(b):
+    return ":".join("%02x" % x for x in b)
+
+
+def _text(v, limit=64):
+    """Device text (bytes or str) -> clipped printable text or None."""
+    if isinstance(v, (bytes, bytearray)):
+        v = bytes(v).decode("utf-8", errors="replace")
+    if not isinstance(v, str):
+        return None
+    out = clip(v.replace("\x00", "").strip(), limit)
+    return out or None
+
+
+def _mac_from(v):
+    """6 raw bytes, 'aa:bb:..', 'aa-bb-..' or 12 hex chars -> 'aa:bb:cc:dd:ee:ff', else None."""
+    if isinstance(v, (bytes, bytearray)):
+        v = bytes(v)
+        if len(v) == 6:
+            return _fmt_mac(v)
+        try:
+            v = v.decode("ascii")
+        except UnicodeDecodeError:
+            return None
+    if not isinstance(v, str):
+        return None
+    t = v.strip()
+    if len(t) == 17 and t[2] in ":-" and all(t[i] == t[2] for i in range(2, 17, 3)):
+        t = t.replace(t[2], "")
+    if len(t) == 12 and set(t) <= _HEX:
+        return ":".join(t[i:i + 2].lower() for i in range(0, 12, 2))
+    return None
+
+
+def _ip_from(v):
+    """IANA address family number + address (RFC 4001 style), or printable dotted text -> IPv4 text or None."""
+    if isinstance(v, (bytes, bytearray)):
+        v = bytes(v)
+        if len(v) == 5 and v[0] == 1:
+            return "%d.%d.%d.%d" % tuple(v[1:])
+        try:
+            v = v.decode("ascii")
+        except UnicodeDecodeError:
+            return None
+    if isinstance(v, str):
+        parts = v.strip().split(".")
+        if len(parts) == 4 and all(p.isdigit() and len(p) <= 3 and int(p) < 256 for p in parts):
+            return ".".join(str(int(p)) for p in parts)
+    return None
+
+
+def _caps(v):
+    """BITS octet string (bit 0 = most significant bit of the first byte) -> capability names."""
+    if not isinstance(v, (bytes, bytearray)):
+        return None
+    return [LLDP_CAPS[i] for i in range(8) if len(v) > 0 and v[0] & (0x80 >> i)]
+
+
+def _tail(oid, base, n):
+    """Index sub-identifiers (ints) after ``base`` if there are at least ``n``, else None."""
+    prefix = base + "."
+    if not oid.startswith(prefix):
+        return None
+    try:
+        idx = [int(x) for x in oid[len(prefix):].split(".")]
+    except ValueError:
+        return None
+    return idx if len(idx) >= n else None
+
+
+def _int_or_none(v):
+    return v if isinstance(v, int) and not isinstance(v, bool) else None
+
+
+def parse_lldp(rem_rows, man_rows, loc_rows, if_names=None, limit=MAX_LLDP) -> list[dict]:
+    """Pure: raw walk rows -> neighbour dicts. ``rem_rows`` are lldpRemEntry columns 4..12 (raw octets),
+    ``man_rows`` lldpRemManAddrEntry rows (the address is in the index), ``loc_rows`` lldpLocPortEntry
+    columns 3 and 4. Unknown values stay None."""
+    if_names = if_names or {}
+    cells = {}
+    for oid, value in rem_rows:
+        idx = _tail(oid, OID_LLDP_REM, 4)
+        if idx is None or len(idx) != 4 or idx[0] not in _LLDP_REM_COLS:
+            continue
+        col, _mark, port, rem = idx
+        if (port, rem) not in cells and len(cells) >= limit:
+            continue
+        cells.setdefault((port, rem), {})[col] = value
+    mgmt = {}
+    for oid, _value in man_rows:
+        idx = _tail(oid, OID_LLDP_MAN, 7)
+        if idx is None or len(idx) < 7:
+            continue
+        _col, _mark, port, rem, subtype, alen = idx[:6]
+        addr = idx[6:]
+        if subtype == 1 and alen == 4 and len(addr) == 4 and all(0 <= a < 256 for a in addr):
+            mgmt.setdefault((port, rem), "%d.%d.%d.%d" % tuple(addr))
+    loc = {}
+    for oid, value in loc_rows:
+        idx = _tail(oid, OID_LLDP_LOC, 2)
+        if idx is not None and len(idx) == 2 and idx[0] in (3, 4):
+            loc.setdefault(idx[1], {})[idx[0]] = value
+    out = []
+    for (port, rem) in sorted(cells):
+        c = cells[(port, rem)]
+        sub = _int_or_none(c.get(4))
+        chassis = c.get(5)
+        c_mac = c_ip = c_text = None
+        if sub == 4:
+            c_mac = _mac_from(chassis)
+        elif sub == 5:
+            c_ip = _ip_from(chassis)
+        elif sub is not None:
+            c_text = _text(chassis)
+        psub = _int_or_none(c.get(6))
+        pid = c.get(7)
+        p_mac = port_id = None
+        if psub == 3:
+            p_mac = _mac_from(pid)
+            port_id = p_mac
+        elif psub == 4:
+            port_id = _ip_from(pid)
+        elif psub is not None:
+            port_id = _text(pid)
+        caps = _caps(c.get(12))
+        if caps is None:
+            caps = _caps(c.get(11))
+        info = loc.get(port, {})
+        label = _text(info.get(4), 32) or _text(info.get(3), 32) or _text(if_names.get(port), 32) or str(port)
+        out.append({"local_port": label, "local_port_num": port, "chassis_mac": c_mac, "chassis_ip": c_ip,
+                    "chassis_text": c_text, "port_id": port_id, "port_mac": p_mac, "port_desc": _text(c.get(8)),
+                    "sys_name": _text(c.get(9)), "caps": caps or [], "mgmt_ip": mgmt.get((port, rem))})
+    return out
+
+
+def _fdb_rows(rows, base, id_len):
+    """{(vlan | None, mac_text): value} from table rows whose index ends in a 6 sub-id MAC."""
+    out = {}
+    for oid, value in rows:
+        idx = _tail(oid, base, id_len + 6)
+        if idx is None or len(idx) != id_len + 6 or any(not 0 <= x < 256 for x in idx[id_len:]):
+            continue
+        vlan = idx[0] if id_len else None
+        out[(vlan, _fmt_mac(idx[id_len:]))] = value
+    return out
+
+
+def parse_fdb(q_rows, q_status_rows, d_rows, d_status_rows, base_port_rows, if_names=None, limit=MAX_FDB) -> list[dict]:
+    """Pure: forwarding database rows -> [{port, port_num, mac, vlan}]. The MAC comes from the OID index. Only
+    learned entries (missing status counts as learned). Q-BRIDGE is preferred, dot1d is the fallback."""
+    if_names = if_names or {}
+    port_if = {}
+    for oid, value in base_port_rows:
+        idx = _tail(oid, OID_BASE_PORT_IF, 1)
+        if idx is not None and len(idx) == 1 and isinstance(value, int):
+            port_if[idx[0]] = value
+    entries = _fdb_rows(q_rows, OID_Q_FDB_PORT, 1)
+    status = _fdb_rows(q_status_rows, OID_Q_FDB_STATUS, 1)
+    if not entries:
+        entries = _fdb_rows(d_rows, OID_D_FDB_PORT, 0)
+        status = _fdb_rows(d_status_rows, OID_D_FDB_STATUS, 0)
+    out, seen = [], set()
+    for key in sorted(entries, key=lambda k: (-1 if k[0] is None else k[0], k[1])):
+        port = entries[key]
+        if not isinstance(port, int) or isinstance(port, bool) or port <= 0:
+            continue
+        st = status.get(key)
+        if st is not None and st != _FDB_LEARNED:
+            continue
+        vlan, mac = key
+        if (port, mac) in seen:
+            continue
+        if len(out) >= limit:
+            break
+        seen.add((port, mac))
+        label = clip(if_names.get(port_if.get(port)), 32) or str(port)
+        out.append({"port": label, "port_num": port, "mac": mac, "vlan": vlan})
+    return out
+
+
+def _walk_or_empty(client, base, **kw):
+    """Walk; an agent that refuses or lacks the table gives []. Timeouts propagate (no data is not "empty")."""
+    try:
+        return client.walk(base, **kw)
+    except SnmpError as exc:
+        if exc.key in _TIMEOUT_KEYS:
+            raise
+        return []
+
+
+def read_topology(client: SnmpClient, if_names=None) -> dict:
+    """Blocking, read-only: LLDP neighbours and forwarding table of the agent.
+    ``if_names`` is {ifIndex: name}; walked here when not given. Returns {"agent_mac", "lldp", "fdb"}."""
+    if if_names is None:
+        descr = _index_map(_walk_or_empty(client, OID_IF_DESCR), OID_IF_DESCR)
+        names = _index_map(_walk_or_empty(client, OID_IFX_NAME), OID_IFX_NAME)
+        if_names = {i: names.get(i) or descr.get(i) for i in set(descr) | set(names)}
+    rem = []
+    for col in _LLDP_REM_COLS:
+        rem += _walk_or_empty(client, "%s.%d" % (OID_LLDP_REM, col), raw=True, limit=MAX_LLDP * 2)
+    man = _walk_or_empty(client, OID_LLDP_MAN + ".3", limit=MAX_LLDP * 2)
+    loc = _walk_or_empty(client, OID_LLDP_LOC + ".3", raw=True) + _walk_or_empty(client, OID_LLDP_LOC + ".4", raw=True)
+    lldp = parse_lldp(rem, man, loc, if_names)
+    q = _walk_or_empty(client, OID_Q_FDB_PORT, limit=MAX_FDB * 2)
+    q_status = _walk_or_empty(client, OID_Q_FDB_STATUS, limit=MAX_FDB * 2) if q else []
+    d = d_status = []
+    if not q:
+        d = _walk_or_empty(client, OID_D_FDB_PORT, limit=MAX_FDB * 2)
+        d_status = _walk_or_empty(client, OID_D_FDB_STATUS, limit=MAX_FDB * 2) if d else []
+    base = _walk_or_empty(client, OID_BASE_PORT_IF) if (q or d) else []
+    fdb = parse_fdb(q, q_status, d, d_status, base, if_names)
+    try:
+        agent_mac = _mac_from(client.get([OID_BRIDGE_ADDR], raw=True).get(OID_BRIDGE_ADDR))
+    except SnmpError as exc:
+        if exc.key in _TIMEOUT_KEYS:
+            raise
+        agent_mac = None
+    return {"agent_mac": agent_mac, "lldp": lldp, "fdb": fdb}
+
+
 class Snmp:
     """Live source: polls one SNMP agent every ``interval`` seconds (default 10)."""
 
     name = SOURCE
 
     def __init__(self, host, version="2c", community=None, user=None, auth_key=None, priv_key=None,
-                 auth_proto="sha", priv_proto="aes", port=161, interval=10.0, timeout=2.0, retries=2):
+                 auth_proto="sha", priv_proto="aes", port=161, interval=10.0, timeout=2.0, retries=2, topology=True, topology_interval=60.0):
         # the client validates the configuration (SnmpError with a config key) and keeps only derived secrets
         self._client = SnmpClient(host, port=port, version=version, community=community, user=user,
                                   auth_key=auth_key, priv_key=priv_key, auth_proto=auth_proto,
@@ -783,6 +1028,10 @@ class Snmp:
         self.interval = max(1.0, float(interval))
         self.counters = CounterTracker()
         self._last_uptime = None
+        self.topology = bool(topology)
+        self.topology_interval = max(1.0, float(topology_interval))
+        self._if_names = None
+        self._sys_name = None
 
     def __repr__(self):
         return "Snmp(host=%r, version=%r)" % (self.host, self._client.version)
@@ -796,7 +1045,9 @@ class Snmp:
         if up is not None and self._last_uptime is not None and up < self._last_uptime:
             self.counters.reset()          # agent restarted: counters started over
         self._last_uptime = up
+        self._sys_name = sysinfo.get("name")
         rows = read_interfaces(client)
+        self._if_names = {r["index"]: r["name"] for r in rows}
         mono = time.monotonic()
         ifaces = []
         for r in rows:
@@ -807,11 +1058,34 @@ class Snmp:
         self.counters.forget_missing({r["index"] for r in rows})
         return {"type": "snmp", "source": SOURCE, "host": self.host, "t": now(), "sys": sysinfo, "ifaces": ifaces}
 
+    def poll_topology(self, client: SnmpClient) -> dict:
+        """One blocking topology read -> topology event. Raises only for timeouts/unreachable agents."""
+        data = read_topology(client, self._if_names)
+        return {"type": "topology", "source": SOURCE, "host": self.host, "t": now(),
+                "agent": {"ip": self.host, "mac": data["agent_mac"], "name": self._sys_name},
+                "lldp": data["lldp"], "fdb": data["fdb"]}
+
+    async def _topology_step(self, emit, client, state):
+        """Emit a topology event when due. A failure never touches counters or status; retry next interval."""
+        if not self.topology or time.monotonic() < state["due"]:
+            return
+        state["due"] = time.monotonic() + self.topology_interval
+        try:
+            event = await asyncio.to_thread(self.poll_topology, client)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.debug("topology read failed: %s", type(exc).__name__)
+            return
+        await emit_event(emit, event)
+
     async def run(self, emit) -> None:
         status = StatusTracker(SOURCE)
         backoff = Backoff()
+        topo = {"due": 0.0}
         while True:
             client = self._client
+            topo["due"] = 0.0
             try:
                 good_since = None
                 next_tick = time.monotonic()
@@ -820,6 +1094,7 @@ class Snmp:
                     await emit_event(emit, frame)
                     await status.set(emit, True, "source.snmp.ok")
                     good_since = good_since or time.monotonic()
+                    await self._topology_step(emit, client, topo)
                     if time.monotonic() - good_since >= 30:
                         backoff.reset()
                     next_tick += self.interval
@@ -842,8 +1117,13 @@ class Snmp:
             try:
                 sysinfo = read_system(c)
                 n = len(_index_map(c.walk(OID_IF_DESCR), OID_IF_DESCR))
+                try:
+                    topo = read_topology(c) if self.topology else {"lldp": [], "fdb": []}
+                except SnmpError:
+                    topo = {"lldp": [], "fdb": []}
             finally:
                 c.reset()
-            return {"name": sysinfo["name"], "descr": sysinfo["descr"], "ifaces": n}
+            return {"name": sysinfo["name"], "descr": sysinfo["descr"], "ifaces": n,
+                    "lldp": len(topo["lldp"]), "fdb": len(topo["fdb"])}
         timeout = self._client.timeout * self._client.retries * 4 + 5
         return await short_test(MODULE, asyncio.to_thread(probe), timeout)

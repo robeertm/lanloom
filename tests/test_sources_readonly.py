@@ -10,10 +10,11 @@ The checks read the source code (AST), so a new write path fails here even befor
 import ast
 from pathlib import Path
 
-from lanloom.sources import hostnet, hub, mqtt, snmp
+from lanloom.sources import controller, hostnet, hub, mqtt, snmp
 
 SRC = Path(__file__).resolve().parent.parent / "lanloom" / "sources"
-RAW_SEND = {"write", "send", "sendto", "sendall", "sendmsg", "send_text", "send_bytes", "writelines"}
+RAW_SEND = {"write", "send", "sendto", "sendall", "sendmsg", "send_text", "send_bytes", "writelines",
+            "request", "putrequest", "endheaders"}
 
 # (file, enclosing function, method) of every raw send; each one is the single exit of an allow-listed path
 SEND_SITES = {
@@ -24,6 +25,7 @@ SEND_SITES = {
     ("mqtt.py", "Mqtt._connect", "write"),
     ("mqtt.py", "Mqtt._close", "write"),
     ("mqtt.py", "Mqtt._session", "write"),
+    ("controller.py", "Controller._send", "request"),  # checks ALLOWED_POST / ALLOWED_GET / login body keys
     ("snmp.py", "SnmpClient._send", "send"),         # messages around build_pdu, which allows read PDUs only
     ("hostnet.py", "NetlinkReader.dump", "send"),    # sock_diag dump request
 }
@@ -102,6 +104,32 @@ def test_hub_allow_list_only_reads_and_subscribes():
             assert isinstance(arg, ast.Constant) and arg.value in hub.ALLOWED_TYPES, (where, ast.unparse(arg))
             seen.add(arg.value)
     assert "auth" in seen and "get_states" in seen
+
+
+def test_controller_allow_list_only_logs_in_and_reads():
+    assert controller.ALLOWED_POST == {"/api/auth/login", "/api/login", "/api/auth/logout", "/api/logout"}
+    assert controller.LOGIN_FIELDS == frozenset({"username", "password"})
+    for rx in controller.ALLOWED_GET:
+        assert rx.pattern.startswith("\\A/") and rx.pattern.endswith("(?:sta|device)\\Z"), rx.pattern
+        assert not rx.match("/api/s/default/rest/user") and not rx.match("/api/s/default/stat/sta/extra")
+        assert not rx.match("/api/s/default/cmd/stamgr") and not rx.match("/api/s/a b/stat/sta")
+    sites = set()
+    for where, call in calls(tree("controller.py")):
+        name = callee(call)
+        if name in ("_send", "_call"):
+            method = call.args[0]
+            assert isinstance(method, ast.Constant) and method.value in ("GET", "POST"), (where, ast.unparse(method))
+            sites.add((where, method.value))
+            if method.value == "POST":
+                path = ast.unparse(call.args[1])
+                assert path in ("LOGIN_PATH[style]", "LOGOUT_PATH[self._style]"), (where, path)
+            else:
+                assert len(call.args) == 2, where                    # a GET never carries a body
+    assert ("Controller._login", "POST") in sites and ("Controller._fetch", "GET") in sites
+    # every http.client request/send call lives inside the single method Controller._send
+    for where, call in calls(tree("controller.py")):
+        if callee(call) in RAW_SEND | {"getresponse"}:
+            assert where == "Controller._send", (where, ast.unparse(call))
 
 
 def test_hostnet_only_dumps_the_socket_table():

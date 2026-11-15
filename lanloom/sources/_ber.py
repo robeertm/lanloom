@@ -185,8 +185,9 @@ def oid_from(b: bytes) -> tuple[int, ...]:
     return head + tuple(parts[1:])
 
 
-def value_of(node):
-    """Varbind value node -> Python value (None for NULL / exceptions, hex for opaque/unknown)."""
+def value_of(node, raw_octets: bool = False):
+    """Varbind value node -> Python value (None for NULL / exceptions, hex for opaque/unknown).
+    ``raw_octets=True`` returns OCTET STRING as ``bytes`` (binary values such as MACs); default is text."""
     tag, w = node
     if tag & 0x20 or not isinstance(w, bytes):
         raise BerError("constructed value in varbind")
@@ -197,6 +198,8 @@ def value_of(node):
     if tag == T_COUNTER64:
         return uint_from(w, 64)
     if tag == T_OCTETS:
+        if raw_octets:
+            return bytes(w)
         return w.decode("utf-8", errors="replace")
     if tag == T_OID:
         return oid_text(oid_from(w))

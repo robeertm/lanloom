@@ -4,11 +4,12 @@ import ipaddress
 import json
 import logging
 import math
+import re
 import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import classify, live
+from . import classify, live, topology
 from .crypto import Vault
 from .store import Store
 
@@ -33,6 +34,7 @@ INTEGRATION_FIELDS = {
     "hub": (("url", "allow_self_signed"), ("token",)),
     "mqtt": (("host", "port", "username", "tls", "allow_self_signed"), ("password",)),
     "snmp": (("host", "version", "user", "auth_proto", "priv_proto", "uplink"), ("community", "auth_key", "priv_key")),
+    "controller": (("url", "username", "site", "allow_self_signed"), ("password",)),
 }
 
 
@@ -87,6 +89,10 @@ class Core:
         self.mqtt: dict = {}               # integration id -> {"topics": {root: [msgs/s, bytes/s, last]}, "t"}
         self.snmp: dict = {}               # integration id -> latest snmp frame
         self.topic_order: dict = {}        # integration id -> stable list of shown topic roots
+        self.topo_obs: dict = {}           # source key -> {"integ": id, "ev": latest topology event}
+        self._topo_cache = None            # (key, resolved topology)
+        self._topo_sig = ""
+        self._manual_ver = 0
         self.structure_version = 0
         self.last_frame: dict = {}
         self._refresh_index()
@@ -198,13 +204,63 @@ class Core:
             self.store.execute("UPDATE devices SET user_kind=? WHERE id=?", (kind, device_id))
         if "hidden" in patch:
             self.store.execute("UPDATE devices SET hidden=? WHERE id=?", (1 if patch.get("hidden") else 0, device_id))
+        if "link" in patch:
+            self.set_manual_link(device_id, patch.get("link"))     # raises ValueError(reason key)
         self._refresh_index()
         return self.device_view(self.store.device(device_id))
 
     def forget_device(self, device_id: str) -> bool:
         ok = self.store.execute("DELETE FROM devices WHERE id=?", (device_id,)).rowcount > 0
+        self.store.execute("DELETE FROM phys_manual WHERE device_id=? OR parent_id=?", (device_id, device_id))
+        self._manual_ver += 1
         self._refresh_index()
         return ok
+
+    # ------------------------------------------------------------------ physical topology
+    def manual_links(self) -> dict:
+        return {r["device_id"]: {"parent": r["parent_id"], "port": r["port"], "medium": r["medium"], "t": r["updated"]}
+                for r in self.store.query("SELECT * FROM phys_manual")}
+
+    def topology(self) -> dict:
+        """Resolved physical links (manual > controller > LLDP > forwarding database), cached until something changes."""
+        key = (self.structure_version, self._manual_ver, int(time.time() // 30))
+        if self._topo_cache and self._topo_cache[0] == key:
+            return self._topo_cache[1]
+        devices = [self.device_view(d) for d in self.store.devices()]
+        topo = topology.resolve(devices, self.manual_links(), self.topo_obs)
+        self._topo_cache = (key, topo)
+        return topo
+
+    def set_manual_link(self, device_id: str, link) -> None:
+        """Manual "connected via": {parent, port, medium} or None to remove. Raises ValueError(reason key)."""
+        if not link:
+            self.store.execute("DELETE FROM phys_manual WHERE device_id=?", (device_id,))
+        else:
+            if not isinstance(link, dict):
+                raise ValueError("topo.err.invalid")
+            parent = str(link.get("parent") or "").strip()
+            medium = link.get("medium") or "wired"
+            if medium not in topology.MEDIA:
+                raise ValueError("topo.err.invalid")
+            port = topology.clean_port(link.get("port")) if medium != "virtual" else None
+            topo = self.topology()
+            known = bool(self.store.device(parent)) or parent in topo["nodes"] or parent == "internet"
+            if not parent or parent == device_id or not known or parent == "internet":
+                raise ValueError("topo.err.parent")
+            # a device cannot hang below one of its own descendants (that would close a loop)
+            manual = self.manual_links()
+            manual[device_id] = {"parent": parent}
+            node, guard = parent, 0
+            while node and guard < 10000:
+                if node == device_id:
+                    raise ValueError("topo.err.loop")
+                node, guard = (manual.get(node) or topo["links"].get(node) or {}).get("parent"), guard + 1
+            self.store.execute("INSERT OR REPLACE INTO phys_manual(device_id, parent_id, port, medium, updated) VALUES(?,?,?,?,?)",
+                               (device_id, parent, port, medium, time.time()))
+        self._manual_ver += 1
+        self._topo_cache = None
+        self._topo_sig = self.topology()["signature"]
+        self.structure_version += 1
 
     # ------------------------------------------------------------------ scanning
     def networks(self) -> list:
@@ -293,6 +349,9 @@ class Core:
                                          ("d-ip-" + host["ip"].replace(".", "-").replace(":", "-"),))
                     if old:
                         self.store.execute("UPDATE devices SET id=? WHERE id=?", (dev_id, old["id"]))
+                        self.store.execute("UPDATE phys_manual SET device_id=? WHERE device_id=?", (dev_id, old["id"]))
+                        self.store.execute("UPDATE phys_manual SET parent_id=? WHERE parent_id=?", (dev_id, old["id"]))
+                        self._manual_ver += 1
                 self.store.upsert_device({"id": dev_id, "ip": host["ip"], "mac": host.get("mac"), "data": data,
                                           "kind": verdict["kind"], "confidence": verdict["confidence"],
                                           "title": verdict["title"]}, scan_id)
@@ -385,13 +444,21 @@ class Core:
         plain_fields, secret_fields = INTEGRATION_FIELDS[kind]
         cfg = {k: config.get(k) for k in plain_fields if config.get(k) not in (None, "")}
         sec = {k: str(secrets.get(k)) for k in secret_fields if secrets.get(k) not in (None, "")}
-        if kind == "hub":
+        if kind in ("hub", "controller"):
             url = str(cfg.get("url") or "").strip()
             parsed = urlparse(url)
-            if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
                 raise ValueError("integration.err.url")
             cfg["url"] = url.rstrip("/")
-        else:
+        if kind == "controller":
+            site = str(cfg.get("site") or "default").strip()
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", site):
+                raise ValueError("integration.err.site")
+            cfg["site"] = site
+            if not str(cfg.get("username") or "").strip():
+                raise ValueError("integration.err.username")
+            cfg["username"] = str(cfg["username"]).strip()[:64]
+        if kind in ("mqtt", "snmp"):
             host = str(cfg.get("host") or "").strip()
             if not host or len(host) > 253 or any(c.isspace() for c in host):
                 raise ValueError("integration.err.host")
@@ -421,6 +488,9 @@ class Core:
             return sources.Snmp(cfg["host"], version=cfg.get("version", "2c"), community=sec.get("community"),
                                 user=cfg.get("user"), auth_key=sec.get("auth_key"), priv_key=sec.get("priv_key"),
                                 auth_proto=cfg.get("auth_proto") or "sha", priv_proto=cfg.get("priv_proto") or "aes")
+        if kind == "controller":
+            return sources.Controller(cfg["url"], cfg.get("username") or "", sec.get("password") or "", site=cfg.get("site") or "default",
+                                      allow_self_signed=bool(cfg.get("allow_self_signed")))
         raise ValueError("integration.err.kind")
 
     async def test_integration(self, kind: str, config: dict, secrets: dict, existing_id: Optional[int] = None) -> dict:
@@ -470,6 +540,8 @@ class Core:
             self.vault.delete_prefix("int:%d:" % integ_id)
         for d in (self.hub, self.mqtt, self.snmp, self.topic_order):
             d.pop(integ_id, None)
+        self.topo_obs.pop("int:%d" % integ_id, None)
+        self._topo_cache = None
         self.source_status.pop("int:%d" % integ_id, None)
         self.structure_version += 1
         return ok
@@ -534,6 +606,14 @@ class Core:
         elif etype == "snmp":
             cad.tick(now)
             self._book_snmp(integ_id, ev, now)
+        elif etype == "topology":
+            cad.tick(now)
+            self.topo_obs[key] = {"integ": integ_id, "ev": ev}
+            self._topo_cache = None
+            sig = self.topology()["signature"]
+            if sig != self._topo_sig:
+                self._topo_sig = sig
+                self.structure_version += 1
 
     def _add_bytes(self, trace: str, b0: int, b1: int) -> None:
         acc = self.pending_bytes.setdefault(trace, [0, 0])
@@ -553,13 +633,46 @@ class Core:
             dev_id = self.ip_to_device.get(peer)
             if dev_id and dev_id != self_id:
                 self._add_bytes(flow_trace(self_id, dev_id), tx, rx)
+                self._book_path(self_id, dev_id, tx, rx)
                 self.flow_seen[dev_id] = now
                 self._book_port(dev_id, fl.get("peer_port"), now)
             else:
                 if router_id:
                     self._add_bytes(lan_trace(router_id, self_id), rx, tx)     # router -> self is "a -> b"
+                    self._book_path(self_id, router_id, tx, rx)
                 if not dev_id and _is_outside(peer):
                     self._book_outside(peer, tx, rx, now)
+
+    def phys_path(self, a: str, b: str) -> Optional[list]:
+        """Physical links between two components: [(trace id, +1 = with the trace a->b | -1 = against it)], or None."""
+        links = self.topology()["links"]
+
+        def chain(node):
+            out, seen = [node], {node}
+            while node in links and len(out) < 64:
+                node = links[node]["parent"]
+                if node in seen:
+                    return out
+                seen.add(node)
+                out.append(node)
+            return out
+
+        up, down = chain(a), chain(b)
+        common = next((n for n in up if n in set(down)), None)
+        if common is None or a == b:
+            return None
+        path = [("p:%s:%s" % (links[n]["parent"], n), -1) for n in up[:up.index(common)]]
+        path += [("p:%s:%s" % (links[n]["parent"], n), +1) for n in reversed(down[:down.index(common)])]
+        return path
+
+    def _book_path(self, a: str, b: str, sent, received) -> None:
+        """Bytes between two components also travel along the physical links in between (network view dots)."""
+        path = self.phys_path(a, b)
+        for trace, sense in path or ():
+            if sense > 0:
+                self._add_bytes(trace, sent, received)                     # a -> b of the trace is parent -> child
+            else:
+                self._add_bytes(trace, received, sent)
 
     @staticmethod
     def _decay(value: float, since: float, now: float) -> float:

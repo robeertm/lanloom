@@ -213,7 +213,11 @@
       { k: 'community', secret: true, type: 'password', when: { version: '2c' } },
       { k: 'user', when: { version: '3' } }, { k: 'auth_proto', type: 'select', options: ['sha', 'sha256', 'md5'], when: { version: '3' } },
       { k: 'auth_key', secret: true, type: 'password', when: { version: '3' } }, { k: 'priv_proto', type: 'select', options: ['aes'], when: { version: '3' } },
-      { k: 'priv_key', secret: true, type: 'password', when: { version: '3' } }, { k: 'uplink', ph: 'wan' }]
+      { k: 'priv_key', secret: true, type: 'password', when: { version: '3' } }, { k: 'uplink', ph: 'wan' }],
+    controller: [
+      { k: 'url', type: 'url', ph: 'https://192.168.1.2:8443', req: true },
+      { k: 'username', req: true }, { k: 'password', secret: true, type: 'password', req: true },
+      { k: 'site', ph: 'default' }, { k: 'allow_self_signed', type: 'checkbox' }]
   };
 
   LL.integrationCard = function (kind, existing, onChange) {
@@ -291,7 +295,7 @@
       body.hidden = !body.hidden; toggle.setAttribute('aria-expanded', String(!body.hidden)); toggle.textContent = body.hidden ? t('integ.edit') : t('integ.close');
     } }, existing ? t('integ.edit') : t('integ.close'));
     return h('article', { class: 'integ card card--flat' },
-      h('header', { class: 'integ__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router' }[kind]),
+      h('header', { class: 'integ__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch' }[kind]),
         h('div', { class: 'integ__titles' }, h('h3', {}, existing ? existing.name : t('integ.' + kind + '.title')), h('p', { class: 'muted' }, t('integ.' + kind + '.desc'))),
         statusChip, toggle),
       body);
@@ -301,7 +305,7 @@
     const wrap = h('div', { class: 'stack' });
     async function render() {
       const list = (await api('/api/integrations')).integrations;
-      const cards = ['hub', 'mqtt', 'snmp'].map(kind => {
+      const cards = ['hub', 'mqtt', 'snmp', 'controller'].map(kind => {
         const ex = list.filter(i => i.kind === kind);
         return ex.length ? ex.map(e => LL.integrationCard(kind, e, render)) : [LL.integrationCard(kind, null, render)];
       }).flat();

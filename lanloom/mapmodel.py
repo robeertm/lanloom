@@ -6,7 +6,7 @@ import ipaddress
 import time
 from urllib.parse import urlparse
 
-from . import live
+from . import live, topology
 from .core import FLOW_KEEP, PRESENCE_INTERVAL, flow_trace, lan_trace, topic_trace, uplink_trace
 
 ZONE_OF_KIND = {
@@ -110,23 +110,65 @@ def build(core, view: str = "overview") -> dict:
                     nets.append(n)
             except ValueError:
                 pass
+        phys = _physical(core, devices, router)
+        carried = set()            # physical links that carry measured bytes of this host (its flows and its internet traffic)
+        if self_dev and host_ok:
+            for other in [router["id"] if router else None] + [d["id"] for d in devices if now - core.flow_seen.get(d["id"], 0) < FLOW_KEEP]:
+                if other and other != self_dev["id"]:
+                    carried.update(tid for tid, _ in core.phys_path(self_dev["id"], other) or ())
         order = 1
-        for dev in sorted(devices, key=lambda d: (KIND_ORDER.index(d["kind"]) if d["kind"] in KIND_ORDER else 99,
+        net_order = {}
+        for dev in sorted(devices, key=lambda d: (phys["rank"].get(d["id"], 1 << 20),
+                                                  KIND_ORDER.index(d["kind"]) if d["kind"] in KIND_ORDER else 99,
                                                   _ip_key(d["ip"]))):
             comp = _device_component(core, dev, special_kind.get(dev["id"]))
+            link = phys["links"].get(dev["id"])
             if dev["is_gateway"]:
                 comp["zone"] = "edge"
+            elif dev["id"] in phys["infra"]:
+                zone("cabling", "zone.cabling", span="full", order=0.5)
+                comp["zone"] = "cabling"
+            elif link and link["medium"] == "virtual" and link["parent"] in phys["visible"]:
+                host = phys["visible"][link["parent"]]
+                zid = "guests:" + link["parent"]
+                if zid not in zones:
+                    zone(zid, "zone.guests", order=0)
+                    zones[zid]["vars"] = {"host": host["title"] or host["ip"]}
+                comp["zone"] = zid
             else:
                 net = next((n for n in nets if _in(dev["ip"], n)), None)
                 zid = "net:" + (str(net) if net else "other")
                 if zid not in zones:
                     zone(zid, None if net else "zone.other_net", str(net) if net else None, order=order)
+                    net_order[zid] = order
                     order += 1
                 comp["zone"] = zid
-                if router:
-                    measured = host_ok and dev["is_self"]
-                    add_trace(lan_trace(router["id"], dev["id"]), router["id"], dev["id"], "lan", measured)
+            if link:
+                tid = _phys_trace_id(link)
+                add_trace(tid, link["parent"], dev["id"], _phys_kind(link), tid in carried, phys=_phys_fact(link, phys))
+            if router and not dev["is_gateway"] and (not link or (dev["is_self"] and not core.phys_path(dev["id"], router["id"]))):
+                measured = host_ok and dev["is_self"]
+                add_trace(lan_trace(router["id"], dev["id"]), router["id"], dev["id"], "lan", measured)
             comps.append(comp)
+        for vid, node in sorted(phys["nodes"].items(), key=lambda kv: (phys["rank"].get(kv[0], 1 << 20), kv[0])):
+            zone("cabling", "zone.cabling", span="full", order=0.5)
+            comp = {"id": vid, "zone": "cabling", "kind": node["kind"] if node["kind"] in KIND_ORDER else "switch",
+                    "title": node.get("title") or "", "subtitle": node.get("ip") or node.get("mac") or "", "status": "unknown",
+                    "grade": "unknown", "metric": None, "badges": []}
+            if not comp["title"]:
+                comp["title_key"] = "kind." + comp["kind"]
+            comps.append(comp)
+            link = phys["links"].get(vid)
+            if link:
+                tid = _phys_trace_id(link)
+                add_trace(tid, link["parent"], vid, _phys_kind(link), tid in carried, phys=_phys_fact(link, phys))
+            elif router:
+                add_trace(lan_trace(router["id"], vid), router["id"], vid, "lan", False)
+        # guests sit right after the zone of their host
+        for zid, z in zones.items():
+            if zid.startswith("guests:"):
+                host_zone = next((c["zone"] for c in comps if c["id"] == zid[7:]), None)
+                z["order"] = (zones[host_zone]["order"] if host_zone in zones else 90) + 0.4
     else:
         for dev in devices:
             comp = _device_component(core, dev, special_kind.get(dev["id"]))
@@ -187,9 +229,11 @@ def build(core, view: str = "overview") -> dict:
                               "subtitle": _integ_host(core, integ_id), "status": "unknown", "grade": "unknown",
                               "metric": None, "badges": ["SNMP"]})
 
-    # flows of this host to other devices (both views)
+    # flows of this host to other devices (both views; in the network view only where no cabling carries them)
     if self_dev:
         for dev in devices:
+            if view == "network" and core.phys_path(self_dev["id"], dev["id"]):
+                continue
             if dev["id"] != self_dev["id"] and now - core.flow_seen.get(dev["id"], 0) < FLOW_KEEP:
                 # open ports of the target from the scan: the port marks name them when no live port has been seen
                 listed = sorted({p["port"] for p in dev.get("ports") or [] if isinstance(p.get("port"), int) and p.get("proto", "tcp") == "tcp"})
@@ -220,6 +264,64 @@ def _in(ip: str, net) -> bool:
         return ipaddress.ip_address(ip) in net
     except ValueError:
         return False
+
+
+def _physical(core, devices: list, router) -> dict:
+    """Physical links between visible components (devices and infrastructure outside the inventory), the
+    infrastructure that gets its own band below the router, and a depth-first rank (parents before their children)."""
+    topo = core.topology()
+    visible = {d["id"]: d for d in devices}
+    nodes = dict(topo["nodes"])
+    known = set(visible) | set(nodes)
+    links = {c: l for c, l in topo["links"].items() if c in known and l["parent"] in known}
+    used = set(links) | {l["parent"] for l in links.values()}
+    nodes = {k: v for k, v in nodes.items() if k in used}
+    gw = router["id"] if router else None
+    infra = set()
+    for child, l in links.items():
+        if l["medium"] != "virtual" and l["parent"] != gw and l["parent"] in visible:
+            infra.add(l["parent"])
+    for did, d in visible.items():
+        if d["kind"] in ("switch", "ap") and did in used and did != gw:
+            infra.add(did)
+    infra -= set(nodes)
+    children = {}
+    for c, l in links.items():
+        children.setdefault(l["parent"], []).append(c)
+    for p in children:      # wired by port first, then radio, then guests: the zones read like a patch panel
+        children[p].sort(key=lambda c: ({"radio": 1, "virtual": 2}.get(links[c]["medium"], 0), topology.port_key(links[c]["port"]), c))
+    rank, n = {}, 0
+    queue = ([gw] if gw else []) + sorted(p for p in children if p not in links and p != gw)
+    while queue:            # breadth first: every level of the tree before the next one
+        nxt = []
+        for node in queue:
+            if node in rank:
+                continue
+            rank[node] = n
+            n += 1
+            nxt.extend(children.get(node, []))
+        queue = nxt
+    names = {did: (d["title"] or "") for did, d in visible.items()}
+    names.update({vid: v.get("title") or "" for vid, v in nodes.items()})
+    kinds = {did: d["kind"] for did, d in visible.items()}
+    kinds.update({vid: v["kind"] for vid, v in nodes.items()})
+    return {"links": links, "nodes": nodes, "infra": infra, "rank": rank, "visible": visible, "names": names, "kinds": kinds,
+            "infra_all": set(topo.get("infra") or [])}
+
+
+def _phys_trace_id(link: dict) -> str:
+    return "p:%s:%s" % (link["parent"], link["child"])
+
+
+def _phys_kind(link: dict) -> str:
+    return {"radio": "radio", "virtual": "virtual"}.get(link["medium"], "cable")
+
+
+def _phys_fact(link: dict, phys: dict) -> dict:
+    child = link["child"]
+    uplink = child in phys["infra"] or child in phys["nodes"] or child in phys["infra_all"]
+    return {"port": link["port"], "own_port": link["own_port"], "medium": link["medium"], "band": link["band"],
+            "ssid": link["ssid"], "source": link["source"], "uplink": bool(uplink)}
 
 
 def _integ_name(core, integ_id) -> str:
@@ -360,4 +462,54 @@ def component_detail(core, comp_id: str) -> dict:
                                               key=lambda x: -x[2])[:30], "stats": entry.get("broker")}
     if comp_id == core.ip_to_device.get(core.self_ip or ""):
         out["ifaces"] = core.self_iface
+    out["physical"] = physical_detail(core, comp_id, bool(dev))
+    return out
+
+
+def physical_detail(core, comp_id: str, editable: bool) -> dict:
+    """Connection section of the component card: the winning link, what other sources say, the devices on its
+    ports, and (for devices) the choices of the manual "connected via" editor."""
+    topo = core.topology()
+    devices = {d["id"]: d for d in core.devices()}
+
+    def ref(node_id):
+        if node_id in devices:
+            d = devices[node_id]
+            if d["is_self"]:
+                return {"id": node_id, "title": "", "kind": "self", "ip": d["ip"]}     # named "This host" like its tile
+            return {"id": node_id, "title": d["title"], "kind": d["kind"], "ip": d["ip"]}
+        n = topo["nodes"].get(node_id)
+        if n:
+            return {"id": node_id, "title": n.get("title") or "", "kind": n["kind"], "ip": n.get("ip") or ""}
+        return {"id": node_id, "title": "", "kind": "unknown", "ip": ""}
+
+    out = {}
+    link = topo["links"].get(comp_id)
+    if link:
+        l = dict(link)
+        l["parent_ref"] = ref(link["parent"])
+        l["conflicts"] = [dict(c, parent_ref=ref(c["parent"])) for c in link["conflicts"]]
+        l["loop"] = [dict(c, parent_ref=ref(c["parent"])) for c in link.get("loop") or []]
+        if l["vars"].get("via"):
+            l["vars"] = dict(l["vars"], via_ref=ref(l["vars"]["via"]))
+        out["link"] = l
+    kids = topo["children"].get(comp_id) or []
+    if kids:
+        out["children"] = [dict(ref(c), port=topo["links"][c]["port"], medium=topo["links"][c]["medium"],
+                                band=topo["links"][c]["band"], source=topo["links"][c]["source"]) for c in kids][:300]
+    unknown = [u for u in topo["unknown"] if u["parent"] == comp_id]
+    if unknown:
+        out["unknown"] = unknown[:64]
+    trunks = [t for t in topo["trunks"] if t["parent"] == comp_id]
+    if trunks:
+        out["trunks"] = trunks[:64]
+    if editable:
+        below = topology.subtree(topo["children"], comp_id)
+        manual = core.manual_links().get(comp_id)
+        choices = [ref(i) for i in sorted(devices, key=lambda i: (devices[i]["kind"] not in ("router", "switch", "ap"),
+                                                                     _ip_key(devices[i]["ip"])))
+                   if i != comp_id and i not in below and not devices[i]["hidden"]]
+        choices += [ref(v) for v in sorted(topo["nodes"]) if v != comp_id and v not in below]
+        out["manual"] = manual
+        out["choices"] = choices
     return out

@@ -7,7 +7,7 @@
 > ## ⚠️ Please read before installing
 >
 > - **It scans your network.** Lanloom probes the private address ranges you approve. Only scan networks you own or are explicitly allowed to scan. The optional deep port scan touches many ports per device and may trigger alerts in intrusion-detection or security tools; it only runs after you tick an explicit consent box.
-> - **It stores credentials you give it.** Optional integrations (home-automation hub, MQTT broker, router or switch) need secrets. They are stored encrypted (AES-256-GCM) and never shown again, but the key file lives next to the data: whoever controls the host controls them. Use read-only or least-privilege accounts.
+> - **It stores credentials you give it.** Optional integrations (home-automation hub, MQTT broker, router or switch, switch controller) need secrets. They are stored encrypted (AES-256-GCM) and never shown again, but the key file lives next to the data: whoever controls the host controls them. Use read-only or least-privilege accounts.
 > - **Host networking.** To see your network, the container shares the host's network stack. It runs unprivileged, with a read-only root file system and all capabilities dropped, but it can reach whatever the host can reach.
 > - **The optional updater sidecar gets the container-runtime socket.** Access to that socket is root-equivalent on the host. Skip the sidecar (`--no-updater`) if you prefer to update by hand.
 > - **The firewall editor only simulates unless you arm it.** Real changes need the optional executor service, a controller adapter you provide and an explicit arming step. A real change can interrupt the wireless network for minutes and can lock you out if your network has paths the gate does not know. Read [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md) first.
@@ -22,8 +22,9 @@
 - **Says where traces go.** End marks name peers outside your network where a trace leaves the board; port marks show the destination port or protocol at the end of a live trace.
 - **Animates only what is measured.** Each dot stands for a fixed number of bytes ("1 dot ≈ 64 KiB"; the quantum is chosen automatically in powers of two) and bytes are conserved. Traces without measurements stay dashed.
 - **Shows how fresh the data is.** Every source and component carries a live grade: realtime (cadence up to 2 s), near (up to 15 s), periodic (up to 10 min), sluggish, interrupted, or unknown.
-- **Two views.** *Map* is an overview by kind; *Network* shows the gateway and one zone per subnet.
-- **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, and options to rename, re-type or hide a component.
+- **Two views.** *Map* is an overview by kind; *Network* shows the gateway, the switches and access points, one zone per subnet and the guests of virtualization hosts.
+- **Physical topology.** Which device hangs on which switch port, which clients use which access point (with band and network name), and which guests run on a host. Cables are solid traces, wireless links dashed with a radio mark, guests dotted; the port number sits at the device end. The data comes from a manual "connected via" field, a switch controller (view-only account), LLDP neighbours and switch address tables over SNMP, in this order of precedence. This host's measured traffic flows along the cabling. See [docs/TOPOLOGY.md](docs/TOPOLOGY.md).
+- **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
 - **Device list** with search, light/dark/auto theme, a phone layout with bottom tabs, English and German UI.
 - **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network (or tap it and choose "Move to…" on a phone), collect moves in a draft and get a plain-language preview: what the device may do afterwards, what it may no longer do, and what to watch out for. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
 - **Read-only by construction.** The map observes; the app cannot change your devices. Real firewall changes are only possible through the separate, optional executor service, with a passkey signature per change and an explicit arming step by the operator.
@@ -61,6 +62,15 @@ All screenshots show the built-in demo network with invented names and addresses
 
 ![Network view, light theme](docs/screenshots/network-light.png)
 
+### Cabling
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/connection-switch-light.png" width="100%" alt="Switch card with the devices on its ports"><br><sub>A switch: where it is plugged in and what hangs on each port</sub></td>
+<td width="50%"><img src="docs/screenshots/connection-conflict-dark.png" width="100%" alt="Device card with a manual entry that overrides the controller"><br><sub>A manual entry wins; the card says what the other source reports</sub></td>
+</tr>
+</table>
+
 ### Component card
 
 ![Component card](docs/screenshots/detail-light.png)
@@ -95,6 +105,7 @@ All screenshots show the built-in demo network with invented names and addresses
 <td><img src="docs/screenshots/phone-map-light.png" width="200" alt="Phone map, light"></td>
 <td><img src="docs/screenshots/phone-map-dark.png" width="200" alt="Phone map, dark"></td>
 <td><img src="docs/screenshots/phone-detail.png" width="200" alt="Phone component card"></td>
+<td><img src="docs/screenshots/phone-connection.png" width="200" alt="Phone: connection of a device"></td>
 <td><img src="docs/screenshots/phone-devices.png" width="200" alt="Phone device list"></td>
 <td><img src="docs/screenshots/phone-wizard-scan.png" width="200" alt="Phone wizard scan step"></td>
 <td><img src="docs/screenshots/phone-firewall-move.png" width="200" alt="Phone: move a device to another network"></td>
@@ -145,7 +156,8 @@ Devices are classified by deterministic rules (gateway or self role, DNS-SD type
 Dots appear only where bytes are actually measured:
 
 - **This host's own TCP flows** come from the kernel's socket diagnostics (netlink) when running with host networking. No extra privileges needed.
-- **Router or switch (SNMP v2c or v3)** gives interface counters, which animate the internet uplink. Only Get, GetNext and GetBulk are used.
+- **Router or switch (SNMP v2c or v3)** gives interface counters, which animate the internet uplink, and LLDP neighbours plus the switch address table for the cabling. Only Get, GetNext and GetBulk are used.
+- **Switch controller** (the local controller application of a switch and access point product line) tells which client sits on which switch port or access point. A local view-only account is enough. Lanloom signs in and then only reads two lists; one code path makes every request and refuses everything else.
 - **MQTT broker** topics are grouped; Lanloom only counts messages and lengths per group. It connects, subscribes to `#`, and cannot publish. Payloads are never stored. TLS is optional.
 - **Home-automation hub (WebSocket API)** adds rooms, devices and entities and state-change events, using a long-lived access token (a non-admin user is enough). A strict allow-list limits it to read commands, and it cannot call services.
 
@@ -171,6 +183,7 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 ## Documentation
 
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, uninstall
+- [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/FAQ.md](docs/FAQ.md): frequently asked questions
 - [docs/ARCHITECTURE-CORE.md](docs/ARCHITECTURE-CORE.md): how the board engine is structured as a versioned core
 - [SECURITY.md](SECURITY.md): security model and reporting
