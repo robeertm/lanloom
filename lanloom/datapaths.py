@@ -32,7 +32,7 @@ from typing import Callable, Optional
 OWN = "~own"
 UNASSIGNED = "~unassigned"
 EU = frozenset("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE".split())
-WINDOWS = {"24h": ("hour", 24), "7d": ("day", 7), "30d": ("day", 30)}
+PERIODS = {"24h": ("hour", 24), "7d": ("day", 7), "30d": ("day", 30)}
 KEEP_HOURS = 49
 KEEP_DAYS = 31
 FLUSH_EVERY = 60.0
@@ -203,7 +203,7 @@ class DataPaths:
 
     # ------------------------------------------------------------------ reading
     def _rows(self, window: str, now: float) -> list:
-        unit, n = WINDOWS[window]
+        unit, n = PERIODS[window]
         hour = int(now // 3600)
         if unit == "hour":
             sql, since = "SELECT device, cc, SUM(tx) AS tx, SUM(rx) AS rx FROM paths_hour WHERE hour > ? GROUP BY device, cc", hour - n
@@ -213,7 +213,7 @@ class DataPaths:
 
     def summary(self, window: str, devices: dict, now: Optional[float] = None) -> dict:
         """Everything the view needs for one window. ``devices``: id -> {"title", "ip", "kind"}."""
-        if window not in WINDOWS:
+        if window not in PERIODS:
             window = "24h"
         now = self.clock() if now is None else now
         self.flush(now)

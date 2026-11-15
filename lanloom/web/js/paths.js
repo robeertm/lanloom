@@ -9,7 +9,7 @@
   'use strict';
   const LL = window.Lanloom;
   const { h, t, api } = LL;
-  const WINDOWS = ['24h', '7d', '30d'];
+  const PERIODS = ['24h', '7d', '30d'];
   const NS = 'http://www.w3.org/2000/svg';
   const FULL_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
   const ICON = {
@@ -46,7 +46,7 @@
 
   // ------------------------------------------------------------------ view state (kept across live redraws)
   const S = { window: '24h', d: null, sel: null, el: null, full: null, anims: new Set(), timer: 0, loading: false, error: null };
-  try { const w = localStorage.getItem('lanloom-paths-window'); if (WINDOWS.includes(w)) S.window = w; } catch (e) { /* private mode */ }
+  try { const w = localStorage.getItem('lanloom-paths-window'); if (PERIODS.includes(w)) S.window = w; } catch (e) { /* private mode */ }
 
   const home = () => (S.d && S.d.home) || browserRegion();
   const devTitle = d => d ? (d.title || (d.self ? t('paths.this_host') : d.id)) : '';
@@ -63,7 +63,7 @@
     render();
   }
   function setWindow(w) {
-    if (!WINDOWS.includes(w) || w === S.window) return;
+    if (!PERIODS.includes(w) || w === S.window) return;
     S.window = w;
     try { localStorage.setItem('lanloom-paths-window', w); } catch (e) { /* ignore */ }
     load();
@@ -244,7 +244,7 @@
 
   // ------------------------------------------------------------------ building blocks
   function seg() {
-    return h('div', { class: 'seg pw-seg', role: 'group', 'aria-label': t('paths.window.label') }, WINDOWS.map(w =>
+    return h('div', { class: 'seg pw-seg', role: 'group', 'aria-label': t('paths.window.label') }, PERIODS.map(w =>
       h('button', { type: 'button', class: 'seg__btn' + (w === S.window ? ' is-active' : ''), 'aria-pressed': String(w === S.window), onclick: () => setWindow(w) }, t('paths.window.' + w))));
   }
   function legend() {

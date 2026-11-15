@@ -1,4 +1,4 @@
-"""Data paths: offline geo data, buckets (country / own / unassigned), windows, EU share, unusual behaviour, API."""
+"""Data paths: offline geo data, buckets (country / own / unassigned), periods, EU share, unusual behaviour, API."""
 import gzip
 import ipaddress
 import json
