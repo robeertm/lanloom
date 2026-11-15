@@ -301,6 +301,14 @@ def test_trust_key_pins_and_lists(tmp_path, capsys):
     assert executor_mod.trust_key(s, "{}") == 2
 
 
+def test_done_is_reported_only_when_the_runner_is_free(tmp_path):
+    seen = []
+    r, _ = make_runner(tmp_path)
+    r.report = lambda ev: seen.append((ev["stage"], r.busy())) if ev.get("stage") == "done" else None
+    assert r.run(plan_for(state(), {"d19": "n_cams"}))["status"] == "done"
+    assert seen == [("done", False)]
+
+
 def test_executor_loads_only_built_in_adapter_families(tmp_path):
     (tmp_path / "armed").write_text("")
     env = {"LANLOOM_EXECUTOR_STATE": str(tmp_path), "LANLOOM_EXECUTOR_TARGET": "controller", "LANLOOM_EXECUTOR_ARM": "I-UNDERSTAND"}
@@ -367,7 +375,7 @@ def test_simulation_path_draft_preview_apply_undo(client):
     assert d["moves"] == {"d19": "n_smart"} and d["undo_of"] == job["plan"]
     p = client.post("/api/firewall/plan", json={"confirmed": []}, headers=HDR).json()
     assert p["plan"]["undo_of"] == job["plan"] and p["plan"]["steps"][0]["after"]["ip"] == "192.168.60.60"
-    client.post("/api/firewall/approve", json={"plan": p["plan"]["id"]}, headers=HDR)
+    assert client.post("/api/firewall/approve", json={"plan": p["plan"]["id"]}, headers=HDR).json()["ok"]
     v = wait_done(client)
     assert {d["id"]: d["network"] for d in v["state"]["devices"]}["d19"] == "n_smart"
 

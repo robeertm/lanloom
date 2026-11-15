@@ -22,6 +22,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The setup wizard screenshots are new.
 
 ### Fixed
+- Firewall editor: a change is reported as finished only once the executor is free again, so approving the next change (for example the undo) right afterwards no longer meets "another change is still running" on a busy machine.
 - Setup wizard, networks step: the hint below "Add a network range" no longer overlaps the field label; it sits below the input field.
 
 ## [1.3.0] – 2026-11-15

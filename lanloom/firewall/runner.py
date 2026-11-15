@@ -140,10 +140,15 @@ class Runner:
         if not self.lock.acquire(blocking=False):
             return self._refuse(plan, model.Refused("fw.block.busy"))
         try:
-            return self._run(plan, assertion)
+            result = self._run(plan, assertion)
         finally:
             self.active = None
             self.lock.release()
+        # "done" is reported only after the runner is free again: whoever reacts to it (the next approval) must
+        # not find the runner still busy
+        if result.get("status") != "refused":
+            self._emit(result["plan"], "done", result["status"], reason=result["reason"], inverse=result.get("inverse"))
+        return result
 
     def _refuse(self, plan, exc) -> dict:
         pid = plan.get("id") if isinstance(plan, dict) else None
@@ -227,7 +232,6 @@ class Runner:
         self._protocol({"plan": pid, "hash": digest(plan).hex()[:16], "key": key_id, "user": plan["requester"].get("user"),
                         "steps": len(steps), "status": result["status"], "reason": result["reason"],
                         "started": started, "finished": result["finished"], "undo_of": plan.get("undo_of")})
-        self._emit(pid, "done", result["status"], reason=result["reason"], inverse=result.get("inverse"))
         return result
 
     def _watch(self, pid, steps, snap, until) -> dict:
