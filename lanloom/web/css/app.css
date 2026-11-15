@@ -181,6 +181,7 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .tab:hover { color: var(--ll-text); }
 .tab.is-active { color: var(--ll-text); border-bottom-color: var(--ll-accent); }
 .tab__icon { display: inline-flex; color: var(--ll-text-3); }
+.tab__short { display: none; }
 .tab.is-active .tab__icon { color: var(--ll-accent); }
 .topbar__right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .grade-pill { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: var(--ll-radius-pill); border: 1px solid var(--ll-border); background: var(--ll-surface-2); color: var(--ll-text-2); font: inherit; font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-medium); cursor: pointer; white-space: nowrap; }
@@ -291,7 +292,10 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
     border-top: 1px solid var(--ll-border); justify-content: space-around; z-index: 40; gap: 0; }
   .tab { flex: 1; flex-direction: column; justify-content: center; gap: 2px; border-bottom: 0; border-top: 2px solid transparent; margin: 0; font-size: 11px; padding: 0; }
   .tab.is-active { border-top-color: var(--ll-accent); border-bottom-color: transparent; }
-  .tab__label { display: block; }
+  .tab { min-width: 0; }
+  .tab__label { display: block; max-width: 100%; padding: 0 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+  .tab--short .tab__label { display: none; }
+  .tab--short .tab__short { display: block; max-width: 100%; padding: 0 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
   .grade-pill { padding: 0 10px; }
   .wizard__card { padding: 22px 18px; }
   .stepper { grid-template-columns: repeat(6, 1fr); gap: 4px; }

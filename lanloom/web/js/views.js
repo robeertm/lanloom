@@ -18,11 +18,12 @@
 
   // ------------------------------------------------------------------ app frame (header + nav)
   function frame(app, active, content) {
-    const tabs = [['map', 'nav.map'], ['network', 'nav.network'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['settings', 'nav.settings']];
+    const tabs = [['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['settings', 'nav.settings']];
     const nav = h('nav', { class: 'tabs', 'aria-label': t('nav.label') }, tabs.map(([k, label]) =>
-      h('a', { href: '#/' + k, class: 'tab' + (k === active ? ' is-active' : ''), 'aria-current': k === active ? 'page' : null },
-        h('span', { class: 'tab__icon', 'aria-hidden': 'true' }), h('span', { class: 'tab__label' }, t(label)))));
-    nav.querySelectorAll('.tab__icon').forEach((el, i) => { el.innerHTML = NAV_ICONS[tabs[i][0]] || LL.FW_ICON || ''; });
+      h('a', { href: '#/' + k, class: 'tab' + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null },
+        h('span', { class: 'tab__icon', 'aria-hidden': 'true' }), h('span', { class: 'tab__label' }, t(label)),
+        LL.strings['nav.short.' + k] ? h('span', { class: 'tab__short', 'aria-hidden': 'true' }, t('nav.short.' + k)) : null)));
+    nav.querySelectorAll('.tab__icon').forEach((el, i) => { el.innerHTML = NAV_ICONS[tabs[i][0]] || (tabs[i][0] === 'paths' ? LL.NAV_PATHS_ICON : LL.FW_ICON) || ''; });
     const gradePill = h('button', { class: 'grade-pill', type: 'button', title: t('live.overall'), onclick: () => openSources() },
       h('i', { class: 'grade-pill__dot' }), h('span', { class: 'grade-pill__text' }, t('board.grade.unknown')));
     const updateBtn = h('button', { class: 'update-pill', type: 'button', hidden: true, onclick: () => openUpdate() }, t('update.available_short'));
@@ -440,6 +441,7 @@
     unit.value = s.rate_unit === 'bits' ? 'bits' : 'bytes';
     page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)),
       LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint'))]));
+    if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
     // account
     const cur = h('input', { type: 'password', autocomplete: 'current-password' });
     const nw = h('input', { type: 'password', autocomplete: 'new-password' });
