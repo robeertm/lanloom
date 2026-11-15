@@ -229,7 +229,7 @@
     return data;
   };
   const family = kind => (FORMS[kind] ? null : LL.families.find(f => f.family === kind) || null);
-  const famTitle = fam => { if (fam.sample) return t('integ.family.sample'); const k = 'integrations.family.' + fam.family; return t(k) === k ? fam.label : t(k); };
+  const famTitle = fam => { if (fam.sample) return t(fam.sample === 'hypervisor' ? 'integ.family.sample_hv' : 'integ.family.sample'); const k = 'integrations.family.' + fam.family; return t(k) === k ? fam.label : t(k); };
   LL.integTitle = kind => { const fam = family(kind); return fam ? famTitle(fam) : t('integ.' + kind + '.title'); };
   LL.integKinds = () => ['hub', 'mqtt', 'snmp', 'controller'].concat(LL.families.map(f => f.family));
 
@@ -237,7 +237,9 @@
     const inputs = {};
     const fam = family(kind);
     const fields = FORMS[kind] || (fam ? fam.form : []);
-    const hintKey = k => fam ? 'integ.hint.family.' + k : 'integ.hint.' + kind + '.' + k;
+    // texts per kind of family (a hypervisor reads guests), never per product: 'integ.hint.hv.<field>' before 'integ.hint.family.<field>'
+    const famKind = fam && ((fam.capabilities || {}).read || []).includes('guests') ? 'hv' : 'family';
+    const hintKey = k => fam ? (t('integ.hint.' + famKind + '.' + k) !== 'integ.hint.' + famKind + '.' + k ? 'integ.hint.' + famKind + '.' + k : 'integ.hint.family.' + k) : 'integ.hint.' + kind + '.' + k;
     const body = h('div', { class: 'integ__form', hidden: !!existing });
     const msg = h('div', { class: 'msg' });
     const name = h('input', { type: 'text', value: existing ? existing.name : LL.integTitle(kind), maxlength: '48' });
@@ -312,7 +314,7 @@
     return h('article', { class: 'integ card card--flat' },
       h('header', { class: 'integ__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch' }[kind] || 'router'),
         h('div', { class: 'integ__titles' }, h('h3', {}, existing ? existing.name : LL.integTitle(kind)),
-          h('p', { class: 'muted' }, fam ? t('integ.family.desc') : t('integ.' + kind + '.desc')),
+          h('p', { class: 'muted' }, fam ? (famKind === 'hv' ? t('integ.family.desc.hv') : t('integ.family.desc')) : t('integ.' + kind + '.desc')),
           fam && fam.docs ? h('p', { class: 'integ__fine muted' }, t('integ.family.notice')) : null),
         statusChip, toggle),
       body);

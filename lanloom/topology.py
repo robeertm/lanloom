@@ -6,9 +6,11 @@ Pure functions, no I/O. The core feeds in the inventory, the manual "connected v
 Sources and their fixed order of precedence (the first one that knows a device wins):
 
 1. ``manual``      - the "connected via" field on the component card;
-2. ``controller``  - client and device lists of a switch / access point controller (read-only account);
-3. ``lldp``        - LLDP neighbours read over SNMP (links between switches, access points, routers);
-4. ``fdb``         - the forwarding database of a switch over SNMP (which hardware address was learned on which port).
+2. ``hypervisor``  - nodes and guest network cards read from a hypervisor's API (read-only token): a guest hangs
+                     below the node it runs on (medium ``virtual``), whatever a switch learned on the node's port;
+3. ``controller``  - client and device lists of a switch / access point controller (read-only account);
+4. ``lldp``        - LLDP neighbours read over SNMP (links between switches, access points, routers);
+5. ``fdb``         - the forwarding database of a switch over SNMP (which hardware address was learned on which port).
 
 Within one source the more specific observation wins: a port with one address beats a port shared by many, a
 real port beats the "towards the gateway" inference; then the newer observation.
@@ -20,12 +22,13 @@ After the winners are chosen:
 * devices that share one port of a parent are refined: when exactly one of them is infrastructure (switch,
   access point) the others are "behind" it; when the others carry hardware addresses of virtual network cards and
   exactly one does not, they are guests of that host (medium ``virtual``); a port with very many addresses and no
-  infrastructure on it is a trunk and is not assigned from the forwarding database.
+  infrastructure on it is a trunk and is not assigned from the forwarding database. Links reported by a hypervisor
+  are never refined: the hypervisor knows its guests.
 """
 import re
 import time
 
-ORDER = ("manual", "controller", "lldp", "fdb")
+ORDER = ("manual", "hypervisor", "controller", "lldp", "fdb")
 MEDIA = ("wired", "radio", "virtual")
 BANDS = ("2.4ghz", "5ghz", "6ghz")
 INFRA_KINDS = ("router", "switch", "ap")
@@ -174,6 +177,33 @@ def _from_controller(ix, ev, t, cands):
                            band=c.get("band"), ssid=c.get("ssid")))
 
 
+def _from_hypervisor(ix, ev, t, cands):
+    """Nodes of a hypervisor (found by address or name, else a server node of their own) and every guest network
+    card whose hardware address or address is in the inventory: the guest hangs below its node, link ``virtual``."""
+    hosts = {}
+    for h in ev.get("hosts") or []:
+        name = str(h.get("name") or "").strip()[:64]
+        if not name:
+            continue
+        node = ix.find(ip=h.get("ip"), name=name)
+        if not node:
+            node = ix.virtual("hv", name, "server", name, ip=h.get("ip"), source="hypervisor")
+            ix.nodes[node]["kind"] = "server"
+        hosts[name] = node
+    for g in ev.get("guests") or []:
+        host = hosts.get(str(g.get("host") or "").strip()[:64])
+        if not host:
+            continue
+        child = ix.find(mac=g.get("mac"), ip=g.get("ip"))
+        if not child or child == host:
+            continue
+        bridge = clean_port(g.get("bridge"))
+        vlan = g.get("vlan") if isinstance(g.get("vlan"), int) and not isinstance(g.get("vlan"), bool) else None
+        where = "%s, VLAN %d" % (bridge, vlan) if bridge and vlan else bridge or ("VLAN %d" % vlan if vlan else "")
+        cands.append(_Cand(child, host, "hypervisor", t, medium="virtual", reason="topo.reason.hypervisor",
+                           vars={"port": where, "bridge": bridge, "vlan": vlan}))
+
+
 def _agent_node(ix, ev, integ_id):
     agent = ev.get("agent") or {}
     node = ix.find(mac=agent.get("mac"), ip=agent.get("ip") or ev.get("host"))
@@ -293,6 +323,9 @@ def resolve(devices, manual=None, observations=None, now=None) -> dict:
     obs = sorted((observations or {}).items())
     fresh = [(k, o) for k, o in obs if o.get("ev") and now - float(o["ev"].get("t") or 0) <= STALE_S]
     for _, o in fresh:
+        if o["ev"].get("source") == "hypervisor":
+            _from_hypervisor(ix, o["ev"], o["ev"].get("t"), cands)
+    for _, o in fresh:
         if o["ev"].get("source") == "controller":
             _from_controller(ix, o["ev"], o["ev"].get("t"), cands)
     lldp_ports = {}
@@ -381,7 +414,7 @@ def _agrees(o, c) -> bool:
 def _refine_shared(ix, chosen, parent_of, trunks):
     groups = {}
     for child, c in chosen.items():
-        if c.port is not None:
+        if c.port is not None and c.source != "hypervisor":
             groups.setdefault((c.parent, c.port), []).append(child)
     has_children = set(parent_of.values())
     trunk_ports = {(t["parent"], t["port"]) for t in trunks}

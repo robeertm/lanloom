@@ -3,6 +3,7 @@
 Texts that need translation travel as keys (`title_key`, `subtitle_key` + `vars`); the browser translates them.
 """
 import ipaddress
+import re
 import time
 from urllib.parse import urlparse
 
@@ -463,7 +464,59 @@ def component_detail(core, comp_id: str) -> dict:
                                               key=lambda x: -x[2])[:30], "stats": entry.get("broker")}
     if comp_id == core.ip_to_device.get(core.self_ip or ""):
         out["ifaces"] = core.self_iface
+    out.update(hypervisor_detail(core, comp_id, dev))
     out["physical"] = physical_detail(core, comp_id, bool(dev))
+    return out
+
+
+def hypervisor_detail(core, comp_id: str, dev) -> dict:
+    """Sections of a hypervisor read half on the component card: ``hypervisor`` on the card of a node (found by its
+    address, or the node's own map tile), ``guest`` on the card of a guest (found by the hash of a network card's
+    hardware address or by an address the guest reports). Read only; nothing here can change anything."""
+    from . import integrations
+    entries = [e for e in core.live_configs() if (e.get("state") or {}).get("hosts") is not None]
+    if not entries:
+        return {}
+    ip = (dev or {}).get("ip")
+    out = {}
+    for e in entries:
+        st = e["state"]
+        try:
+            hash_of = getattr(integrations.load_model(e.get("family")), "mac_hash", None)
+        except (KeyError, ImportError):
+            hash_of = None
+        mh = hash_of((dev or {}).get("mac")) if hash_of else None
+        hosts = {h["id"]: h for h in st.get("hosts") or []}
+        nics = {}
+        for n in st.get("guest_nics") or []:
+            nics.setdefault(n["guest"], []).append(n)
+        meta = {"name": e["name"], "age_s": e.get("age_s"), "version": (st.get("controller") or {}).get("version"),
+                "cluster": (st.get("controller") or {}).get("cluster")}
+
+        def facts_of(subjects):
+            return [f for f in st.get("findings") or [] if f.get("subject") in subjects]
+
+        host = next((h for h in hosts.values() if (ip and h.get("ip") == ip) or comp_id == "hv:" + re.sub(r"[^0-9a-zA-Z_.-]", "", h["name"])[:40]), None)
+        if host and "hypervisor" not in out:
+            guests = [dict({k: v for k, v in g.items() if k != "rrd"}, nics=nics.get(g["id"], []))
+                      for g in st.get("guests") or [] if g.get("host") == host["id"]]
+            guests.sort(key=lambda g: (g["template"], g["status"] != "running", g["vmid"]))
+            storage = [s for s in st.get("storage") or [] if s.get("host") in (host["id"], None)]
+            subjects = {host["id"]} | {g["id"] for g in guests} | {n["id"] for g in guests for n in g["nics"]} | {s["id"] for s in storage}
+            out["hypervisor"] = dict(meta, host=host, guests=guests[:300], storage=storage[:64],
+                                     bridges=[b for b in st.get("bridges") or [] if b.get("host") == host["id"]][:64],
+                                     findings=facts_of(subjects)[:64])
+        guest = None
+        for g in st.get("guests") or []:
+            if (mh and any(n.get("mac_hash") == mh for n in nics.get(g["id"], []))) or (ip and ip in (g.get("ips") or [])):
+                guest = g
+                break
+        if guest and "guest" not in out:
+            gn = nics.get(guest["id"], [])
+            out["guest"] = dict(meta, guest=guest, host=hosts.get(guest.get("host")), nics=gn,
+                                firewall=next((o for o in st.get("fw_options") or [] if o["scope"] == "guest" and o["owner"] == guest["id"]), None),
+                                rules=[r for r in st.get("guest_rules") or [] if r.get("owner") == guest["id"]][:100],
+                                findings=facts_of({guest["id"]} | {n["id"] for n in gn})[:32])
     return out
 
 

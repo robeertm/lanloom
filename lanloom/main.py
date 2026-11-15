@@ -378,7 +378,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         from . import integrations as registry
         fams = registry.public_list()
         if state.cfg.demo:                 # demo data is a sample network: no product names on screen
-            fams = [dict(f, label="Sample controller (local API)", sample=True) for f in fams]
+            fams = [dict(f, label="Sample hypervisor (local API)", sample="hypervisor") if "guests" in f["capabilities"]["read"]
+                    else dict(f, label="Sample controller (local API)", sample=True) for f in fams]
         return {"integrations": state.core.integrations(), "families": fams, "api_level": registry.INTEGRATION_API}
 
     @app.post("/api/integrations/test")
@@ -595,7 +596,7 @@ def selftest() -> int:
         en, de = load_i18n("en"), load_i18n("de")
         if not en or set(en) != set(de):
             problems.append("i18n keys differ (%d en / %d de)" % (len(en), len(de)))
-        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "css/tokens.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "css/tokens.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

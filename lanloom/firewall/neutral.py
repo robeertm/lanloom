@@ -16,9 +16,17 @@ executor that has not been updated yet keep working) and adds optional lists::
                         enabled, order, states?, scheduled?, hits?, builtin?, editable?, vendor_ref?}]
                         match = {kind: network|ip|client|region|app|domain|vpn|other, items?, count?, opposite?}
     v2  ssids         [{id, name, network, bands[], security, hidden, enabled}]
-    v2  guests        [{id, host, kind (vm|lxc), name, status, cpu, mem, disk, protected?}]
-    v2  guest_nics    [{id, guest, bridge, vlan}]          guest_rules [{id, guest, name, direction, action, ...}]
-    v2  bridges       [{id, host, name, vlan_aware, ports[], vnets[]}]
+    v2  hosts         [{id, name, online, ip, version, cpu, cores, mem_used, mem_total, load[], uptime_s}]   hypervisor nodes
+    v2  guests        [{id, host, kind (vm|lxc), vmid, name, status, cpu, mem, mem_max, disk_max, protected?, ips[],
+                        firewall?, backup {last_t, age_s, in_job, failed_t}, traffic?, rrd?}]
+    v2  guest_nics    [{id, guest, name, bridge, vlan, trunks[], firewall, rate_mbs, link_down, mac_hash, ips[]}]
+    v2  guest_rules   [{id, scope, owner, pos, direction, action, enabled, proto, sport, dport, source, dest, ...}]
+    v2  fw_rules      [{...same as guest_rules, scope dc|group|node}]   fw_options [{id, scope, owner, enabled, policy_in, ...}]
+    v2  bridges       [{id, host, name, kind, vlan_aware, vids, ports[], cidr, active, mgmt, vnets[]}]
+    v2  sdn_zones     [{id, name, type, bridge}]   sdn_vnets [{id, name, zone, tag, vlan_aware, subnets[]}]
+    v2  storage       [{id, host?, name, type, shared, active, used, total, fraction, content[]}]
+    v2  backup_jobs   [{id, enabled, schedule, storage, mode, selection, guests[], excluded[], next_t}]
+    v2  findings      [{id, kind, level (alert|warn|info), subject, params}]   plain checks of the adapter
     v2  dhcp_reservations [{id, client, ip}]   port_forwards [{id, name, proto, wan_port, dst_ip, dst_port, enabled}]
     v2  raw           [{id, area, title, editable: false}]  vendor objects that do not map; shown, never written
 
@@ -31,7 +39,8 @@ import re
 from . import steps
 
 V2_LISTS = ("equipment", "ports", "policies", "ssids", "guests", "guest_nics", "guest_rules", "bridges",
-            "dhcp_reservations", "port_forwards", "raw")
+            "dhcp_reservations", "port_forwards", "raw", "hosts", "sdn_zones", "sdn_vnets", "fw_rules", "fw_options",
+            "storage", "backup_jobs", "findings")
 V1_LISTS = ("zones", "networks", "devices")
 ALL_LISTS = V1_LISTS + V2_LISTS
 MAC_LIKE = re.compile(r"\A[0-9a-fA-F]{2}([:-]?)[0-9a-fA-F]{2}(?:\1[0-9a-fA-F]{2}){4}\Z")

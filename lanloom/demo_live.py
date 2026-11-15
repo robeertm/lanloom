@@ -121,3 +121,97 @@ def live_capabilities(family: str) -> dict:
             "read": ["inventory", "clients", "topology", "networks", "zones", "policies", "ports", "ssids", "port_forwards", "wans"],
             "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
             "lockout": ["mgmt_network", "self_path"]}
+
+
+# ---------------------------------------------------------------------------- sample hypervisor
+def _hv_raw(now: float) -> dict:
+    """Replies of a one-node sample hypervisor (as the family's read half collects them), built from the demo
+    inventory: the virtualization host 192.168.50.15 runs the broker and the automation hub as guests."""
+    gib, day = 2**30, 86400
+    res = [
+        {"type": "node", "node": "virt-1", "status": "online", "cpu": 0.18, "maxcpu": 8, "mem": 14 * gib, "maxmem": 32 * gib, "uptime": 2_600_000},
+        {"type": "qemu", "vmid": 101, "node": "virt-1", "name": "broker", "status": "running", "cpu": 0.04, "maxcpu": 2, "mem": 1.2 * gib,
+         "maxmem": 2 * gib, "maxdisk": 16 * gib, "uptime": 2_590_000, "template": 0, "tags": "infra"},
+        {"type": "qemu", "vmid": 102, "node": "virt-1", "name": "automation", "status": "running", "cpu": 0.11, "maxcpu": 4, "mem": 3.1 * gib,
+         "maxmem": 6 * gib, "maxdisk": 64 * gib, "uptime": 2_590_000, "template": 0, "tags": "infra;home", "hastate": None},
+        {"type": "lxc", "vmid": 201, "node": "virt-1", "name": "name-filter", "status": "running", "cpu": 0.01, "maxcpu": 1,
+         "mem": 0.2 * gib, "maxmem": 0.5 * gib, "maxdisk": 8 * gib, "uptime": 1_200_000, "template": 0},
+        {"type": "lxc", "vmid": 202, "node": "virt-1", "name": "test-box", "status": "stopped", "maxcpu": 1, "maxmem": 0.5 * gib,
+         "maxdisk": 4 * gib, "template": 0},
+        {"type": "qemu", "vmid": 9000, "node": "virt-1", "name": "base-template", "status": "stopped", "template": 1, "maxcpu": 2,
+         "maxmem": 2 * gib, "maxdisk": 16 * gib},
+    ]
+    cfg = {
+        "qemu/101": {"name": "broker", "agent": "1", "onboot": 1, "net0": "virtio=52:54:00:4C:00:0D,bridge=vmbr0,firewall=1"},
+        "qemu/102": {"name": "automation", "agent": "1", "onboot": 1, "protection": 1,
+                     "net0": "virtio=52:54:00:4C:00:0E,bridge=vmbr0,firewall=1",
+                     "net1": "virtio=52:54:00:4C:00:1E,bridge=vmbr0,tag=30"},
+        "lxc/201": {"hostname": "name-filter", "onboot": 1, "net0": "name=eth0,bridge=vmbr0,hwaddr=02:4C:4C:00:00:F1,ip=192.168.50.53/24,type=veth"},
+        "lxc/202": {"hostname": "test-box", "net0": "name=eth0,bridge=vmbr0,tag=70,hwaddr=02:4C:4C:00:00:F2,ip=dhcp,type=veth"},
+        "qemu/9000": {"name": "base-template", "template": 1, "net0": "virtio=52:54:00:4C:00:F0,bridge=vmbr0"},
+    }
+    rrd = [{"time": now - 120 * i, "netin": 9000 + 4000 * ((i * 7) % 5), "netout": 22000 + 9000 * ((i * 3) % 4), "cpu": 0.04} for i in range(30)]
+    guests = {k: {"node": "virt-1", "config": v} for k, v in cfg.items()}
+    guests["qemu/101"].update({"agent": {"result": [{"name": "eth0", "hardware-address": "52:54:00:4c:00:0d",
+                                                     "ip-addresses": [{"ip-address": "192.168.50.13"}]}]}, "rrd": rrd,
+                               "fw_options": {"enable": 1, "policy_in": "DROP", "policy_out": "ACCEPT"},
+                               "fw_rules": [{"pos": 0, "type": "in", "action": "ACCEPT", "enable": 1, "proto": "tcp", "dport": "1883,8883",
+                                             "source": "192.168.50.0/24", "comment": "message broker"}]})
+    guests["qemu/102"].update({"agent": {"result": [{"name": "eth0", "hardware-address": "52:54:00:4c:00:0e",
+                                                     "ip-addresses": [{"ip-address": "192.168.50.14"}]}]}, "rrd": rrd,
+                               "fw_options": {"enable": 1, "policy_in": "DROP", "policy_out": "ACCEPT"},
+                               "fw_rules": [{"pos": 0, "type": "group", "action": "web-ui", "enable": 1},
+                                            {"pos": 1, "type": "in", "action": "ACCEPT", "enable": 1, "macro": "SSH", "source": "+admins"}]})
+    return {
+        "api_host": "192.168.50.15", "version": {"version": "8.2"},
+        "cluster": [{"type": "node", "name": "virt-1", "ip": "192.168.50.15", "online": 1, "local": 1}],
+        "resources": res, "guests": guests,
+        "nodes": {"virt-1": {
+            "status": {"cpu": 0.18, "loadavg": ["0.62", "0.55", "0.48"], "memory": {"total": 32 * gib, "used": 14 * gib},
+                       "uptime": 2_600_000, "pveversion": "manager/8.2/demo", "cpuinfo": {"cpus": 8}},
+            "network": [{"iface": "eno1", "type": "eth", "active": 1, "autostart": 1},
+                        {"iface": "vmbr0", "type": "bridge", "active": 1, "autostart": 1, "bridge_ports": "eno1", "bridge_vlan_aware": 1,
+                         "bridge_vids": "2-4094", "cidr": "192.168.50.15/24", "gateway": "192.168.50.1"},
+                        {"iface": "vmbr1", "type": "bridge", "active": 1, "autostart": 1, "bridge_ports": "", "comments": "isolated lab"}],
+            "storage": [{"storage": "local", "type": "dir", "active": 1, "total": 100 * gib, "used": 31 * gib, "content": "iso,vztmpl"},
+                        {"storage": "local-fast", "type": "lvmthin", "active": 1, "total": 480 * gib, "used": 302 * gib, "content": "images,rootdir"},
+                        {"storage": "backup-share", "type": "nfs", "active": 1, "total": 4000 * gib, "used": 3720 * gib, "content": "backup", "shared": 1}],
+            "fw_options": {"enable": 1}, "fw_rules": [],
+            "tasks": [{"type": "vzdump", "id": "", "endtime": now - 5 * 3600, "status": "OK"}]}},
+        "dc_fw": {"options": {"enable": 1, "policy_in": "DROP", "policy_out": "ACCEPT"},
+                  "rules": [{"pos": 0, "type": "in", "action": "ACCEPT", "enable": 1, "proto": "tcp", "dport": "8006", "source": "+admins",
+                             "comment": "management page"},
+                            {"pos": 1, "type": "in", "action": "ACCEPT", "enable": 1, "macro": "SSH", "source": "+admins"}],
+                  "groups": [{"group": "web-ui", "comment": "web front ends"}],
+                  "group_rules": {"web-ui": [{"pos": 0, "type": "in", "action": "ACCEPT", "enable": 1, "proto": "tcp", "dport": "8123"}]},
+                  "aliases": [{"name": "gateway", "cidr": "192.168.50.1"}],
+                  "ipsets": [{"name": "admins"}], "ipset_members": {"admins": [{"cidr": "192.168.50.20"}, {"cidr": "192.168.50.21"}]}},
+        "sdn": {"zones": [{"zone": "home", "type": "vlan", "bridge": "vmbr0"}],
+                "vnets": [{"vnet": "things", "zone": "home", "tag": 30, "alias": "Smart devices"}],
+                "subnets": {"things": [{"cidr": "192.168.30.0/24", "gateway": "192.168.30.1"}]}},
+        "storage_cfg": [], "not_backed_up": [{"vmid": 201}],
+        "backup_jobs": [{"id": "backup-demo-1", "enabled": 1, "schedule": "02:00", "storage": "backup-share", "mode": "snapshot",
+                         "vmid": "101,102", "next-run": now + 9 * 3600, "comment": "nightly"}],
+        "backups": [{"vmid": 101, "ctime": now - 0.8 * day, "size": 3 * gib, "storage": "backup-share", "verification": {"state": "ok"}},
+                    {"vmid": 102, "ctime": now - 0.8 * day, "size": 11 * gib, "storage": "backup-share"}],
+        "traffic": {"qemu/101": [14_000, 31_000], "qemu/102": [52_000, 160_000], "lxc/201": [3_000, 2_500]},
+    }
+
+
+def hypervisor_sample(now: float, family: str) -> tuple:
+    """(topology event, neutral state) of the sample hypervisor, made by the family's own translation module."""
+    from . import integrations
+    hv = integrations.load_model(family)
+    raw = _hv_raw(now)
+    st = hv.to_neutral(raw, now)
+    st["controller"]["label"] = "Sample hypervisor"
+    st["controller"]["version"] = "demo"
+    neutral.validate(st)
+    return hv.topology_event(raw, now), st
+
+
+def hypervisor_capabilities(family: str) -> dict:
+    return {"family": family, "api": {"kind": "official-local", "version": "demo"},
+            "read": ["inventory", "topology", "guests", "bridges", "networks", "firewall", "storage", "backups", "stats"],
+            "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
+            "lockout": ["own_guest", "node_bridge", "mgmt_network"]}

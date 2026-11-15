@@ -725,7 +725,38 @@ class Core:
             self.source_status["int:%d" % integ_id] = {"ok": False, "key": "source.family.protocol", "t": now}
             return
         caps["write"] = {}                 # a read half never offers writes, whatever it says
+        if st.get("hosts") is not None:
+            st = dict(st, findings=list(st.get("findings") or []) + self._vlan_chain(integ_id, ev.get("family"), st))
         self.live_cfg[integ_id] = {"state": st, "caps": caps, "family": ev.get("family"), "t": now}
+
+    def _vlan_chain(self, integ_id, family, st: dict) -> list:
+        """Cross-source finding of a hypervisor: a guest VLAN the switch port of its node does not carry (topology
+        tells the port, a controller adapter its VLAN settings). Empty when either side is unknown."""
+        from . import integrations
+        try:
+            hvmodel = integrations.load_model(family)
+        except (KeyError, ImportError):
+            return []
+        if not hasattr(hvmodel, "vlan_chain"):
+            return []
+        switches = [e["state"] for i, e in self.live_cfg.items() if i != integ_id and (e.get("state") or {}).get("ports")]
+        if not switches:
+            return []
+        try:
+            topo = self.topology()
+        except Exception:
+            return []
+        ip_of = {dev: ip for ip, dev in self.ip_to_device.items()}
+        uplinks = {}
+        for h in st.get("hosts") or []:
+            link = topo["links"].get(self.ip_to_device.get(h.get("ip") or ""))
+            if link and link.get("port") and link.get("medium") != "virtual":
+                parent = link["parent"]
+                uplinks[h["id"]] = {"ip": ip_of.get(parent) or (topo["nodes"].get(parent) or {}).get("ip"), "port": link["port"]}
+        try:
+            return hvmodel.vlan_chain(st, uplinks, switches)
+        except Exception:
+            return []
 
     def live_configs(self, max_age_s: float = 1200.0) -> list:
         """Fresh configurations of family read halves, newest integration first in id order."""

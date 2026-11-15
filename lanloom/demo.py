@@ -318,6 +318,10 @@ class Demo:
         if fam:                            # a device-family adapter reading the controller configuration (read only)
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
                                (fam, "Sample controller", _json.dumps({"url": "https://192.168.50.11", "site": "default"}), time.time()))
+        hv = _demo_family("guests")
+        if hv:                             # a hypervisor family reading nodes, guests, firewall, storage and backups (read only)
+            core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
+                               (hv, "Sample hypervisor", _json.dumps({"url": "https://192.168.50.15:8006"}), time.time()))
 
     async def run(self, core) -> None:
         """Synthetic live data: flows of this host, router counters, broker topics, hub state changes."""
@@ -369,12 +373,18 @@ class Demo:
                 paths_sent = now
                 seed_paths(core, now)              # a demo set up through the wizard gets its history on the first minute
                 book_paths_minute(core, now, rng)
-            fam = _demo_family()
-            if fam and fam in ids and now - live_sent >= 60:
+            fam, hv = _demo_family(), _demo_family("guests")
+            if now - live_sent >= 60:
                 live_sent = now
-                from .demo_live import live_capabilities, live_sample
-                core.on_event("int:%d" % ids[fam], ids[fam], {"type": "config", "source": "family", "family": fam, "t": now,
-                                                             "state": live_sample(), "capabilities": live_capabilities(fam)})
+                from .demo_live import hypervisor_capabilities, hypervisor_sample, live_capabilities, live_sample
+                if fam and fam in ids:
+                    core.on_event("int:%d" % ids[fam], ids[fam], {"type": "config", "source": "family", "family": fam, "t": now,
+                                                                 "state": live_sample(), "capabilities": live_capabilities(fam)})
+                if hv and hv in ids:
+                    topo, st = hypervisor_sample(now, hv)
+                    core.on_event("int:%d" % ids[hv], ids[hv], topo)
+                    core.on_event("int:%d" % ids[hv], ids[hv], {"type": "config", "source": "family", "family": hv, "t": now,
+                                                               "state": st, "capabilities": hypervisor_capabilities(hv)})
             if now - topo_sent >= 30:
                 topo_sent = now
                 for row in core.store.query("SELECT id FROM devices"):     # simulated presence check: every demo device answers
@@ -419,9 +429,10 @@ class Demo:
                 "areas": [{"id": a[0], "name": a[1]} for a in AREAS]}
 
 
-def _demo_family():
-    """The first device-family adapter offered in the integration dialog (demo shows it as "Sample controller")."""
+def _demo_family(area: str = "zones"):
+    """The first device-family adapter offered in the integration dialog that reads ``area``: ``zones`` for the
+    controller (demo shows it as "Sample controller"), ``guests`` for the hypervisor ("Sample hypervisor")."""
     from . import integrations
-    fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read]
+    fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read and area in (m.capabilities.get("read") or [])]
     return fams[0] if fams else None
 

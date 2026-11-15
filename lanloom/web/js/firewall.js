@@ -52,11 +52,11 @@
         const kids = [head(v)];
         if (v.mode === 'simulation') kids.push(h('div', { class: 'callout fw-sim' }, h('strong', {}, t('fw.sim.title')), ' ', t('fw.sim.text'),
           h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: resetSim, disabled: !!v.running }, t('fw.sim.reset'))));
-        if (v.mode === 'live') kids.push(h('div', { class: 'callout fw-live' }, svg(ICON.lock, 'fw-live__ico'), h('span', {}, t('fw.live.callout', { name: v.live.name }))));
+        if (v.mode === 'live') kids.push(h('div', { class: 'callout fw-live' }, svg(ICON.lock, 'fw-live__ico'), h('span', {}, t(v.state.hosts && v.state.hosts.length ? 'fw.live.callout_hv' : 'fw.live.callout', { name: v.live.name }))));
         else if (!canMove(v)) kids.push(h('div', { class: 'callout' }, t('fw.executor.readonly')));
         if (v.quiet) kids.push(h('div', { class: 'callout callout--warn' }, t('fw.quiet.now', { hours: v.quiet_hours })));
         if (v.running) kids.push(progressCard(v.running));
-        kids.push(board(v));
+        if (!(v.mode === 'live' && v.state.hosts && v.state.hosts.length)) kids.push(board(v));
         if (v.state.policies && v.state.policies.length) kids.push(LL.fwPolicies(v.state, st.pol, render));
         if (v.mode === 'live') kids.push(...LL.fwLiveExtras(v.state));
         const hist = history(v);
@@ -74,7 +74,7 @@
         const chip = v.mode === 'live' ? h('span', { class: 'chip chip--accent' }, t('fw.chip.live'))
           : v.mode === 'simulation' ? h('span', { class: 'chip chip--warn' }, t('fw.chip.simulation'))
           : h('span', { class: 'chip ' + (v.executor.connected ? 'chip--ok' : 'chip--danger') }, t(v.executor.connected ? 'fw.chip.connected' : 'fw.chip.offline'));
-        const meta = v.mode === 'live' ? [v.live.name, v.live.version ? t('fw.live.version', { v: v.live.version }) : null, v.live.age_s != null ? t('fw.live.age', { age: LL.fmtAge(v.live.age_s) }) : null].filter(Boolean).join(' · ')
+        const meta = v.mode === 'live' ? [v.live.name, v.live.version ? t('fw.live.version', { v: v.live.version }) : null, v.live.age_s != null ? t('fw.live.age', { age: LL.fmtAge(v.live.age_s) }) : null].concat(v.state && v.state.hosts && v.state.hosts.length ? LL.hvMeta(v.state) : []).filter(Boolean).join(' · ')
           : ctrl.label;
         const srcs = v.sources || [];
         const pick = srcs.length > 1 ? h('div', { class: 'seg fw-source', role: 'group', 'aria-label': t('fw.source.label') }, srcs.map(o => {
@@ -450,6 +450,7 @@
   }
 
   LL.fwLiveExtras = function (s) {
+    if (s.hosts && s.hosts.length) return LL.hvFirewallCards(s);
     const out = [];
     const eq = s.equipment || [];
     if (eq.length) {

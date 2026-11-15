@@ -13,11 +13,12 @@ Everything here is **read-only**. Lanloom asks the devices that already know the
 | Source | What it knows | What you need |
 |---|---|---|
 | **Manual entry** | anything you set on the component card | nothing |
+| **Hypervisor** | guest (virtual machine or container) → the node it runs on, with bridge and VLAN | a hypervisor adapter with a read-only token (see [COMPATIBILITY.md](COMPATIBILITY.md)) |
 | **Switch controller** | client → switch port or access point (with band and network name), switch and access point uplinks | a local controller application with a view-only account |
 | **LLDP over SNMP** | which switch, access point or router is on which port of a device | SNMP read access, LLDP switched on |
 | **Address table over SNMP** | which hardware address was learned on which switch port | SNMP read access to a managed switch |
 
-When two sources disagree, a **fixed order of precedence** decides: manual entry, switch controller, LLDP, switch address table. The component card shows the winner, which sources agree, and what the others say ("Switch controller says Core switch · Port 10. Manual entry has priority."). Unknown values stay empty; nothing is guessed.
+When two sources disagree, a **fixed order of precedence** decides: manual entry, hypervisor, switch controller, LLDP, switch address table. The component card shows the winner, which sources agree, and what the others say ("Switch controller says Core switch · Port 10. Manual entry has priority."). Unknown values stay empty; nothing is guessed.
 
 Without any of these sources the Network view looks as before: the gateway and one zone per subnet.
 
@@ -42,6 +43,10 @@ What Lanloom sends: one sign-in request with the user name and password, then on
 ### Device-family adapters
 
 A device-family adapter that reads a controller (see [COMPATIBILITY.md](COMPATIBILITY.md)) reports clients and devices in exactly the same form and with the same rank as the switch controller above. Its observations merge with manual entries, LLDP and the address table by the same rules. When the adapter only has an API key and no view-only account, it knows the access point or switch a client uses but not the port number; the card then shows the device without a port.
+
+### Hypervisors
+
+A hypervisor adapter reads the nodes and the network cards of every guest from the hypervisor's own API. A guest found in the device list (by the hardware address of a network card, or by an address the guest reports) hangs below its node with the link type *virtual*; the card says which bridge and VLAN it uses. This beats what a switch learns on the node's port (all guests share that port), and it is never "refined" by the shared-port rules below. A node that is not in the device list gets a server tile of its own in the Network view. Together with a controller adapter that reads switch-port settings, a guest VLAN that the node's switch port does not carry becomes a finding.
 
 ## LLDP and the address table over SNMP
 

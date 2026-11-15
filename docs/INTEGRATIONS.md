@@ -28,6 +28,13 @@ A read half runs like any live source (`async run(emit)`, reconnect with backoff
 
 - `{"type": "config", "source": "family", "family", "t", "state": <neutral model v2>, "capabilities"}` - the configuration it read. The app validates it, strips every write key and shows it in the Firewall tab as a read-only source next to the simulation or the executor.
 - `{"type": "topology", "source": "controller", ...}` - clients and devices with their parent ports, in the same shape as the generic switch-controller source, so the topology resolver ranks and merges it the same way.
+- `{"type": "topology", "source": "hypervisor", "hosts": [{name, ip}], "guests": [{mac, ip, host, bridge, vlan}]}` - a hypervisor's nodes and guest network cards; the resolver hangs every guest below its node (rank right after manual entries). Hardware addresses stay inside the core and are never sent to the browser.
+
+A hypervisor state adds `hosts`, `guests`, `guest_nics`, `guest_rules`, `fw_rules`, `fw_options`, `bridges`, `sdn_zones`, `sdn_vnets`, `storage`, `backup_jobs` and `findings` to the neutral model (see `lanloom/firewall/neutral.py`); the component card of a node and of a guest shows them.
+
+## Night report contributions
+
+A family may contribute a section to the night report: `report="lanloom.integrations.<family>.report:<function>"` in its manifest, collected by `integrations.night_sections()`. The function is pure - `function(previous_state, state, now, name)` - and returns `{"family", "title", "summary", "params", "look", "items": [{"level": "alert"|"warn"|"info", "key", "params"}]}` (texts are i18n keys with parameters, no internal ids), or `None` when the family's read half has delivered no state. No source, no section.
 
 ## Capability list
 

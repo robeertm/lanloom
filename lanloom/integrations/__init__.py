@@ -14,6 +14,10 @@ An adapter has two halves that share one translation module (``<family>/model.py
 
 The web app may import manifests and read halves; it never imports a write half (``load_write`` refuses unless the
 process is the executor, and a static test checks the app's imports).
+
+A family may also contribute a section to the night report (``<family>/report.py``, a pure function of the
+neutral state of last night and of now; see ``night_sections``). The section appears only when the family's read
+half has delivered a state - no source, no section.
 """
 import importlib
 import pkgutil
@@ -48,6 +52,7 @@ class IntegrationManifest:
     secret_fields: tuple = ()                    # read-only credentials (stored encrypted in the app)
     write_secret_fields: tuple = field(default=())   # credentials of the write half (executor options file only)
     form: tuple = ()                             # dialog form: ({"k", "type"?, "ph"?, "req"?, "secret"?}, ...)
+    report: str = ""                             # night report contribution: lanloom.integrations.<family>.report:<function>
 
     def validate(self) -> "IntegrationManifest":
         if not FAMILY_RE.match(self.family or ""):
@@ -57,7 +62,7 @@ class IntegrationManifest:
         if self.api_level != INTEGRATION_API:
             raise ManifestError("api level %r, this release speaks %d" % (self.api_level, INTEGRATION_API))
         prefix = "lanloom.integrations.%s." % self.family
-        for half, spec in (("read", self.read), ("write", self.write)):
+        for half, spec in (("read", self.read), ("write", self.write), ("report", self.report)):
             if not spec:
                 continue
             mod, _, cls = spec.partition(":")
@@ -148,6 +153,20 @@ def load_write(family: str, **options):
     if not isinstance(inst, ControllerAdapter):
         raise TypeError("write half must subclass ControllerAdapter")
     return inst
+
+
+def load_model(family: str):
+    """Translation module (``<family>/model.py``) of a built-in family, for core helpers that need the family's own
+    mapping (hashes, cross-source checks) without naming a family in core code."""
+    get(family)
+    return importlib.import_module("%s.%s.model" % (__name__, family))
+
+
+def night_sections() -> list:
+    """Registered night report contributions of the built-in families: [(family, function)], in registry order.
+    ``function(previous_state, state, now, name)`` returns ``{"family", "title": key, "items": [{level, key, params}]}``
+    or None; ``previous_state`` is the state at the last report (None the first time), ``now`` the report's clock."""
+    return [(m.family, _load(m.report)) for m in BUILTIN if m.report]
 
 
 def public_list() -> list:

@@ -123,6 +123,8 @@
     if (d.series && d.series.length) {
       sections.push(section(t('detail.traffic'), h('div', { class: 'spark-wrap' }, chart, chartLegend)));
     }
+    if (d.hypervisor) sections.push(LL.hvHostSection(d.hypervisor));
+    if (d.guest) sections.push(LL.hvGuestSection(d.guest));
     const devSec = d.device ? deviceSection(d.device, d) : null;
     const foot = devSec && devSec.querySelector(':scope > .detail__foot');   // "Hide from the map" stays the last button of the card
     if (foot) foot.remove();
