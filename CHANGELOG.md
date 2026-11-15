@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] – 2026-11-15
+
+### Added
+- **Data paths** (new tab, also in the phone tab bar): a calm world map of where the devices send data on the internet, by country. Arcs run from the home country to every destination country, their width follows the bytes of the chosen period (24 hours, 7 days, 30 days), destinations outside the EU are amber and those in the EU teal. Key figures: data exchanged with the internet, countries, share outside the EU, devices, hints. Lists of countries and devices; clicking a country shows its devices and clicking a device shows its countries, on the map as well. In English and German.
+- Full screen for the world map (button at the map): Esc, the close button and the back gesture or key close it without leaving the view; the period switch, legend and selection stay usable, the map is redrawn in the real resolution, and on a phone held upright it is wider than the screen and starts at the home country.
+- Calm hints, never alarms and never a rule: a device talks to a country for the first time in 30 days (from 1 MB, after three days of history), a device uploads at least three times its typical day and at least 200 MB in 24 hours, a device in a network listed as "without internet" exchanges data with the internet.
+- Settings → Data paths: home country (default from the browser), own networks and tunnels, networks that should not reach the internet.
+- Offline country data: the free IP to Country Lite database by DB-IP (CC BY 4.0, attribution "IP Geolocation by DB-IP" in the app, the README and THIRD-PARTY-NOTICES.md) ships in the image in a compact form (1.5 MB, loads in about 0.1 s). No address is ever looked up online; a new month of data comes with a new release (`scripts/build_geodb.py`). The base map is built from Natural Earth (public domain) with `scripts/build_worldmap.py`.
+- The self-test checks the country data and the data paths sums.
+
+### Changed
+- Own networks and tunnels (the address range used by overlay VPNs, special ranges and every network listed in the settings) are counted apart and never as "without a country"; the share outside the EU refers only to traffic with a known country and shows "no data" instead of 0 % when there is none. Without loaded country data nothing is booked at all.
+- The phone tab bar holds six tabs; labels are a little smaller and long German labels use a short form.
+
+### Security
+- Only countries, device ids and byte counts per hour (49 hours) and per day (31 days) are stored, plus the first and last day a device talked to a country. No peer addresses, host names or visited sites. The data paths API needs a session like every other view.
+
+### Known limits
+- The first version counts the connections of the Lanloom host itself (host networking). Flow sources from the gateway follow in a later release.
+
 ## [1.5.0] – 2026-11-15
 
 ### Added

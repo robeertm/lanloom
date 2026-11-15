@@ -217,8 +217,9 @@ class DataPaths:
             window = "24h"
         now = self.clock() if now is None else now
         self.flush(now)
+        dev_key = hash(tuple(sorted((k, v.get("title"), v.get("ip")) for k, v in devices.items())))
         hit = self._cache.get(window)
-        if hit and now - hit[0] < CACHE_S and hit[2] == len(devices):
+        if hit and now - hit[0] < CACHE_S and hit[2] == dev_key:      # a renamed device shows at once
             return hit[1]
         rows = self._rows(window, now)
         self._refresh_nets()
@@ -266,7 +267,7 @@ class DataPaths:
             "matrix": matrix[:MAX_MATRIX],
             "unusual": self.unusual(now, devices, rows if window == "24h" else self._rows("24h", now)),
         }
-        self._cache[window] = (now, out, len(devices))
+        self._cache[window] = (now, out, dev_key)
         return out
 
     def unusual(self, now: float, devices: dict, rows24: list) -> list:

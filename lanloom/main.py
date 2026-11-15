@@ -585,10 +585,17 @@ def selftest() -> int:
         frame = c.tick(time.time())
         if "dots" not in frame:
             problems.append("live tick")
+        c.geo.start(background=False)          # bundled country data: loads, passes its samples, books and sums
+        if c.geo.db is None:
+            problems.append("geo data: %s" % c.geo.error)
+        else:
+            c.paths.book("self", "8.8.8.8", 1000, 2000)
+            if c.paths_summary("24h")["totals"]["attributable"] != 3000:
+                problems.append("data paths")
         en, de = load_i18n("en"), load_i18n("de")
         if not en or set(en) != set(de):
             problems.append("i18n keys differ (%d en / %d de)" % (len(en), len(de)))
-        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "css/firewall.css", "css/tokens.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "css/tokens.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

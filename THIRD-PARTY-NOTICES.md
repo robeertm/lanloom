@@ -48,3 +48,10 @@ Where a package offers a choice of licenses ("OR"), the choice is yours. Copyrig
 | Component | License |
 | --- | --- |
 | Inter typeface (`lanloom/web/fonts/InterVariable.woff2`), Copyright (c) 2016 The Inter Project Authors | SIL Open Font License, Version 1.1. The license text is in `lanloom/web/fonts/LICENSE.txt`. |
+
+## Data
+
+| Component | License |
+| --- | --- |
+| IP to Country Lite database by DB-IP (`lanloom/data/geo-country.bin.gz`, converted to a compact format by `scripts/build_geodb.py`). Attribution: [IP Geolocation by DB-IP](https://db-ip.com) | Creative Commons Attribution 4.0 International ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)). The attribution is also shown in the app (Data paths view). |
+| World base map (`lanloom/web/js/worldmap.js`), simplified from Natural Earth admin-0 countries, 1:110m shapes and 1:50m label points, built with `scripts/build_worldmap.py` | Public domain (Natural Earth) |

@@ -24,6 +24,7 @@
 - **Shows how fresh the data is.** Every source and component carries a live grade: realtime (cadence up to 2 s), near (up to 15 s), periodic (up to 10 min), sluggish, interrupted, or unknown.
 - **Two views.** *Map* is an overview by kind; *Network* shows the gateway, the switches and access points, one zone per subnet and the guests of virtualization hosts.
 - **Physical topology.** Which device hangs on which switch port, which clients use which access point (with band and network name), and which guests run on a host. Cables are solid traces, wireless links dashed with a radio mark, guests dotted; the port number sits at the device end. The data comes from a manual "connected via" field, a switch controller (view-only account), LLDP neighbours and switch address tables over SNMP, in this order of precedence. Clients behind an access point default to wireless. This host's measured traffic flows along the cabling. See [docs/TOPOLOGY.md](docs/TOPOLOGY.md).
+- **Data paths.** A calm world map shows where your devices send data on the internet, by country: arcs from your home country, width by bytes, outside the EU in amber. 24 hours, 7 days or 30 days, a full-screen map, lists of countries and devices, and calm hints for unusual behaviour (a device talks to a new country, uploads far more than on a typical day, or sits in a network that should not reach the internet). Countries come from an offline database shipped in the image; only countries and byte counts are stored, never addresses. Own networks and tunnels are kept apart, and the EU share only counts traffic with a known country. See [docs/DATA-PATHS.md](docs/DATA-PATHS.md).
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
 - **Device list** with search, light/dark/auto theme, a phone layout with bottom tabs, English and German UI.
 - **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network (or tap it and choose "Move to…" on a phone), collect moves in a draft and get a plain-language preview: what the device may do afterwards, what it may no longer do, and what to watch out for. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
@@ -104,6 +105,19 @@ All screenshots show the built-in demo network with invented names and addresses
 </tr>
 </table>
 
+### Data paths
+
+![Data paths: world map with arcs from the home country, key figures and the period switch](docs/screenshots/paths-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/paths-full-dark.png" width="100%" alt="World map in full screen"><br><sub>Full screen with period switch and legend; Esc or back closes it</sub></td>
+<td width="50%"><img src="docs/screenshots/paths-lists-light.png" width="100%" alt="Unusual behaviour, countries and devices"><br><sub>Calm hints, countries and devices; a click selects</sub></td>
+</tr>
+</table>
+
+Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map: Natural Earth (public domain).
+
 ### Devices and settings
 
 ![Device list](docs/screenshots/devices-light.png)
@@ -119,6 +133,8 @@ All screenshots show the built-in demo network with invented names and addresses
 <td><img src="docs/screenshots/phone-detail.png" width="200" alt="Phone component card"></td>
 <td><img src="docs/screenshots/phone-connection.png" width="200" alt="Phone: connection of a device"></td>
 <td><img src="docs/screenshots/phone-devices.png" width="200" alt="Phone device list"></td>
+<td><img src="docs/screenshots/phone-paths.png" width="200" alt="Phone: data paths"></td>
+<td><img src="docs/screenshots/phone-paths-full.png" width="200" alt="Phone: world map in full screen"></td>
 <td><img src="docs/screenshots/phone-wizard-scan.png" width="200" alt="Phone wizard scan step"></td>
 <td><img src="docs/screenshots/phone-firewall-move.png" width="200" alt="Phone: move a device to another network"></td>
 <td><img src="docs/screenshots/phone-firewall-preview.png" width="200" alt="Phone: firewall preview"></td>
@@ -168,7 +184,7 @@ Devices are classified by deterministic rules (gateway or self role, DNS-SD type
 
 Dots appear only where bytes are actually measured:
 
-- **This host's own TCP flows** come from the kernel's socket diagnostics (netlink) when running with host networking. No extra privileges needed.
+- **This host's own TCP flows** come from the kernel's socket diagnostics (netlink) when running with host networking. No extra privileges needed. They also feed the data paths world map (today only this host's own connections; flow sources from the gateway follow).
 - **Router or switch (SNMP v2c or v3)** gives interface counters, which animate the internet uplink, and LLDP neighbours plus the switch address table for the cabling. Only Get, GetNext and GetBulk are used.
 - **Switch controller** (the local controller application of a switch and access point product line) tells which client sits on which switch port or access point. A local view-only account is enough. Lanloom signs in and then only reads two lists; one code path makes every request and refuses everything else.
 - **Device-family adapters** read a controller's configuration and state through its local APIs (an API key and/or a local view-only account): zones, networks, firewall rules with hit counters, ports, wireless networks, clients and their ports. They only send read requests through one allow-listed code path, refuse an account that can change settings where that is checkable, and cap sign-ins. Which families exist: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
@@ -181,7 +197,7 @@ All integrations are optional. Credentials are encrypted at rest with a key file
 
 ## Security and privacy
 
-Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The only outbound connection is the optional update check against the public release feed. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The only outbound connection is the optional update check against the public release feed. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
 ## Updating
 
@@ -200,6 +216,7 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, uninstall
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
+- [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): supported integrations, what each can read and write
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): how device-family adapters are built (read and write halves, capabilities, plan steps, credentials)
 - [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md): the firewall editor, the executor service and its safety checks
