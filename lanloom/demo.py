@@ -117,6 +117,97 @@ def _hmac(n: int) -> str:
     return _vmac(n) if _host(n).get("vm") else _mac(n)
 
 
+# Data paths (synthetic history): host number -> [(country, MB sent per day, MB received per day)]. "~own" is a tunnel.
+PATHS_HOME = "NL"
+PATHS = {
+    11: [("NL", 40, 300), ("US", 15, 120), ("DE", 5, 40), ("IE", 3, 20), ("~own", 30, 30)],
+    10: [("NL", 300, 80), ("CH", 120, 10)],
+    12: [("NL", 20, 4)],
+    14: [("NL", 5, 20), ("US", 2, 10), ("FI", 1, 3)],
+    20: [("NL", 80, 600), ("US", 60, 400), ("FR", 10, 80), ("SE", 5, 120), ("GB", 4, 30), ("~own", 12, 40)],
+    22: [("NL", 25, 300), ("US", 30, 350), ("IE", 6, 60), ("SG", 2, 20)],
+    23: [("US", 10, 400), ("NL", 8, 150)],
+    30: [("US", 20, 2500), ("NL", 5, 900), ("IE", 2, 300)],
+    31: [("US", 3, 60), ("IE", 1, 30)],
+    32: [("US", 4, 700), ("GB", 1, 90)],
+    51: [("CN", 12, 1)],
+    65: [("CN", 2, 1), ("SG", 1, 0.5)],
+    66: [("NL", 1, 0.3), ("DE", 0.5, 0.2)],
+}
+PATHS_NO_INTERNET = ["192.168.50.50/31"]      # the two cameras should not reach the internet
+PATHS_NEW = (30, "KR", 45)                    # the TV talks to a new country since a few hours (MB)
+PATHS_HEAVY = (10, "NL", 1900)                # the storage uploads far more than usual today (MB in 24 h)
+
+
+def _diurnal(hour: int) -> float:
+    h = hour % 24
+    return 0.35 + 1.3 * math.exp(-((h - 20) % 24 - 0) ** 2 / 18.0) + 0.5 * math.exp(-((h - 12) ** 2) / 10.0)
+
+
+def seed_paths(core, now: float = None, seed: int = 11) -> None:
+    """Thirty days of synthetic data paths for the demo (only if there are none yet)."""
+    if core.store.one("SELECT hour FROM paths_hour LIMIT 1") or core.store.one("SELECT day FROM paths_day LIMIT 1"):
+        return
+    rng = random.Random(seed)
+    now = now or time.time()
+    now_h = int(now // 3600)
+    norm = sum(_diurnal(h) for h in range(24)) / 24.0
+    hours, days, seen = {}, {}, {}
+    ids = {int(ip.rsplit(".", 1)[1]): dev for ip, dev in core.ip_to_device.items() if ip.startswith("192.168.50.")}
+    for n, entries in PATHS.items():
+        dev = ids.get(n)
+        if not dev:
+            continue
+        for cc, tx_mb, rx_mb in entries:
+            first = now - 30 * 86400 + (20 * 86400 if n == 51 else 0)
+            for h in range(now_h - 30 * 24, now_h + 1):
+                ts = h * 3600
+                if ts < first:
+                    continue
+                f = _diurnal(h) / norm / 24.0 * (0.6 + 0.8 * rng.random())
+                tx, rx = int(tx_mb * 1e6 * f), int(rx_mb * 1e6 * f)
+                if (n, cc) == PATHS_HEAVY[:2] and h > now_h - 24:
+                    tx += int(PATHS_HEAVY[2] * 1e6 / 24)
+                if h > now_h - 49:
+                    hours[(h, dev, cc)] = [tx, rx]
+                d = days.setdefault((h // 24, dev, cc), [0, 0])
+                d[0] += tx; d[1] += rx
+            if not cc.startswith("~"):
+                seen[(dev, cc)] = first
+    dev = ids.get(PATHS_NEW[0])
+    if dev:
+        for h in range(now_h - 4, now_h + 1):
+            b = int(PATHS_NEW[2] * 1e6 / 5)
+            hours[(h, dev, PATHS_NEW[1])] = [b // 8, b]
+            d = days.setdefault((h // 24, dev, PATHS_NEW[1]), [0, 0])
+            d[0] += b // 8; d[1] += b
+        seen[(dev, PATHS_NEW[1])] = (now_h - 4) * 3600
+    with core.store.transaction() as st:
+        st._db.executemany("INSERT INTO paths_hour(hour, device, cc, tx, rx) VALUES(?,?,?,?,?)",
+                           [(k[0], k[1], k[2], v[0], v[1]) for k, v in hours.items()])
+        st._db.executemany("INSERT INTO paths_day(day, device, cc, tx, rx) VALUES(?,?,?,?,?)",
+                           [(k[0], k[1], k[2], v[0], v[1]) for k, v in days.items()])
+        st._db.executemany("INSERT OR REPLACE INTO paths_seen(device, cc, first, last) VALUES(?,?,?,?)",
+                           [(k[0], k[1], v, now) for k, v in seen.items()])
+    if not core.store.get_setting("home_country", ""):
+        core.store.set_setting("home_country", PATHS_HOME)
+    if not core.store.get_setting("paths_no_internet", []):
+        core.store.set_setting("paths_no_internet", PATHS_NO_INTERNET)
+
+
+def book_paths_minute(core, now: float, rng) -> None:
+    """One minute of synthetic data paths (the demo keeps growing while it runs)."""
+    ids = {int(ip.rsplit(".", 1)[1]): dev for ip, dev in core.ip_to_device.items() if ip.startswith("192.168.50.")}
+    norm = sum(_diurnal(h) for h in range(24)) / 24.0
+    f = _diurnal(int(now // 3600)) / norm / 1440.0
+    for n, entries in PATHS.items():
+        dev = ids.get(n)
+        if dev:
+            for cc, tx_mb, rx_mb in entries:
+                k = f * (0.6 + 0.8 * rng.random())
+                core.paths.book_bucket(dev, cc, int(tx_mb * 1e6 * k), int(rx_mb * 1e6 * k), now)
+
+
 def controller_event(now: float) -> dict:
     """What a switch / access point controller would report for the demo network (see sources/controller.py)."""
     devices = [
@@ -201,6 +292,7 @@ class Demo:
         core.ingest({"hosts": [scan_host(h) for h in HOSTS]}, scan_id)
         core.store.set_setting("rescan_cidrs", [NET])
         self.seed_manual(core)
+        seed_paths(core)
 
     def seed_manual(self, core) -> None:
         for n, (parent, port) in MANUAL.items():
@@ -234,6 +326,7 @@ class Demo:
         hub_sent = 0
         topo_sent = 0
         live_sent = 0
+        paths_sent = time.time()
         while True:
             await asyncio.sleep(1.0)
             if not core.store.one("SELECT id FROM devices LIMIT 1"):
@@ -272,6 +365,10 @@ class Demo:
                                {"index": 2, "name": "lan1", "oper": "up", "speed": 1_000_000_000, "in": up, "out": down},
                                {"index": 3, "name": "lan2", "oper": "up", "speed": 1_000_000_000, "in": 0, "out": 0},
                                {"index": 4, "name": "wlan", "oper": "up", "speed": 600_000_000, "in": up // 3, "out": down // 3}]})
+            if now - paths_sent >= 60:
+                paths_sent = now
+                seed_paths(core, now)              # a demo set up through the wizard gets its history on the first minute
+                book_paths_minute(core, now, rng)
             fam = _demo_family()
             if fam and fam in ids and now - live_sent >= 60:
                 live_sent = now

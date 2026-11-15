@@ -297,11 +297,18 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.put("/api/settings")
     async def put_settings(request: Request):
         data = await body(request)
-        result = state.core.update_settings(data)
+        try:
+            result = state.core.update_settings(data)
+        except ValueError as exc:
+            return err(str(exc))
         if data.get("setup_done") and cfg.demo and state.core.demo:
             state.core.demo.seed_integrations(state.core)
             state.core.structure_version += 1
         return result
+
+    @app.get("/api/paths")
+    async def get_paths(window: str = "24h"):
+        return await asyncio.to_thread(state.core.paths_summary, window)
 
     @app.get("/api/networks")
     async def networks():

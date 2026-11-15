@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import classify, live, topology
+from . import classify, datapaths, geo as geo_mod, live, topology
 from .crypto import Vault
 from .store import Store
 
@@ -28,6 +28,9 @@ DEFAULT_SETTINGS = {
     "setup_done": False,
     "uplink_iface": "",
     "rate_unit": "bytes",       # traffic rates as bytes per second (MB/s) or bits per second (Mbit/s)
+    "home_country": "",         # data paths: ISO code of the home country ("" = the browser's region)
+    "paths_own_networks": [],   # data paths: own networks and tunnels beyond the LAN (never "unassigned")
+    "paths_no_internet": [],    # data paths: local networks that should not reach the internet
 }
 
 INTEGRATION_FIELDS = {
@@ -111,6 +114,8 @@ class Core:
         self._manual_ver = 0
         self.structure_version = 0
         self.last_frame: dict = {}
+        self.geo = geo_mod.Geo()
+        self.paths = datapaths.DataPaths(store, self.geo, self.settings)
         self._refresh_index()
 
     # ------------------------------------------------------------------ settings
@@ -126,9 +131,22 @@ class Core:
 
     def update_settings(self, patch: dict) -> dict:
         allowed = {"rescan_hours": int, "update_check": bool, "language": (str, type(None)), "setup_done": bool,
-                   "uplink_iface": str, "rate_unit": str}
+                   "uplink_iface": str, "rate_unit": str, "home_country": str, "paths_own_networks": list,
+                   "paths_no_internet": list}
+        nets = {}
+        for key in ("paths_own_networks", "paths_no_internet"):         # all or nothing: check before writing anything
+            if key in patch:
+                nets[key] = datapaths.parse_networks(patch[key])
+                if nets[key] is None:
+                    raise ValueError("settings.paths.invalid_network")
         for key, value in patch.items():
             if key in allowed and isinstance(value, allowed[key]):
+                if key in nets:
+                    value = nets[key]
+                if key == "home_country":
+                    value = value.strip().upper()
+                    if value and not re.fullmatch(r"[A-Z]{2}", value):
+                        continue
                 if key == "rescan_hours" and value not in (0, 1, 3, 6, 12, 24):
                     continue
                 if key == "language" and value not in (None, "en", "de"):
@@ -142,6 +160,7 @@ class Core:
     async def start(self) -> None:
         if self.cfg.probe:
             return            # probe start of an update candidate: serve the UI only, no discovery, no sources
+        self.geo.start()
         if self.demo:
             self._tasks.append(asyncio.create_task(self.demo.run(self)))
         else:
@@ -233,12 +252,26 @@ class Core:
 
     def forget_device(self, device_id: str) -> bool:
         ok = self.store.execute("DELETE FROM devices WHERE id=?", (device_id,)).rowcount > 0
+        if ok:
+            self.paths.forget_device(device_id)
         self.store.execute("DELETE FROM phys_manual WHERE device_id=? OR parent_id=?", (device_id, device_id))
         self._manual_ver += 1
         self._refresh_index()
         return ok
 
     # ------------------------------------------------------------------ physical topology
+    def paths_summary(self, window: str) -> dict:
+        """Data paths of one window (24h, 7d, 30d) with device titles, for the data paths view."""
+        devices = {}
+        for dev in self.store.devices():
+            data = dev["data"]
+            devices[dev["id"]] = {"title": dev.get("user_title") or dev["title"] or "", "ip": dev["ip"],
+                                  "kind": dev.get("user_kind") or dev["kind"], "self": bool(data.get("is_self"))}
+        devices.setdefault("self", {"title": "", "ip": self.self_ip, "kind": "server", "self": True})
+        out = self.paths.summary(window, devices)
+        out["source"] = {"kind": "host", "unbooked": self.paths.unbooked}
+        return out
+
     def manual_links(self) -> dict:
         return {r["device_id"]: {"parent": r["parent_id"], "port": r["port"], "medium": r["medium"], "t": r["updated"]}
                 for r in self.store.query("SELECT * FROM phys_manual")}
@@ -730,6 +763,8 @@ class Core:
                     self._book_path(self_id, router_id, tx, rx)
                 if not dev_id and _is_outside(peer):
                     self._book_outside(peer, tx, rx, now)
+                    if not self.demo:          # the demo books synthetic data paths (its peers are documentation addresses)
+                        self.paths.book(self_id, peer, tx, rx, now)
 
     def phys_path(self, a: str, b: str) -> Optional[list]:
         """Physical links between two components: [(trace id, +1 = with the trace a->b | -1 = against it)], or None."""
@@ -899,6 +934,10 @@ class Core:
 
     def tick(self, now: float, dt: float = 1.0) -> dict:
         self.quant.check_q(now)
+        try:
+            self.paths.maybe_flush(now)
+        except Exception:
+            log.exception("data paths flush failed")
         for trace in list(self.spread):
             b0, b1, left = self.spread[trace]
             share0, share1 = (b0, b1) if left <= 1 else (b0 // left, b1 // left)
