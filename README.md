@@ -106,6 +106,17 @@ All screenshots show the built-in demo network with invented names and addresses
 </tr>
 </table>
 
+### Hypervisor (read only)
+
+![Component card of a hypervisor node: load, findings, guests with their newest backup, storage](docs/screenshots/hypervisor-node-dark.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/hypervisor-guest-light.png" width="100%" alt="Component card of a guest: node, network cards, backup, traffic of the last hour, guest firewall"><br><sub>A guest: node, network cards, backup, traffic, its firewall</sub></td>
+<td width="50%"><img src="docs/screenshots/hypervisor-firewall-light.png" width="100%" alt="Firewall tab with the hypervisor source: findings and firewall at datacenter, node and guest level"><br><sub>Firewall tab: findings, firewall at every level, guest network cards</sub></td>
+</tr>
+</table>
+
 ### Data paths
 
 ![Data paths: world map with arcs from the home country, key figures and the period switch](docs/screenshots/paths-light.png)

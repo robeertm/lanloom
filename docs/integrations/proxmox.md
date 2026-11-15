@@ -11,6 +11,8 @@ What you get:
 - **Findings** in plain words: a node offline, storage almost full (90 %, 95 %), a running guest without any backup, a newest backup older than seven days, a failed backup task in the last 48 hours, a network card on a bridge that does not exist, a VLAN tag outside the VLANs a VLAN-aware bridge allows, a guest firewall that cannot work because the datacenter firewall is off, and - together with a controller adapter that reads switch ports - a guest VLAN that the node's switch port does not carry.
 - **Night report:** the family contributes its own section (guests stopped or added since the last report, failed backups, findings); it appears only when this connection exists.
 
+![Component card of a node with findings, guests, storage and bridges](../screenshots/hypervisor-node-dark.png)
+
 Never read or kept: passwords, keys and secrets of guests (cloud-init password, SSH keys), notes and descriptions, storage credentials. Guest and object ids become opaque ids; hardware addresses of network cards leave the adapter only as a hash and are used to match devices on the map.
 
 ## Create a read-only API token
