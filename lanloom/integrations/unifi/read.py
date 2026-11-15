@@ -332,9 +332,9 @@ class UnifiReader:
     async def run(self, emit):
         async def one_session(emit_, status: StatusTracker):
             try:
-                last_full = 0.0
+                last_full = None                  # the first poll is always a full one (monotonic time may start near 0)
                 while True:
-                    full = time.monotonic() - last_full >= self.full_interval
+                    full = last_full is None or time.monotonic() - last_full >= self.full_interval
                     for ev in await self.poll(light=not full):
                         await emit_event(emit_, ev)
                     if full:

@@ -492,7 +492,10 @@ def test_test_reports_a_refused_account(make):
 
 
 # ---------------------------------------------------------------------------- the running loop
-def test_run_emits_status_topology_and_config_and_signs_out(make):
+def test_run_emits_status_topology_and_config_and_signs_out(make, monkeypatch):
+    import types
+    from lanloom.integrations.unifi import read as readmod
+    monkeypatch.setattr(readmod, "time", types.SimpleNamespace(monotonic=lambda: 5.0))   # freshly booted machine: monotonic near 0
     fake = make("console")
     r = reader(fake)
     events = []

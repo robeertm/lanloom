@@ -25,7 +25,7 @@ At least one credential is needed, both together give the full picture. The offi
 
 1. In the controller open **Settings → Control Plane → Integrations** (the wording differs slightly between releases).
 2. Create a key, preferably while signed in as an administrator whose role is **view only**, and copy it once.
-3. Paste it into Lanloom (**Settings → Integrations → + UniFi Network (local API)**, field *API key*).
+3. Paste it into Lanloom (**Settings → Connections → + UniFi Network (local API)**, field *API key*).
 
 An API key does not tell Lanloom which rights it has, so the connection test cannot refuse a key that could write. Lanloom never sends anything but read requests with it (see below); still, a key of a view-only administrator is the safer choice.
 
