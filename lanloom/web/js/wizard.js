@@ -221,12 +221,26 @@
       { k: 'allow_self_signed', type: 'checkbox' }]
   };
 
+  // device-family adapters (built in, listed by the server with their form); their names come from the server
+  LL.families = [];
+  LL.loadIntegrations = async function () {
+    const data = await api('/api/integrations');
+    LL.families = data.families || [];
+    return data;
+  };
+  const family = kind => (FORMS[kind] ? null : LL.families.find(f => f.family === kind) || null);
+  const famTitle = fam => { if (fam.sample) return t('integ.family.sample'); const k = 'integrations.family.' + fam.family; return t(k) === k ? fam.label : t(k); };
+  LL.integTitle = kind => { const fam = family(kind); return fam ? famTitle(fam) : t('integ.' + kind + '.title'); };
+  LL.integKinds = () => ['hub', 'mqtt', 'snmp', 'controller'].concat(LL.families.map(f => f.family));
+
   LL.integrationCard = function (kind, existing, onChange) {
     const inputs = {};
-    const fields = FORMS[kind];
+    const fam = family(kind);
+    const fields = FORMS[kind] || (fam ? fam.form : []);
+    const hintKey = k => fam ? 'integ.hint.family.' + k : 'integ.hint.' + kind + '.' + k;
     const body = h('div', { class: 'integ__form', hidden: !!existing });
     const msg = h('div', { class: 'msg' });
-    const name = h('input', { type: 'text', value: existing ? existing.name : t('integ.' + kind + '.title'), maxlength: '48' });
+    const name = h('input', { type: 'text', value: existing ? existing.name : LL.integTitle(kind), maxlength: '48' });
     const rows = [LL.field(t('integ.field.name'), name)];
     for (const f of fields) {
       let el;
@@ -245,7 +259,7 @@
           autocomplete: f.secret ? 'new-password' : 'off', spellcheck: 'false', value: !f.secret && existing && existing.config[f.k] != null ? existing.config[f.k] : '' });
       }
       inputs[f.k] = el;
-      const wrap = LL.field(t('integ.field.' + f.k) + (f.req ? '' : ' ' + t('integ.optional')), el, t('integ.hint.' + kind + '.' + f.k) === 'integ.hint.' + kind + '.' + f.k ? null : t('integ.hint.' + kind + '.' + f.k));
+      const wrap = LL.field(t('integ.field.' + f.k) + (f.req ? '' : ' ' + t('integ.optional')), el, t(hintKey(f.k)) === hintKey(f.k) ? null : t(hintKey(f.k)));
       wrap.dataset.k = f.k;
       rows.push(wrap);
     }
@@ -296,8 +310,10 @@
       body.hidden = !body.hidden; toggle.setAttribute('aria-expanded', String(!body.hidden)); toggle.textContent = body.hidden ? t('integ.edit') : t('integ.close');
     } }, existing ? t('integ.edit') : t('integ.close'));
     return h('article', { class: 'integ card card--flat' },
-      h('header', { class: 'integ__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch' }[kind]),
-        h('div', { class: 'integ__titles' }, h('h3', {}, existing ? existing.name : t('integ.' + kind + '.title')), h('p', { class: 'muted' }, t('integ.' + kind + '.desc'))),
+      h('header', { class: 'integ__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch' }[kind] || 'router'),
+        h('div', { class: 'integ__titles' }, h('h3', {}, existing ? existing.name : LL.integTitle(kind)),
+          h('p', { class: 'muted' }, fam ? t('integ.family.desc') : t('integ.' + kind + '.desc')),
+          fam && fam.docs ? h('p', { class: 'integ__fine muted' }, t('integ.family.notice')) : null),
         statusChip, toggle),
       body);
   };
@@ -305,8 +321,8 @@
   async function connectStep(app) {
     const wrap = h('div', { class: 'stack' });
     async function render() {
-      const list = (await api('/api/integrations')).integrations;
-      const cards = ['hub', 'mqtt', 'snmp', 'controller'].map(kind => {
+      const list = (await LL.loadIntegrations()).integrations;
+      const cards = LL.integKinds().map(kind => {
         const ex = list.filter(i => i.kind === kind);
         return ex.length ? ex.map(e => LL.integrationCard(kind, e, render)) : [LL.integrationCard(kind, null, render)];
       }).flat();

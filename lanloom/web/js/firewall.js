@@ -21,15 +21,16 @@
       const page = h('div', { class: 'page fw-page' });
       const bar = h('div', { class: 'fw-draftbar', hidden: true, role: 'region', 'aria-label': t('fw.draft.label') });
       fr.main.append(page, bar);
-      const st = { view: null, mode: 'view', pv: null, drag: null, timer: null };
-      try { st.mode = localStorage.getItem('ll-fw-mode') === 'change' ? 'change' : 'view'; } catch (e) { /* private mode */ }
+      const st = { view: null, mode: 'view', pv: null, drag: null, timer: null, source: null, pol: { pair: null, builtin: false, q: '' } };
+      try { st.mode = localStorage.getItem('ll-fw-mode') === 'change' ? 'change' : 'view'; st.source = localStorage.getItem('ll-fw-source') || null; } catch (e) { /* private mode */ }
 
       async function load() {
-        try { st.view = await api('/api/firewall'); } catch (e) { page.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
-        st.pv = Object.keys(st.view.draft.moves || {}).length ? await api('/api/firewall/preview', { method: 'POST', body: {} }).catch(() => null) : null;
+        try { st.view = await api('/api/firewall' + (st.source ? '?source=' + encodeURIComponent(st.source) : '')); } catch (e) { page.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
+        st.pv = st.view.mode !== 'live' && Object.keys(st.view.draft.moves || {}).length ? await api('/api/firewall/preview', { method: 'POST', body: {} }).catch(() => null) : null;
         render();
         clearTimeout(st.timer);
         if (st.view.running) st.timer = setTimeout(load, 1500);
+        else if (st.view.mode === 'live') st.timer = setTimeout(load, 60000);
       }
 
       async function setMoves(moves) {
@@ -51,10 +52,13 @@
         const kids = [head(v)];
         if (v.mode === 'simulation') kids.push(h('div', { class: 'callout fw-sim' }, h('strong', {}, t('fw.sim.title')), ' ', t('fw.sim.text'),
           h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: resetSim, disabled: !!v.running }, t('fw.sim.reset'))));
-        if (!canMove(v)) kids.push(h('div', { class: 'callout' }, t('fw.executor.readonly')));
+        if (v.mode === 'live') kids.push(h('div', { class: 'callout fw-live' }, svg(ICON.lock, 'fw-live__ico'), h('span', {}, t('fw.live.callout', { name: v.live.name }))));
+        else if (!canMove(v)) kids.push(h('div', { class: 'callout' }, t('fw.executor.readonly')));
         if (v.quiet) kids.push(h('div', { class: 'callout callout--warn' }, t('fw.quiet.now', { hours: v.quiet_hours })));
         if (v.running) kids.push(progressCard(v.running));
         kids.push(board(v));
+        if (v.state.policies && v.state.policies.length) kids.push(LL.fwPolicies(v.state, st.pol, render));
+        if (v.mode === 'live') kids.push(...LL.fwLiveExtras(v.state));
         const hist = history(v);
         if (hist) kids.push(hist);
         page.replaceChildren(...kids);
@@ -67,11 +71,21 @@
             st.mode = m; try { localStorage.setItem('ll-fw-mode', m); } catch (e) { /* ignore */ } render();
           } }, t('fw.mode.' + m))));
         const ctrl = v.state ? v.state.controller || {} : {};
-        const chip = v.mode === 'simulation' ? h('span', { class: 'chip chip--warn' }, t('fw.chip.simulation'))
+        const chip = v.mode === 'live' ? h('span', { class: 'chip chip--accent' }, t('fw.chip.live'))
+          : v.mode === 'simulation' ? h('span', { class: 'chip chip--warn' }, t('fw.chip.simulation'))
           : h('span', { class: 'chip ' + (v.executor.connected ? 'chip--ok' : 'chip--danger') }, t(v.executor.connected ? 'fw.chip.connected' : 'fw.chip.offline'));
+        const meta = v.mode === 'live' ? [v.live.name, v.live.version ? t('fw.live.version', { v: v.live.version }) : null, v.live.age_s != null ? t('fw.live.age', { age: LL.fmtAge(v.live.age_s) }) : null].filter(Boolean).join(' · ')
+          : ctrl.label;
+        const srcs = v.sources || [];
+        const pick = srcs.length > 1 ? h('div', { class: 'seg fw-source', role: 'group', 'aria-label': t('fw.source.label') }, srcs.map(o => {
+          const on = o.key === v.source;
+          return h('button', { type: 'button', class: 'seg__btn' + (on ? ' is-active' : ''), 'aria-pressed': String(on), title: o.kind === 'live' ? t('fw.source.live_hint') : '', onclick: () => {
+            st.source = o.key; try { localStorage.setItem('ll-fw-source', o.key); } catch (e) { /* ignore */ } st.pol.pair = null; load();
+          } }, o.kind === 'live' ? o.name : t(o.kind === 'simulation' ? 'fw.source.sim' : 'fw.source.executor'));
+        })) : null;
         return h('div', { class: 'page__head fw-head' },
-          h('div', { class: 'fw-head__title' }, h('h1', {}, t('nav.firewall')), h('div', { class: 'fw-head__meta' }, chip, ctrl.label ? h('span', { class: 'muted' }, ctrl.label) : null)),
-          h('div', { class: 'fw-head__tools' }, canMove(v) ? seg : null, h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
+          h('div', { class: 'fw-head__title' }, h('h1', {}, t('nav.firewall')), h('div', { class: 'fw-head__meta' }, chip, meta ? h('span', { class: 'muted' }, meta) : null)),
+          h('div', { class: 'fw-head__tools' }, pick, canMove(v) ? seg : null, v.mode === 'live' ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
       }
 
       function board(v) {
@@ -80,7 +94,7 @@
         const changes = {};
         (st.pv && st.pv.changes || []).forEach(c => { changes[c.device] = c; });
         const zones = s.zones.map(z => {
-          const nets = s.networks.filter(n => n.zone === z.id);
+          const nets = s.networks.filter(n => n.zone === z.id && n.purpose !== 'wan' && n.purpose !== 'vpn');
           if (!nets.length) return null;
           return h('section', { class: 'fw-zone card' },
             h('header', { class: 'fw-zone__head' }, h('h2', {}, z.name),
@@ -336,4 +350,139 @@
   }
 
   LL.view('firewall', firewallView());
+})();
+
+/* Lanloom — read-only parts of the firewall tab for configurations read by a device-family adapter: zone matrix,
+   rule list (with hit counters where the controller reports them), port forwarding, wireless networks, equipment
+   and ports. Nothing here can change anything. */
+(function () {
+  'use strict';
+  const LL = window.Lanloom;
+  const { h, t } = LL;
+  const fmtCount = n => (n == null ? '' : n >= 1e9 ? (n / 1e9).toFixed(1) + ' G' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' M' : n >= 1e4 ? Math.round(n / 1e3) + ' k' : String(n));
+
+  function zoneName(s, id) { const z = s.zones.find(x => x.id === id); return z ? z.name : '—'; }
+  function netName(s, id) { const n = s.networks.find(x => x.id === id); return n ? n.name : '?'; }
+  function wholeZone(p) { return Object.keys(p.src).every(k => k === 'zone') && Object.keys(p.dst).every(k => k === 'zone') && !p.ports && p.proto === 'any' && !(p.states || []).length && !p.scheduled; }
+
+  function sideText(s, side) {
+    const m = side.match;
+    let what = zoneName(s, side.zone);
+    if (m) {
+      const list = (m.items || []).slice(0, 3);
+      const more = (m.items || []).length > 3 ? ' +' + ((m.items || []).length - 3) : '';
+      if (m.kind === 'network') what = list.map(id => netName(s, id)).join(', ') + more;
+      else if (m.kind === 'ip' || m.kind === 'domain') what = (m.group ? m.group + ': ' : '') + list.join(', ') + more;
+      else if (m.kind === 'region') what = t('fw.pol.match.region', { items: list.join(', ') + more });
+      else if (m.kind === 'client') what = t('fw.pol.match.client', { n: m.count || 0 });
+      else if (m.kind === 'app') what = t('fw.pol.match.app', { n: m.count || 0 });
+      else what = t('fw.pol.match.' + (m.kind === 'vpn' ? 'vpn' : 'other'));
+      if (m.opposite) what = t('fw.pol.not', { what });
+    }
+    if (side.ports) what += ' · ' + t('fw.pol.ports', { ports: side.ports });
+    return what;
+  }
+
+  LL.fwPolicies = function (s, f, rerender) {
+    const zones = s.zones;
+    const allow = new Set((s.allow || []).map(([a, b]) => a + '>' + b));
+    const pols = s.policies.slice().sort((a, b) => (a.order - b.order) || (a.name < b.name ? -1 : 1));
+    const custom = {};
+    pols.forEach(p => { if (!p.builtin && !wholeZone(p)) { const k = p.src.zone + '>' + p.dst.zone; custom[k] = (custom[k] || 0) + 1; } });
+    const pick = k => { f.pair = f.pair === k ? null : k; rerender(); };
+    const matrix = h('div', { class: 'fw-matrix-wrap' }, h('table', { class: 'fw-matrix' },
+      h('thead', {}, h('tr', {}, h('th', { scope: 'col', class: 'fw-matrix__corner' }, h('span', {}, t('fw.pol.from')), ' ↓ ', h('span', {}, t('fw.pol.to')), ' →'),
+        zones.map(z => h('th', { scope: 'col' }, z.name)))),
+      h('tbody', {}, zones.map(a => h('tr', {}, h('th', { scope: 'row' }, a.name), zones.map(b => {
+        if (a.id === b.id) return h('td', { class: 'fw-matrix__self' }, '·');
+        const k = a.id + '>' + b.id;
+        const ok = allow.has(k);
+        const n = custom[k] || 0;
+        return h('td', {}, h('button', { type: 'button', class: 'fw-cell ' + (ok ? 'is-allow' : 'is-block') + (f.pair === k ? ' is-picked' : ''),
+          'aria-pressed': String(f.pair === k), title: t(ok ? 'fw.pol.cell_allow' : 'fw.pol.cell_block', { from: a.name, to: b.name, n }),
+          onclick: () => pick(k) }, h('span', { 'aria-hidden': 'true' }, ok ? '✓' : '✕'), n ? h('span', { class: 'fw-cell__n' }, String(n)) : null));
+      }))))));
+    const q = h('input', { type: 'search', class: 'input fw-pol__q', placeholder: t('fw.pol.search'), value: f.q, 'aria-label': t('fw.pol.search') });
+    const bi = h('input', { type: 'checkbox', checked: f.builtin });
+    const listBox = h('div', { class: 'fw-pol__groups' });
+    function drawList() {
+      const needle = f.q.trim().toLowerCase();
+      const shown = pols.filter(p => (f.builtin || f.pair || !p.builtin) && (!f.pair || p.src.zone + '>' + p.dst.zone === f.pair)
+        && (!needle || (p.name + ' ' + sideText(s, p.src) + ' ' + sideText(s, p.dst)).toLowerCase().includes(needle)));
+      const groups = [];
+      const idx = {};
+      shown.forEach(p => { const k = p.src.zone + '>' + p.dst.zone; if (!(k in idx)) { idx[k] = groups.length; groups.push({ k, src: p.src.zone, dst: p.dst.zone, rows: [] }); } groups[idx[k]].rows.push(p); });
+      const zi = id => zones.findIndex(z => z.id === id);
+      groups.sort((x, y) => (zi(x.src) - zi(y.src)) || (zi(x.dst) - zi(y.dst)));
+      listBox.replaceChildren(...(groups.length ? groups.map(g => h('section', { class: 'fw-pol__group' },
+        h('h3', { class: 'fw-pol__pair' }, zoneName(s, g.src), h('span', { class: 'muted', 'aria-hidden': 'true' }, ' → '), zoneName(s, g.dst),
+          h('span', { class: 'chip ' + (allow.has(g.k) ? 'chip--ok' : 'chip--muted') }, t(allow.has(g.k) ? 'fw.pol.allow' : 'fw.pol.block'))),
+        h('ol', { class: 'fw-pol__rows' }, g.rows.map(p => h('li', { class: 'fw-rule' + (p.enabled ? '' : ' is-off') + (p.builtin ? ' is-builtin' : '') },
+          h('span', { class: 'fw-rule__act fw-rule__act--' + p.action }, t('fw.pol.action.' + (['allow', 'block', 'reject'].includes(p.action) ? p.action : 'other'))),
+          h('div', { class: 'fw-rule__main' },
+            h('div', { class: 'fw-rule__name' }, p.name),
+            h('div', { class: 'fw-rule__meta' }, sideText(s, p.src) + ' → ' + sideText(s, p.dst)
+              + (p.proto !== 'any' ? ' · ' + p.proto.toUpperCase() : '') + (p.ports ? ' · ' + t('fw.pol.ports', { ports: p.ports }) : ''),
+              (p.states || []).length ? ' · ' + t('fw.pol.states', { states: p.states.join(', ') }) : '')),
+          h('div', { class: 'fw-rule__side' },
+            p.hits != null ? h('span', { class: 'fw-rule__hits', title: t('fw.pol.hits', { n: p.hits }) }, t('fw.pol.hits', { n: fmtCount(p.hits) })) : null,
+            !p.enabled ? h('span', { class: 'chip chip--muted' }, t('fw.pol.disabled')) : null,
+            p.scheduled ? h('span', { class: 'chip chip--muted' }, t('fw.pol.scheduled')) : null,
+            p.builtin ? h('span', { class: 'chip chip--muted' }, t('fw.pol.builtin')) : null))))))
+        : [h('p', { class: 'muted fw-pol__none' }, t('fw.pol.none'))]));
+    }
+    q.addEventListener('input', () => { f.q = q.value; drawList(); });
+    bi.addEventListener('change', () => { f.builtin = bi.checked; drawList(); });
+    drawList();
+    const nCustom = pols.filter(p => !p.builtin).length;
+    return h('section', { class: 'card fw-pol' },
+      h('header', { class: 'fw-pol__head' }, h('h2', {}, t('fw.pol.title')),
+        h('p', { class: 'muted' }, t('fw.pol.lead', { n: pols.length, own: nCustom, z: zones.length }))),
+      h('h3', { class: 'fw-sub' }, t('fw.pol.matrix')), h('p', { class: 'muted fw-hint' }, t('fw.pol.matrix_hint')), matrix,
+      h('div', { class: 'fw-pol__tools' }, q, h('label', { class: 'check' }, bi, h('span', {}, t('fw.pol.builtin_show'))),
+        f.pair ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => pick(f.pair) }, t('fw.pol.all_pairs')) : null),
+      listBox);
+  };
+
+  function table(cols, rows) {
+    return h('div', { class: 'fw-table-wrap' }, h('table', { class: 'fw-table' }, h('thead', {}, h('tr', {}, cols.map(c => h('th', { scope: 'col' }, c)))),
+      h('tbody', {}, rows.map(r => h('tr', {}, r.map(c => h('td', {}, c)))))));
+  }
+
+  LL.fwLiveExtras = function (s) {
+    const out = [];
+    const eq = s.equipment || [];
+    if (eq.length) {
+      const order = { router: 0, switch: 1, ap: 2 };
+      out.push(h('section', { class: 'card fw-eq' }, h('h2', {}, t('fw.eq.title')),
+        h('div', { class: 'fw-eq__list' }, eq.slice().sort((a, b) => (order[a.kind] ?? 3) - (order[b.kind] ?? 3) || (a.name < b.name ? -1 : 1)).map(e => {
+          const ports = (s.ports || []).filter(p => p.device === e.id).sort((a, b) => a.idx - b.idx);
+          const up = e.uplink && e.uplink.device ? eq.find(x => x.id === e.uplink.device) : null;
+          return h('article', { class: 'fw-eq__item' },
+            h('header', { class: 'fw-eq__head' }, LL.kindIcon(e.kind === 'ap' ? 'ap' : e.kind === 'router' ? 'router' : 'switch'),
+              h('div', { class: 'fw-eq__titles' }, h('strong', {}, e.name), h('span', { class: 'muted mono' }, [e.model, e.mgmt_ip, e.firmware].filter(Boolean).join(' · '))),
+              h('span', { class: 'chip ' + (e.online ? 'chip--ok' : 'chip--danger') }, t(e.online ? 'fw.eq.online' : 'fw.eq.offline'))),
+            up ? h('p', { class: 'muted fw-eq__up' }, t('fw.eq.uplink', { name: up.name, port: e.uplink.port != null ? e.uplink.port : '—' })) : null,
+            ports.length ? h('ul', { class: 'fw-ports', 'aria-label': t('fw.eq.ports') }, ports.map(p => h('li', {
+              class: 'fw-port' + (p.link ? ' is-up' : '') + (p.is_uplink ? ' is-uplink' : '') + (p.poe && p.poe.on ? ' is-poe' : ''),
+              title: [p.name, p.link ? (p.speed ? p.speed + ' Mbit/s' : t('fw.eq.link')) : t('fw.eq.nolink'), p.native_vlan != null ? 'VLAN ' + p.native_vlan : null,
+                p.poe && p.poe.on ? t('fw.eq.poe') : null, p.is_uplink ? t('fw.eq.is_uplink') : null, p.profile].filter(Boolean).join(' · ') },
+              h('span', { class: 'fw-port__n' }, String(p.idx)),
+              h('span', { class: 'fw-port__s' }, p.link ? (p.speed >= 1000 ? (p.speed / 1000) + 'G' : p.speed ? String(p.speed) : '•') : '–')))) : null);
+        }))));
+    }
+    const ss = s.ssids || [];
+    if (ss.length) out.push(h('section', { class: 'card fw-extra' }, h('h2', {}, t('fw.ssid.title')),
+      table([t('fw.col.name'), t('fw.col.network'), t('fw.col.bands'), t('fw.col.security'), t('fw.col.state')],
+        ss.map(w => [h('strong', {}, w.name), w.network ? s.networks.filter(n => n.id === w.network).map(n => n.name)[0] || '—' : t('fw.ssid.native'),
+          (w.bands || []).map(b => b.replace('ghz', ' GHz')).join(', ') || '—', t('fw.sec.' + (w.security || 'other').replace(/[^a-z0-9_]/g, '_')) === 'fw.sec.' + (w.security || 'other').replace(/[^a-z0-9_]/g, '_') ? w.security : t('fw.sec.' + w.security),
+          [w.enabled ? t('fw.state.on') : t('fw.state.off'), w.hidden ? t('fw.ssid.hidden') : null, w.guest ? t('fw.ssid.guest') : null].filter(Boolean).join(' · ')]))));
+    const fw = s.port_forwards || [];
+    out.push(h('section', { class: 'card fw-extra' }, h('h2', {}, t('fw.fwd.title')),
+      fw.length ? table([t('fw.col.name'), t('fw.col.outside'), t('fw.col.target'), t('fw.col.proto'), t('fw.col.state')],
+        fw.map(p => [h('strong', {}, p.name), h('span', { class: 'mono' }, p.wan_port || '—'), h('span', { class: 'mono' }, (p.dst_ip || '?') + (p.dst_port ? ':' + p.dst_port : '')),
+          (p.proto || '').toUpperCase().replace('_', '/'), [p.enabled ? t('fw.state.on') : t('fw.state.off'), p.source_limited ? t('fw.fwd.limited') : null].filter(Boolean).join(' · ')]))
+        : h('p', { class: 'muted' }, t('fw.fwd.none'))));
+    return out;
+  };
 })();

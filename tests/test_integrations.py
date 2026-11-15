@@ -31,13 +31,37 @@ def sign_in(c, data_dir):
 
 # ---------------------------------------------------------------------------- registry and manifests
 def test_registry_holds_only_built_in_families():
-    assert [m.family for m in integrations.BUILTIN] == ["simulation"]
+    shipped = sorted(p.name for p in (PKG / "integrations").iterdir()
+                     if p.is_dir() and (p / "__init__.py").is_file() and not p.name.startswith("_"))
+    fams = [m.family for m in integrations.BUILTIN]
+    assert fams[0] == "simulation" and sorted(fams) == shipped and fams[1:] == sorted(fams[1:])
     for m in integrations.BUILTIN:
         assert m.validate() is m
         for spec in (m.read, m.write):
             assert not spec or spec.startswith("lanloom.integrations.%s." % m.family)
         assert (PKG / "integrations" / m.family / "__init__.py").is_file()
-    assert integrations.public_list() == []          # the sample family is not offered in the dialog
+        if m.selectable:                               # every offered family has a guide and a complete form
+            assert m.docs and (ROOT / m.docs).is_file()
+            assert {f["k"] for f in m.form} == set(m.config_fields) | set(m.secret_fields)
+    offered = [f["family"] for f in integrations.public_list()]
+    assert "simulation" not in offered                 # the sample family is not offered in the dialog
+    assert offered == [m.family for m in integrations.BUILTIN if m.selectable]
+
+
+def test_registry_loads_only_packages_of_its_own_folder(monkeypatch, tmp_path):
+    """The family list comes from this package's own folder: a module path from elsewhere is never searched."""
+    import pkgutil
+    seen = []
+    real = pkgutil.iter_modules
+
+    def spy(path=None, prefix=""):
+        seen.append(list(path or []))
+        return real(path, prefix)
+
+    monkeypatch.setattr(pkgutil, "iter_modules", spy)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    assert [m.family for m in integrations._builtin()] == [m.family for m in integrations.BUILTIN]
+    assert seen == [[str(PKG / "integrations")]]
 
 
 @pytest.mark.parametrize("change", [
@@ -363,8 +387,10 @@ def test_api_lists_selectable_families_with_capabilities(tmp_path, monkeypatch, 
         sign_in(c, tmp_path)
         data = c.get("/api/integrations").json()
         fams = data["families"]
-        assert [f["family"] for f in fams] == ["fakefam"] and fams[0]["capabilities"]["read"] == ["clients"]
-        assert fams[0]["secret_fields"] == ["token"] and data["api_level"] == integrations.INTEGRATION_API
+        fake = [f for f in fams if f["family"] == "fakefam"]
+        assert fake and fake[0]["capabilities"]["read"] == ["clients"]
+        assert fake[0]["secret_fields"] == ["token"] and data["api_level"] == integrations.INTEGRATION_API
+        assert "simulation" not in [f["family"] for f in fams]
 
 
 # ---------------------------------------------------------------------------- an executor of an earlier or later release

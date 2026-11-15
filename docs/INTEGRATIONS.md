@@ -1,6 +1,6 @@
 # Integrations: how device-family adapters are built
 
-This page describes the foundation every device-family adapter builds on. Which families exist is listed in [COMPATIBILITY.md](COMPATIBILITY.md). Adapters are built in only: each family has its own folder in `lanloom/integrations/<family>/` and an entry in a fixed registry (`lanloom/integrations/__init__.py`, `BUILTIN`). There is no plugin mechanism. Requests are welcome as issues ([CONTRIBUTING.md](../CONTRIBUTING.md)).
+This page describes the foundation every device-family adapter builds on. Which families exist is listed in [COMPATIBILITY.md](COMPATIBILITY.md). Adapters are built in only: each family is a package in `lanloom/integrations/<family>/`, shipped inside the image (whose root file system is read-only). The registry (`lanloom/integrations/__init__.py`, `BUILTIN`) collects exactly the packages of its own folder and nothing from the environment or any other folder. There is no plugin mechanism. Requests are welcome as issues ([CONTRIBUTING.md](../CONTRIBUTING.md)).
 
 ## Two halves per family
 
@@ -20,7 +20,14 @@ This page describes the foundation every device-family adapter builds on. Which 
 - **Read half** (`read.py`): runs in the web app with a read-only account. It reaches the device only through `lanloom/integrations/transport.py` with a *read* allow-list: GET requests to named paths, plus at most a sign-in and sign-out request whose body has exactly the credential fields. A static test checks that read halves and translation modules import no network module and no write half. Contract: `async run(emit)`, `async test()`, `capabilities()`, `async account_scope()` (`read_only` | `can_write` | `unknown`).
 - **Write half** (`write.py`): a `ControllerAdapter` (see [FIREWALL-EDITOR.md](FIREWALL-EDITOR.md#controller-adapters)). It is loaded only in the executor process, only when real writes are armed. Every request goes through a *write* allow-list: method, path pattern, the exact body fields and a check for each value. The adapter cannot widen the list at run time.
 - **Translation module** (`model.py`): maps vendor objects to the neutral model and back. Both halves use it, so the app and the executor compute the same state and the same plan fingerprint.
-- **Manifest** (`__init__.py`, `IntegrationManifest`): family id, label for the selection list, capability list, the two halves, the settings and credential fields of each half. The registry refuses a manifest whose halves point outside the family's own folder.
+- **Manifest** (`__init__.py`, `IntegrationManifest`): family id, label for the selection list, capability list, the two halves, the settings and credential fields of each half, and the dialog form (field types, which fields are secret). The registry refuses a manifest whose halves point outside the family's own folder or whose form does not name every setting.
+
+## Events of a read half
+
+A read half runs like any live source (`async run(emit)`, reconnect with backoff, status events with reason keys `source.family.*`) and emits:
+
+- `{"type": "config", "source": "family", "family", "t", "state": <neutral model v2>, "capabilities"}` - the configuration it read. The app validates it, strips every write key and shows it in the Firewall tab as a read-only source next to the simulation or the executor.
+- `{"type": "topology", "source": "controller", ...}` - clients and devices with their parent ports, in the same shape as the generic switch-controller source, so the topology resolver ranks and merges it the same way.
 
 ## Capability list
 

@@ -222,6 +222,10 @@ class Demo:
                                                                       "site": "default"})):
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
                                (kind, name, _json.dumps(cfg), time.time()))
+        fam = _demo_family()
+        if fam:                            # a device-family adapter reading the controller configuration (read only)
+            core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
+                               (fam, "Sample controller", _json.dumps({"url": "https://192.168.50.11", "site": "default"}), time.time()))
 
     async def run(self, core) -> None:
         """Synthetic live data: flows of this host, router counters, broker topics, hub state changes."""
@@ -229,6 +233,7 @@ class Demo:
         t0 = time.time()
         hub_sent = 0
         topo_sent = 0
+        live_sent = 0
         while True:
             await asyncio.sleep(1.0)
             if not core.store.one("SELECT id FROM devices LIMIT 1"):
@@ -267,6 +272,12 @@ class Demo:
                                {"index": 2, "name": "lan1", "oper": "up", "speed": 1_000_000_000, "in": up, "out": down},
                                {"index": 3, "name": "lan2", "oper": "up", "speed": 1_000_000_000, "in": 0, "out": 0},
                                {"index": 4, "name": "wlan", "oper": "up", "speed": 600_000_000, "in": up // 3, "out": down // 3}]})
+            fam = _demo_family()
+            if fam and fam in ids and now - live_sent >= 60:
+                live_sent = now
+                from .demo_live import live_capabilities, live_sample
+                core.on_event("int:%d" % ids[fam], ids[fam], {"type": "config", "source": "family", "family": fam, "t": now,
+                                                             "state": live_sample(), "capabilities": live_capabilities(fam)})
             if now - topo_sent >= 30:
                 topo_sent = now
                 for row in core.store.query("SELECT id FROM devices"):     # simulated presence check: every demo device answers
@@ -309,3 +320,11 @@ class Demo:
                                  "area": area_id})
         return {"type": "hub_snapshot", "t": now, "devices": devices, "entities": entities,
                 "areas": [{"id": a[0], "name": a[1]} for a in AREAS]}
+
+
+def _demo_family():
+    """The first device-family adapter offered in the integration dialog (demo shows it as "Sample controller")."""
+    from . import integrations
+    fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read]
+    return fams[0] if fams else None
+

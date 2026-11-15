@@ -63,6 +63,7 @@ class App:
         self.updates = Updates(cfg, store)
         from .firewall.editor import Editor
         self.firewall = Editor(cfg, store)
+        self.firewall.live = self.core.live_configs
         if cfg.demo:
             from .demo import Demo
             self.core.demo = Demo()
@@ -368,8 +369,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.get("/api/integrations")
     async def integrations():
         from . import integrations as registry
-        return {"integrations": state.core.integrations(), "families": registry.public_list(),
-                "api_level": registry.INTEGRATION_API}
+        fams = registry.public_list()
+        if state.cfg.demo:                 # demo data is a sample network: no product names on screen
+            fams = [dict(f, label="Sample controller (local API)", sample=True) for f in fams]
+        return {"integrations": state.core.integrations(), "families": fams, "api_level": registry.INTEGRATION_API}
 
     @app.post("/api/integrations/test")
     async def integration_test(request: Request):
@@ -422,7 +425,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
 
     @app.get("/api/firewall")
     async def fw_view(request: Request):
-        return state.firewall.view(request.state.user, requester_ip(request))
+        src = str(request.query_params.get("source") or "")[:24] or None
+        return state.firewall.view(request.state.user, requester_ip(request), src)
 
     @app.put("/api/firewall/draft")
     async def fw_draft(request: Request):

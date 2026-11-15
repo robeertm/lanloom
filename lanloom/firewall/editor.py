@@ -58,6 +58,7 @@ class Editor:
         self._lock = threading.Lock()
         self._sim = None
         self._runner = None
+        self.live = None           # callable -> fresh configurations read by family adapters (set by the app)
 
     # ------------------------------------------------------------------ simulation
     def sim(self):
@@ -131,11 +132,37 @@ class Editor:
     def clear_draft(self, user) -> None:
         self.store.set_setting(self._draft_key(user), {"moves": {}, "t": 0, "undo_of": None})
 
-    def view(self, user, client_ip: str) -> dict:
+    def live_sources(self) -> list:
+        try:
+            return list(self.live() or []) if self.live else []
+        except Exception:
+            return []
+
+    def view(self, user, client_ip: str, source: str = None) -> dict:
+        """The tab's data. ``source``: ``editor`` (simulation or the external executor) or ``int:<id>`` (a
+        configuration read by a device-family adapter, shown read-only). Without a choice a live configuration is
+        shown when the editor only has the simulation."""
+        live = self.live_sources()
+        keys = {e["key"] for e in live}
+        if source not in keys and source != "editor":
+            source = live[0]["key"] if live and self.mode == "simulation" else "editor"
+        sources = [{"key": "editor", "kind": self.mode}] + [
+            {"key": e["key"], "kind": "live", "name": e["name"], "family": e.get("family"), "age_s": e.get("age_s")} for e in live]
+        if source != "editor":
+            entry = next(e for e in live if e["key"] == source)
+            from ..integrations import capabilities as capmod
+            st = entry["state"]
+            return {"mode": "live", "source": source, "sources": sources, "state": st, "targets": {},
+                    "draft": {"moves": {}, "t": 0, "undo_of": None}, "quiet": self.is_quiet(), "quiet_hours": self.quiet_hours,
+                    "executor": self.executor_status(), "running": None, "history": [], "max_objects": model.MAX_OBJECTS,
+                    "requester": next((d["id"] for d in st.get("devices") or [] if d.get("ip") == client_ip), None),
+                    "capabilities": capmod.public(entry["caps"]),
+                    "live": {"name": entry["name"], "family": entry.get("family"), "age_s": entry.get("age_s"),
+                             "version": (st.get("controller") or {}).get("version"), "apis": (st.get("controller") or {}).get("apis")}}
         st = self.state()
-        out = {"mode": self.mode, "state": None, "targets": {}, "draft": self.draft(user), "quiet": self.is_quiet(),
-               "quiet_hours": self.quiet_hours, "executor": self.executor_status(), "running": self.running(),
-               "history": self.history(), "requester": None, "max_objects": model.MAX_OBJECTS,
+        out = {"mode": self.mode, "source": "editor", "sources": sources, "state": None, "targets": {}, "draft": self.draft(user),
+               "quiet": self.is_quiet(), "quiet_hours": self.quiet_hours, "executor": self.executor_status(),
+               "running": self.running(), "history": self.history(), "requester": None, "max_objects": model.MAX_OBJECTS,
                "capabilities": self.public_capabilities()}
         if st is not None:
             out["state"] = st

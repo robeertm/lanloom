@@ -421,9 +421,10 @@
     // integrations
     const integWrap = h('div', { class: 'stack' });
     async function renderInteg() {
-      const list = (await api('/api/integrations')).integrations;
+      const list = (await LL.loadIntegrations()).integrations;
       integWrap.replaceChildren(...list.map(i => LL.integrationCard(i.kind, i, renderInteg)),
-        h('div', { class: 'btn-row btn-row--wrap' }, ['hub', 'mqtt', 'snmp', 'controller'].map(k => h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => integWrap.insertBefore(LL.integrationCard(k, null, renderInteg), integWrap.lastChild) }, t('integ.add.' + k)))));
+        h('div', { class: 'btn-row btn-row--wrap' }, LL.integKinds().map(k => h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => integWrap.insertBefore(LL.integrationCard(k, null, renderInteg), integWrap.lastChild) },
+          ['hub', 'mqtt', 'snmp', 'controller'].includes(k) ? t('integ.add.' + k) : t('integ.add.family', { name: LL.integTitle(k) })))));
     }
     page.append(card(t('settings.integrations'), [h('p', { class: 'muted' }, t('wizard.connect.safety')), integWrap]));
     renderInteg();

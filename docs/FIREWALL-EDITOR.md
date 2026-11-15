@@ -22,6 +22,12 @@ The **Firewall** tab shows which zone and network every device sits in and what 
 
 The app itself never writes to a network device in either mode. It keeps the draft, computes the preview and builds the plan.
 
+### Live configuration (read only)
+
+When a device-family adapter reads your controller (see [COMPATIBILITY.md](COMPATIBILITY.md)), the Firewall tab offers it as a further source next to the simulation or the executor, and opens it by default while the editor runs the simulation. It shows the controller's real zones and networks, the clients in each network, the firewall rules in the controller's order with their filters and hit counters, a zone matrix (what applies to whole zones; a number counts your own rules that narrow it), port forwarding, wireless networks and the network equipment with its ports. This view is **read only**: there is no change mode, no draft and no plan. The switch at the top returns to the simulation, which stays available for practice.
+
+How the matrix is read: for each pair of zones Lanloom walks the enabled rules in the controller's order and takes the first one that covers the whole zone pair (no network, address, port, protocol, connection-state or schedule filter). Narrower rules are listed below the matrix with their filters; they decide for the traffic they match.
+
 ## How a change runs
 
 ```

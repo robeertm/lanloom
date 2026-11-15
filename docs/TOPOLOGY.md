@@ -39,6 +39,10 @@ Many switch and access point product lines are managed by a local controller app
 
 What Lanloom sends: one sign-in request with the user name and password, then only `GET` requests to the two list endpoints (`…/api/s/<site>/stat/sta` and `…/stat/device`; on a console the same paths below `/proxy/network`). One code path performs all requests and refuses everything else; a test checks this. The password is stored encrypted and never shown or logged again.
 
+### Device-family adapters
+
+A device-family adapter that reads a controller (see [COMPATIBILITY.md](COMPATIBILITY.md)) reports clients and devices in exactly the same form and with the same rank as the switch controller above. Its observations merge with manual entries, LLDP and the address table by the same rules. When the adapter only has an API key and no view-only account, it knows the access point or switch a client uses but not the port number; the card then shows the device without a port.
+
 ## LLDP and the address table over SNMP
 
 If your switches, access points or router speak SNMP, the existing **Router or switch (SNMP)** integration reads the topology as well, about once a minute, in addition to the interface counters:
@@ -77,4 +81,4 @@ This host's measured traffic now also travels along the physical links in the Ne
 ## Not yet
 
 - A three-dimensional look of the board.
-- Controllers that only offer an API key without port numbers, and guest lists read directly from a virtualization host's API.
+- Guest lists read directly from a virtualization host's API.

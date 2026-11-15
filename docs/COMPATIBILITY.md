@@ -19,8 +19,9 @@ These work with any device that speaks the protocol; they only read.
 | Family | Tested versions | Read (capabilities) | Write through the executor | Guide |
 |---|---|---|---|---|
 | Sample network (simulation, built in) | – | networks, zones, clients | move a client to another network (stage B) | [FIREWALL-EDITOR.md](FIREWALL-EDITOR.md) |
+| UniFi Network (local API) | classic API: Network 11.0 (read on a live console); official integration API: 9.3, 10.0 and 10.1 (against the published specifications) | inventory, clients, topology, networks, zones, policies (with hit counters through the classic API), ACL and DNS rules (titles), ports and port profiles, wireless networks, WAN, VPN, fixed addresses, port forwarding, statistics | none yet (stage A, read only) | [integrations/unifi.md](integrations/unifi.md) |
 
-No vendor adapter ships in this release yet. The foundation they build on (capability lists, the neutral configuration model, plan steps version 2, separate read and write credentials, one send path with an allow-list per adapter) is in place; see [INTEGRATIONS.md](INTEGRATIONS.md).
+The read adapters show the controller's configuration in the Firewall tab (read only) and feed the physical topology. Writing through the executor comes per family in later releases. The foundation (capability lists, the neutral configuration model, plan steps version 2, separate read and write credentials, one send path with an allow-list per adapter) is described in [INTEGRATIONS.md](INTEGRATIONS.md).
 
 **Stages:** A = read only · B = change after the safety checks and a passkey signature, with backup, watch and automatic rollback · B* = like B plus its own confirmation with a plain warning (for example turning off power over Ethernet or blocking a client) · C = mass or structural changes, not available.
 

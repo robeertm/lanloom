@@ -7,10 +7,10 @@
 > ## ⚠️ Please read before installing
 >
 > - **It scans your network.** Lanloom probes the private address ranges you approve. Only scan networks you own or are explicitly allowed to scan. The optional deep port scan touches many ports per device and may trigger alerts in intrusion-detection or security tools; it only runs after you tick an explicit consent box.
-> - **It stores credentials you give it.** Optional integrations (home-automation hub, MQTT broker, router or switch, switch controller) need secrets. They are stored encrypted (AES-256-GCM) and never shown again, but the key file lives next to the data: whoever controls the host controls them. Use read-only or least-privilege accounts.
+> - **It stores credentials you give it.** Optional integrations (home-automation hub, MQTT broker, router or switch, switch controller, device-family adapters) need secrets. They are stored encrypted (AES-256-GCM) and never shown again, but the key file lives next to the data: whoever controls the host controls them. Use read-only or least-privilege accounts.
 > - **Host networking.** To see your network, the container shares the host's network stack. It runs unprivileged, with a read-only root file system and all capabilities dropped, but it can reach whatever the host can reach.
 > - **The optional updater sidecar gets the container-runtime socket.** Access to that socket is root-equivalent on the host. Skip the sidecar (`--no-updater`) if you prefer to update by hand.
-> - **The firewall editor only simulates unless you arm it.** Real changes need the optional executor service, a built-in adapter for your controller family (none ships yet) and an explicit arming step. A real change can interrupt the wireless network for minutes and can lock you out if your network has paths the gate does not know. Read [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md) first.
+> - **The firewall editor only simulates unless you arm it.** Real changes need the optional executor service, a built-in adapter for your controller family that can write (the adapters in this release only read) and an explicit arming step. A real change can interrupt the wireless network for minutes and can lock you out if your network has paths the gate does not know. Read [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md) first.
 > - **Values are observations, not guarantees.** Classifications are heuristics, and traffic and liveness figures depend on what could be measured. Do not base security or safety decisions on them.
 > - **Provided as is, without warranty.** See [LICENSE](LICENSE).
 > - **Written with AI assistance.** Parts of this software were written with the help of AI tools; the code is reviewed and covered by automated tests and release checks.
@@ -27,6 +27,7 @@
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
 - **Device list** with search, light/dark/auto theme, a phone layout with bottom tabs, English and German UI.
 - **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network (or tap it and choose "Move to…" on a phone), collect moves in a draft and get a plain-language preview: what the device may do afterwards, what it may no longer do, and what to watch out for. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
+- **Your controller's configuration, read only.** With a device-family adapter (see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)) the Firewall tab shows the real zones, networks and clients, the firewall rules in the controller's order with hit counters and a zone matrix, port forwarding, wireless networks, and the network equipment with every switch port. The same adapter feeds the physical topology. It uses a read-only account or key and cannot change anything.
 - **Read-only by construction.** The map observes; the app cannot change your devices. Real firewall changes are only possible through the separate, optional executor service, with a passkey signature per change and an explicit arming step by the operator.
 
 ## Screenshots
@@ -92,6 +93,17 @@ All screenshots show the built-in demo network with invented names and addresses
 </tr>
 </table>
 
+### Controller configuration (read only)
+
+![Firewall tab with a live controller configuration: zones, networks and clients](docs/screenshots/firewall-live-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/firewall-rules-dark.png" width="100%" alt="Zone matrix and firewall rules with hit counters"><br><sub>Zone matrix and rules in the controller's order, with hit counters</sub></td>
+<td width="50%"><img src="docs/screenshots/firewall-equipment-light.png" width="100%" alt="Network equipment with switch ports, wireless networks and port forwarding"><br><sub>Equipment with every port, wireless networks, port forwarding</sub></td>
+</tr>
+</table>
+
 ### Devices and settings
 
 ![Device list](docs/screenshots/devices-light.png)
@@ -110,6 +122,7 @@ All screenshots show the built-in demo network with invented names and addresses
 <td><img src="docs/screenshots/phone-wizard-scan.png" width="200" alt="Phone wizard scan step"></td>
 <td><img src="docs/screenshots/phone-firewall-move.png" width="200" alt="Phone: move a device to another network"></td>
 <td><img src="docs/screenshots/phone-firewall-preview.png" width="200" alt="Phone: firewall preview"></td>
+<td><img src="docs/screenshots/phone-firewall-rules.png" width="200" alt="Phone: firewall rules read from the controller"></td>
 </tr>
 </table>
 
@@ -158,6 +171,7 @@ Dots appear only where bytes are actually measured:
 - **This host's own TCP flows** come from the kernel's socket diagnostics (netlink) when running with host networking. No extra privileges needed.
 - **Router or switch (SNMP v2c or v3)** gives interface counters, which animate the internet uplink, and LLDP neighbours plus the switch address table for the cabling. Only Get, GetNext and GetBulk are used.
 - **Switch controller** (the local controller application of a switch and access point product line) tells which client sits on which switch port or access point. A local view-only account is enough. Lanloom signs in and then only reads two lists; one code path makes every request and refuses everything else.
+- **Device-family adapters** read a controller's configuration and state through its local APIs (an API key and/or a local view-only account): zones, networks, firewall rules with hit counters, ports, wireless networks, clients and their ports. They only send read requests through one allow-listed code path, refuse an account that can change settings where that is checkable, and cap sign-ins. Which families exist: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 - **MQTT broker** topics are grouped; Lanloom only counts messages and lengths per group. It connects, subscribes to `#`, and cannot publish. Payloads are never stored. TLS is optional.
 - **Home-automation hub (WebSocket API)** adds rooms, devices and entities and state-change events, using a long-lived access token (a non-admin user is enough). A strict allow-list limits it to read commands, and it cannot call services.
 

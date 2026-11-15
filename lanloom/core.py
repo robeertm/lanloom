@@ -105,6 +105,7 @@ class Core:
         self.snmp: dict = {}               # integration id -> latest snmp frame
         self.topic_order: dict = {}        # integration id -> stable list of shown topic roots
         self.topo_obs: dict = {}           # source key -> {"integ": id, "ev": latest topology event}
+        self.live_cfg: dict = {}           # integration id -> latest neutral configuration of a family read half
         self._topo_cache = None            # (key, resolved topology)
         self._topo_sig = ""
         self._manual_ver = 0
@@ -554,16 +555,17 @@ class Core:
                     if stored:
                         sec[field] = stored
         if self.demo:
-            return {"ok": True, "key": "source.%s.ok" % ("hostnet" if kind == "host" else kind), "details": self.demo.test_details(kind)}
+            module = "hostnet" if kind == "host" else kind if kind in INTEGRATION_FIELDS else "family"
+            return {"ok": True, "key": "source.%s.ok" % module, "details": self.demo.test_details(kind)}
         try:
             src = self._build_source(kind, cfg, sec)
             if await self._scope_refused(src):
                 return {"ok": False, "key": "integration.err.can_write", "details": {}}
             ok, key, details = await asyncio.wait_for(src.test(), 25)
         except asyncio.TimeoutError:
-            ok, key, details = False, "source.%s.timeout" % kind, {}
+            ok, key, details = False, "source.%s.timeout" % (kind if kind in INTEGRATION_FIELDS else "family"), {}
         except Exception as exc:     # sources raise SourceError with a reason key
-            ok, key, details = False, getattr(exc, "key", "source.%s.error" % kind), {}
+            ok, key, details = False, getattr(exc, "key", "source.%s.error" % (kind if kind in INTEGRATION_FIELDS else "family")), {}
         return {"ok": bool(ok), "key": key, "details": details or {}}
 
     def save_integration(self, kind: str, name: str, config: dict, secrets: dict, existing_id: Optional[int] = None) -> dict:
@@ -595,6 +597,7 @@ class Core:
         for d in (self.hub, self.mqtt, self.snmp, self.topic_order):
             d.pop(integ_id, None)
         self.topo_obs.pop("int:%d" % integ_id, None)
+        self.live_cfg.pop(integ_id, None)
         self._topo_cache = None
         self.source_status.pop("int:%d" % integ_id, None)
         self.structure_version += 1
@@ -618,7 +621,8 @@ class Core:
                 else:
                     src = self._build_source(kind, cfg, sec or {})
             except Exception as exc:
-                self.source_status[key] = {"ok": False, "key": getattr(exc, "key", "source.%s.config" % kind), "t": time.time()}
+                module = kind if kind in INTEGRATION_FIELDS or kind == "host" else "family"
+                self.source_status[key] = {"ok": False, "key": getattr(exc, "key", "source.%s.config" % module), "t": time.time()}
                 return
             if kind not in INTEGRATION_FIELDS and kind != "host" and await self._scope_refused(src):
                 self.source_status[key] = {"ok": False, "key": "integration.err.can_write", "t": time.time()}
@@ -663,6 +667,9 @@ class Core:
         elif etype == "snmp":
             cad.tick(now)
             self._book_snmp(integ_id, ev, now)
+        elif etype == "config":
+            cad.tick(now)
+            self._book_config(integ_id, ev, now)
         elif etype == "topology":
             cad.tick(now)
             self.topo_obs[key] = {"integ": integ_id, "ev": ev}
@@ -671,6 +678,30 @@ class Core:
             if sig != self._topo_sig:
                 self._topo_sig = sig
                 self.structure_version += 1
+
+    def _book_config(self, integ_id, ev: dict, now: float) -> None:
+        """Neutral configuration from a family read half (shown read-only in the firewall tab)."""
+        from .firewall import neutral
+        from .integrations import capabilities as capmod
+        st = ev.get("state")
+        try:
+            neutral.validate(st)
+            caps = capmod.validate(ev.get("capabilities"), ev.get("family"))
+        except (neutral.ModelError, capmod.CapabilityError):
+            self.source_status["int:%d" % integ_id] = {"ok": False, "key": "source.family.protocol", "t": now}
+            return
+        caps["write"] = {}                 # a read half never offers writes, whatever it says
+        self.live_cfg[integ_id] = {"state": st, "caps": caps, "family": ev.get("family"), "t": now}
+
+    def live_configs(self, max_age_s: float = 1200.0) -> list:
+        """Fresh configurations of family read halves, newest integration first in id order."""
+        now = time.time()
+        out = []
+        names = {i["id"]: i["name"] for i in self.integrations()} if self.live_cfg else {}
+        for integ_id, entry in sorted(self.live_cfg.items()):
+            if now - entry["t"] <= max_age_s and integ_id in names:
+                out.append(dict(entry, key="int:%d" % integ_id, name=names[integ_id], age_s=int(now - entry["t"])))
+        return out
 
     def _add_bytes(self, trace: str, b0: int, b1: int) -> None:
         acc = self.pending_bytes.setdefault(trace, [0, 0])

@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] – 2026-11-15
+
+### Added
+- Added: read adapter for UniFi Network controllers (see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) and [docs/integrations/unifi.md](docs/integrations/unifi.md)). Product names are used only to identify compatible products; no affiliation or endorsement.
+- Firewall tab: a configuration read by a device-family adapter appears as a **live, read-only source** next to the simulation or the executor (and opens by default while the editor runs the simulation). It shows the real zones, networks and clients, a zone matrix, the firewall rules in the controller's order with their filters and hit counters, port forwarding, wireless networks, and the network equipment with every switch port (link, speed, power over Ethernet, native VLAN, uplink).
+- Integration dialog: device-family adapters are offered with their own form (address, API key, optional view-only account, site), built from the adapter's manifest. In English and German.
+- The physical topology takes clients and devices from a device-family adapter with the same rank as the switch controller, merged with manual entries, LLDP and the address table.
+- Demo mode shows a sample controller configuration in the Firewall tab.
+
+### Changed
+- The registry of built-in families collects the family packages shipped in its own folder; nothing else can be loaded (still no plugin mechanism).
+- Zone verdicts derived from rules ignore rules with a connection-state filter or a schedule, which never decide a whole zone pair.
+- The generic switch controller source and the adapters share one mapping of client and device lists to topology observations.
+
+### Security
+- A read adapter only sends `GET` requests to listed endpoints, plus the sign-in and sign-out of a view-only account, through one allow-listed code path. It refuses an account whose role on the site can change settings, caps sign-ins (six per hour per controller and account) and pauses for 15 minutes after a refused sign-in. Wireless passphrases, pre-shared keys and RADIUS settings are never copied; every write capability a read adapter might report is stripped by the app.
+
 ## [1.4.1] – 2026-11-15
 
 ### Added

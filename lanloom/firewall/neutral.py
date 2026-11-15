@@ -12,8 +12,9 @@ executor that has not been updated yet keep working) and adds optional lists::
     v2  equipment     [{id, name, kind, model, firmware, mgmt_ip, uplink {device, port}}]   network equipment
     v2  ports         [{id, device, idx, name, link, speed, poe {capable, on}, profile, native_vlan, tagged[],
                         is_uplink, lldp_neighbor}]
-    v2  policies      [{id, name, src {zone, net?, group?}, dst {...}, action, proto, ports, return_traffic,
-                        enabled, order, hits?, builtin?, editable?, vendor_ref?}]
+    v2  policies      [{id, name, src {zone, match?, ports?}, dst {zone, match?}, action, proto, ports, return_traffic,
+                        enabled, order, states?, scheduled?, hits?, builtin?, editable?, vendor_ref?}]
+                        match = {kind: network|ip|client|region|app|domain|vpn|other, items?, count?, opposite?}
     v2  ssids         [{id, name, network, bands[], security, hidden, enabled}]
     v2  guests        [{id, host, kind (vm|lxc), name, status, cpu, mem, disk, protected?}]
     v2  guest_nics    [{id, guest, bridge, vlan}]          guest_rules [{id, guest, name, direction, action, ...}]
@@ -88,7 +89,8 @@ def management_zones(state: dict) -> set:
 
 def derive_allow(state: dict, default: str = "block") -> list:
     """Zone pairs [[from, to]] that may talk, from ``policies`` (first enabled match by ``order`` wins, only policies
-    without a port restriction and without a network/group narrowing decide a whole zone pair). ``default`` is the
+    without a port restriction and without a network/group narrowing, without a connection-state filter and without a schedule decide a whole
+    zone pair). ``default`` is the
     vendor's verdict for pairs no policy decides. Used by adapters that publish policies to fill the v1 ``allow``."""
     zones = [z["id"] for z in state.get("zones") or []]
     pols = sorted((p for p in state.get("policies") or [] if p.get("enabled", True)),
@@ -102,7 +104,7 @@ def derive_allow(state: dict, default: str = "block") -> list:
             for p in pols:
                 src, dst = p.get("src") or {}, p.get("dst") or {}
                 if set(src) - {"zone"} or set(dst) - {"zone"} or (p.get("ports") or "") not in ("",) \
-                        or p.get("proto", "any") != "any":
+                        or p.get("proto", "any") != "any" or p.get("states") or p.get("scheduled"):
                     continue
                 if src.get("zone") in (a, "*") and dst.get("zone") in (b, "*"):
                     verdict = p.get("action")
