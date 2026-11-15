@@ -301,7 +301,7 @@
  "hv.any": "beliebig",
  "hv.backup.ago": "vor {age}",
  "hv.backup.failed": "Letzter Fehlschlag",
- "hv.backup.job": "In einem Sicherungsauftrag",
+ "hv.backup.job": "Sicherungsauftrag",
  "hv.backup.last": "Letzte Sicherung",
  "hv.backup.none": "keine Sicherung",
  "hv.backup.size": "Größe",

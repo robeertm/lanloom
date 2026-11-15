@@ -301,7 +301,7 @@
  "hv.any": "any",
  "hv.backup.ago": "{age} ago",
  "hv.backup.failed": "Last failure",
- "hv.backup.job": "In a backup job",
+ "hv.backup.job": "Backup job",
  "hv.backup.last": "Last backup",
  "hv.backup.none": "no backup",
  "hv.backup.size": "Size",

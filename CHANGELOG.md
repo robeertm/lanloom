@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] – 2026-11-15
+
+### Added
+- Added: read adapter for Proxmox VE hosts and clusters (see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) and [docs/integrations/proxmox.md](docs/integrations/proxmox.md)). Product names are used only to identify compatible products; no affiliation or endorsement.
+- Guests on the map: every virtual machine and container hangs below the node it runs on (link "virtual", with bridge and VLAN), matched by the hardware address of its network card or an address the guest reports. The topology has a new source "hypervisor" right after manual entries; it beats what a switch learns on the node's port and is never refined by the shared-port rules.
+- Component card of a node: version, cluster, processor, memory, load, uptime, the guests on it with state, VLAN and newest backup, storage with fill level, bridges and findings. Component card of a guest: node, state, addresses, network cards, newest backup (age, verified, backup job, failed backups), traffic now and during the last hour, its firewall.
+- Firewall tab: a hypervisor appears as a live, read-only source with findings, the firewall at datacenter, node and guest level (options, rules, security groups, aliases, IP sets), all guest network cards, and the bridges, bonds and software-defined network of each node.
+- Findings in plain words: node offline, storage almost full, running guest without a backup, backup older than seven days, failed backup task, network card on a missing bridge, VLAN tag not allowed on a VLAN-aware bridge, guest firewall without effect, and - with a controller adapter that reads switch ports - a guest VLAN the node's switch port does not carry.
+- Night report contributions: a family can register its own section (`report` in the manifest, `integrations.night_sections()`); the hypervisor section lists guests stopped, added or removed since the last report, failed backups and findings, and appears only when the connection exists. In English and German.
+- Integration dialog: hypervisor form (address, API token ID, token secret, self-signed certificate) with its own description and hints. Demo mode shows a sample hypervisor.
+
+### Changed
+- The neutral configuration model knows hosts, guest network cards, firewall rules and options at every level, bridges, software-defined network, storage, backup jobs and findings.
+- The source switch of the Firewall tab scrolls sideways on a phone when there are many sources.
+
+### Security
+- The hypervisor adapter only sends `GET` requests to listed endpoints through one allow-listed code path; there is no sign-in, the API token travels in a header. Before a token is used, its own permission list is checked: a token holding anything but audit privileges, and every superuser token, is refused. Guest passwords and keys, notes and storage credentials are never copied; hardware addresses of guest network cards leave the adapter only as a hash.
+
 ## [1.6.0] – 2026-11-15
 
 ### Added

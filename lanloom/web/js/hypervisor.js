@@ -137,7 +137,9 @@
   // ------------------------------------------------------------------ device card
   const sec = (title, body) => h('section', { class: 'detail__sec' }, h('h3', {}, title), body);
   const dot = st => h('span', { class: 'hv-dot hv-dot--' + (st === 'running' ? 'on' : st === 'paused' ? 'warn' : 'off'), title: t('hv.status.' + st) === 'hv.status.' + st ? st : t('hv.status.' + st) });
-  const memText = (u, tot) => LL.fmtBytes(u) + ' / ' + LL.fmtBytes(tot);
+  // sizes from one terabyte on in TB (storage of a hypervisor is often larger than the app's usual byte formatter goes)
+  const size = b => (Number(b) >= 1e12 ? (Number(b) / 1e12).toFixed(Number(b) >= 1e13 ? 0 : 1) + '\u00a0TB' : LL.fmtBytes(b));
+  const memText = (u, tot) => size(u) + ' / ' + size(tot);
   const upText = s => s == null ? null : LL.fmtAge(s);
   const factsOf = rows => h('dl', { class: 'facts' }, rows.filter(r => r && r[1] != null && r[1] !== '').map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]).flat());
   function backupText(b) {
@@ -168,9 +170,9 @@
         h('div', { class: 'hv-stor__top' }, h('strong', { class: 'hv-cut' }, s.name), h('span', { class: 'muted' }, s.total ? memText(s.used, s.total) : '—')),
         h('div', { class: 'hv-bar', role: 'img', 'aria-label': pct(f) }, h('i', { style: 'width:' + Math.round(f * 100) + '%' })));
     }))));
-    const br = d.bridges || [];
+    const br = (d.bridges || []).filter(b => b.kind !== 'eth');      // physical ports are listed as ports of their bridge or bond
     if (br.length) kids.push(h('div', { class: 'hv-sub' }, h('h4', {}, t('hv.bridges')), h('ul', { class: 'plain-list' }, br.map(b =>
-      h('li', {}, h('span', { class: 'mono' }, b.name), ' ', h('span', { class: 'muted' }, [b.cidr, b.vlan_aware ? t('hv.vlan_aware', { vids: b.vids || '—' }) : null, b.mgmt ? t('hv.mgmt') : null].filter(Boolean).join(' · ')))))));
+      h('li', {}, h('span', { class: 'mono' }, b.name), ' ', h('span', { class: 'muted' }, [b.ports && b.ports.length ? '→ ' + b.ports.join(', ') : null, b.cidr, b.vlan_aware ? t('hv.vlan_aware', { vids: b.vids || '—' }) : null, b.mgmt ? t('hv.mgmt') : null].filter(Boolean).join(' · ')))))));
     return sec(t('hv.card.host'), h('div', { class: 'hv-body' }, kids));
   };
 
