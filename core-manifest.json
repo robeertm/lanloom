@@ -1,5 +1,5 @@
 {
-  "core": 1,
+  "core": 2,
   "files": [
     {
       "path": "lanloom/web/board/router.js",
@@ -36,6 +36,12 @@
       "namespace": "Lanloom.Portmarks",
       "api": 1,
       "description": "Port mark styles; theme via --ll-portmark-* with Lanloom token fallbacks."
+    },
+    {
+      "path": "lanloom/topology.py",
+      "namespace": "Lanloom.Topology",
+      "api": 1,
+      "description": "Physical topology resolution: one link per device from manual entries, controller lists, LLDP neighbours and switch address tables; pure Python, standard library only, no I/O."
     }
   ]
 }

@@ -21,6 +21,15 @@ Lanloom is the public, generic product. Its author also maintains a private *dow
 
    The machine-readable list is `core-manifest.json` (path, namespace, API level).
 
+   **Stage 2 (manifest format `"core": 2`).** Pure Python modules join the core the same way. They use the standard library only,
+   import nothing from the Lanloom package, do no I/O and declare `API = <n>` plus the stable API in their docstring; a test checks all
+   of this. A downstream fetcher stores them next to its own server modules instead of the browser files. A stage-1 fetcher refuses
+   the new format rather than placing a Python file among the browser files.
+
+   | File | Namespace | Purpose |
+   |---|---|---|
+   | `lanloom/topology.py` | `Lanloom.Topology` | physical topology: one link per device from manual entries, controller lists, LLDP and address tables, with a fixed order of precedence |
+
 2. **How a downstream map consumes it.**
    - A small fetcher in the downstream repository reads `core-manifest.json` from a Lanloom release tag and copies the files byte-for-byte into the downstream tree.
    - It records version, commit and the SHA-256 of every file in a lock file.
@@ -50,4 +59,4 @@ Lanloom is the public, generic product. Its author also maintains a private *dow
 
 - Every core change costs one Lanloom release before the downstream map can use it. Lanloom patch releases are cheap, and the gate runs its container stages in CI.
 - The core API is versioned (`API` constant per module, `api` in the manifest). Breaking changes raise it.
-- **Later stages** can move further generic parts into the core the same way: the SNMP client, the byte quantizer, the WebGL dot layer and test helpers.
+- **Later stages** can move further generic parts into the core the same way: the SNMP client, the byte quantizer, the WebGL dot layer and test helpers. Stage 2 started with the topology resolution.

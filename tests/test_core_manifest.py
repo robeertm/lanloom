@@ -68,10 +68,14 @@ def digest(word):
 
 def test_manifest_format():
     m = manifest()
-    assert m["core"] == 1 and m["files"], m
+    # stage 2: the core also lists pure Python modules; a stage-1 fetcher refuses the format instead of misplacing them
+    assert m["core"] == 2 and m["files"], m
     for e in m["files"]:
         assert set(e) == {"path", "namespace", "api", "description"}, e
         assert isinstance(e["api"], int) and e["namespace"].startswith("Lanloom."), e
+        assert os.path.splitext(e["path"])[1] in (".js", ".css", ".py"), e
+    names = [os.path.basename(e["path"]) for e in m["files"]]
+    assert len(set(names)) == len(names), "a downstream fetcher stores files by name"
 
 
 def test_manifest_files_exist_and_declare_api():
@@ -80,6 +84,10 @@ def test_manifest_files_exist_and_declare_api():
         assert os.path.isfile(p), e["path"]
         src = open(p, encoding="utf-8").read()
         name = e["namespace"].split(".", 1)[1]
+        if p.endswith(".py"):                      # stage 2: pure module, API constant, stable API named in the docstring
+            assert re.search(r"^API = %d$" % e["api"], src, re.M), e["path"]
+            assert "API = %d" % e["api"] in src.split('"""', 2)[1], e["path"]
+            continue
         if p.endswith(".css"):                     # styles of a core module: themed only through --ll-* custom properties
             assert "--ll-" in src, e["path"]
             assert any(f["namespace"] == e["namespace"] and f["path"].endswith(".js") for f in manifest()["files"]), e["path"]
@@ -104,3 +112,19 @@ def test_vocabulary_check_catches_words():
     # self-test of the hashing: German parts of mixed identifiers are recognised
     assert {w for w in words("routeBahn netz_knoten") if digest(w) in GERMAN} == {"bahn", "netz", "knoten"}
     assert digest("kachel") in GERMAN and "kachel" in words("routeKachelNow")
+
+
+STDLIB_ONLY = {"re", "time", "math", "json", "itertools", "functools", "collections", "typing", "dataclasses", "ipaddress"}
+
+
+def test_python_core_modules_are_self_contained():
+    # vendored byte for byte into a downstream tree: no package-relative imports, no third-party imports, no I/O
+    for e in manifest()["files"]:
+        if not e["path"].endswith(".py"):
+            continue
+        src = open(os.path.join(ROOT, e["path"]), encoding="utf-8").read()
+        imports = re.findall(r"^\s*(?:from\s+(\S+)\s+import|import\s+([\w.]+))", src, re.M)
+        mods = {(a or b).split(".")[0] for a, b in imports}
+        assert not any(m.startswith(".") or m == "lanloom" for m in mods), (e["path"], mods)
+        assert mods <= STDLIB_ONLY, (e["path"], sorted(mods - STDLIB_ONLY))
+        assert not re.search(r"\bopen\(|\bsocket\b|\bsubprocess\b|\bos\.", src), e["path"]

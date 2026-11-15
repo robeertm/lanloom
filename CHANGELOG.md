@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Core stage 2: the topology resolution (`lanloom/topology.py`) is now part of the documented core. `core-manifest.json` uses format 2 and lists pure Python modules next to the browser files; each declares its API level, uses the standard library only and imports nothing from the package (checked by a test). No behaviour change.
+
 ## [1.3.0] – 2026-11-15
 
 ### Added
