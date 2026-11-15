@@ -129,7 +129,7 @@ def test_unknown_node_becomes_a_server_node():
 
 
 def test_vlan_chain_finding_joins_the_controller_ports(booked):
-    add_integration(booked.store, 2, "Hall console", "unifi")
+    add_integration(booked.store, 2, "Hall console", "controller")          # any source whose state has switch ports
     ip_of = {"d0": "192.168.50.10", "dsw": "192.168.50.2"}
     for did, ip in ip_of.items():
         add_device(booked, did, ip, "02:4c:4c:00:00:%s" % ("0a" if did == "d0" else "02"))
@@ -138,7 +138,7 @@ def test_vlan_chain_finding_joins_the_controller_ports(booked):
     sw_state = {"v": 2, "zones": [], "networks": [{"id": "n30", "vlan": 30}], "devices": [], "allow": [],
                 "equipment": [{"id": "e1", "name": "Switch hall", "mgmt_ip": "192.168.50.2"}],
                 "ports": [{"id": "p7", "device": "e1", "idx": 7, "name": "Port 7", "native_vlan": 1, "tagged": ["n30"]}]}
-    booked.live_cfg[2] = {"state": sw_state, "caps": {}, "family": "unifi", "t": time.time()}
+    booked.live_cfg[2] = {"state": sw_state, "caps": {}, "family": "controller", "t": time.time()}
     booked.on_event("int:1", 1, make_event())
     chain = [f for f in booked.live_cfg[1]["state"]["findings"] if f["kind"] == "vlan_chain"]
     assert [(f["params"]["guest"], f["params"]["vlan"], f["params"]["port"]) for f in chain] == [("web", 20, "7"), ("camera-recorder", 150, "7")]
@@ -240,7 +240,7 @@ def test_api_lists_the_family_and_serves_the_live_view(env):
         sign_in(c, env)
         fams = {f["family"]: f for f in c.get("/api/integrations").json()["families"]}
         assert fams["proxmox"]["sample"] == "hypervisor" and fams["proxmox"]["label"] == "Sample hypervisor (local API)"
-        assert fams["unifi"]["sample"] is True and fams["proxmox"]["capabilities"]["write"] == {}
+        assert all(f["sample"] is True for k, f in fams.items() if k != "proxmox") and fams["proxmox"]["capabilities"]["write"] == {}
         assert [f["k"] for f in fams["proxmox"]["form"]] == ["url", "token_id", "token_secret", "allow_self_signed"]
         ll = c.app.state.ll
         add_integration(ll.store, 41)
