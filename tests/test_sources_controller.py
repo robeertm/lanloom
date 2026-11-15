@@ -57,8 +57,9 @@ CLIENTS = [
 class Fake:
     """Fake controller; ``styles`` says which API generations it serves."""
 
-    def __init__(self, styles=("console", "classic"), data_site="default"):
+    def __init__(self, styles=("console", "classic"), data_site="default", console_login_401=False):
         self.styles = set(styles)
+        self.console_login_401 = console_login_401   # a self-hosted controller: console login always 401
         self.data_site = data_site
         self.sta, self.dev = CLIENTS, DEVICES
         self.requests = []           # (method, path, cookie header, csrf header, body)
@@ -116,6 +117,8 @@ class Fake:
                     return self.reply(200)
                 if style is None or style not in fake.styles:
                     return self.reply(404)
+                if style == "console" and fake.console_login_401:
+                    return self.reply(401, {"meta": {"rc": "error"}})
                 if body.get("username") != USER or body.get("password") != PW:
                     return self.reply(401 if style == "console" else 400, {"meta": {"rc": "error"}})
                 fake.counter += 1
@@ -287,6 +290,52 @@ def test_auto_falls_back_to_classic_after_404():
         c._logged_in = False
         run(c.poll())                           # the style is remembered: no second console attempt
         assert [r[1] for r in f.requests[n:n + 1]] == ["/api/login"]
+    finally:
+        f.stop()
+
+
+def test_auto_falls_back_to_classic_after_401():
+    """A self-hosted controller answers the console login with 401 even for good credentials."""
+    f = Fake(styles=("console", "classic"), console_login_401=True)
+    try:
+        c = make(f)
+        run(c.poll())
+        assert [(r[0], r[1]) for r in f.requests[:2]] == [("POST", "/api/auth/login"), ("POST", "/api/login")]
+        assert c._style == "classic"
+        ok, key, _ = run(make(f).test())
+        assert ok is True
+    finally:
+        f.stop()
+
+
+def test_rejected_only_when_both_login_ways_refuse():
+    f = Fake(styles=("console", "classic"), console_login_401=True)
+    try:
+        with pytest.raises(SourceError) as e:
+            run(m.Controller(f.url, USER, "wrong-pw", timeout=5).poll())
+        assert key_of(e) == "source.controller.auth_failed"
+        assert f.count("POST", r"\A/api/auth/login\Z") == 1 and f.count("POST", r"\A/api/login\Z") == 1
+    finally:
+        f.stop()
+
+
+def test_console_401_and_no_classic_path_is_rejected():
+    f = Fake(styles=("console",), console_login_401=True)
+    try:
+        with pytest.raises(SourceError) as e:
+            run(make(f).poll())
+        assert key_of(e) == "source.controller.auth_failed"
+    finally:
+        f.stop()
+
+
+def test_forced_console_401_does_not_try_classic():
+    f = Fake(styles=("console", "classic"), console_login_401=True)
+    try:
+        with pytest.raises(SourceError) as e:
+            run(make(f, style="console").poll())
+        assert key_of(e) == "source.controller.auth_failed"
+        assert f.count("POST", r"\A/api/login\Z") == 0
     finally:
         f.stop()
 

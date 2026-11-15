@@ -141,7 +141,7 @@
     } else if (devSec) sections.push(devSec);
     if (d.snmp) sections.push(snmpSection(d.snmp));
     if (d.broker) sections.push(brokerSection(d.broker));
-    if (d.topic) sections.push(section(t('detail.topic'), facts([[t('detail.rate'), d.topic.msgs_s + ' ' + t('unit.msg_s')], [t('detail.bytes'), LL.fmtRate(d.topic.bytes_s)],
+    if (d.topic) sections.push(section(t('detail.topic'), facts([[t('detail.rate'), d.topic.msgs_s + ' ' + t('unit.msg_s')], [t(LL.rateUnit === 'bits' ? 'detail.bits' : 'detail.bytes'), LL.fmtRate(d.topic.bytes_s)],
       [t('detail.cadence'), d.topic.cadence_s ? LL.fmtAge(d.topic.cadence_s) : '—'], [t('detail.last'), LL.fmtAge(d.topic.last_s)]])));
     if (d.entities) sections.push(entitiesSection(d.entities));
     if (d.ifaces && Object.keys(d.ifaces).length) sections.push(section(t('detail.ifaces'), facts(Object.entries(d.ifaces).map(([n, v]) => [n, '↑ ' + LL.fmtRate(v[0]) + '  ↓ ' + LL.fmtRate(v[1])]))));
@@ -433,7 +433,12 @@
     lang.value = LL.lang;
     const theme = h('select', { class: 'select', onchange: () => LL.setTheme(theme.value) }, ['auto', 'light', 'dark'].map(v => h('option', { value: v }, t('theme.' + v))));
     theme.value = LL.theme();
-    page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme))]));
+    const unit = h('select', { class: 'select', onchange: async () => {
+      await api('/api/settings', { method: 'PUT', body: { rate_unit: unit.value } }); LL.rateUnit = unit.value; LL.toast(t('settings.saved'), 'ok'); } },
+      ['bytes', 'bits'].map(v => h('option', { value: v }, t('settings.rate_unit.' + v))));
+    unit.value = s.rate_unit === 'bits' ? 'bits' : 'bytes';
+    page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)),
+      LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint'))]));
     // account
     const cur = h('input', { type: 'password', autocomplete: 'current-password' });
     const nw = h('input', { type: 'password', autocomplete: 'new-password' });

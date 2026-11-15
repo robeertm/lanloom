@@ -342,6 +342,7 @@ def resolve(devices, manual=None, observations=None, now=None) -> dict:
                     c.band, c.ssid = c.band or o.band, c.ssid or o.ssid
 
     _refine_shared(ix, chosen, parent_of, trunks)
+    _default_radio(ix, chosen)
 
     links = {}
     for child, c in chosen.items():
@@ -426,6 +427,20 @@ def _refine_shared(ix, chosen, parent_of, trunks):
             c = chosen[m]
             if not c.reason:
                 c.reason, c.vars = "topo.reason.shared", {"n": len(members) - 1, "port": port}
+
+
+def _default_radio(ix, chosen):
+    """A client of an access point whose link type nobody knows is assumed to be wireless (an access point has no
+    cable ports for clients to hang on). Only a link type that is unknown is filled in: a source that said cable,
+    wireless or virtual, and every manual entry, keep their word. Switches and routers behind an access point are not
+    clients and stay unknown."""
+    for child, c in chosen.items():
+        if c.medium is not None or c.source == "manual" or ix.kind(c.parent) != "ap":
+            continue
+        if ix.kind(child) in ("router", "switch"):
+            continue
+        c.medium = "radio"
+        c.reason = "topo.reason.behind_ap" if c.reason == "topo.reason.behind" else (c.reason or "topo.reason.ap_default")
 
 
 def subtree(children: dict, root: str) -> set:

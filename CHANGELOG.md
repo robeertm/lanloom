@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.4.1] – 2026-11-15
+
+### Added
+- Setting **Settings → Appearance → Traffic unit**: show every traffic rate in bytes per second (kB/s, MB/s) or in bits per second (kbit/s, Mbit/s, Gbit/s), including the internet and router cards and the component details. Available in English and German; the default stays bytes per second.
+- The switch controller form offers the existing *Login style* option (Automatic, Console, Classic).
+
+### Changed
+- Clients behind an access point whose link type no source knows are now shown as wireless (dashed) instead of "Unknown" drawn as a cable. A link type reported by a source, and every manual entry, keeps its value; switches and routers are not assumed to be wireless.
+
+### Fixed
+- Switch controller: a self-hosted controller that answers the console sign-in with HTTP 401 is no longer reported as "Credentials were rejected". With automatic login style the classic sign-in is tried next, and the credentials count as rejected only when both ways refuse. A forced style never falls back.
+- Documentation: the switch controller is added under **Settings → Connections**, not "Integrations".
+
 ## [1.4.0] – 2026-11-15
 
 ### Added

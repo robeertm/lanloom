@@ -105,7 +105,14 @@
     for (const [u, f] of units) if (n >= f) { const v = n / f; return (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + ' ' + u; }
     return Math.round(n) + ' B';
   };
-  LL.fmtRate = n => LL.fmtBytes(n) + '/s';
+  LL.rateUnit = 'bytes';                                   // 'bytes' | 'bits' (server setting rate_unit)
+  LL.fmtBits = function (n) {
+    n = (Number(n) || 0) * 8;
+    const units = [['Gbit', 1e9], ['Mbit', 1e6], ['kbit', 1e3]];
+    for (const [u, f] of units) if (n >= f) { const v = n / f; return (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + ' ' + u; }
+    return Math.round(n) + ' bit';
+  };
+  LL.fmtRate = n => (LL.rateUnit === 'bits' ? LL.fmtBits(n) : LL.fmtBytes(n)) + '/s';
   LL.fmtAge = function (s) {
     if (s == null) return '—';
     s = Math.max(0, Math.round(s));
@@ -191,7 +198,7 @@
     const hash = location.hash || '#/';
     const [name, ...rest] = hash.replace(/^#\/?/, '').split('/');
     let st;
-    try { st = LL.state = await api('/api/state', { allow401: true }); }
+    try { st = LL.state = await api('/api/state', { allow401: true }); if (st && st.rate_unit) LL.rateUnit = st.rate_unit === 'bits' ? 'bits' : 'bytes'; }
     catch (e) { app.replaceChildren(h('div', { class: 'boot-error' }, t('error.offline'))); return; }
     if (!Object.keys(LL.strings).length || (st.language && st.language !== LL.lang)) await loadLang(LL.pickLang(st.language));
     let target = name || 'map';

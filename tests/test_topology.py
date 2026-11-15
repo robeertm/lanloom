@@ -155,8 +155,8 @@ def test_clients_behind_an_access_point_on_one_controller_port():
     assert (r["links"]["ap"]["parent"], r["links"]["ap"]["port"]) == ("sw", "5")
     for c in ("c1", "c2"):
         link = r["links"][c]
-        assert (link["parent"], link["port"], link["own_port"], link["medium"]) == ("ap", None, None, None)
-        assert link["reason"] == "topo.reason.behind" and link["vars"] == {"via": "ap", "port": "5"}
+        assert (link["parent"], link["port"], link["own_port"], link["medium"]) == ("ap", None, None, "radio")
+        assert link["reason"] == "topo.reason.behind_ap" and link["vars"] == {"via": "ap", "port": "5"}
     assert sorted(r["children"]["ap"]) == ["c1", "c2"]
 
 
@@ -636,3 +636,61 @@ def test_manual_host_keeps_its_virtual_guests_as_guests():
     links = topology.resolve(devs, manual, {"int:1": {"integ": 1, "ev": ev}}, now=1010.0)["links"]
     assert links["vm1"]["parent"] == "host" and links["vm1"]["medium"] == "virtual"
     assert links["vm1"]["reason"] == "topo.reason.guest"
+
+
+# ---------------------------------------------------------------------------------------------- wireless by default
+def _behind_ap(medium=None, child_kind="phone", ap_kind="ap"):
+    devices = base() + [dev("ap", mac(5), ap_kind), dev("c1", mac(30), child_kind), dev("c2", mac(31))]
+    o = obs(ctl(clients=[cl(mac(5), mac(2), "5"), cl(mac(30), mac(2), "5", medium=medium or "wired"), cl(mac(31), mac(2), "5")]))
+    return run(devices, o)
+
+
+def test_clients_behind_an_access_point_default_to_wireless():
+    r = _behind_ap()
+    for c in ("c1", "c2"):
+        assert r["links"][c]["medium"] == "radio" and r["links"][c]["reason"] == "topo.reason.behind_ap"
+    assert r["links"]["ap"]["medium"] == "wired"          # the access point itself still sits on a cable
+
+
+def test_a_device_behind_something_that_is_not_an_access_point_stays_unknown():
+    r = _behind_ap(ap_kind="unknown")
+    assert r["links"]["c1"]["medium"] != "radio" and r["links"]["c1"]["reason"] != "topo.reason.behind_ap"
+
+
+def test_a_switch_next_to_an_access_point_is_not_a_wireless_client():
+    devices = base() + [dev("ap", mac(5), "ap"), dev("sw2", mac(6), "switch")]
+    o = obs(ctl(clients=[cl(mac(5), mac(2), "5"), cl(mac(6), mac(2), "5")]))
+    assert run(devices, o)["links"]["sw2"]["medium"] != "radio"
+
+
+def test_manual_entry_beats_the_wireless_default():
+    devices = base() + [dev("ap", mac(5), "ap"), dev("c1", mac(30))]
+    o = obs(ctl(clients=[cl(mac(5), mac(2), "5"), cl(mac(30), mac(2), "5")]))
+    r = run(devices, o, manual={"c1": {"parent": "ap", "port": None, "medium": "wired", "t": NOW}})
+    assert r["links"]["c1"]["medium"] == "wired" and r["links"]["c1"]["source"] == "manual"
+
+
+def test_reported_link_type_beats_the_wireless_default():
+    devices = base() + [dev("ap", mac(5), "ap"), dev("c1", mac(30))]
+    o = obs(ctl(devices=[cdev(mac(5), "ap", up=up(mac(2), "5"))], clients=[cl(mac(30), mac(5), None, medium="wired")]))
+    assert run(devices, o)["links"]["c1"]["medium"] == "wired"
+
+
+# ---------------------------------------------------------------------------------------------- traffic unit setting
+def test_rate_text_in_bits_and_bytes():
+    from lanloom import live
+    assert live.human_rate(41e6) == "41 MB/s"
+    assert live.human_rate(41e6, "bits") == "328 Mbit/s"
+    assert live.human_rate(125, "bits") == "1.0 kbit/s"
+    assert live.human_rate(0, "bits") == "0 bit/s"
+    assert live.human_rate(2.5e8, "bits") == "2.0 Gbit/s"
+    assert live.human_rate(41e6, "nonsense") == "41 MB/s"
+
+
+def test_rate_unit_setting_is_validated_and_shown_in_state(client):
+    _login(client)
+    assert client.get("/api/settings").json()["rate_unit"] == "bytes"
+    assert client.put("/api/settings", json={"rate_unit": "bits"}, headers=HDR).json()["rate_unit"] == "bits"
+    assert client.get("/api/state").json()["rate_unit"] == "bits"
+    assert client.put("/api/settings", json={"rate_unit": "parsecs"}, headers=HDR).json()["rate_unit"] == "bits"
+    assert client.put("/api/settings", json={"rate_unit": "bytes"}, headers=HDR).json()["rate_unit"] == "bytes"

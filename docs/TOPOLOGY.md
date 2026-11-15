@@ -32,9 +32,10 @@ Use it for devices that no source can see, for example a consumer access point i
 Many switch and access point product lines are managed by a local controller application. Lanloom reads two lists from it every minute: the clients (with switch port or access point) and the devices (with their uplinks).
 
 1. In the controller, create a **local** account with **view-only** (read-only) rights. Do not use an owner or administrator account, and do not use a cloud account that needs two-factor sign-in.
-2. In Lanloom open **Settings → Integrations → + Switch controller** (or the *Connect* step of the setup wizard).
+2. In Lanloom open **Settings → Connections → + Switch controller** (or the *Connect* step of the setup wizard).
 3. Enter the address of the controller, for example `https://192.168.1.2` or `https://192.168.1.2:8443`, the user name and the password. Leave *Site* empty unless your controller manages several sites. Tick *Accept a self-signed certificate* if the controller uses its own certificate.
-4. **Test connection** shows how many clients and devices the controller reported. **Save**.
+4. Leave *Login style* on **Automatic**. Lanloom tries the console login first and the classic one when that is refused (HTTP 401, 404 or 405), so a self-hosted controller works without any setting; the credentials count as rejected only when both ways refuse. Pick **Console** or **Classic** only to force one way.
+5. **Test connection** shows how many clients and devices the controller reported. **Save**.
 
 What Lanloom sends: one sign-in request with the user name and password, then only `GET` requests to the two list endpoints (`…/api/s/<site>/stat/sta` and `…/stat/device`; on a console the same paths below `/proxy/network`). One code path performs all requests and refuses everything else; a test checks this. The password is stored encrypted and never shown or logged again.
 
@@ -57,6 +58,7 @@ Only Get, GetNext and GetBulk requests are used.
 A switch port often has more than one device behind it:
 
 - **Exactly one of them is a switch or access point** (or has devices of its own): the others are shown **behind** it. This is how wireless clients end up under a consumer access point that only the switch can see.
+- **Clients behind an access point** are shown as **wireless** (dashed) when no source knows the link type, because an access point has no cable ports for clients. A link type that a source reported, and every manual entry, keeps its value; switches and routers are never assumed to be wireless. The component card says why.
 - **Guests of a virtualization host**: hardware addresses that hypervisors and container engines give to virtual network cards are recognised. If they share a port with exactly one ordinary device, they are shown as **guests on that host**, in their own zone next to it, with dotted traces.
 - **Very many addresses and no switch among them** (12 or more, address table only): this is a trunk to somewhere else. Nothing is assigned from it.
 - Otherwise every device on the port is kept there, with a note that the port is shared.

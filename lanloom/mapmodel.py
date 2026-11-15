@@ -366,6 +366,7 @@ def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
         elif kind == "q":
             integ, _, root = rest.partition(":")
             per_comp["topic:%s:%s" % (integ, root)] = r0 + r1
+    unit = core.rate_unit()
     host_grade = core._source_grade("host") if "host" in core.cadence else "unknown"
     for dev_id in list(core.ip_to_device.values()):
         recent_flow = now - core.flow_seen.get(dev_id, 0) < 5
@@ -375,7 +376,7 @@ def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
             seen = core.presence.get(dev_id)
             grades[dev_id] = live.grade_for(PRESENCE_INTERVAL, now - seen) if seen else "unknown"
         if per_comp.get(dev_id, 0) >= 1:
-            metrics[dev_id] = live.human_rate(per_comp[dev_id])
+            metrics[dev_id] = live.human_rate(per_comp[dev_id], unit)
     router_id = core.ip_to_device.get(core.gateway_ip or "")
     for integ_id, frame in core.snmp.items():
         g = core._source_grade("int:%d" % integ_id)
@@ -386,7 +387,7 @@ def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
         if dev and dev == router_id:
             grades["internet"] = g
     if per_comp.get("internet", 0) >= 1:
-        metrics["internet"] = live.human_rate(per_comp["internet"])
+        metrics["internet"] = live.human_rate(per_comp["internet"], unit)
         if router_id:
             metrics[router_id] = metrics["internet"]
     for integ_id, entry in core.hub.items():

@@ -170,7 +170,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         return {"version": __version__, "setup_needed": state.store.user_count() == 0, "authenticated": bool(user),
                 "user": user["username"] if user else None, "demo": cfg.demo,
                 "setup_done": bool(state.store.get_setting("setup_done", False)),
-                "language": state.store.get_setting("language", None)}
+                "language": state.store.get_setting("language", None),
+                "rate_unit": state.core.rate_unit() if state.core else "bytes"}
 
     @app.get("/api/i18n/{lang}")
     async def i18n(lang: str):

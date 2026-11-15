@@ -27,6 +27,7 @@ DEFAULT_SETTINGS = {
     "language": None,
     "setup_done": False,
     "uplink_iface": "",
+    "rate_unit": "bytes",       # traffic rates as bytes per second (MB/s) or bits per second (Mbit/s)
 }
 
 INTEGRATION_FIELDS = {
@@ -34,7 +35,7 @@ INTEGRATION_FIELDS = {
     "hub": (("url", "allow_self_signed"), ("token",)),
     "mqtt": (("host", "port", "username", "tls", "allow_self_signed"), ("password",)),
     "snmp": (("host", "version", "user", "auth_proto", "priv_proto", "uplink"), ("community", "auth_key", "priv_key")),
-    "controller": (("url", "username", "site", "allow_self_signed"), ("password",)),
+    "controller": (("url", "username", "site", "style", "allow_self_signed"), ("password",)),
 }
 
 
@@ -118,14 +119,20 @@ class Core:
             out[key] = self.store.get_setting(key, DEFAULT_SETTINGS[key])
         return out
 
+    def rate_unit(self) -> str:
+        unit = self.store.get_setting("rate_unit", "bytes")
+        return unit if unit in live.RATE_UNITS else "bytes"
+
     def update_settings(self, patch: dict) -> dict:
         allowed = {"rescan_hours": int, "update_check": bool, "language": (str, type(None)), "setup_done": bool,
-                   "uplink_iface": str}
+                   "uplink_iface": str, "rate_unit": str}
         for key, value in patch.items():
             if key in allowed and isinstance(value, allowed[key]):
                 if key == "rescan_hours" and value not in (0, 1, 3, 6, 12, 24):
                     continue
                 if key == "language" and value not in (None, "en", "de"):
+                    continue
+                if key == "rate_unit" and value not in live.RATE_UNITS:
                     continue
                 self.store.set_setting(key, value)
         return self.settings()
@@ -518,6 +525,7 @@ class Core:
                                 auth_proto=cfg.get("auth_proto") or "sha", priv_proto=cfg.get("priv_proto") or "aes")
         if kind == "controller":
             return sources.Controller(cfg["url"], cfg.get("username") or "", sec.get("password") or "", site=cfg.get("site") or "default",
+                                      style=cfg.get("style") if cfg.get("style") in ("console", "classic") else "auto",
                                       allow_self_signed=bool(cfg.get("allow_self_signed")))
         if integration_fields(kind) is not None:       # read half of a built-in family; credentials wrapped
             from . import integrations

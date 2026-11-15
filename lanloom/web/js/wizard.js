@@ -217,7 +217,8 @@
     controller: [
       { k: 'url', type: 'url', ph: 'https://192.168.1.2:8443', req: true },
       { k: 'username', req: true }, { k: 'password', secret: true, type: 'password', req: true },
-      { k: 'site', ph: 'default' }, { k: 'allow_self_signed', type: 'checkbox' }]
+      { k: 'site', ph: 'default' }, { k: 'style', type: 'select', options: ['auto', 'console', 'classic'] },
+      { k: 'allow_self_signed', type: 'checkbox' }]
   };
 
   LL.integrationCard = function (kind, existing, onChange) {

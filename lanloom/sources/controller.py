@@ -10,7 +10,8 @@ Two API styles, auto-detected (``style``: ``auto`` | ``console`` | ``classic``, 
   logout ``POST /api/auth/logout``;
 * classic: ``POST /api/login``; data below ``/api/s/<site>/stat/{sta,device}``; logout ``POST /api/logout``.
 
-``auto`` tries console first and falls back to classic on HTTP 404/405; the style that worked is remembered.
+``auto`` tries console first and falls back to classic on HTTP 401/404/405 (the credentials count as rejected
+only when both ways refuse); the style that worked is remembered.
 The login reply's cookies are kept (``name=value`` only) and sent back as one ``Cookie`` header; a CSRF token
 (header ``X-CSRF-Token``, or a cookie ``csrf_token``) is sent back as ``X-CSRF-Token``.
 
@@ -323,11 +324,16 @@ class Controller:
         self._forget()
         order = [self._style] if self._style else ["console", "classic"]
         creds = {"username": self._user, "password": self._password}
+        refused = False
         for i, style in enumerate(order):
             status, data = await self._call("POST", LOGIN_PATH[style], creds)
-            if status in (404, 405) and i + 1 < len(order):
+            more = i + 1 < len(order)
+            if more and status in (401, 404, 405):
+                refused = refused or status == 401           # a self-hosted controller answers the console path with 401
                 continue
             if status in (400, 401, 403):
+                raise SourceError("source.controller.auth_failed", "login refused")
+            if refused and status in (404, 405):             # the console path refused, the classic path does not exist
                 raise SourceError("source.controller.auth_failed", "login refused")
             if not 200 <= status < 300:
                 raise SourceError("source.controller.protocol", "unexpected login status %d" % status)

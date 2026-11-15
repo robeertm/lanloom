@@ -40,8 +40,22 @@ def human_bytes(n: float) -> str:
     return "%d B" % n
 
 
-def human_rate(bps: float) -> str:
-    return human_bytes(bps) + "/s"
+RATE_UNITS = ("bytes", "bits")
+
+
+def human_bits(n: float) -> str:
+    """Bytes per second as a decimal bit rate: 41 MB/s -> 328 Mbit."""
+    n = float(n) * 8
+    for unit, f in (("Gbit", 1e9), ("Mbit", 1e6), ("kbit", 1e3)):
+        if n >= f:
+            v = n / f
+            return ("%.0f" % v if v >= 10 else "%.1f" % v) + " " + unit
+    return "%d bit" % n
+
+
+def human_rate(bps: float, unit: str = "bytes") -> str:
+    """Rate text from bytes per second; unit is the setting ``rate_unit`` (bytes or bits)."""
+    return (human_bits(bps) if unit == "bits" else human_bytes(bps)) + "/s"
 
 
 class Quantizer:

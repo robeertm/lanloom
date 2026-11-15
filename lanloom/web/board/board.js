@@ -420,7 +420,7 @@
     }
     fitMeta(e, f) {
       // badges first (each ≤ 64 px), then the metric gets the rest; badges are dropped from the end if the metric would get too narrow
-      const BADGE_MAX = 64, MIN_METRIC = e.metricFull ? 52 : 0;
+      const BADGE_MAX = 64, MIN_METRIC = e.metricFull ? Math.max(52, Math.min(84, Math.ceil(textWidth(f.metric, e.metricFull)) + SAFETY)) : 0;     // a rate keeps its whole unit ("2.8 Mbit/s") before a badge keeps its place
       const texts = e.badgeText.map(s => fitText(f.badge, s, BADGE_MAX - f.badgePad - SAFETY));
       const widths = texts.map(s => (s ? Math.ceil(textWidth(f.badge, s)) + f.badgePad + 1 : 0));
       let k = texts.length;
@@ -582,8 +582,9 @@
         const m = frame.metrics[id] == null ? '' : String(frame.metrics[id]);
         if (m === e.metricFull) continue;
         e.metricFull = m;
-        // no layout reads: the metric's room was measured when the tile was fitted
-        e.metric.textContent = fitText(this._f.metric, m, e.metricMax);
+        // no layout reads: the metric's room was measured when the tile was fitted; a longer text asks for room again
+        if (m && textWidth(this._f.metric, m) > e.metricMax) this.fitMeta(e, this._f);
+        else e.metric.textContent = fitText(this._f.metric, m, e.metricMax);
         this.ariaLabel(e);
       }
       if (gradeChanged) this.updateGradeLegend();
