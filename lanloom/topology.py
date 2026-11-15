@@ -24,9 +24,15 @@ After the winners are chosen:
   exactly one does not, they are guests of that host (medium ``virtual``); a port with very many addresses and no
   infrastructure on it is a trunk and is not assigned from the forwarding database. Links reported by a hypervisor
   are never refined: the hypervisor knows its guests.
+
+Core module (stage 2, see docs/ARCHITECTURE-CORE.md): standard library only, no imports from this package, so a downstream
+application can vendor the file unchanged. Stable API = 1: resolve(), subtree(), norm_mac(), is_virtual_mac(), clean_port(),
+port_key(), ORDER, MEDIA, BANDS, INFRA_KINDS. Breaking changes raise API.
 """
 import re
 import time
+
+API = 1
 
 ORDER = ("manual", "hypervisor", "controller", "lldp", "fdb")
 MEDIA = ("wired", "radio", "virtual")
