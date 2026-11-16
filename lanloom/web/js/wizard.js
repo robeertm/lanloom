@@ -33,7 +33,7 @@
 
   function actions(...kids) { return h('div', { class: 'wizard__actions' }, ...kids); }
   function leaveAgain() { try { sessionStorage.removeItem('ll-wiz-again'); sessionStorage.removeItem('ll-wiz'); } catch (e) { /* ignore */ } LL.go('#/map'); }
-  LL.setupAgain = function () { try { sessionStorage.setItem('ll-wiz-again', '1'); } catch (e) { /* ignore */ } setStep('networks'); LL.go('#/setup/networks'); };
+  LL.setupAgain = function () { try { sessionStorage.setItem('ll-wiz-again', '1'); } catch (e) { /* ignore */ } setStep('networks'); LL.go('#/setup'); };
   LL.setupAgainActive = function () { try { return sessionStorage.getItem('ll-wiz-again') === '1'; } catch (e) { return false; } };
   // the sample network: a read-only demo view next to the real inventory, left with one click
   LL.demoView = async function (on) {
@@ -136,7 +136,7 @@
     shell(app, 'networks', [h('h1', {}, t('wizard.networks.title')), h('p', { class: 'lead' }, t('setup.detect.lead')), warn,
       h('section', { class: 'setup-found' }, h('h2', { class: 'setup-sub' }, t('setup.detect.found')), found), list,
       h('div', { class: 'inline-form' }, LL.field(t('wizard.networks.manual'), manual, t('wizard.networks.manual_hint')), add),
-      h('label', { class: 'check check--consent' }, consent, h('span', {}, t('wizard.scan.consent'))), msg,
+      h('label', { class: 'check setup-consent' }, consent, h('span', {}, t('wizard.scan.consent'))), msg,
       actions(options, go), demo]);
   }
 
@@ -295,7 +295,7 @@
     // texts per kind of family (a hypervisor reads guests), never per product: 'integ.hint.hv.<field>' before 'integ.hint.family.<field>'
     const famKind = fam && ((fam.capabilities || {}).read || []).includes('guests') ? 'hv' : 'family';
     const hintKey = k => fam ? (t('integ.hint.' + famKind + '.' + k) !== 'integ.hint.' + famKind + '.' + k ? 'integ.hint.' + famKind + '.' + k : 'integ.hint.family.' + k) : 'integ.hint.' + kind + '.' + k;
-    const body = h('div', { class: 'integ__form', hidden: !!existing && !(opts && opts.open) });
+    const body = h('div', { class: 'integ__form', hidden: !!existing });
     const msg = h('div', { class: 'msg' });
     const name = h('input', { type: 'text', value: existing ? existing.name : ((opts && opts.name) || LL.integTitle(kind)), maxlength: '48' });
     const rows = [LL.field(t('integ.field.name'), name)];
@@ -363,6 +363,7 @@
     } }, t('integ.delete')) : null;
     body.append(...rows, msg, h('div', { class: 'integ__actions' }, delBtn || h('span'), h('div', { class: 'btn-row' }, testBtn, saveBtn)));
     applyWhen();
+    if (opts && opts.bare) { body.hidden = false; return h('div', { class: 'integ integ--bare' }, body); }   // inside a suggestion: the form only
     const statusChip = existing ? h('span', { class: 'chip chip--' + (existing.status && existing.status.ok === false ? 'danger' : (existing.status && existing.status.ok ? 'ok' : 'muted')) },
       existing.status && existing.status.key ? t(existing.status.key) : t('integ.saved_state')) : null;
     const toggle = h('button', { class: 'btn btn--ghost btn--sm', type: 'button', 'aria-expanded': existing ? 'false' : 'true', onclick: () => {
@@ -390,12 +391,12 @@
     const reasons = h('div', { class: 'chip-row' }, sg.reasons.map(r => h('span', { class: 'chip chip--muted' }, t(r.key, r.params || {}))));
     const body = h('div', { class: 'setup-suggest__body', hidden: true });
     const btn = h('button', { class: 'btn btn--' + (sg.configured ? 'ghost' : 'primary') + ' btn--sm', type: 'button', 'aria-expanded': 'false', onclick: () => {
-      if (!body.childNodes.length) body.append(LL.setupGuide(sg.guide, guides), LL.integrationCard(sg.kind, null, onChange, { prefill: sg.prefill, name: sg.title, open: true }));
+      if (!body.childNodes.length) body.append(LL.setupGuide(sg.guide, guides), LL.integrationCard(sg.kind, null, onChange, { prefill: sg.prefill, name: sg.title, bare: true }));
       body.hidden = !body.hidden; btn.setAttribute('aria-expanded', String(!body.hidden));
       btn.textContent = body.hidden ? (sg.configured ? t('setup.suggest.again') : t('integ.setup')) : t('integ.close');
     } }, sg.configured ? t('setup.suggest.again') : t('integ.setup'));
     return h('article', { class: 'setup-suggest card card--flat' + (sg.configured ? ' is-configured' : '') },
-      h('header', { class: 'setup-suggest__head' }, LL.kindIcon(sg.device_kind || 'unknown'),
+      h('header', { class: 'setup-suggest__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch', family: 'switch', hv: 'server' }[sg.guide] || sg.device_kind || 'unknown'),
         h('div', { class: 'setup-suggest__titles' }, h('h3', {}, t(titleKey) === titleKey ? LL.integTitle(sg.kind) : t(titleKey)),
           h('p', { class: 'muted' }, h('span', {}, sg.title), ' · ', h('span', { class: 'mono' }, sg.ip)), reasons),
         sg.configured ? h('span', { class: 'chip chip--ok' }, t('setup.suggest.connected')) : LL.certaintyChip(sg.certainty), btn),
@@ -456,6 +457,8 @@
     if (st.setup_needed) return accountStep(app);
     const step = rest[0] && STEPS.includes(rest[0]) ? rest[0] : stepKey();
     setStep(step);
+    // a step in the address (#/setup/<step>) is taken once; the next steps move on from the stored step
+    if (rest[0]) history.replaceState(null, '', LL.base + '#/setup');
     if (step === 'scan') return scanStep(app);
     if (step === 'review') return reviewStep(app);
     if (step === 'connect') return connectStep(app);

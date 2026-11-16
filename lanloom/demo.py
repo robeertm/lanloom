@@ -56,7 +56,7 @@ HOSTS = [
      "ssdp": [{"st": "upnp:rootdevice", "friendly_name": "Storage", "model": "ST-4 Bay", "manufacturer": None,
                "device_type": "urn:schemas-upnp-org:device:Basic:1", "server": None, "udn": "4c4c0000-0000-4000-8000-00000000000a"}]},
     {"ip": "192.168.50.11", "n": 11, "self": True, "names": ["homeserver.lan"],
-     "ports": [_port(22, "ssh"), _port(80, "http"), _port(443, "https"), _port(8080, "http-alt")]},
+     "ports": [_port(22, "ssh"), _port(80, "http"), _port(443, "https"), _port(8080, "http-alt"), _port(8443, "https-alt", "Network controller")]},
     {"ip": "192.168.50.12", "n": 12, "names": ["backup.lan"],
      "ports": [_port(22, "ssh"), _port(873, "rsync")], "title": "Backup server"},
     {"ip": "192.168.50.13", "n": 13, "vm": True, "names": ["broker.lan"],
@@ -66,7 +66,8 @@ HOSTS = [
      "ports": [_port(8123, "web-alt", "Automation")],
      "mdns": [{"type": "_home-assistant._tcp", "name": "Automation hub", "port": 8123, "txt": {}}]},  # identifier: demo DNS-SD type
     {"ip": "192.168.50.15", "n": 15, "names": ["virtualization-host.lan"],
-     "ports": [_port(22, "ssh"), _port(443, "https", "Virtualization host")], "title": "Virtualization host"},
+     "ports": [_port(22, "ssh"), _port(443, "https", "Virtualization host"), _port(8006, "hypervisor-web", "Virtualization host")],
+     "title": "Virtualization host"},
     {"ip": "192.168.50.20", "n": 20, "names": ["office-laptop.lan"],
      "ports": [_port(22, "ssh")],
      "mdns": [{"type": "_workstation._tcp", "name": "Office laptop", "port": 9, "txt": {}}],

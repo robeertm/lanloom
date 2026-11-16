@@ -392,5 +392,8 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
   .setup-suggest__head > .btn { margin-left: auto; }
   .demo-bar { flex-wrap: wrap; margin: var(--ll-space-2) 12px 0; }
   .demo-bar .btn { margin-left: auto; }
-  .wizard__head-right { gap: 6px; }
+  .wizard__head { flex-wrap: wrap; row-gap: 8px; }
+  .wizard__head-right { gap: 6px; margin-left: auto; }
 }
+.setup-guide .fineprint { margin: 8px 0 0; }
+.integ--bare .integ__form { border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); }

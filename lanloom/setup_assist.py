@@ -31,7 +31,7 @@ _LEASE_RES = (re.compile(r"dhcp-server-identifier\s+" + _IPV4), re.compile(r"SER
 # built-in sources (no family package) and their gentle signs; same sign format as a family manifest's ``detect``
 BUILTIN_SIGNS = {
     "hub": ({"port": 8123}, {"mdns": "_home-assistant._tcp"}),     # identifier: hub default port and DNS-SD type
-    "mqtt": ({"port": 1883}, {"port": 8883}),
+    "mqtt": ({"port": 1883}, {"port": 8883}, {"mdns": "_mqtt._tcp"}),
 }
 # guide per kind of source: the text keys live under setup.guide.<guide>.* (steps 1..n)
 GUIDE_STEPS = {"hub": 4, "mqtt": 4, "snmp": 4, "controller": 4, "hv": 4, "family": 4}
@@ -261,7 +261,7 @@ def suggestions(core, families=None) -> list:
     done = _configured_hosts(core)
     out = []
     for dev in core.devices():
-        if dev.get("is_self") or dev.get("hidden"):
+        if dev.get("hidden"):           # this host itself may run a controller or a broker: it is not skipped
             continue
         candidates = [(k, None, signs) for k, signs in BUILTIN_SIGNS.items()]
         candidates += [(f.family, f, f.detect) for f in fams if f.detect]
