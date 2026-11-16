@@ -40,7 +40,22 @@ Yes. Settings > Appearance > Colour theme offers **Circuit green** (default) and
 In the data volume mounted at `/data`: the inventory database (`lanloom.db`), the key file (`secret.key`), the setup code file and backups. Nothing is sent elsewhere.
 
 ### I forgot my password. What now?
-There is no remote reset. Stop the container, delete `lanloom.db` in the data volume and start again. This is the only way, and it loses your inventory and settings. A new setup code is printed and the wizard starts over. Back up first if you can (see [INSTALL.md](INSTALL.md)).
+Ask an admin for a one-time reset link (Settings, Users). Only if no admin can sign in: stop the container, delete `lanloom.db` in the data volume and start again. This is the last resort, and it loses your inventory and settings. A new setup code is printed and the wizard starts over. Back up first if you can (see [INSTALL.md](INSTALL.md)).
+
+### I lost my phone with the authenticator app. What now?
+Use one of your ten recovery codes at the second step, then set up the app again. Without codes, ask an admin for a reset link and tick the option to remove the second factor. If you are the only admin and have no recovery code, see [INSTALL.md](INSTALL.md#forgot-password).
+
+### Can we share one account?
+Better not. Every person gets an account with their own role (Settings, Users, Invite someone), so the audit log shows who did what and one person's sessions can be ended without touching the others.
+
+### Why does the sign-in ask for a code?
+A second factor is required for admins by default; an admin can extend this to other roles in Settings, Security. After a grace period the next sign-in leads to a set-up page. See [ACCESS.md](ACCESS.md).
+
+### Where can I see who changed something?
+In Settings, Security, Audit log (admins). It lists every change with user, role, time, target, result and origin, can be filtered and exported as CSV, and shows if the log was tampered with. See [ACCESS.md](ACCESS.md#audit-log).
+
+### Can a reverse proxy with its own sign-in log people in?
+Yes, optionally. Set `LANLOOM_AUTH_HEADER` and `LANLOOM_TRUSTED_PROXIES` (and the group settings to map groups to roles), and make sure the proxy removes these headers from client requests. See [ACCESS.md](ACCESS.md#sign-in-through-an-authentication-proxy).
 
 ### Can I try it without scanning my network?
 Yes. Set `LANLOOM_DEMO=1` (optionally with `LANLOOM_DEMO_SEED=1`) to run a fictional network. Nothing is scanned.

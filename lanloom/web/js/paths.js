@@ -340,8 +340,8 @@
     const g = (d && d.geo) || {}, a = g.attribution || { text: 'IP Geolocation by DB-IP', url: 'https://db-ip.com', license: 'CC BY 4.0', license_url: 'https://creativecommons.org/licenses/by/4.0/' };
     return h('p', { class: 'pw-attr muted' },
       h('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer' }, a.text), ' (', h('a', { href: a.license_url, target: '_blank', rel: 'noopener noreferrer' }, a.license),
-      g.month ? ', ' + g.month : '', ') · ', t('paths.attr.map'), ' · ', t('paths.attr.source'), ' · ',
-      h('a', { href: '#/settings', class: 'pw-attr__settings' }, t('paths.attr.settings')));
+      g.month ? ', ' + g.month : '', ') · ', t('paths.attr.map'), ' · ', t('paths.attr.source'),
+      LL.can('admin') ? [' · ', h('a', { href: '#/settings', class: 'pw-attr__settings' }, t('paths.attr.settings'))] : null);
   }
 
   // ------------------------------------------------------------------ page

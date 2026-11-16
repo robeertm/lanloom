@@ -859,6 +859,11 @@ def selftest() -> int:
         sent = ps.out(probe_text)
         if ai_privacy.leaks(sent) or "sample-host" in sent or ps.back(sent) != probe_text or not ai_providers.public_list():
             problems.append("ai privacy layer")
+        from . import qr, totp as _totp
+        if _totp.code_at("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", 59) != "287082" or not qr.encode("otpauth://totp/x?secret=A"):  # secret-scan: fake (RFC 6238 vector)
+            problems.append("one-time codes")
+        if any(r.role not in access.ROLES + ("public", "executor") for r in access.RULES.values()):
+            problems.append("access table")
         en = load_i18n("en")
         if not en:
             problems.append("i18n: no English texts")
@@ -868,7 +873,7 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/access.js", "css/access.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

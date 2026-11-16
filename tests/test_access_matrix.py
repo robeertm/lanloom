@@ -197,3 +197,15 @@ def test_enrolment_session_reaches_only_the_enrolment_routes(app_client):
     assert allowed <= {("GET", "/api/state"), ("GET", "/api/i18n/{lang}"), ("POST", "/api/logout"), ("GET", "/api/account"),
                        ("POST", "/api/account/totp/setup"), ("POST", "/api/account/totp/enable"), ("GET", "/api/passkeys"),
                        ("POST", "/api/passkey/register/options"), ("POST", "/api/passkey/register/verify")}
+
+
+def test_every_audit_action_has_a_label_in_every_language():
+    import json
+    import os
+    i18n = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lanloom", "i18n")
+    for name in sorted(os.listdir(i18n)):
+        if name.endswith(".json") and not name.startswith("board."):
+            with open(os.path.join(i18n, name), encoding="utf-8") as f:
+                texts = json.load(f)
+            missing = sorted(a for a in access.AUDIT_ACTIONS if "audit.action." + a not in texts)
+            assert not missing, "%s: %s" % (name, missing)

@@ -89,7 +89,7 @@ def register(app: FastAPI, c: Ctx) -> None:
         set_session(response, request, user["id"], method, foreign)
         c.audit_from(request, user, "auth.login", "ok", target=user["username"], detail={"method": method, "public_computer": foreign})
         new = st.notices.known(user["id"], auth.limit_key(c.requester_ip(request)), auth.device_key(request.headers.get("user-agent", "")))
-        if new:
+        if "addr" in new:        # in a home network a new device comes with a new address; the same address with another browser is no news
             st.notices.add(user["id"], "new_device" if "dev" in new else "new_address",
                            {"ip": c.requester_ip(request), "agent": agent_of(request), "method": method})
         return response
@@ -342,7 +342,7 @@ def register(app: FastAPI, c: Ctx) -> None:
         u = request.state.user
         secret = st.factors.begin(u["id"])
         uri = totp.otpauth_uri(secret, u["username"])
-        return {"secret": secret, "uri": uri, "qr": qr.to_svg(qr.encode(uri, "M"), scale=4, quiet=4)}
+        return {"secret": secret, "uri": uri, "qr": qr.to_svg(qr.encode(uri, "M"), scale=4, quiet=4, dark="#000", light="#fff")}   # black on white in every theme: scanners need it
 
     @app.post("/api/account/totp/enable")
     async def totp_enable(request: Request):

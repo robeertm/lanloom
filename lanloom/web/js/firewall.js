@@ -43,7 +43,7 @@
 
       // ---------------------------------------------------------------- rendering
       // controls appear only for what the connected controller can do (capability list from the server)
-      function canMove(v) { const w = v.capabilities && v.capabilities.write; return !w || Object.prototype.hasOwnProperty.call(w, 'move'); }
+      function canMove(v) { const w = v.capabilities && v.capabilities.write; return LL.can('operate') && (!w || Object.prototype.hasOwnProperty.call(w, 'move')); }
 
       function render() {
         const v = st.view;
@@ -51,8 +51,9 @@
         if (!v.state) { page.replaceChildren(head(v), h('div', { class: 'empty-state' }, h('h2', {}, t('fw.nostate.title')), h('p', { class: 'muted' }, t('fw.nostate.text')))); bar.hidden = true; return; }
         const kids = [head(v)];
         if (v.mode === 'simulation') kids.push(h('div', { class: 'callout fw-sim' }, h('strong', {}, t('fw.sim.title')), ' ', t('fw.sim.text'),
-          h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: resetSim, disabled: !!v.running }, t('fw.sim.reset'))));
+          LL.can('admin') ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: resetSim, disabled: !!v.running }, t('fw.sim.reset')) : null));
         if (v.mode === 'live') kids.push(h('div', { class: 'callout fw-live' }, svg(ICON.lock, 'fw-live__ico'), h('span', {}, t(v.state.hosts && v.state.hosts.length ? 'fw.live.callout_hv' : 'fw.live.callout', { name: v.live.name }))));
+        else if (!LL.can('operate')) kids.push(h('div', { class: 'callout' }, t('fw.role.readonly')));
         else if (!canMove(v)) kids.push(h('div', { class: 'callout' }, t('fw.executor.readonly')));
         if (v.quiet) kids.push(h('div', { class: 'callout callout--warn' }, t('fw.quiet.now', { hours: v.quiet_hours })));
         if (v.running) kids.push(progressCard(v.running));
@@ -86,7 +87,7 @@
         })) : null;
         return h('div', { class: 'page__head fw-head' },
           h('div', { class: 'fw-head__title' }, h('h1', {}, t('nav.firewall')), h('div', { class: 'fw-head__meta' }, chip, meta ? h('span', { class: 'muted' }, meta) : null)),
-          h('div', { class: 'fw-head__tools' }, pick, canMove(v) ? seg : null, v.mode === 'live' ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
+          h('div', { class: 'fw-head__tools' }, pick, canMove(v) ? seg : null, v.mode === 'live' || !LL.can('admin') ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
       }
 
       function board(v) {
@@ -232,7 +233,7 @@
         const msg = h('div', { class: 'msg' });
         const ext = v.mode === 'external';
         const applyBtn = h('button', { class: 'btn btn--primary btn--block fw-apply', type: 'button' }, t(ext ? 'fw.preview.apply_passkey' : 'fw.preview.apply_sim'));
-        const refresh = () => { applyBtn.disabled = pv.blocks.length > 0 || [...needs].some(k => !confirm.has(k)) || (ext && !LL.passkeySupported()); };
+        const refresh = () => { applyBtn.disabled = !LL.can('admin') || pv.blocks.length > 0 || [...needs].some(k => !confirm.has(k)) || (ext && !LL.passkeySupported()); };
         const changes = h('div', { class: 'fw-pv__changes' }, pv.changes.map(c => h('div', { class: 'fw-pv__change' },
           h('div', { class: 'fw-pv__what' }, h('strong', {}, c.name), h('span', { class: 'muted' }, ' · ' + t('fw.preview.from_to', { from: c.from, to: c.to }))),
           h('div', { class: 'mono fw-pv__ip' }, h('s', {}, c.old_ip), ' → ', h('b', {}, c.new_ip)),
@@ -255,7 +256,8 @@
         const minutes = ext ? Math.round(((v.executor && v.executor.watch_s) || 3600) / 60) : 0;
         const protect = h('div', { class: 'callout fw-pv__protect' }, svg(ICON.shield, 'fw-pv__shield'),
           h('div', {}, h('strong', {}, t('fw.preview.protect_title')), h('p', {}, t(ext ? 'fw.preview.protect_text' : 'fw.preview.protect_sim', { min: minutes || 60 }))));
-        const passHint = ext && !LL.passkeySupported() ? h('p', { class: 'msg msg--error' }, t('fw.preview.needs_secure')) : null;
+        const passHint = !LL.can('admin') ? h('p', { class: 'msg msg--info' }, t('fw.role.approve_admin'))
+          : ext && !LL.passkeySupported() ? h('p', { class: 'msg msg--error' }, t('fw.preview.needs_secure')) : null;
         const body = h('div', { class: 'fw-pv' },
           h('h3', {}, t('fw.preview.changes')), changes,
           blocks ? [h('h3', {}, t('fw.preview.blocked')), blocks] : null,
@@ -311,7 +313,7 @@
             h('span', { class: 'chip ' + ({ done: 'chip--ok', rolled_back: 'chip--warn', failed: 'chip--danger', refused: 'chip--danger', running: 'chip--accent' }[j.status] || 'chip--muted') }, t('fw.status.' + j.status)),
             h('span', { class: 'fw-history__what' }, j.summary.map(x => x.name + ' → ' + x.to).join(', '), j.undo_of ? h('span', { class: 'muted' }, ' · ' + t('fw.history.undo_of')) : null),
             h('span', { class: 'muted fw-history__when' }, LL.fmtDate(j.t), j.reason && j.status !== 'done' && LL.strings[j.reason] ? ' · ' + t(j.reason) : ''),
-            j.status === 'done' && j.inverse && j.undo_until > now ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => {
+            j.status === 'done' && j.inverse && j.undo_until > now && LL.can('operate') ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => {
               try { await api('/api/firewall/undo', { method: 'POST', body: { plan: j.plan } }); st.mode = 'change'; await load(); openPreview(); } catch (e) { LL.toast(fwErr(e), 'error'); }
             } }, t('fw.history.undo')) : null))));
       }

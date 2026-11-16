@@ -26,6 +26,7 @@
 - **Physical topology.** Which device hangs on which switch port, which clients use which access point (with band and network name), and which guests run on a host. Cables are solid traces, wireless links dashed with a radio mark, guests dotted; the port number sits at the device end. The data comes from a manual "connected via" field, a switch controller (view-only account), LLDP neighbours and switch address tables over SNMP, in this order of precedence. Clients behind an access point default to wireless. This host's measured traffic flows along the cabling. See [docs/TOPOLOGY.md](docs/TOPOLOGY.md).
 - **Data paths.** A calm world map shows where your devices send data on the internet, by country: arcs from your home country, width by bytes, outside the EU in amber. 24 hours, 7 days or 30 days, a full-screen map, lists of countries and devices, and calm hints for unusual behaviour (a device talks to a new country, uploads far more than on a typical day, or sits in a network that should not reach the internet). Countries come from an offline database shipped in the image; only countries and byte counts are stored, never addresses. Own networks and tunnels are kept apart, and the EU share only counts traffic with a known country. See [docs/DATA-PATHS.md](docs/DATA-PATHS.md).
 - **Nightly report.** Every morning a short report about the night in plain words: internet outages, new and missing devices, interrupted connections and refused sign-ins, data paths hints, changes to the controller configuration, expiring certificates, and Lanloom's own updates and restarts as maintenance. One headline says "All quiet" or how many things need a look; those can be ticked off. Rule-based from Lanloom's own data, with no online service needed (an AI can explain a note on request, see below); made at the next start if Lanloom was off at report time; 30-day archive; optional delivery by e-mail, webhook, push topic or your own chat bot (off by default). See [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md).
+- **Several users, three roles.** Viewer, operator and admin, enforced on the server for every route. Invitation links, two-step sign-in with an authenticator app, recovery codes or passkeys, sessions you can end, security notices and a tamper-evident audit log. Optional sign-in through your own authentication proxy. See [docs/ACCESS.md](docs/ACCESS.md).
 - **AI, local or cloud (optional).** An Explain button on devices, notes of the nightly report and firewall rules lets an AI answer in plain words, in the language of the app. Off by default; AI never changes a setting. See [docs/integrations/ai.md](docs/integrations/ai.md).
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
 - **Device list** with search, light/dark/auto mode and two colour themes (Circuit green and Aurora), a phone layout with bottom tabs, English and German UI.
@@ -140,6 +141,17 @@ Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map
 <tr>
 <td width="50%"><img src="docs/screenshots/reports-dark.png" width="100%" alt="Nightly report in the dark theme"><br><sub>Things that need a look can be ticked off; notes stay calm</sub></td>
 <td width="50%"><img src="docs/screenshots/report-settings-light.png" width="100%" alt="Report time, time zone, archive and optional delivery"><br><sub>Report time, archive and optional delivery (off by default)</sub></td>
+</tr>
+</table>
+
+### Users and sign-in security
+
+![Settings, Users: roles, second factor and last sign-in](docs/screenshots/access-users-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/access-audit-dark.png" width="100%" alt="Audit log with filters and chain check"><br><sub>Audit log: who did what, when and from where, with a checkable chain</sub></td>
+<td width="50%"><img src="docs/screenshots/access-second-step-light.png" width="100%" alt="Second step of the sign-in"><br><sub>Second step: app code, recovery code or passkey</sub></td>
 </tr>
 </table>
 
@@ -261,7 +273,7 @@ Supported services: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). Step-by-step
 
 ## Security and privacy
 
-Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The optional update check against the public release feed is the only outbound connection of its own; everything else happens only when you switch it on: the delivery of the nightly report summary, a cloud AI service (which only ever receives placeholders instead of addresses and names) and the download of the local AI service and its models. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Further people join by one-time invitation with a viewer, operator or admin role, enforced on the server for every route; a second factor (authenticator app or passkey) is required for admins by default, critical actions ask for a fresh confirmation, and every change is written to a tamper-evident audit log ([docs/ACCESS.md](docs/ACCESS.md)). Sign-in through your own authentication proxy is optional and off by default. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The optional update check against the public release feed is the only outbound connection of its own; everything else happens only when you switch it on: the delivery of the nightly report summary, a cloud AI service (which only ever receives placeholders instead of addresses and names) and the download of the local AI service and its models. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
 ## Updating
 
@@ -279,6 +291,7 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 ## Documentation
 
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, uninstall
+- [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
 - [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md): the nightly report, its sections, the archive, optional delivery, adding a section

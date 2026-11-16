@@ -344,7 +344,7 @@ class Demo:
         app.store.execute("UPDATE users SET created=?, last_login=? WHERE id=?", (now - 41 * day, now - 5 * 3600, shift))
         app.vault.put("totp:%d" % shift, _totp.new_secret())
         app.factors.new_recovery(shift)
-        app.invites.create("invite", "viewer", "admin", note="Workshop tablet")
+        app.invites.create("invite", "viewer", "admin", note="Hallway tablet")
         clock = app.audit.clock
         rows = [
             (41 * day, "users.joined", {"username": "night-shift", "role": "operator"}, "night-shift", "ok", {"role": "operator", "invited_by": "admin"}),
@@ -361,7 +361,7 @@ class Demo:
             for ago, action, actor, target, outcome, detail in rows:
                 app.audit.clock = lambda ago=ago: now - ago
                 app.audit.record(action, actor, target=target, outcome=outcome, ip="192.0.2.%d" % (20 + len(action) % 9),
-                                 agent="Firefox · Linux", detail=detail)
+                                 agent="computer", detail=detail)
         finally:
             app.audit.clock = clock
 

@@ -10,7 +10,7 @@
   function liveConnect() {
     if (live.ws && live.ws.readyState <= 1) return;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = live.ws = new WebSocket(proto + '//' + location.host + '/api/live');
+    const ws = live.ws = new WebSocket(proto + '//' + location.host + LL.url('/api/live'));
     ws.onmessage = ev => { let f; try { f = JSON.parse(ev.data); } catch (e) { return; } live.last = f; live.retry = 1000; live.listeners.forEach(fn => fn(f)); };
     ws.onclose = () => { live.ws = null; if (live.listeners.size) { clearTimeout(live.timer); live.timer = setTimeout(liveConnect, live.retry); live.retry = Math.min(15000, live.retry * 2); } };
   }
@@ -37,15 +37,16 @@
         LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
       nav, h('div', { class: 'topbar__right' }, updateBtn, gradePill, themeBtn));
     const main = h('main', { class: 'main main--' + active }, content);
-    app.replaceChildren(h('div', { class: 'frame' }, header, main));
+    const notes = LL.noticeBar ? LL.noticeBar() : null;              // security notices (new device, lock-out ...)
+    app.replaceChildren(h('div', { class: 'frame' }, header, notes, main));
     const unsub = liveSubscribe(f => {
       const g = (f.overall && f.overall.grade) || 'unknown';
       gradePill.dataset.grade = g;
       gradePill.lastChild.textContent = t('board.grade.' + g);
     });
-    checkUpdate(updateBtn);
+    if (LL.can('admin')) checkUpdate(updateBtn);
     if (LL.setReportsUnread) LL.setReportsUnread((LL.state && LL.state.reports_unread) || 0);
-    if (LL.state && LL.state.authenticated && !LL.state.report_tz_auto && !frame.tzSent) {
+    if (LL.state && LL.state.authenticated && LL.can('operate') && !LL.state.report_tz_auto && !frame.tzSent) {
       frame.tzSent = true;                 // the browser's time zone is the automatic report zone (when the container has none)
       try { api('/api/reports/tz', { method: 'POST', body: { tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '' } }).catch(() => {}); } catch (e) { /* ignore */ }
     }
@@ -108,7 +109,7 @@
 
   function emptyState() {
     return h('div', { class: 'empty-state' }, h('div', { class: 'empty-state__art' }, LL.logo(56)), h('h2', {}, t('map.empty.title')),
-      h('p', { class: 'muted' }, t('map.empty.text')), h('a', { class: 'btn btn--primary', href: '#/settings' }, t('map.empty.action')));
+      h('p', { class: 'muted' }, t(LL.can('admin') ? 'map.empty.text' : 'map.empty.text_viewer')), LL.can('admin') ? h('a', { class: 'btn btn--primary', href: '#/settings' }, t('map.empty.action')) : null);
   }
 
   // ------------------------------------------------------------------ detail panel
@@ -136,7 +137,7 @@
     if (foot) foot.remove();
     if (d.physical && (d.physical.link || d.physical.children || d.physical.choices || d.physical.unknown)) {
       const phys = h('div', {}, physicalSection(d.physical, id));
-      const edit = h('div', {}, d.physical.choices ? manualEditor(d.physical, id, refreshPhysical) : null);
+      const edit = h('div', {}, d.physical.choices && LL.can('operate') ? manualEditor(d.physical, id, refreshPhysical) : null);
       sections.push(phys);
       if (devSec) sections.push(devSec);
       sections.push(edit);
@@ -144,7 +145,7 @@
         try {
           const nd = await api('/api/component/' + encodeURIComponent(id)), np = nd.physical || {};
           phys.replaceChildren(physicalSection(np, id));
-          edit.replaceChildren(np.choices ? manualEditor(np, id, refreshPhysical) : '');
+          edit.replaceChildren(np.choices && LL.can('operate') ? manualEditor(np, id, refreshPhysical) : '');
         } catch (e) { /* keep */ }
       }
     } else if (devSec) sections.push(devSec);
@@ -197,9 +198,10 @@
   function facts(rows) { return h('dl', { class: 'facts' }, rows.filter(r => r && r[1] != null && r[1] !== '').map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]).flat()); }
 
   function deviceSection(dev, d) {
-    const name = h('input', { class: 'input-plain', value: dev.title, placeholder: t('kind.' + dev.kind), maxlength: '48', 'aria-label': t('device.name'),
+    const may = LL.can('operate');
+    const name = !may ? h('span', {}, dev.title || t('kind.' + dev.kind)) : h('input', { class: 'input-plain', value: dev.title, placeholder: t('kind.' + dev.kind), maxlength: '48', 'aria-label': t('device.name'),
       onchange: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { title: name.value } }); LL.toast(t('device.saved'), 'ok'); } });
-    const kindSel = dev.is_self ? h('span', {}, t('kind.self')) : LL.kindSelect(dev.kind, async v => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { kind: v } }); LL.toast(t('device.saved'), 'ok'); });
+    const kindSel = dev.is_self ? h('span', {}, t('kind.self')) : !may ? h('span', {}, t('kind.' + dev.kind)) : LL.kindSelect(dev.kind, async v => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { kind: v } }); LL.toast(t('device.saved'), 'ok'); });
     const reasonText = r => {
       const kind = r.split(':')[0]; let v = r.split(':').slice(1).join(':');
       if (kind === 'word') v = t('kind.' + v);
@@ -218,9 +220,9 @@
     const ann = [];
     (dev.mdns || []).forEach(m => ann.push(h('li', {}, h('span', { class: 'mono' }, m.type), ' — ', m.name || '')));
     (dev.ssdp || []).forEach(s => ann.push(h('li', {}, h('span', { class: 'mono' }, (s.device_type || s.st || '').replace(/^urn:/, '')), ' — ', [s.friendly_name, s.model].filter(Boolean).join(' · '))));
-    const hide = h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
+    const hide = !may ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
     return h('div', {}, section(t('detail.device'), facts(rows)), ports ? section(t('device.ports'), ports) : null,
-      ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, h('div', { class: 'detail__foot' }, hide));
+      ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, hide ? h('div', { class: 'detail__foot' }, hide) : null);
   }
 
   // ------------------------------------------------------------------ physical connection (manual > controller > LLDP > address table)
@@ -398,21 +400,29 @@
   }
 
   // ------------------------------------------------------------------ settings
+  // sub-pages of the settings; each names the lowest role that sees it (the server enforces the same per route)
+  const SETTINGS_PAGES = [['general', '', 'settings.general', 'viewer'], ['account', 'account', 'settings.tab.account', 'viewer'],
+    ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['ai', 'ai', 'ai.tab', 'admin']];
   function settingsSubnav(active) {
-    return h('nav', { class: 'seg settings-subnav', 'aria-label': t('settings.sections') }, [['general', '#/settings', 'settings.general'], ['ai', '#/settings/ai', 'ai.tab']].map(([k, href, label]) =>
-      h('a', { href, class: 'seg__btn' + (k === active ? ' is-active' : ''), 'aria-current': k === active ? 'page' : null }, t(label))));
+    const allowed = p => p[3] === 'viewer' || LL.can(p[3] === 'admin' ? 'admin' : 'operate');
+    return h('nav', { class: 'seg settings-subnav', 'aria-label': t('settings.sections') }, SETTINGS_PAGES.filter(allowed).map(([k, sub, label]) =>
+      h('a', { href: '#/settings' + (sub ? '/' + sub : ''), class: 'seg__btn' + (k === active ? ' is-active' : ''), 'aria-current': k === active ? 'page' : null }, t(label))));
   }
+  LL.settingsSubnav = settingsSubnav;
   async function settingsView(app, rest) {
     const fr = frame(app, 'settings');
-    if (rest && rest[0] === 'ai' && LL.aiSettingsPage) {
-      const aiPage = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav('ai')));
-      fr.main.append(aiPage);
-      const sub = await LL.aiSettingsPage(aiPage);
+    const sub = rest && rest[0];
+    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage }[sub];
+    if (subPage) {
+      const pg = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav(sub)));
+      fr.main.append(pg);
+      const inner = await subPage(pg);
       const destroy = fr.destroy;
-      fr.destroy = () => { if (sub && sub.destroy) sub.destroy(); if (destroy) destroy.call(fr); };
+      fr.destroy = () => { if (inner && inner.destroy) inner.destroy(); if (destroy) destroy.call(fr); };
       return fr;
     }
-    const [s, scan, nets, pk, upd] = await Promise.all([api('/api/settings'), api('/api/scan'), api('/api/networks'), api('/api/passkeys'), api('/api/update')]);
+    if (!LL.can('admin')) return generalForEveryone(fr);
+    const [s, scan, nets, upd] = await Promise.all([api('/api/settings'), api('/api/scan'), api('/api/networks'), api('/api/update')]);
     const page = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav('general')));
     // scanning
     const cidrs = new Set((s.rescan_cidrs && s.rescan_cidrs.length ? s.rescan_cidrs : nets.networks.filter(n => n.allowed && n.gateway).map(n => n.cidr)));
@@ -451,11 +461,7 @@
     page.append(card(t('settings.integrations'), [h('p', { class: 'muted' }, t('wizard.connect.safety')), integWrap]));
     renderInteg();
     // appearance
-    const lang = h('select', { class: 'select', onchange: async () => { await api('/api/settings', { method: 'PUT', body: { language: lang.value } }); await LL.loadLang(lang.value); LL.route(); } },
-      LL.langOptions());
-    lang.value = LL.lang;
-    const theme = h('select', { class: 'select', onchange: () => LL.setTheme(theme.value) }, ['auto', 'light', 'dark'].map(v => h('option', { value: v }, t('theme.' + v))));
-    theme.value = LL.theme();
+    const [lang, theme] = langThemeSelects();
     const unit = h('select', { class: 'select', onchange: async () => {
       await api('/api/settings', { method: 'PUT', body: { rate_unit: unit.value } }); LL.rateUnit = unit.value; LL.toast(t('settings.saved'), 'ok'); } },
       ['bytes', 'bits'].map(v => h('option', { value: v }, t('settings.rate_unit.' + v))));
@@ -463,28 +469,6 @@
     page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)),
       paletteField(), LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint'))]));
     if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
-    // account
-    const cur = h('input', { type: 'password', autocomplete: 'current-password' });
-    const nw = h('input', { type: 'password', autocomplete: 'new-password' });
-    const pwMsg = h('div', { class: 'msg' });
-    const pkList = h('ul', { class: 'plain-list' });
-    function renderPk(items) {
-      pkList.replaceChildren(...(items.length ? items.map(p => h('li', { class: 'row-between' }, h('span', {}, p.name, h('span', { class: 'muted' }, ' · ' + LL.fmtDate(p.created))),
-        h('button', { class: 'btn btn--danger-ghost btn--sm', type: 'button', onclick: async () => { await api('/api/passkeys/' + p.id, { method: 'DELETE' }); renderPk((await api('/api/passkeys')).passkeys); } }, t('passkey.remove')))) : [h('li', { class: 'muted' }, t('passkey.none'))]));
-    }
-    renderPk(pk.passkeys);
-    const pkMsg = h('div', { class: 'msg' });
-    page.append(card(t('settings.account', { user: LL.state.user || '' }), [
-      h('div', { class: 'grid-2' }, LL.field(t('settings.pw.current'), cur), LL.field(t('settings.pw.new'), nw, t('wizard.account.password_hint'))), pwMsg,
-      h('div', { class: 'btn-row' }, h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => {
-        try { await api('/api/account/password', { method: 'POST', body: { current: cur.value, password: nw.value } }); LL.msg(pwMsg, t('settings.pw.changed'), 'ok'); cur.value = nw.value = ''; }
-        catch (e) { LL.msg(pwMsg, LL.errText(e), 'error'); }
-      } }, t('settings.pw.change'))),
-      h('hr'), h('h3', {}, t('passkey.title')), LL.passkeySupported() ? null : h('p', { class: 'muted' }, t('passkey.needs_secure')), pkList, pkMsg,
-      LL.passkeySupported() ? h('div', { class: 'btn-row' }, h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => {
-        try { await LL.passkeyRegister(LL.deviceName()); renderPk((await api('/api/passkeys')).passkeys); LL.msg(pkMsg, t('passkey.added'), 'ok'); } catch (e) { LL.msg(pkMsg, LL.errText(e), 'error'); }
-      } }, t('passkey.add'))) : null,
-      h('hr'), h('div', { class: 'btn-row' }, h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => { await api('/api/logout', { method: 'POST', body: {} }); LL.go('#/login'); } }, t('settings.logout')))]));
     // updates + about
     const updToggle = h('input', { type: 'checkbox', checked: !!s.update_check, onchange: () => api('/api/settings', { method: 'PUT', body: { update_check: updToggle.checked } }).then(() => LL.toast(t('settings.saved'), 'ok')) });
     const updMsg = h('div', { class: 'msg' });
@@ -504,6 +488,27 @@
     return fr;
   }
   function card(title, kids) { return h('section', { class: 'card settings-card' }, h('h2', {}, title), kids); }
+  LL.settingsCard = card;
+  LL.facts = facts;
+  function langThemeSelects() {
+    // the language is a personal choice (stored with the account); the first account's choice is the default for everyone
+    const lang = h('select', { class: 'select', onchange: async () => { await api('/api/account/prefs', { method: 'PUT', body: { language: lang.value } }); await LL.loadLang(lang.value); LL.route(); } },
+      LL.langOptions());
+    lang.value = LL.lang;
+    const theme = h('select', { class: 'select', onchange: () => LL.setTheme(theme.value) }, ['auto', 'light', 'dark'].map(v => h('option', { value: v }, t('theme.' + v))));
+    theme.value = LL.theme();
+    return [lang, theme];
+  }
+  // what viewers and operators see under Settings > General: appearance and about (everything else is for admins)
+  function generalForEveryone(fr) {
+    const page = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav('general')));
+    const [lang, theme] = langThemeSelects();
+    page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)), paletteField()]),
+      card(t('settings.role.title'), [h('p', {}, t('settings.role.' + ((LL.state.can && LL.state.can.role) || 'viewer'))), h('p', { class: 'muted' }, t('settings.role.ask'))]),
+      card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy'))]));
+    fr.main.append(page);
+    return fr;
+  }
   // Colour theme: one preview per palette, drawn with that palette's own tokens in the mode that is showing now.
   function paletteField() {
     const mode = LL.effectiveTheme();

@@ -15,7 +15,7 @@
       else if (v === true) el.setAttribute(k, '');
       else el.setAttribute(k, v);
     }
-    for (const kid of kids.flat()) {
+    for (const kid of kids.flat(Infinity)) {
       if (kid == null || kid === false) continue;
       el.appendChild(typeof kid === 'string' || typeof kid === 'number' ? document.createTextNode(String(kid)) : kid);
     }
@@ -24,23 +24,33 @@
   LL.h = h;
 
   // ------------------------------------------------------------------ API
+  // Every address is relative to the page, so Lanloom also works below a sub-path of a reverse proxy.
+  LL.base = location.pathname.replace(/[^/]*$/, '') || '/';
+  LL.url = path => (path.charAt(0) === '/' ? LL.base + path.slice(1) : path);
   async function api(path, opts) {
     opts = opts || {};
     const init = { method: opts.method || 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } };
     if (init.method !== 'GET') init.headers['X-Lanloom'] = '1';
     if (opts.body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
-    const r = await fetch(path, init);
+    const r = await fetch(LL.url(path), init);
     let data = {};
     try { data = await r.json(); } catch (e) { /* empty body */ }
     if (!r.ok) {
+      // critical actions ask for a fresh confirmation (passkey, one-time code or password) and are then sent once more
+      if (r.status === 403 && data.error === 'auth.err.stepup' && !opts.noStepUp && LL.stepUp) {
+        if (await LL.stepUp(data.methods || [])) return api(path, Object.assign({}, opts, { noStepUp: true }));
+      }
       const err = new Error(data.error || data.detail || ('HTTP ' + r.status));
       err.status = r.status; err.key = data.error || data.detail; err.wait = data.wait;
       if (r.status === 401 && !opts.allow401) LL.go('#/login');
+      if (r.status === 403 && data.error === 'auth.err.enroll') LL.go('#/enroll');
       throw err;
     }
     return data;
   }
   LL.api = api;
+  // what the signed-in role may use (only for showing controls - the server decides)
+  LL.can = what => !!(LL.state && LL.state.can && LL.state.can[what]);
 
   // ------------------------------------------------------------------ translations
   LL.strings = {};
@@ -186,12 +196,15 @@
     const cred = await navigator.credentials.create({ publicKey: opt });
     return api('/api/passkey/register/verify', { method: 'POST', body: { ceremony: o.ceremony, credential: credJson(cred), name: name || '' } });
   };
-  LL.passkeyLogin = async function () {
-    const o = await api('/api/passkey/login/options', { method: 'POST', body: {} });
+  LL.passkeyAssert = async function (o) {
     const opt = Object.assign({}, o.options, { challenge: unb64(o.options.challenge) });
     if (opt.allowCredentials) opt.allowCredentials = opt.allowCredentials.map(c => Object.assign({}, c, { id: unb64(c.id) }));
-    const cred = await navigator.credentials.get({ publicKey: opt });
-    return api('/api/passkey/login/verify', { method: 'POST', body: { ceremony: o.ceremony, credential: credJson(cred) } });
+    return credJson(await navigator.credentials.get({ publicKey: opt }));
+  };
+  LL.passkeyLogin = async function (extra) {
+    const o = await api('/api/passkey/login/options', { method: 'POST', body: {} });
+    const credential = await LL.passkeyAssert(o);
+    return api('/api/passkey/login/verify', { method: 'POST', body: Object.assign({ ceremony: o.ceremony, credential }, extra || {}) });
   };
   LL.deviceName = function () {
     const u = navigator.userAgent || '';
@@ -242,11 +255,13 @@
     if (!Object.keys(LL.strings).length || (st.language && st.language !== LL.lang)) await loadLang(LL.pickLang(st.language));
     let target = name || 'map';
     if (st.setup_needed) target = 'setup';
+    else if (target === 'invite' && !st.authenticated) target = 'invite';      // invitation or reset link, opened signed out
     else if (!st.authenticated) target = 'login';
+    else if (st.enroll) target = 'enroll';                                      // second factor required: set it up first
     else if (!st.setup_done) target = 'setup';
-    else if (target === 'login' || target === 'setup') target = 'map';
+    else if (target === 'login' || target === 'setup' || target === 'invite' || target === 'enroll') target = 'map';
     if (seq !== routeSeq) return;            // a newer navigation started meanwhile
-    if (target !== name) history.replaceState(null, '', '#/' + target);
+    if (target !== name) history.replaceState(null, '', LL.base + '#/' + target);
     if (current && current.destroy) { try { current.destroy(); } catch (e) { /* ignore */ } }
     current = null;
     const fn = views[target] || views.map;
@@ -257,31 +272,82 @@
   window.addEventListener('DOMContentLoaded', route);
 
   // ------------------------------------------------------------------ sign-in page
+  function authPage(app, ...kids) {
+    app.replaceChildren(h('main', { class: 'auth-page' },
+      h('div', { class: 'auth-card card' },
+        h('div', { class: 'auth-card__brand' }, LL.logo(36), h('div', {}, h('div', { class: 'brand-name' }, 'Lanloom'), h('div', { class: 'muted' }, t('app.tagline')))),
+        ...kids),
+      LL.footer()));
+  }
+  LL.authPage = authPage;
+  function afterSignIn(res) {
+    if (res && res.enroll) LL.go('#/enroll'); else LL.go('#/map');
+  }
+  LL.afterSignIn = afterSignIn;
+
   LL.view('login', async function (app) {
     const user = h('input', { type: 'text', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', required: true });
     const pass = h('input', { type: 'password', autocomplete: 'current-password', required: true });
+    const pub = h('input', { type: 'checkbox', class: 'login-public' });
     const msg = h('div', { class: 'msg' });
     const submit = h('button', { class: 'btn btn--primary btn--block', type: 'submit' }, t('login.submit'));
     const form = h('form', { class: 'stack', onsubmit: async (ev) => {
       ev.preventDefault(); submit.disabled = true; LL.msg(msg, '');
-      try { await api('/api/login', { method: 'POST', body: { username: user.value, password: pass.value }, allow401: true }); LL.go('#/map'); }
-      catch (e) { LL.msg(msg, LL.errText(e), 'error'); submit.disabled = false; pass.select(); }
-    } }, LL.field(t('login.username'), user), LL.field(t('login.password'), pass), msg, submit);
+      try {
+        const res = await api('/api/login', { method: 'POST', body: { username: user.value, password: pass.value, public_computer: pub.checked }, allow401: true });
+        if (res.second) { secondStep(app, res.second, pub.checked); return; }
+        afterSignIn(res);
+      } catch (e) { LL.msg(msg, LL.errText(e), 'error'); submit.disabled = false; pass.select(); }
+    } }, LL.field(t('login.username'), user), LL.field(t('login.password'), pass),
+      h('label', { class: 'check' }, pub, h('span', {}, t('login.public'), h('span', { class: 'field__hint' }, t('login.public.hint')))), msg, submit);
+    pub.addEventListener('change', () => { user.setAttribute('autocomplete', pub.checked ? 'off' : 'username'); });
     const pk = LL.passkeySupported() ? h('button', { class: 'btn btn--ghost btn--block', type: 'button', onclick: async () => {
       LL.msg(msg, '');
-      try { await LL.passkeyLogin(); LL.go('#/map'); } catch (e) { LL.msg(msg, LL.errText(e), 'error'); }
+      try { afterSignIn(await LL.passkeyLogin({ public_computer: pub.checked })); } catch (e) { LL.msg(msg, LL.errText(e), 'error'); }
     } }, t('login.passkey')) : null;
-    app.replaceChildren(h('main', { class: 'auth-page' },
-      h('div', { class: 'auth-card card' },
-        h('div', { class: 'auth-card__brand' }, LL.logo(36), h('div', {}, h('div', { class: 'brand-name' }, 'Lanloom'), h('div', { class: 'muted' }, t('app.tagline')))),
-        h('h1', { class: 'auth-card__title' }, t('login.title')),
-        form,
-        pk ? h('div', { class: 'divider' }, h('span', {}, t('login.or'))) : null,
-        pk,
-        h('p', { class: 'auth-card__foot muted' }, t('login.forgot'))),
-      LL.footer()));
+    authPage(app, h('h1', { class: 'auth-card__title' }, t('login.title')), form,
+      pk ? h('div', { class: 'divider' }, h('span', {}, t('login.or'))) : null, pk,
+      h('p', { class: 'auth-card__foot muted' }, t('login.forgot')));
     setTimeout(() => { if (document.activeElement === document.body) user.focus(); }, 30);
   });
+
+  // second step: one-time code from the app, a recovery code, or a passkey
+  function secondStep(app, second, publicComputer) {
+    let kind = second.methods.includes('totp') ? 'totp' : (second.methods.includes('recovery') ? 'recovery' : 'passkey');
+    const code = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'one-time-code', autocapitalize: 'none', spellcheck: 'false', maxlength: '20', class: 'input code-input' });
+    const label = h('label', { class: 'field__label', for: 'second-code' }, '');
+    code.id = 'second-code';
+    const msg = h('div', { class: 'msg' });
+    const submit = h('button', { class: 'btn btn--primary btn--block', type: 'submit' }, t('login.second.submit'));
+    const lead = h('p', { class: 'muted' }, '');
+    const form = h('form', { class: 'stack', onsubmit: async ev => {
+      ev.preventDefault(); submit.disabled = true; LL.msg(msg, '');
+      try { afterSignIn(await api('/api/login/second', { method: 'POST', body: { ticket: second.ticket, kind, code: code.value }, allow401: true })); }
+      catch (e) {
+        submit.disabled = false; code.select();
+        if (e.key === 'auth.err.ticket') { LL.msg(msg, t('auth.err.ticket'), 'error'); setTimeout(() => LL.go('#/login'), 1800); }
+        else LL.msg(msg, LL.errText(e), 'error');
+      }
+    } }, lead, h('div', { class: 'field' }, label, code), msg, submit);
+    const sw = h('div', { class: 'second-switch' });
+    function show() {
+      form.hidden = kind === 'passkey';
+      lead.textContent = t('login.second.lead.' + kind);
+      label.textContent = t('login.second.label.' + kind);
+      code.setAttribute('inputmode', kind === 'totp' ? 'numeric' : 'text');
+      code.value = ''; LL.msg(msg, '');
+      sw.replaceChildren(...second.methods.filter(m => m !== kind && (m !== 'passkey' || LL.passkeySupported())).map(m =>
+        h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => { if (m === 'passkey') usePasskey(); else { kind = m; show(); code.focus(); } } }, t('login.second.use.' + m))));
+    }
+    async function usePasskey() {
+      LL.msg(msg, '');
+      try { afterSignIn(await LL.passkeyLogin({ ticket: second.ticket, public_computer: publicComputer })); } catch (e) { form.hidden = false; LL.msg(msg, LL.errText(e), 'error'); }
+    }
+    authPage(app, h('h1', { class: 'auth-card__title' }, t('login.second.title')), form, sw,
+      h('p', { class: 'auth-card__foot muted' }, h('a', { href: '#/login', onclick: ev => { ev.preventDefault(); LL.route(); } }, t('login.second.back'))));
+    show();
+    if (kind === 'passkey' && LL.passkeySupported()) usePasskey(); else setTimeout(() => code.focus(), 30);
+  }
 
   LL.footer = function () {
     return h('footer', { class: 'page-foot muted' }, 'Lanloom ' + ((LL.state && LL.state.version) || ''), h('span', { class: 'dot-sep' }, '·'), t('app.readonly'));

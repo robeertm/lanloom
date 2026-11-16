@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] – 2026-11-16
+
+### Added
+- **Several users with three roles**: viewer (looks at everything, changes only the own account), operator (renames and hides devices, sets manual connections, runs scans, ticks report items, prepares firewall drafts) and admin (settings, connections and their credentials, users, sign-in security, audit log, executor approvals, AI, updates). The rights are enforced on the server for every route from one central table; a test checks every route of the app against it, and a route missing from the table is for admins only. The web page hides what a role cannot use. See [docs/ACCESS.md](docs/ACCESS.md).
+- **Invitations**: Settings › Users creates a one-time link (24 hours) bound to a role; open links can be withdrawn. Users can be given another role, disabled or deleted; at least one admin always stays.
+- **Two-step sign-in**: authenticator app (time-based one-time codes, each usable once) with ten recovery codes, or a passkey as the strong factor. After the password, sign-in asks for the code, a recovery code or the passkey. A second factor can be required per role (Settings › Security); by default it is required for admins, with 48 hours to set it up, after which the next sign-in leads to a set-up page.
+- **Confirmation for critical actions** (users, connections with credentials, sign-in security, AI pairing, own second factors): a passkey, an app code or (without a second factor) the password, valid for 10 minutes; a fresh sign-in counts.
+- **Sessions**: Settings › Account lists where the account is signed in, ends single sessions or all of them ("Sign out everywhere"); admins can end the sessions of any user. "Public or shared computer" at sign-in gives a short session without a lasting cookie.
+- **Password reset by an admin** with a one-time link that can also remove a lost second factor; the emergency way for a locked-out only admin stays as described in the installation guide.
+- **Security notices** in the app for a sign-in from a new address or device, a lock-out after wrong attempts (also to all admins), a used recovery code and a password reset.
+- **Audit log** (Settings › Security): every change, sign-in, failed sign-in and refusal with who, when, what and from where, sealed as a chain so later edits show up; filters, CSV export, adjustable retention (365 days by default). Secrets are never written to it.
+- Nightly report: new section "Access" (lock-outs, failed sign-ins, new devices, new users, changed roles, removed second factors, broken audit chain).
+- Optional sign-in through a trusted authentication proxy (`LANLOOM_AUTH_HEADER`, groups to roles with `LANLOOM_AUTH_GROUP_ROLES`), only from addresses in `LANLOOM_TRUSTED_PROXIES`; off by default.
+- Serving below a sub-path: every address of the web page is relative, and `LANLOOM_BASE_PATH` lets Lanloom accept the prefix itself.
+- Demo mode shows two sample users, an open invitation and sample audit entries.
+
+### Changed
+- The account card moved from Settings › General to the new Settings › Account. The language is now a personal choice of each user; the language chosen at setup stays the default.
+- An existing installation keeps its account; it becomes an admin.
+
+### Security
+- Recovery codes and invitation or reset tokens are stored only as keyed hashes and work once; one-time-code secrets are stored encrypted. The second sign-in step is limited per client and per account and expires after 5 minutes or 5 wrong codes.
+- The audit log is an append-only chain of HMAC-sealed entries with a key derived from the instance key; editing, inserting, removing or cutting off entries is reported. A name typed into the sign-in form is logged only if such a user exists.
+
 ## [1.11.1] – 2026-11-16
 
 ### Fixed

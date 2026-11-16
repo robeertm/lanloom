@@ -19,6 +19,7 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import secrets
 import threading
 import time
@@ -621,14 +622,24 @@ class Notices:
         return [] if first_ever else new
 
 
+_UA_SCRIPT = re.compile(r"curl/|wget/|python-|go-http|okhttp|java/", re.I)   # identifier: user-agent tokens
+_UA_TABLET = re.compile(r"Tablet")        # identifier: user-agent token
+_UA_PHONE = re.compile(r"Mobi")           # identifier: user-agent token (mobile browsers say "Mobile")
+
+
 def agent_label(ua: str) -> str:
-    """Short, non-identifying description of a browser: "Firefox · Linux"."""
+    """Kind of device, never a product name: "computer", "phone", "tablet", "script" or "unknown" (the page translates it).
+    Telling two sessions apart works by address and time; recognising a device again uses device_key()."""
     ua = ua or ""
-    browser = next((name for token, name in (("Edg/", "Edge"), ("OPR/", "Opera"), ("Firefox/", "Firefox"), ("Chrome/", "Chrome"),
-                                              ("Safari/", "Safari"), ("curl/", "curl")) if token in ua), "")   # identifier: user-agent tokens
-    system = next((name for token, name in (("iPhone", "iOS"), ("iPad", "iPadOS"), ("Android", "Android"), ("Windows", "Windows"),
-                                             ("Mac OS X", "macOS"), ("CrOS", "ChromeOS"), ("Linux", "Linux")) if token in ua), "")   # identifier: user-agent tokens
-    return " · ".join(p for p in (browser, system) if p) or "?"
+    if not ua.strip():
+        return "unknown"
+    if _UA_SCRIPT.search(ua):
+        return "script"
+    if _UA_TABLET.search(ua):
+        return "tablet"
+    if _UA_PHONE.search(ua):
+        return "phone"
+    return "computer"
 
 
 def device_key(ua: str) -> str:

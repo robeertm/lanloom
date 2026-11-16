@@ -235,17 +235,31 @@ def test_lockout_notices_reach_the_user_and_the_admins(c):
     assert all("S3cret" not in json.dumps(e) for e in st.audit.query({}, 50))
 
 
-def test_new_address_or_device_leaves_a_notice(c):
-    st = c.st
-    c.cookies.clear()
-    r = c.post("/api/login", json={"username": "admin", "password": PW}, headers=dict(HDR, **{"User-Agent": "Firefox/140 (X11; Linux)"}))
-    assert r.status_code == 200
-    kinds = [n["kind"] for n in c.get("/api/account/notices").json()["notices"]]
-    assert kinds == ["new_device"]
-    assert c.post("/api/account/notices/seen", json={}, headers=HDR).json()["seen"] == 1
-    assert c.get("/api/account/notices").json()["notices"] == []
-    assert c.get("/api/state").json()["notices"] == 0
-    assert st.audit.verify()["ok"]
+def test_new_address_or_device_leaves_a_notice(tmp_path, monkeypatch):
+    app = make_app(tmp_path, monkeypatch, LANLOOM_TRUSTED_PROXIES="10.9.0.2")
+    with TestClient(peer(app, "10.9.0.2"), base_url="http://lanloom.test") as c:
+        st = app.state.ll
+        code = (Path(tmp_path) / "setup-code.txt").read_text().strip()
+        hdr = dict(HDR, **{"X-Forwarded-For": "192.0.2.10", "User-Agent": "curl/8"})
+        assert c.post("/api/setup/account", json={"code": code, "username": "admin", "password": PW}, headers=hdr).status_code == 200
+        # same address, another browser: no notice (the setup counted as the first sign-in)
+        c.cookies.clear()
+        c.post("/api/login", json={"username": "admin", "password": PW}, headers=dict(hdr, **{"User-Agent": "TestBrowser/140 (desktop)"}))
+        assert c.get("/api/account/notices", headers=hdr).json()["notices"] == []
+        # another address with a browser never seen: "new device"
+        c.cookies.clear()
+        other = dict(HDR, **{"X-Forwarded-For": "198.51.100.7", "User-Agent": "TestBrowser/9 (Mobile)"})
+        c.post("/api/login", json={"username": "admin", "password": PW}, headers=other)
+        notes = c.get("/api/account/notices", headers=other).json()["notices"]
+        assert [n["kind"] for n in notes] == ["new_device"] and notes[0]["data"]["ip"] == "198.51.100.7"
+        # another address, known browser: "new address"
+        c.cookies.clear()
+        third = dict(HDR, **{"X-Forwarded-For": "203.0.113.4", "User-Agent": "TestBrowser/9 (Mobile)"})
+        c.post("/api/login", json={"username": "admin", "password": PW}, headers=third)
+        assert [n["kind"] for n in c.get("/api/account/notices", headers=third).json()["notices"]] == ["new_address", "new_device"]
+        assert c.post("/api/account/notices/seen", json={}, headers=third).json()["seen"] == 2
+        assert c.get("/api/state", headers=third).json()["notices"] == 0
+        assert st.audit.verify()["ok"]
 
 
 def test_public_computer_gets_a_short_session_without_a_lasting_cookie(c):
@@ -378,11 +392,11 @@ def test_disabling_a_user_ends_the_sessions_and_sign_in(c):
 def test_sessions_list_and_sign_out_everywhere(c):
     st = c.st
     uid = st.accounts.by_name("admin")["id"]
-    other = st.sessions.create(uid, ip="198.51.100.4", agent="Safari · iOS")
+    other = st.sessions.create(uid, ip="198.51.100.4", agent="phone")
     sess = c.get("/api/account/sessions").json()["sessions"]
     assert len(sess) == 2 and sum(s["current"] for s in sess) == 1
     foreign = [s for s in sess if not s["current"]][0]
-    assert foreign["agent"] == "Safari · iOS"
+    assert foreign["agent"] == "phone"
     assert c.delete("/api/account/sessions/" + foreign["id"], headers=HDR).json()["ok"]
     assert st.sessions.resolve(other) is None
     st.sessions.create(uid)
@@ -454,6 +468,14 @@ def test_proxy_header_via_the_app_from_a_trusted_address(tmp_path, monkeypatch):
         assert c.put("/api/settings", json={}, headers=dict(HDR, **{"X-Auth-User": "kim"})).json()["error"] == "auth.err.role"
     with TestClient(peer(app, "192.0.2.5"), base_url="http://lanloom.test") as c:
         assert c.get("/api/devices", headers={"X-Auth-User": "kim"}).status_code == 401
+
+
+def test_agent_label_names_a_kind_never_a_product():
+    assert auth.agent_label("TestBrowser/9 (Mobile)") == "phone"
+    assert auth.agent_label("TestBrowser/9 (Tablet)") == "tablet"
+    assert auth.agent_label("TestBrowser/140 (desktop)") == "computer"
+    assert auth.agent_label("curl/8.5") == "script" and auth.agent_label("") == "unknown"
+    assert auth.device_key("a") != auth.device_key("b")
 
 
 def test_sub_path(tmp_path, monkeypatch):

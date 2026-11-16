@@ -119,7 +119,7 @@
     const previewBtn = h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => showPreview(page) }, t('reports.preview'));
     const head = h('div', { class: 'page__head rp-head' },
       h('div', { class: 'rp-head__titles' }, h('h1', {}, t('reports.title')), next ? h('span', { class: 'muted rp-head__next' }, t('reports.next', { when: next })) : null),
-      h('div', { class: 'rp-head__tools' }, previewBtn, h('a', { class: 'btn btn--ghost btn--sm', href: '#/settings/reports' }, t('reports.settings'))));
+      h('div', { class: 'rp-head__tools' }, previewBtn, LL.can('admin') ? h('a', { class: 'btn btn--ghost btn--sm', href: '#/settings/reports' }, t('reports.settings')) : null));
     const body = h('div', { class: 'rp-layout' });
     if (!l.reports.length && !S.preview) {
       body.classList.add('rp-layout--empty');
@@ -132,7 +132,7 @@
       body.append(archive(l, page));
     }
     page.replaceChildren(head, body);
-    if (S.rep && !S.rep.read && !S.rep.preview) {
+    if (S.rep && !S.rep.read && !S.rep.preview && LL.can('operate')) {
       clearTimeout(S.readTimer);
       const day = S.rep.day;
       S.readTimer = setTimeout(async () => {
@@ -208,7 +208,7 @@
   }
 
   function pointEl(i, rep, page) {
-    const box = h('input', { type: 'checkbox', class: 'rp-check__input', checked: !!i.done, disabled: !!rep.preview });
+    const box = h('input', { type: 'checkbox', class: 'rp-check__input', checked: !!i.done, disabled: !!rep.preview || !LL.can('operate') });
     const when = i.done ? h('small', { class: 'rp-item__when' }, t('reports.done_at', { at: fmtTime(i.done, rep.tz, rep.day) })) : null;
     box.addEventListener('change', async () => {
       box.disabled = true;

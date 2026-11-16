@@ -34,6 +34,7 @@ ONE_PART_FAMILIES = {
     "theme.": "light/dark/auto choice (settings)",
     "palette.": "colour themes (settings)",
     "certainty.": "topology certainty (detail panel)",
+    "agent.": "kind of device of a session or audit entry (access.js)",
 }
 
 SOURCES = ("lanloom", "updater")
@@ -199,6 +200,9 @@ def test_every_key_the_code_names_exists():
         "zone.update": "firewall step identifier (firewall/steps.py), not a text",
         "zone.delete": "firewall step identifier (firewall/steps.py), not a text",
     }
+    # audit log action names ("auth.login", "users.invite" ...) are identifiers stored in the log; their labels are audit.action.<name>
+    from lanloom import access
+    NOT_KEYS.update({a: "audit action name (access.AUDIT_ACTIONS)" for a in access.AUDIT_ACTIONS})
     missing = sorted(l for l in lits if "." in l and not l.endswith(".") and l.split(".")[0] in namespaces and l not in keys and l not in NOT_KEYS)
     assert not missing, "the code names keys that no language file has: %s" % missing[:40]
     # t('literal') calls specifically must resolve, whatever the namespace

@@ -158,6 +158,12 @@ RULES = {
     ("WS", "/api/live"): R(V),
 }
 
+# Every action name the audit log can carry: the ones of the table plus those the handlers write themselves.
+# The page shows them through the texts audit.action.<name>; tests/test_access_matrix.py checks that each has one.
+HANDLER_ACTIONS = ("auth.login", "auth.login_failed", "auth.lockout", "auth.setup_failed", "auth.stepup", "users.joined",
+                   "users.reset_done", "invite.failed", "audit.export", "access.denied")
+AUDIT_ACTIONS = frozenset({r.audit for r in RULES.values() if r.audit and r.audit != "@"} | set(HANDLER_ACTIONS))
+
 # Fields that only admins see, whatever route carries them (location of the site, e.g. the cell of a mobile router).
 ADMIN_ONLY_FIELDS = frozenset({"location", "cell_id", "cell", "lac", "tac", "latitude", "longitude"})
 
