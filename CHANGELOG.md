@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] – 2026-11-16
+
+### Added
+- **Colour themes.** Settings > Appearance > Colour theme: **Circuit green** (the default, the look of every earlier version) and **Aurora** (turquoise, blue and violet on a cool ground). A theme colours the whole app: surfaces, text, the traces and dots on the map, the data paths arcs, the firewall views, the charts and the live grades. Each theme works in light, dark and automatic mode. The choice is remembered per device, takes effect at once without reloading, and the phone's address bar follows the theme. Previews of each theme in the settings are drawn in the mode that is showing now.
+- Warning and error colours keep their meaning in every theme (amber and red stay amber and red); the colours of the live grades follow the theme.
+- Tests: contrast of every text and surface pair (4.5:1) and of every graphic colour on its grounds (3:1) in each theme and mode, no dark surface in light mode and no light surface in dark mode, complete token sets per theme, distinct trace colours, and no colour literal in any component.
+
+### Changed
+- Four colours of the light theme (warning, "near real-time" grade, "periodic" grade, "unknown" grade) and the copper of the board are a little darker so that they reach 3:1 against the light board. Nothing else of the Circuit green look changed.
+- The settings field that switched light, dark and automatic is now called "Light / dark" to tell it apart from the colour theme.
+
 ## [1.8.0] – 2026-11-16
 
 ### Added

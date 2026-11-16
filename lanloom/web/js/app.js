@@ -92,6 +92,30 @@
     document.dispatchEvent(new CustomEvent('ll-theme', { detail: LL.effectiveTheme() }));
   };
   document.documentElement.dataset.theme = LL.theme();
+
+  // ------------------------------------------------------------------ colour theme (accent palette, remembered per device)
+  // The palettes are defined in css/palettes.css (the default one lives in tokens.css); this list only names them.
+  LL.PALETTES = ['circuit', 'aurora'];
+  LL.palette = function () {
+    let v = 'circuit';
+    try { v = localStorage.getItem('ll-palette') || 'circuit'; } catch (e) { /* ignore */ }
+    return LL.PALETTES.includes(v) ? v : 'circuit';
+  };
+  // the browser chrome (address bar on phones) follows the page ground of the chosen palette and mode
+  LL.paintChrome = function () {
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--ll-bg').trim();
+    if (bg) document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.setAttribute('content', bg); });
+  };
+  LL.setPalette = function (v) {
+    if (!LL.PALETTES.includes(v)) v = 'circuit';
+    try { localStorage.setItem('ll-palette', v); } catch (e) { /* ignore */ }
+    document.documentElement.dataset.palette = v;
+    LL.paintChrome();
+    document.dispatchEvent(new CustomEvent('ll-theme', { detail: LL.effectiveTheme() }));   // the board re-reads its colours
+  };
+  document.documentElement.dataset.palette = LL.palette();
+  LL.paintChrome();
+  document.addEventListener('ll-theme', LL.paintChrome);
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       if (LL.theme() === 'auto') document.dispatchEvent(new CustomEvent('ll-theme', { detail: LL.effectiveTheme() }));

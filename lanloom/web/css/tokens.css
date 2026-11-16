@@ -80,7 +80,7 @@
   --ll-ok: #1F9D55;
   --ll-ok-text: #17733F;
   --ll-ok-soft: #E3F4EA;
-  --ll-warn: #C98600;
+  --ll-warn: #BA7C00;
   --ll-warn-text: #865900;
   --ll-warn-soft: #FBF1DA;
   --ll-danger: #D64545;
@@ -90,11 +90,11 @@
 
   /* live grades */
   --ll-grade-realtime: #1F9D55;
-  --ll-grade-near: #6AA314;
-  --ll-grade-periodic: #D49200;
+  --ll-grade-near: #629712;
+  --ll-grade-periodic: #B67E00;
   --ll-grade-sluggish: #E0661A;
   --ll-grade-interrupted: #D64545;
-  --ll-grade-unknown: #8C9AA6;
+  --ll-grade-unknown: #7D8A95;
 
   /* circuit board: light silkscreen board */
   --ll-pcb-board: #EDF1ED;
@@ -110,7 +110,7 @@
   --ll-pcb-tile-down: #F2C4C4;
   --ll-pcb-icon-bg: #EAF2ED;
   --ll-pcb-icon: #23604A;
-  --ll-pcb-copper: #B38242;
+  --ll-pcb-copper: #AF7F41;
   --ll-pcb-via: #9C7136;
   --ll-pcb-trace-rest: .62;
   --ll-pcb-trace-uplink: #B5730E;

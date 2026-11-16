@@ -448,7 +448,7 @@
       ['bytes', 'bits'].map(v => h('option', { value: v }, t('settings.rate_unit.' + v))));
     unit.value = s.rate_unit === 'bits' ? 'bits' : 'bytes';
     page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)),
-      LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint'))]));
+      paletteField(), LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint'))]));
     if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
     // account
     const cur = h('input', { type: 'password', autocomplete: 'current-password' });
@@ -491,6 +491,32 @@
     return fr;
   }
   function card(title, kids) { return h('section', { class: 'card settings-card' }, h('h2', {}, title), kids); }
+  // Colour theme: one preview per palette, drawn with that palette's own tokens in the mode that is showing now.
+  function paletteField() {
+    const mode = LL.effectiveTheme();
+    const group = h('div', { class: 'palette-pick', role: 'radiogroup', 'aria-labelledby': 'palette-label' });
+    const refresh = () => group.querySelectorAll('.pp').forEach(el => el.classList.toggle('is-on', el.querySelector('input').checked));
+    LL.PALETTES.forEach(id => {
+      const input = h('input', { type: 'radio', name: 'palette', value: id, class: 'pp__input', 'aria-describedby': 'pp-desc-' + id, onchange: () => {
+        if (!input.checked) return;
+        LL.setPalette(id); refresh(); LL.toast(t('palette.changed', { name: t('palette.' + id) }), 'ok');
+      } });
+      input.checked = LL.palette() === id;
+      const preview = h('span', { class: 'pp__preview', 'aria-hidden': 'true', dataset: { palette: id, theme: mode } },
+        h('i', { class: 'pp__bar' }),
+        h('span', { class: 'pp__tile' }, h('i', { class: 'pp__dot' }), h('i', { class: 'pp__line' })),
+        h('span', { class: 'pp__traces' }, ['lan', 'radio', 'service', 'flow', 'integration', 'uplink'].map(k => h('i', { class: 'pp__trace pp__trace--' + k }))));
+      group.append(h('label', { class: 'pp' + (input.checked ? ' is-on' : '') }, input, preview,
+        h('span', { class: 'pp__name' }, t('palette.' + id)), h('span', { class: 'pp__desc', id: 'pp-desc-' + id }, t('palette.' + id + '.desc'))));
+    });
+    const follow = () => {                                  // the mode select above changes the mode the previews are drawn in
+      if (!group.isConnected) { document.removeEventListener('ll-theme', follow); return; }
+      group.querySelectorAll('.pp__preview').forEach(el => { el.dataset.theme = LL.effectiveTheme(); });
+    };
+    document.addEventListener('ll-theme', follow);
+    return h('div', { class: 'field' }, h('span', { class: 'field__label', id: 'palette-label' }, t('settings.palette')), group,
+      h('div', { class: 'field__hint' }, t('settings.palette.hint')));
+  }
   function watchScan(msg) {
     const timer = setInterval(async () => {
       let s; try { s = (await api('/api/scan')).current; } catch (e) { return; }

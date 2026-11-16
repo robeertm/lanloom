@@ -33,6 +33,9 @@ Yes. The interface is responsive with bottom tabs. Open it in the phone's browse
 ### Which languages are available?
 English and German.
 
+### Can I change the colours?
+Yes. Settings > Appearance > Colour theme offers **Circuit green** (default) and **Aurora**; "Light / dark" next to it switches between light, dark and automatic. Both settings are remembered in the browser, so every device can have its own. Warning and error colours keep their meaning in every theme.
+
 ### Where is my data stored?
 In the data volume mounted at `/data`: the inventory database (`lanloom.db`), the key file (`secret.key`), the setup code file and backups. Nothing is sent elsewhere.
 

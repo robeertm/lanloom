@@ -322,3 +322,28 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
   .integ__head .chip { margin-left: 50px; }
   .integ__head .btn { margin-left: auto; }
 }
+
+/* ---- colour theme picker (Settings > Appearance); each preview is drawn with the tokens of its own palette ---- */
+.palette-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.pp { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md);
+  background: var(--ll-surface); cursor: pointer; transition: border-color var(--ll-dur-fast) var(--ll-ease), box-shadow var(--ll-dur-fast) var(--ll-ease); }
+.pp:hover { border-color: var(--ll-border-strong); }
+.pp.is-on { border-color: var(--ll-accent); box-shadow: 0 0 0 1px var(--ll-accent); }
+.pp:has(.pp__input:focus-visible) { outline: 2px solid var(--ll-focus); outline-offset: 2px; }
+.pp__input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.pp__preview { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 6px 8px; padding: 10px; margin-bottom: 4px;
+  border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); background: var(--ll-bg); }
+.pp__bar { grid-column: 1 / -1; display: block; height: 6px; width: 38%; border-radius: var(--ll-radius-pill); background: var(--ll-accent); }
+.pp__tile { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-radius: var(--ll-radius-xs); background: var(--ll-pcb-tile); border: 1px solid var(--ll-pcb-tile-line); }
+.pp__dot { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--ll-grade-realtime); flex: none; }
+.pp__line { display: block; height: 4px; flex: 1; border-radius: 2px; background: var(--ll-pcb-silk-2); opacity: .55; }
+.pp__traces { display: flex; align-items: center; gap: 4px; }
+.pp__trace { display: block; height: 4px; flex: 1; border-radius: 2px; }
+.pp__trace--lan { background: var(--ll-pcb-trace-lan); }
+.pp__trace--radio { background: var(--ll-pcb-trace-radio); }
+.pp__trace--service { background: var(--ll-pcb-trace-service); }
+.pp__trace--flow { background: var(--ll-pcb-trace-flow); }
+.pp__trace--integration { background: var(--ll-pcb-trace-integration); }
+.pp__trace--uplink { background: var(--ll-pcb-trace-uplink); }
+.pp__name { font-weight: var(--ll-fw-semibold); font-size: var(--ll-fs-md); color: var(--ll-text); }
+.pp__desc { font-size: var(--ll-fs-sm); color: var(--ll-text-3); }

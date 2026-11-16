@@ -27,7 +27,7 @@
 - **Data paths.** A calm world map shows where your devices send data on the internet, by country: arcs from your home country, width by bytes, outside the EU in amber. 24 hours, 7 days or 30 days, a full-screen map, lists of countries and devices, and calm hints for unusual behaviour (a device talks to a new country, uploads far more than on a typical day, or sits in a network that should not reach the internet). Countries come from an offline database shipped in the image; only countries and byte counts are stored, never addresses. Own networks and tunnels are kept apart, and the EU share only counts traffic with a known country. See [docs/DATA-PATHS.md](docs/DATA-PATHS.md).
 - **Nightly report.** Every morning a short report about the night in plain words: internet outages, new and missing devices, interrupted connections and refused sign-ins, data paths hints, changes to the controller configuration, expiring certificates, and Lanloom's own updates and restarts as maintenance. One headline says "All quiet" or how many things need a look; those can be ticked off. Rule-based from Lanloom's own data, no AI and no online service; made at the next start if Lanloom was off at report time; 30-day archive; optional delivery by e-mail, webhook, push topic or your own chat bot (off by default). See [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md).
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
-- **Device list** with search, light/dark/auto theme, a phone layout with bottom tabs, English and German UI.
+- **Device list** with search, light/dark/auto mode and two colour themes (Circuit green and Aurora), a phone layout with bottom tabs, English and German UI.
 - **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network (or tap it and choose "Move to…" on a phone), collect moves in a draft and get a plain-language preview: what the device may do afterwards, what it may no longer do, and what to watch out for. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
 - **Your controller's configuration, read only.** With a device-family adapter (see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)) the Firewall tab shows the real zones, networks and clients, the firewall rules in the controller's order with hit counters and a zone matrix, port forwarding, wireless networks, and the network equipment with every switch port. The same adapter feeds the physical topology. It uses a read-only account or key and cannot change anything.
 - **Your hypervisor, read only.** A hypervisor adapter puts every virtual machine and container below the node it runs on, and shows on the component cards what runs where, with which bridge and VLAN, how full the storage is and when each guest was last backed up. Findings point at guests without a recent backup, storage that is almost full and VLANs that cannot leave the node. It uses a token that can only read; a token that could change anything is refused.
@@ -141,6 +141,19 @@ Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map
 <td width="50%"><img src="docs/screenshots/report-settings-light.png" width="100%" alt="Report time, time zone, archive and optional delivery"><br><sub>Report time, archive and optional delivery (off by default)</sub></td>
 </tr>
 </table>
+
+### Colour themes
+
+Settings > Appearance > Colour theme switches the accent palette of the whole app: the map, the traces, the data paths arcs, the firewall views, the charts and the live grades. **Circuit green** is the default and looks as before; **Aurora** uses turquoise, blue and violet on a cool ground. Every theme works in light, dark and automatic mode, and the choice is remembered per device. Warning and error colours keep their meaning in every theme, and the text and graphic contrast of each theme and mode is checked against WCAG AA in the test suite.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/theme-circuit-dark.png" width="100%" alt="The map in the Circuit green theme"><br><sub>Circuit green (default)</sub></td>
+<td width="50%"><img src="docs/screenshots/theme-aurora-dark.png" width="100%" alt="The same map in the Aurora theme"><br><sub>Aurora, the same view</sub></td>
+</tr>
+</table>
+
+![Colour theme setting with a preview of each theme](docs/screenshots/colour-theme-picker-light.png)
 
 ### Devices and settings
 
