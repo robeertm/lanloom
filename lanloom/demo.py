@@ -5,6 +5,7 @@ setup wizard is simulated and the discovered hosts still go through the real cla
 product and for documentation screenshots.
 """
 import asyncio
+import json
 import math
 import random
 import time
@@ -323,6 +324,99 @@ class Demo:
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
                                (hv, "Sample hypervisor", _json.dumps({"url": "https://192.168.50.15:8006"}), time.time()))
 
+    def report_certs(self) -> list:
+        """Certificates of the demo connections (nightly report): one runs out soon."""
+        return [{"id": "demo:controller", "name": "Network controller", "days": 11},
+                {"id": "demo:broker", "name": "Message broker", "days": 23},
+                {"id": "demo:storage", "name": "Storage", "days": 240}]
+
+    def seed_reports(self, core, now: float = None) -> None:
+        """Three mornings of nightly reports from a synthetic event journal (sample names, documentation addresses)."""
+        rep = core.reports
+        if core.store.one("SELECT day FROM reports LIMIT 1") or not core.store.one("SELECT id FROM devices LIMIT 1"):
+            return
+        import datetime as _dt
+        from .demo_live import live_capabilities, live_sample
+        now = time.time() if now is None else now
+        d0 = rep.due_day(now)
+        days = [d0 - _dt.timedelta(days=2), d0 - _dt.timedelta(days=1), d0]
+        planned = [rep.planned_at(d) for d in days]
+        core.store.set_setting("report_epoch", planned[0] - 86400)
+        dev = {h["n"]: ("d-" + _hmac(h["n"]).replace(":", ""), h) for h in HOSTS}
+        ids = {row["kind"]: row["id"] for row in core.store.query("SELECT id, kind FROM integrations")}
+        names = {row["kind"]: row["name"] for row in core.store.query("SELECT kind, name FROM integrations")}
+        j = rep.journal
+
+        def title(n):
+            d = core.store.device(dev[n][0])
+            return (d.get("user_title") or d["title"]) if d else (dev[n][1].get("title") or dev[n][1]["ip"])
+
+        def ev(etype, at, **data):
+            j.add(etype, data, at)
+
+        def devev(kind, n, at, **extra):
+            ev(kind, at, id=dev[n][0], title=title(n), kind=(core.store.device(dev[n][0]) or {}).get("kind", ""), **extra)
+
+        h = 3600.0
+        # night 1: quiet, one phone sleeps and wakes, Lanloom updated itself
+        p = planned[0]
+        devev("dev_offline", 22, p - 7.5 * h)
+        devev("dev_back", 22, p - 0.6 * h)
+        ev("app_stop", p - 4.2 * h, version="1.6.0")
+        ev("app_start", p - 4.18 * h, version=_version(), prev="1.6.0", down_s=70)
+        # night 2: a 14-minute internet outage and a short flap, a new device, a camera blinked, the broker dropped
+        p = planned[1]
+        ev("wan_down", p - 3.3 * h, name="wan")
+        ev("wan_up", p - 3.3 * h + 14 * 60, name="wan")
+        ev("wan_down", p - 1.1 * h, name="wan")
+        ev("wan_up", p - 1.1 * h + 40, name="wan")
+        ev("dev_new", p - 5.2 * h, id="d-demo-guest", title="Guest phone", ip="192.168.50.77", kind="phone")
+        devev("dev_offline", 51, p - 5.4 * h)
+        devev("dev_back", 51, p - 5.3 * h)
+        for k in range(3):
+            devev("dev_offline", 23, p - (8 - 2 * k) * h)
+            devev("dev_back", 23, p - (7.6 - 2 * k) * h)
+        if "mqtt" in ids:
+            key = "int:%d" % ids["mqtt"]
+            ev("src_fail", p - 3.3 * h + 60, id=key, name=names["mqtt"], key="source.mqtt.unreachable")
+            ev("src_ok", p - 3.3 * h + 15 * 60, id=key, name=names["mqtt"])
+        # night 3 (this morning): the hub refused the sign-in once, a camera is gone for a day, firewall rules changed
+        p = planned[2]
+        if "hub" in ids:
+            key = "int:%d" % ids["hub"]
+            ev("src_fail", p - 2.4 * h, id=key, name=names["hub"], key="source.hub.auth_failed")
+            ev("src_ok", p - 2.3 * h, id=key, name=names["hub"])
+        devev("dev_gone", 50, p - 1.5 * h, since=p - 25.5 * h)
+        devev("dev_offline", 20, p - 6 * h)
+        devev("dev_back", 20, p - 1.0 * h)
+        fam = _demo_family()
+        sample = live_sample()
+        changed = json.loads(json.dumps(sample))
+        if changed.get("policies"):
+            changed["policies"][-1]["action"] = "block" if changed["policies"][-1]["action"] == "allow" else "allow"
+        changed["networks"].append({"id": "n_lab", "name": "Lab", "zone": changed["networks"][0]["zone"],
+                                    "cidr": "192.168.77.0/24", "vlan": 77, "management": False})
+        if changed.get("equipment"):
+            changed["equipment"][0]["firmware"] = "4.2.2"
+        prev = None
+        for i, day in enumerate(days):
+            if fam and fam in ids:
+                core.live_cfg[ids[fam]] = {"state": sample if i < 2 else changed, "caps": live_capabilities(fam), "family": fam,
+                                           "t": time.time()}
+            since = prev["until"] if prev else planned[0] - 86400
+            report = rep.assemble(since, planned[i] + 2, prev, day.isoformat(), self.report_certs())
+            report["created"] = planned[i] + 2
+            rep.save(report)
+            prev = report
+        core.live_cfg.pop(ids.get(fam), None)
+        for day in days[:2]:
+            core.store.execute("UPDATE reports SET read=? WHERE day=?", (now, day.isoformat()))
+        first = rep.get(days[0].isoformat())
+        for s in (first or {}).get("sections", []):
+            for it in s["items"]:
+                if it["point"]:
+                    rep.mark_item(days[0].isoformat(), it["id"], True)
+
     async def run(self, core) -> None:
         """Synthetic live data: flows of this host, router counters, broker topics, hub state changes."""
         rng = self.rng
@@ -436,3 +530,8 @@ def _demo_family(area: str = "zones"):
     fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read and area in (m.capabilities.get("read") or [])]
     return fams[0] if fams else None
 
+
+
+def _version() -> str:
+    from . import __version__
+    return __version__

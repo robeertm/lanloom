@@ -116,6 +116,8 @@ class Core:
         self.last_frame: dict = {}
         self.geo = geo_mod.Geo()
         self.paths = datapaths.DataPaths(store, self.geo, self.settings)
+        from .nightly import Reports
+        self.reports = Reports(self, getattr(cfg, "data_dir", None))
         self._refresh_index()
 
     # ------------------------------------------------------------------ settings
@@ -161,6 +163,7 @@ class Core:
         if self.cfg.probe:
             return            # probe start of an update candidate: serve the UI only, no discovery, no sources
         self.geo.start()
+        self.reports.on_start()
         if self.demo:
             self._tasks.append(asyncio.create_task(self.demo.run(self)))
         else:
@@ -171,6 +174,7 @@ class Core:
             self._tasks.append(asyncio.create_task(self._presence_loop()))
             self._tasks.append(asyncio.create_task(self._rescan_loop()))
         self._tasks.append(asyncio.create_task(self._tick_loop()))
+        self._tasks.append(asyncio.create_task(self.reports.loop()))
 
     async def stop(self) -> None:
         for task in list(self._tasks) + list(self._source_tasks.values()) + ([self._scan_task] if self._scan_task else []):

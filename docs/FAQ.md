@@ -13,7 +13,10 @@ Classification uses deterministic rules on what a device reveals: announcements,
 Only measured bytes are animated. Dots appear for this host's own TCP flows, for the internet uplink when a router or switch is connected over SNMP, for MQTT topic groups, and in the Network view along the known cabling between this host and its peers. Other traces are dashed, which means "connection known, traffic not measured".
 
 ### What leaves my network?
-Nothing, except the optional update check, which asks the public release feed for the latest version at most every 6 hours (15 minutes after a failed check) and only while the page is open. Turn it off with `LANLOOM_UPDATE_CHECK=0` or in the settings. There is no telemetry.
+Nothing, except the optional update check, which asks the public release feed for the latest version at most every 6 hours (15 minutes after a failed check) and only while the page is open. Turn it off with `LANLOOM_UPDATE_CHECK=0` or in the settings. There is no telemetry. If you switch on a delivery channel for the nightly report, its short summary goes to the address you entered; by default no channel is on.
+
+### What is the nightly report?
+Every morning at 06:30 (changeable) Lanloom sums up the night in the Reports tab: outages, new and missing devices, interrupted connections, data paths hints, configuration changes, expiring certificates and its own updates. It is rule-based and made on the host. If Lanloom was off at that time, the report is made at the next start. See [NIGHTLY-REPORT.md](NIGHTLY-REPORT.md).
 
 ### Can Lanloom change anything on my devices?
 No. It is read-only by construction. The scanner only probes, the hub connection cannot call services, the MQTT client cannot publish, SNMP uses read operations only and the switch controller connection only reads two lists with a view-only account. The firewall editor runs as a simulation against a sample network unless you set up the separate executor service with a built-in adapter for your controller family and arm it explicitly; see [FIREWALL-EDITOR.md](FIREWALL-EDITOR.md).

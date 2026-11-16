@@ -61,6 +61,7 @@ class App:
         self.setup_code = auth.SetupCode(cfg.data_dir, store)
         self.core = Core(cfg, store, vault)
         self.updates = Updates(cfg, store)
+        self.core.reports.update_state = self.updates.state
         from .firewall.editor import Editor
         self.firewall = Editor(cfg, store)
         self.firewall.live = self.core.live_configs
@@ -70,6 +71,7 @@ class App:
             if os.environ.get("LANLOOM_DEMO_SEED", "").strip() in ("1", "true", "yes"):
                 self.core.demo.seed(self.core)
                 self.core.demo.seed_integrations(self.core)
+                self.core.demo.seed_reports(self.core)
                 store.set_setting("setup_done", True)
 
 
@@ -172,7 +174,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                 "user": user["username"] if user else None, "demo": cfg.demo,
                 "setup_done": bool(state.store.get_setting("setup_done", False)),
                 "language": state.store.get_setting("language", None),
-                "rate_unit": state.core.rate_unit() if state.core else "bytes"}
+                "rate_unit": state.core.rate_unit() if state.core else "bytes",
+                "reports_unread": state.core.reports.unread() if user else 0,
+                "report_tz_auto": state.store.get_setting("report_tz_auto", "") if user else ""}
 
     @app.get("/api/i18n/{lang}")
     async def i18n(lang: str):
@@ -303,6 +307,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             return err(str(exc))
         if data.get("setup_done") and cfg.demo and state.core.demo:
             state.core.demo.seed_integrations(state.core)
+            state.core.demo.seed_reports(state.core)
             state.core.structure_version += 1
         return result
 
@@ -404,6 +409,64 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.delete("/api/integrations/{integ_id}")
     async def integration_delete(integ_id: int):
         return {"ok": state.core.delete_integration(integ_id)}
+
+    # ------------------------------------------------------------------ nightly reports
+    reports = state.core.reports
+
+    @app.get("/api/reports")
+    async def reports_list():
+        return reports.listing()
+
+    @app.get("/api/reports/preview")
+    async def reports_preview():
+        return await reports.preview()
+
+    @app.get("/api/reports/settings")
+    async def reports_settings():
+        return reports.public_settings()
+
+    @app.put("/api/reports/settings")
+    async def reports_settings_put(request: Request):
+        data = await body(request)
+        patch = data.get("settings") if isinstance(data.get("settings"), dict) else {}
+        secrets = data.get("secrets") if isinstance(data.get("secrets"), dict) else {}
+        try:
+            return reports.update_settings(patch, secrets)
+        except ValueError as exc:
+            return err(str(exc))
+
+    @app.post("/api/reports/tz")
+    async def reports_tz(request: Request):
+        data = await body(request)
+        reports.set_auto_tz(str(data.get("tz") or "")[:64])
+        return {"ok": True}
+
+    @app.post("/api/reports/test")
+    async def reports_test(request: Request):
+        data = await body(request)
+        try:
+            return await reports.test_channel(str(data.get("channel") or ""))
+        except ValueError as exc:
+            return err(str(exc))
+
+    @app.get("/api/reports/{day}")
+    async def report_get(day: str):
+        rep = reports.get(day)
+        return rep if rep else err("report.err.missing", 404)
+
+    @app.post("/api/reports/{day}/read")
+    async def report_read(day: str, request: Request):
+        data = await body(request)
+        return {"ok": reports.mark_read(day, data.get("read", True) is not False), "unread": reports.unread()}
+
+    @app.put("/api/reports/{day}/items")
+    async def report_item(day: str, request: Request):
+        data = await body(request)
+        try:
+            rep = reports.mark_item(day, str(data.get("item") or "")[:200], bool(data.get("done")))
+        except ValueError as exc:
+            return err(str(exc))
+        return rep if rep else err("report.err.missing", 404)
 
     # ------------------------------------------------------------------ updates
     @app.get("/api/update")
@@ -593,10 +656,14 @@ def selftest() -> int:
             c.paths.book("self", "8.8.8.8", 1000, 2000)
             if c.paths_summary("24h")["totals"]["attributable"] != 3000:
                 problems.append("data paths")
+        from . import nightly  # noqa: F401 - import check
+        rep = c.reports.assemble(0, time.time(), None, "2026-01-01", [])
+        if not rep["sections"] or any(s["summary"]["key"] == "report.section_failed" for s in rep["sections"]):
+            problems.append("nightly report")
         en, de = load_i18n("en"), load_i18n("de")
         if not en or set(en) != set(de):
             problems.append("i18n keys differ (%d en / %d de)" % (len(en), len(de)))
-        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "css/tokens.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "css/tokens.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

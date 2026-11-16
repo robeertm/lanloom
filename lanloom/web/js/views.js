@@ -18,12 +18,13 @@
 
   // ------------------------------------------------------------------ app frame (header + nav)
   function frame(app, active, content) {
-    const tabs = [['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['settings', 'nav.settings']];
+    const tabs = [['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports'], ['settings', 'nav.settings']];
     const nav = h('nav', { class: 'tabs', 'aria-label': t('nav.label') }, tabs.map(([k, label]) =>
-      h('a', { href: '#/' + k, class: 'tab' + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null },
+      h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null },
         h('span', { class: 'tab__icon', 'aria-hidden': 'true' }), h('span', { class: 'tab__label' }, t(label)),
         LL.strings['nav.short.' + k] ? h('span', { class: 'tab__short', 'aria-hidden': 'true' }, t('nav.short.' + k)) : null)));
-    nav.querySelectorAll('.tab__icon').forEach((el, i) => { el.innerHTML = NAV_ICONS[tabs[i][0]] || (tabs[i][0] === 'paths' ? LL.NAV_PATHS_ICON : LL.FW_ICON) || ''; });
+    const navIcon = k => NAV_ICONS[k] || ({ paths: LL.NAV_PATHS_ICON, reports: LL.NAV_REPORTS_ICON }[k]) || LL.FW_ICON || '';
+    nav.querySelectorAll('.tab__icon').forEach((el, i) => { el.innerHTML = navIcon(tabs[i][0]); });
     const gradePill = h('button', { class: 'grade-pill', type: 'button', title: t('live.overall'), onclick: () => openSources() },
       h('i', { class: 'grade-pill__dot' }), h('span', { class: 'grade-pill__text' }, t('board.grade.unknown')));
     const updateBtn = h('button', { class: 'update-pill', type: 'button', hidden: true, onclick: () => openUpdate() }, t('update.available_short'));
@@ -43,6 +44,11 @@
       gradePill.lastChild.textContent = t('board.grade.' + g);
     });
     checkUpdate(updateBtn);
+    if (LL.setReportsUnread) LL.setReportsUnread((LL.state && LL.state.reports_unread) || 0);
+    if (LL.state && LL.state.authenticated && !LL.state.report_tz_auto && !frame.tzSent) {
+      frame.tzSent = true;                 // the browser's time zone is the automatic report zone (when the container has none)
+      try { api('/api/reports/tz', { method: 'POST', body: { tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '' } }).catch(() => {}); } catch (e) { /* ignore */ }
+    }
     return { main, destroy: unsub };
   }
   const NAV_ICONS = {
@@ -391,7 +397,7 @@
   }
 
   // ------------------------------------------------------------------ settings
-  async function settingsView(app) {
+  async function settingsView(app, rest) {
     const fr = frame(app, 'settings');
     const [s, scan, nets, pk, upd] = await Promise.all([api('/api/settings'), api('/api/scan'), api('/api/networks'), api('/api/passkeys'), api('/api/update')]);
     const page = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head' }, h('h1', {}, t('nav.settings'))));
@@ -469,6 +475,8 @@
     // updates + about
     const updToggle = h('input', { type: 'checkbox', checked: !!s.update_check, onchange: () => api('/api/settings', { method: 'PUT', body: { update_check: updToggle.checked } }).then(() => LL.toast(t('settings.saved'), 'ok')) });
     const updMsg = h('div', { class: 'msg' });
+    const reportCard = LL.reportSettingsCard ? await LL.reportSettingsCard() : null;
+    if (reportCard) page.append(reportCard);
     page.append(card(t('settings.updates'), [
       facts([[t('settings.version'), upd.current], [t('settings.latest'), upd.latest || '—'], [t('settings.checked'), upd.checked ? LL.fmtDate(upd.checked) : '—'],
         [t('settings.sidecar'), upd.sidecar ? t('settings.sidecar.yes') : t('settings.sidecar.no')]]),
@@ -479,6 +487,7 @@
       } }, t('update.check_now')))]));
     page.append(card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy'))]));
     fr.main.append(page);
+    if (rest && rest[0] === 'reports' && reportCard) setTimeout(() => reportCard.scrollIntoView({ block: 'start' }), 30);
     return fr;
   }
   function card(title, kids) { return h('section', { class: 'card settings-card' }, h('h2', {}, title), kids); }

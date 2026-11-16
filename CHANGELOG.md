@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] – 2026-11-16
+
+### Added
+- **Nightly report** (new tab "Reports", also in the phone tab bar): every morning at 06:30 a short report about the night in plain words. The headline says "All quiet" or how many things need a look, followed by one section per source: internet outages and uplink switches, new devices and devices not seen for a day or briefly offline (with times), availability of every connection, connections whose sign-in is refused, data paths of the last 24 hours with their hints, changes to firewall rules, networks, wireless networks, port forwards and zones compared with the previous report plus changed firmware versions, TLS certificates of your own connections (a note under 30 days, a point under 14 days or expired), and Lanloom itself (new version, own updates and restarts shown as maintenance, sources without data, free space). A section only appears when its source exists. In English and German.
+- Points that need a look can be ticked off; the marks are stored with the report. The archive keeps 30 days by default (7 to 365). An unread report shows a badge on the Reports tab, on the map and in the phone tab bar; opening it marks it read. "Preview now" shows the next report as it would look at that moment, without saving or sending it.
+- Report time and time zone can be set (default: the container's `TZ`, else the browser's time zone). If Lanloom was not running at report time, the report is made at the next start and says so in one line; several missed mornings become one report.
+- Optional delivery of a three-line summary with a link: e-mail (SMTP), webhook (JSON), push topic (ntfy-compatible server) or your own chat bot. Every channel is off by default, has a test button and retries quietly after a failure.
+- An event journal behind the report: once a minute Lanloom compares the live state (presence, connections, the gateway's internet port) and records every change, so the report knows what happened while nobody watched.
+- Sections are a register: later features add their own section without touching the rest (see [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md)).
+- Demo mode shows three mornings of reports with sample names and addresses.
+- The self-test builds a report.
+
+### Changed
+- The phone tab bar holds seven tabs; "Data paths" uses the short label "Paths".
+
+### Security
+- Nothing leaves the host for the report unless you switch on a channel. A delivered summary never contains device ids or other internal values. Passwords, tokens, the webhook address and the push topic are encrypted like other credentials and never logged; delivery errors are reason codes without the address.
+- For the certificate section Lanloom opens one TLS handshake per morning to each address of your own connections (hub, controller, broker, adapters), nothing else.
+
 ## [1.7.0] – 2026-11-15
 
 ### Added

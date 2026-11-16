@@ -1,6 +1,6 @@
 """SQLite persistence (one file in the data directory, WAL mode).
 
-Only inventory, settings and accounts live here. Live byte counters stay in memory.
+Inventory, settings, accounts, the event journal and the nightly reports live here. Live byte counters stay in memory.
 Secrets are stored encrypted (see crypto.py); this module never sees plaintext secrets.
 """
 import json
@@ -80,6 +80,29 @@ CREATE TABLE IF NOT EXISTS scans (
     status TEXT NOT NULL,
     hosts INTEGER NOT NULL DEFAULT 0,
     stats TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    t REAL NOT NULL,
+    kind TEXT NOT NULL,
+    data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS events_t ON events(t);
+CREATE TABLE IF NOT EXISTS reports (
+    day TEXT PRIMARY KEY,
+    created REAL NOT NULL,
+    since REAL NOT NULL,
+    until REAL NOT NULL,
+    data TEXT NOT NULL,
+    read REAL,
+    points INTEGER NOT NULL DEFAULT 0,
+    delivery TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS report_marks (
+    day TEXT NOT NULL,
+    item TEXT NOT NULL,
+    done REAL NOT NULL,
+    PRIMARY KEY (day, item)
 );
 """
 

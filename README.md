@@ -25,6 +25,7 @@
 - **Two views.** *Map* is an overview by kind; *Network* shows the gateway, the switches and access points, one zone per subnet and the guests of virtualization hosts.
 - **Physical topology.** Which device hangs on which switch port, which clients use which access point (with band and network name), and which guests run on a host. Cables are solid traces, wireless links dashed with a radio mark, guests dotted; the port number sits at the device end. The data comes from a manual "connected via" field, a switch controller (view-only account), LLDP neighbours and switch address tables over SNMP, in this order of precedence. Clients behind an access point default to wireless. This host's measured traffic flows along the cabling. See [docs/TOPOLOGY.md](docs/TOPOLOGY.md).
 - **Data paths.** A calm world map shows where your devices send data on the internet, by country: arcs from your home country, width by bytes, outside the EU in amber. 24 hours, 7 days or 30 days, a full-screen map, lists of countries and devices, and calm hints for unusual behaviour (a device talks to a new country, uploads far more than on a typical day, or sits in a network that should not reach the internet). Countries come from an offline database shipped in the image; only countries and byte counts are stored, never addresses. Own networks and tunnels are kept apart, and the EU share only counts traffic with a known country. See [docs/DATA-PATHS.md](docs/DATA-PATHS.md).
+- **Nightly report.** Every morning a short report about the night in plain words: internet outages, new and missing devices, interrupted connections and refused sign-ins, data paths hints, changes to the controller configuration, expiring certificates, and Lanloom's own updates and restarts as maintenance. One headline says "All quiet" or how many things need a look; those can be ticked off. Rule-based from Lanloom's own data, no AI and no online service; made at the next start if Lanloom was off at report time; 30-day archive; optional delivery by e-mail, webhook, push topic or your own chat bot (off by default). See [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md).
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
 - **Device list** with search, light/dark/auto theme, a phone layout with bottom tabs, English and German UI.
 - **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network (or tap it and choose "Move to…" on a phone), collect moves in a draft and get a plain-language preview: what the device may do afterwards, what it may no longer do, and what to watch out for. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
@@ -130,6 +131,17 @@ All screenshots show the built-in demo network with invented names and addresses
 
 Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map: Natural Earth (public domain).
 
+### Nightly report
+
+![Nightly report: headline, sections with points to tick off, and the archive](docs/screenshots/reports-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/reports-dark.png" width="100%" alt="Nightly report in the dark theme"><br><sub>Things that need a look can be ticked off; notes stay calm</sub></td>
+<td width="50%"><img src="docs/screenshots/report-settings-light.png" width="100%" alt="Report time, time zone, archive and optional delivery"><br><sub>Report time, archive and optional delivery (off by default)</sub></td>
+</tr>
+</table>
+
 ### Devices and settings
 
 ![Device list](docs/screenshots/devices-light.png)
@@ -147,6 +159,7 @@ Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map
 <td><img src="docs/screenshots/phone-devices.png" width="200" alt="Phone device list"></td>
 <td><img src="docs/screenshots/phone-paths.png" width="200" alt="Phone: data paths"></td>
 <td><img src="docs/screenshots/phone-paths-full.png" width="200" alt="Phone: world map in full screen"></td>
+<td><img src="docs/screenshots/phone-reports.png" width="200" alt="Phone: nightly report"></td>
 <td><img src="docs/screenshots/phone-wizard-scan.png" width="200" alt="Phone wizard scan step"></td>
 <td><img src="docs/screenshots/phone-firewall-move.png" width="200" alt="Phone: move a device to another network"></td>
 <td><img src="docs/screenshots/phone-firewall-preview.png" width="200" alt="Phone: firewall preview"></td>
@@ -209,7 +222,7 @@ All integrations are optional. Credentials are encrypted at rest with a key file
 
 ## Security and privacy
 
-Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The only outbound connection is the optional update check against the public release feed. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The only outbound connection is the optional update check against the public release feed, plus the delivery of the nightly report summary if you switch on a channel yourself. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
 ## Updating
 
@@ -229,6 +242,7 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, uninstall
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
+- [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md): the nightly report, its sections, the archive, optional delivery, adding a section
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): supported integrations, what each can read and write
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): how device-family adapters are built (read and write halves, capabilities, plan steps, credentials)
 - [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md): the firewall editor, the executor service and its safety checks
