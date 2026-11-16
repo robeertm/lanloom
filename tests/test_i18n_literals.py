@@ -27,6 +27,8 @@ ALLOWED = {
     ("views.js", "Lanloom"): "the product name; a proper name is not translated",
     ("wizard.js", "Lanloom"): "the product name; a proper name is not translated",
     ("wizard.js", "ABCD-EFGH"): "an example of the shape of the setup code, not a word",
+    ("backup.js", "Lanloom"): "the product name; a proper name is not translated",
+    ("backup.js", "ABCD-EFGH"): "an example of the shape of the setup code, not a word",
     ("wizard.js", 'docker logs lanloom 2>&1 | grep -i "setup code"'): "a shell command the reader copies; commands are not translated",
     ("views.js", "docker compose pull && docker compose up -d"): "a shell command the reader copies; commands are not translated",
     ("ai.js", "sh install.sh --with-ai"): "a shell command the reader copies; commands are not translated",

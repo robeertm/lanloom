@@ -68,7 +68,8 @@
     h('div', { class: 'grid-2' }, LL.field(t('login.username'), user), h('div')),
     h('div', { class: 'grid-2' }, LL.field(t('login.password'), pass, t('wizard.account.password_hint')), LL.field(t('wizard.account.password2'), pass2)),
     msg, actions(h('span'), btn));
-    shell(app, 'account', [h('h1', {}, t('wizard.account.title')), h('p', { class: 'lead' }, t('wizard.account.lead')), form]);
+    const alt = LL.setupRestore ? h('p', { class: 'wizard__alt' }, h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => LL.setupRestore(app) }, t('backup.setup.open'))) : null;
+    shell(app, 'account', [h('h1', {}, t('wizard.account.title')), h('p', { class: 'lead' }, t('wizard.account.lead')), form, alt]);
     setTimeout(() => { if (document.activeElement === document.body) code.focus(); }, 30);
   }
 

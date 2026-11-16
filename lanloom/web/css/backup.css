@@ -1,0 +1,58 @@
+/* Lanloom — backup and restore: Settings > Backup and the restore page of the first start. */
+.bk-page { display: flex; flex-direction: column; gap: var(--ll-space-4); min-width: 0; }
+.bk-card { min-width: 0; }
+.bk-actions { padding-top: 2px; }
+.bk-keep { max-width: 140px; }
+.bk-keyline:empty { display: none; }
+.bk-facts { margin-top: 2px; }
+.bk-error { color: var(--ll-danger-text); }
+.callout--ok { border-left-color: var(--ll-ok); }
+.callout p { margin: 4px 0 0; }
+.callout strong + p { margin-top: 4px; }
+
+/* stored files */
+.bk-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--ll-border); }
+.bk-file { display: flex; gap: var(--ll-space-3); align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--ll-border); }
+.bk-file__main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.bk-file__title { font-weight: var(--ll-fw-semibold); }
+.bk-file__meta { font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.bk-file__chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.bk-file__acts { display: flex; gap: var(--ll-space-2); flex: none; flex-wrap: wrap; justify-content: flex-end; }
+
+/* restore */
+.bk-restore { min-width: 0; }
+.bk-table-wrap { min-width: 0; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); overflow: hidden; }
+.bk-diff { width: 100%; border-collapse: collapse; font-size: var(--ll-fs-sm); table-layout: fixed; }
+.bk-diff th, .bk-diff td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--ll-border); overflow-wrap: anywhere; }
+.bk-diff thead th { border-top: 0; background: var(--ll-surface-2); color: var(--ll-text-3); font-weight: var(--ll-fw-semibold); font-size: var(--ll-fs-xs); text-transform: uppercase; letter-spacing: .05em; }
+.bk-diff tbody th { width: 24%; font-weight: var(--ll-fw-semibold); color: var(--ll-text); }
+.bk-diff tbody td:last-child { background: var(--ll-accent-soft); }
+.bk-names { display: flex; flex-direction: column; gap: 6px; }
+.bk-name { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.bk-name .chip { height: 20px; font-size: 10px; }
+.bk-sub { margin-top: 3px; font-size: var(--ll-fs-xs); }
+.bk-steps { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: var(--ll-space-2); color: var(--ll-text-2); }
+
+/* first start */
+.wizard__alt { margin: 0; padding-top: var(--ll-space-3); border-top: 1px solid var(--ll-border); display: flex; justify-content: center; }
+
+@media (max-width: 700px) {
+  .bk-file { flex-direction: column; align-items: stretch; }
+  .bk-file__acts { justify-content: flex-start; }
+  .bk-diff, .bk-diff tbody, .bk-diff tr, .bk-diff th, .bk-diff td { display: block; width: auto; }
+  .bk-diff thead { display: none; }
+  .bk-diff tbody tr { border-top: 1px solid var(--ll-border); padding: 8px 0; }
+  .bk-diff tbody tr:first-child { border-top: 0; }
+  .bk-diff th, .bk-diff td { border-top: 0; padding: 4px 14px; }
+  .bk-diff tbody th { width: auto; }
+  .bk-diff tbody td:last-child { background: transparent; }
+  .bk-diff td::before { content: attr(data-label); display: block; color: var(--ll-text-3); font-size: var(--ll-fs-xs); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+  .bk-actions .btn { flex: 1 1 auto; }
+  .bk-keep { max-width: none; }
+}
+
+/* file picker */
+.bk-restore input[type=file] { padding: 6px 10px; color: var(--ll-text-2); font-size: var(--ll-fs-sm); }
+.bk-restore input[type=file]::file-selector-button { margin-right: 12px; padding: 6px 12px; border: 1px solid var(--ll-border-strong); border-radius: var(--ll-radius-sm);
+  background: var(--ll-surface); color: var(--ll-text); font: inherit; font-weight: var(--ll-fw-semibold); cursor: pointer; }
+.bk-restore input[type=file]::file-selector-button:hover { border-color: var(--ll-accent); }
