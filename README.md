@@ -159,6 +159,17 @@ Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map
 </tr>
 </table>
 
+### Home-automation bridge
+
+The card of the hub shows what the bridge reads, which private data stays out (people, trackers, zones, cameras, calendars and notifications by default), how it spares the hub (no template rendering, budgets per minute, paused lookups after errors) and the busiest automations; a runaway automation and scripts that call each other in a loop are marked and go into the nightly report. In admin mode operators can see the last runs of an automation. See [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md).
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/hub-bridge-light.png" width="100%" alt="The bridge section on the hub's card: mode, privacy, sparing the hub, busiest automations"><br><sub>What is read, what stays out, how the hub is spared</sub></td>
+<td width="50%"><img src="docs/screenshots/hub-runs-dark.png" width="100%" alt="Last runs of an automation, a runaway automation and a script loop"><br><sub>Runaway automation, last runs, a script loop</sub></td>
+</tr>
+</table>
+
 ### Backup and moving to another host
 
 Settings › Backup saves the whole configuration into one file encrypted with your passphrase (Argon2id, AES-256-GCM): accounts and second factors, connections with their credentials, every name you set, "connected via" entries, drafts, settings and the audit log, optionally history. Automatic backups run on a schedule into the data volume, keep as many files as you choose, and the nightly report says when the newest one is too old. A restore shows first what it replaces, ends every session and works on a new host too, from the first-start page and across architectures (amd64 ↔ arm64). See [docs/BACKUP.md](docs/BACKUP.md).
@@ -312,7 +323,7 @@ Dots appear only where bytes are actually measured:
 - **Switch controller** (the local controller application of a switch and access point product line) tells which client sits on which switch port or access point. A local view-only account is enough. Lanloom signs in and then only reads two lists; one code path makes every request and refuses everything else.
 - **Device-family adapters** read a controller's configuration and state through its local APIs (an API key and/or a local view-only account): zones, networks, firewall rules with hit counters, ports, wireless networks, clients and their ports. They only send read requests through one allow-listed code path, refuse an account that can change settings where that is checkable, and cap sign-ins. A hypervisor adapter reads nodes, guests, their network cards, bridges, firewall, storage and backups with a token that can only read (checked against the token's own permission list). Which families exist: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 - **MQTT broker** topics are grouped; Lanloom only counts messages and lengths per group. It connects, subscribes to `#`, and cannot publish. Payloads are never stored. TLS is optional.
-- **Home-automation hub (WebSocket API)** adds rooms, devices and entities and state-change events, using a long-lived access token (a non-admin user is enough). A strict allow-list limits it to read commands, and it cannot call services.
+- **Home-automation hub (WebSocket API)** adds rooms, devices and entities, state changes and automation runs, using a long-lived access token (a non-admin user is enough). A strict allow-list limits it to read commands; it cannot call services and never renders templates. Optional **admin mode** also reads which entities each automation and script uses and, on request, their last runs – within budgets per minute, never looking up scripts that call each other in a loop. People, trackers, zones, cameras, calendars and notifications are kept out by default. See [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md).
 
 Supported integrations: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
@@ -357,6 +368,7 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 - [docs/BACKUP.md](docs/BACKUP.md): backup and restore in the app, automatic backups, moving to another host, the file format
 - [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path
 - [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces
+- [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md): the home-automation bridge: what is read, admin mode, sparing the hub, privacy filter
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
 - [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md): the nightly report, its sections, the archive, optional delivery, adding a section

@@ -70,6 +70,19 @@ def runs_between(entry: dict, since: float, until: float) -> dict:
     return out
 
 
+def runs_last_hour(entry: dict, now: float) -> dict:
+    """{entity: runs within the last 60 minutes}, estimated from the hourly buckets: the current hour counts fully, the
+    previous hour with the share that still lies inside the window."""
+    cur = int(now // HOUR)
+    share = 1.0 - (now % HOUR) / HOUR
+    out = {}
+    for eid, rec in (entry.get("runs") or {}).items():
+        n = rec["hours"].get(cur, 0) + rec["hours"].get(cur - 1, 0) * share
+        if n >= 0.5:
+            out[eid] = int(round(n))
+    return out
+
+
 def busiest_hour(entry: dict, since: float, until: float) -> dict:
     """{entity: (most runs within one hour, hour start)} within the window."""
     lo, hi = int(since // HOUR), int(until // HOUR)
@@ -95,7 +108,8 @@ def automations_view(entry: dict, now: float | None = None) -> list:
     refs = dict(deps.get("automations") or {}, **(deps.get("scripts") or {}))
     blocked = {b.get("entity_id") for b in deps.get("blocked") or []}
     in_loop = {e for c in deps.get("cycles") or [] for e in c}
-    hour = runs_between(entry, now - HOUR, now)
+    hour = runs_last_hour(entry, now)
+    peak = busiest_hour(entry, now - HOUR, now)       # the current or the previous clock hour
     day = runs_between(entry, now - 86400, now)
     out = []
     for item in (snap.get("automations") or []) + (snap.get("scripts") or []):
@@ -106,9 +120,10 @@ def automations_view(entry: dict, now: float | None = None) -> list:
                     "state": (entry.get("states", {}).get(eid) or (item.get("state"),))[0], "mode": item.get("mode"),
                     "last": max(x for x in (item.get("last"), rec.get("last"), 0) if x is not None) or None,
                     "runs_hour": hour.get(eid, 0), "runs_day": day.get(eid, 0),
+                    "runaway": (peak.get(eid) or (0, 0))[0] >= BUSY_PER_HOUR,
                     "refs": {k: len(r.get(k) or ()) for k in ("trigger", "condition", "action", "related")} if r else None,
                     "blocked": eid in blocked, "loop": eid in in_loop, "traceable": bool(item.get("id"))})
-    out.sort(key=lambda a: (-a["runs_hour"], -a["runs_day"], a["name"].lower()))
+    out.sort(key=lambda a: (not a["runaway"], -a["runs_hour"], -a["runs_day"], a["name"].lower()))
     return out
 
 
@@ -141,7 +156,7 @@ def bridge_view(core, integ_id: int, entry: dict, now: float | None = None) -> d
                        "unknown_types": bridge.get("unknown_types") or []},
         "busiest": [{"entity_id": a["entity_id"], "name": a["name"], "runs_hour": a["runs_hour"], "runs_day": a["runs_day"]}
                     for a in autos if a["runs_hour"] or a["runs_day"]][:TOP],
-        "runaway": [a["entity_id"] for a in autos if a["runs_hour"] >= BUSY_PER_HOUR],
+        "runaway": [a["entity_id"] for a in autos if a["runaway"]],
         "cycles": [[{"entity_id": e, "name": names.get(e, e)} for e in c] for c in deps.get("cycles") or []],
         "blocked": [{"entity_id": b.get("entity_id"), "name": names.get(b.get("entity_id"), b.get("entity_id")),
                      "kind": b.get("kind"), "until": b.get("until"), "n": b.get("n")} for b in deps.get("blocked") or []][:50],

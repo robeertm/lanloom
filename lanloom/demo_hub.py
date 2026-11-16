@@ -3,6 +3,7 @@ traces and the bridge counters. Fictional names only; nothing is contacted."""
 from __future__ import annotations
 
 import random
+import time
 
 from .sources import hub as hub_src
 
@@ -74,7 +75,7 @@ def history_frames(now: float, rng: random.Random) -> list:
         t = now - h * 3600 + 1800
         runs = {}
         for eid, _n, _m, _c, per_hour, _x in AUTOMATIONS:
-            night = 0.3 if 1 <= (h % 24) <= 6 else 1.0
+            night = 0.3 if 1 <= time.localtime(t).tm_hour <= 6 else 1.0
             n = int(per_hour * night + (1 if rng.random() < (per_hour * night) % 1 else 0))
             if n:
                 runs[eid] = {"n": n, "last": t}

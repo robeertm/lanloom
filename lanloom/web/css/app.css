@@ -403,6 +403,12 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .hub-sub { margin-top: 12px; }
 .hub-privacy li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .hub-table td .chip { vertical-align: middle; }
+.hub-table th.num, .hub-table td.num { width: 72px; text-align: right; }
+.hub-table th:first-child { width: auto; }
+.hub-table td.hub-name { white-space: normal; }
+.hub-table td.hub-name .link-btn, .hub-name__text { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-table td.hub-name .hub-chip { margin-top: 3px; }
+.hub-sub p { font-size: var(--ll-fs-sm); margin: 6px 0 0; }
 .hub-table tr.is-warn td { background: var(--ll-warn-soft); }
 .link-btn { background: none; border: 0; padding: 0; color: var(--ll-accent); font: inherit; cursor: pointer; text-align: left; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -11,6 +11,11 @@
   function factsOf(rows) {
     return h('dl', { class: 'facts' }, rows.filter(r => r && r[1] != null && r[1] !== '').map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]).flat());
   }
+  const fmtWhen = ts => {
+    if (!ts) return '—';
+    try { return new Date(ts * 1000).toLocaleString(LL.locale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }); }
+    catch (e) { return LL.fmtDate(ts); }
+  };
   function sub(title, ...body) { return h('div', { class: 'hv-sub hub-sub' }, h('h4', {}, title), ...body); }
 
   function runsPanel(b, a, holder) {
@@ -26,7 +31,7 @@
           tr.runs.length ? h('table', { class: 'mini-table hub-table' },
             h('thead', {}, h('tr', {}, h('th', {}, t('hub.runs.when')), h('th', {}, t('hub.runs.result')), h('th', {}, t('hub.runs.last_step')))),
             h('tbody', {}, tr.runs.slice(0, 8).map(run => h('tr', {},
-              h('td', {}, LL.fmtDate(run.start)),
+              h('td', {}, fmtWhen(run.start)),
               h('td', {}, h('span', { class: 'chip ' + (run.error ? 'chip--danger' : run.execution === 'finished' ? 'chip--ok' : 'chip--muted') },
                 t(run.error ? 'hub.runs.error' : run.execution === 'finished' ? 'hub.runs.finished' : 'hub.runs.stopped'))),
               h('td', { class: 'mono truncate' }, run.last_step || '—'))))) : h('p', { class: 'muted' }, t('hub.runs.none')),
@@ -82,8 +87,8 @@
       kids.push(sub(t('hub.busy.title'), h('table', { class: 'mini-table hub-table' },
         h('thead', {}, h('tr', {}, h('th', {}, t('hub.busy.name')), h('th', { class: 'num' }, t('hub.busy.hour')), h('th', { class: 'num' }, t('hub.busy.day')))),
         h('tbody', {}, b.busiest.map(a => h('tr', { class: (b.runaway || []).includes(a.entity_id) ? 'is-warn' : null },
-          h('td', { class: 'truncate' }, canRuns ? h('button', { class: 'link-btn', type: 'button', onclick: () => runsPanel(b, a, holder) }, a.name) : a.name,
-            (b.runaway || []).includes(a.entity_id) ? [' ', h('span', { class: 'chip chip--warn' }, t('hub.busy.runaway'))] : null),
+          h('td', { class: 'hub-name' }, canRuns ? h('button', { class: 'link-btn', type: 'button', onclick: () => runsPanel(b, a, holder) }, a.name) : h('span', { class: 'hub-name__text' }, a.name),
+            (b.runaway || []).includes(a.entity_id) ? h('span', { class: 'chip chip--warn hub-chip' }, t('hub.busy.runaway')) : null),
           h('td', { class: 'num' }, LL.fmtNum(a.runs_hour, 0)), h('td', { class: 'num' }, LL.fmtNum(a.runs_day, 0)))))),
         canRuns ? h('p', { class: 'muted' }, t('hub.runs.hint')) : null, holder));
     }

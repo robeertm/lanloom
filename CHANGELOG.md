@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Home-automation bridge 2**: the hub connection also follows automation and script runs, reads which integration each device belongs to and the hardware addresses of devices from the hub's registry (for matching with network devices). The hub's component card has a new *Home-automation bridge* section: what is read, what stays out for privacy, how the hub is spared, the busiest automations, script loops and paused lookups. See [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md).
+- **Admin mode** (off by default, needs an administrator token on the hub): reads which entities each automation and script uses per role (trigger, condition, action) and related items, and on request the last runs of one automation with result, last step and step path. Only entity ids are kept – never aliases, templates, values, variables or error texts.
+- **Load protection**: templates are never rendered; configuration reads (30 per minute), related-item lookups (20 per minute) and run lookups (6 per minute, only on request) each have a budget; fresh answers are not asked again; scripts that call each other in a loop are never looked up (the hub would recurse); an item the hub answers with an error is paused for 24 hours, doubling up to a week; a message type an older hub does not know is not sent again.
+- **Privacy filter**: people, trackers, zones, cameras, pictures, calendars, to-do lists and notifications are dropped inside the bridge by default (each group can be switched on per connection). Trackers only lend their hardware/IP address for matching. Events carry entity, state and time, plus which automation caused a change or just "user" – never service data, user ids or context ids. Hub data stays in memory (never in backups); the AI features see the home-automation report section only as its summary, and "Explain" on one of its notes hides the automation name.
+- Nightly report section *Home automation*: runaway automations (60 runs or more within an hour) and script loops as points, paused lookups and the busiest automations as notes.
+- API: `GET /api/hub/{id}/bridge`, `GET /api/hub/{id}/automations`, `GET|POST /api/hub/{id}/traces/{entity_id}` (asking for runs needs the operator role and is written to the audit log).
+- Demo mode: sample automations and scripts with run counts, a runaway automation, a script loop, a paused lookup and sample runs.
+
 ## [1.17.0] – 2026-11-16
 
 ### Added

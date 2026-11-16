@@ -12,7 +12,7 @@ These work with any device that speaks the protocol; they only read.
 | SNMP v2c / v3 | interface counters, LLDP neighbours, switch address table | never (Get, GetNext, GetBulk only) |
 | Switch controller (local JSON API, view-only account) | which client sits on which switch port or access point | never |
 | MQTT broker | message and byte counts per topic group | never (cannot publish) |
-| Home-automation hub (WebSocket API) | rooms, devices, entities, state changes | never (cannot call services) |
+| Home-automation hub (WebSocket API) | rooms, devices, entities, state changes, automation runs; admin mode: entities used by automations and scripts, related items, last runs ([details](HUB-BRIDGE.md)) | never (cannot call services, never renders templates) |
 
 ## Device-family adapters
 
