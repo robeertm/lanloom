@@ -155,6 +155,17 @@ Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map
 </tr>
 </table>
 
+### Backup and moving to another host
+
+Settings › Backup saves the whole configuration into one file encrypted with your passphrase (Argon2id, AES-256-GCM): accounts and second factors, connections with their credentials, every name you set, "connected via" entries, drafts, settings and the audit log, optionally history. Automatic backups run on a schedule into the data volume, keep as many files as you choose, and the nightly report says when the newest one is too old. A restore shows first what it replaces, ends every session and works on a new host too, from the first-start page and across architectures (amd64 ↔ arm64). See [docs/BACKUP.md](docs/BACKUP.md).
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/backup-settings-light.png" width="100%" alt="Settings, Backup: back up now and automatic backups"><br><sub>Back up now or on a schedule</sub></td>
+<td width="50%"><img src="docs/screenshots/backup-restore-preview-light.png" width="100%" alt="Restore preview comparing now and the backup"><br><sub>Before a restore: what is replaced, what stays, who is signed out</sub></td>
+</tr>
+</table>
+
 ### Colour themes
 
 Settings > Appearance > Colour theme switches the accent palette of the whole app: the map, the traces, the data paths arcs, the firewall views, the charts and the live grades. **Circuit green** is the default and looks as before; **Aurora** uses turquoise, blue and violet on a cool ground. Every theme works in light, dark and automatic mode, and the choice is remembered per device. Warning and error colours keep their meaning in every theme, and the text and graphic contrast of each theme and mode is checked against WCAG AA in the test suite.
@@ -316,7 +327,8 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 
 ## Documentation
 
-- [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, uninstall
+- [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, moving to another host, uninstall
+- [docs/BACKUP.md](docs/BACKUP.md): backup and restore in the app, automatic backups, moving to another host, the file format
 - [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path
 - [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read

@@ -37,7 +37,10 @@ English and German. Every text, number, date and time follows the language you c
 Yes. Settings > Appearance > Colour theme offers **Circuit green** (default) and **Aurora**; "Light / dark" next to it switches between light, dark and automatic. Both settings are remembered in the browser, so every device can have its own. Warning and error colours keep their meaning in every theme.
 
 ### Where is my data stored?
-In the data volume mounted at `/data`: the inventory database (`lanloom.db`), the key file (`secret.key`), the setup code file and backups. Nothing is sent elsewhere.
+In the data volume mounted at `/data`: the inventory database (`lanloom.db`), the key file (`secret.key`), the setup code file, the updater's database copies (`backups`) and the automatic configuration backups (`config-backups`). Nothing is sent elsewhere.
+
+### How do I back up Lanloom or move it to another computer?
+Settings › Backup downloads one file encrypted with your passphrase and can write automatic backups on a schedule. On the new computer, install Lanloom and choose *Restore from a backup instead* on the first-start page; amd64 and arm64 can be mixed. See [BACKUP.md](BACKUP.md).
 
 ### I forgot my password. What now?
 Ask an admin for a one-time reset link (Settings, Users). Only if no admin can sign in: stop the container, delete `lanloom.db` in the data volume and start again. This is the last resort, and it loses your inventory and settings. A new setup code is printed and the wizard starts over. Back up first if you can (see [INSTALL.md](INSTALL.md)).

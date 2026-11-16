@@ -135,7 +135,18 @@ docker compose pull && docker compose up -d
 
 ## Backup
 
-Copy the data volume, or the database backups in `/data/backups`. Keep `secret.key` together with the database, otherwise stored integration credentials cannot be decrypted.
+**In the app (recommended):** *Settings › Backup* downloads the whole configuration as one file encrypted with your passphrase (accounts, second factors, connections with their credentials, names you set, "connected via" entries, drafts, settings, audit log, optionally history) and writes automatic backups on a schedule into `/data/config-backups`. The nightly report says when the newest backup is too old. Restore it on the same instance (*Settings › Backup › Restore*) or on a new one from the first-start page (*Restore from a backup instead*), also on another architecture (amd64 ↔ arm64). Details, what happens on a restore, and how to move to another host: [BACKUP.md](BACKUP.md).
+
+**By hand:** stop the container and copy the data volume, or copy `lanloom.db` together with `secret.key` (without the key, stored credentials cannot be decrypted). The updater keeps a copy of the database from before each update in `/data/backups`.
+
+Copy backups off the host now and then: a backup on the same disk does not survive a lost disk.
+
+## Move to another host
+
+1. Old host: *Settings › Backup › Back up now* (note the passphrase).
+2. New host: install Lanloom (any section above), open it, choose *Restore from a backup instead* on the first-start page, enter the setup code, the file and the passphrase.
+3. Sign in with an account from the backup. The new host has its own instance key; old sessions are not valid there. See [BACKUP.md](BACKUP.md#move-to-another-host) for passkeys and connections.
+4. Switch the old instance off.
 
 ## Forgot password
 

@@ -12,7 +12,7 @@ There are three roles. Each one includes everything of the previous one.
 | --- | --- |
 | **Viewer** | Look at everything: the map, the network view, data paths, devices, reports and the firewall views. Change only their own account, their personal language and their look. |
 | **Operator** | Everything a viewer can, and additionally: rename and hide devices, set manual connections, run scans, tick report items, prepare firewall drafts and undo drafts, and use the AI "Explain" button. |
-| **Admin** | Everything an operator can, and additionally: settings, connections and their credentials, users, sign-in security, the audit log, executor approvals (applying firewall plans), AI settings, updates and the nightly report settings. |
+| **Admin** | Everything an operator can, and additionally: settings, connections and their credentials, users, sign-in security, the audit log, executor approvals (applying firewall plans), AI settings, updates, the nightly report settings, and backup and restore (Settings › Backup). |
 
 The roles are enforced on the server, not in the web page. One central table (`lanloom/access.py`) says which role a route needs, and a test checks every route of the app against it. A route that is missing from the table is for admins only. The web page merely hides controls a role cannot use. Location fields of the site (for example the cell of a mobile router) are visible to admins only.
 
