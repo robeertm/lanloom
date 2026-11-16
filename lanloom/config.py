@@ -49,7 +49,9 @@ def _base_path(raw: str) -> str:
     if not raw.startswith("/"):
         raw = "/" + raw
     import re
-    return raw if re.fullmatch(r"(/[A-Za-z0-9._~-]+)+", raw) else ""
+    if not re.fullmatch(r"(/[A-Za-z0-9._~-]+)+", raw) or any(part in (".", "..") for part in raw.split("/")):
+        return ""
+    return raw
 
 
 def load() -> Config:

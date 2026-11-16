@@ -786,7 +786,7 @@ class AI:
             return False
         return hmac.compare_digest(rec["hash"], _hash_code(c))
 
-    def installer(self, os_name: str, code, host_header: str, scheme: str) -> tuple:
+    def installer(self, os_name: str, code, host_header: str, scheme: str, prefix: str = "") -> tuple:
         """(filename, text) of the setup script for another computer, with this Lanloom's address and the code."""
         if os_name not in INSTALLER_OS:
             raise ValueError("ai.err.os")
@@ -797,7 +797,9 @@ class AI:
             raise ValueError("ai.err.host_header")
         c = normalise_code(code)
         text = (INSTALLER_DIR / INSTALLER_OS[os_name]).read_text(encoding="utf-8")
-        text = text.replace("__LANLOOM_URL__", "%s://%s" % (scheme, host)).replace("__PAIR_CODE__", c[:4] + "-" + c[4:])
+        if prefix and not re.fullmatch(r"(/[A-Za-z0-9._~-]+)+", prefix):
+            prefix = ""
+        text = text.replace("__LANLOOM_URL__", "%s://%s%s" % (scheme, host, prefix)).replace("__PAIR_CODE__", c[:4] + "-" + c[4:])
         text = text.replace("__AI_PORT__", str(runtime.PORT))
         name = "lanloom-ai-setup.ps1" if os_name == "windows" else "lanloom-ai-setup.sh"
         return name, text

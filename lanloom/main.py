@@ -87,6 +87,8 @@ class App:
         from .ai import report as _ai_report  # noqa: F401 - registers the nightly report section
         self.ai = AI(self.core, store, vault, cfg)
         self.core.ai = self.ai
+        self.core.audit = self.audit
+        from . import access_report as _access_report  # noqa: F401 - registers the nightly report section
         if cfg.demo:
             from .demo import Demo
             self.core.demo = Demo()
@@ -589,7 +591,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if blocked:
             return blocked
         try:
-            name, text = ai.installer(os_name, code, request.headers.get("host", ""), request.url.scheme)
+            name, text = ai.installer(os_name, code, request.headers.get("host", ""), request.url.scheme,
+                                      request.scope.get("root_path", "") or getattr(cfg, "base_path", "") or "")
         except PermissionError:
             return pair_refused(request)
         except ValueError as exc:
