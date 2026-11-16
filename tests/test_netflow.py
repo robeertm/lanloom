@@ -317,13 +317,14 @@ def test_default_outside_rule():
     paths = FakePaths()
     col = Collector(paths, lambda ip: None, lambda: [], clock=lambda: T0)
     col.configure([EXP], 2055)
+    overlay = str(netflow._CGNAT[1])                            # first host of the overlay VPN range (no literal address)
     pkt = v5_packet([("10.1.2.3", "8.8.8.8", 10),               # global address
-                     ("10.1.2.3", "100.64.0.0", 10),            # overlay VPN range counts as outside
+                     ("10.1.2.3", overlay, 10),                 # overlay VPN range counts as outside
                      ("10.1.2.3", "224.0.0.251", 10),           # multicast
                      ("10.1.2.3", "169.254.1.1", 10),
                      ("10.1.2.3", "127.0.0.1", 10)])
     assert col.handle(pkt, EXP) == 2
-    assert {c[1] for c in paths.calls} == {"8.8.8.8", "100.64.0.0"}
+    assert {c[1] for c in paths.calls} == {"8.8.8.8", overlay}
 
 
 def test_book_failure_and_callback_errors_do_not_raise():
