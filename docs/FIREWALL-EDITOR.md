@@ -22,6 +22,8 @@ The **Firewall** tab shows which zone and network every device sits in and what 
 
 The app itself never writes to a network device in either mode. It keeps the draft, computes the preview and builds the plan.
 
+**AI suggestions (optional).** With an AI set up, *AI suggestions* in the editor proposes moves – only those the editor itself would allow. Asking never touches the draft: the suggestions you pick join it only when you choose *Take over as draft*, and from there the same preview, confirmation and signature apply. See [integrations/ai.md](integrations/ai.md#suggestions-for-networks-and-the-firewall).
+
 ### Live configuration (read only)
 
 When a device-family adapter reads your controller (see [COMPATIBILITY.md](COMPATIBILITY.md)), the Firewall tab offers it as a further source next to the simulation or the executor, and opens it by default while the editor runs the simulation. It shows the controller's real zones and networks, the clients in each network, the firewall rules in the controller's order with their filters and hit counters, a zone matrix (what applies to whole zones; a number counts your own rules that narrow it), port forwarding, wireless networks and the network equipment with its ports. This view is **read only**: there is no change mode, no draft and no plan. The switch at the top returns to the simulation, which stays available for practice.

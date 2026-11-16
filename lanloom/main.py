@@ -108,6 +108,7 @@ class App:
                 self.core.demo.seed_integrations(self.core)
                 self.core.demo.seed_reports(self.core)
                 self.core.demo.seed_access(self)
+                self.ai.seed_demo_hint()            # one open identification suggestion to look at
                 store.set_setting("setup_done", True)
 
 

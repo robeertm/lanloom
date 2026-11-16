@@ -76,7 +76,7 @@ Only if you set one up, and only what you ask about. A local AI runs in your net
 A computer that is always on, with at least 4 GB of memory for a small model and 8 GB or more for a medium one; a graphics unit makes answers much faster. Without one, the number of processor cores is the limit and answers can take a minute. Lanloom measures the computer and says honestly if it is too small. If this host is small, put the model on another computer in your network (Settings, AI, "Another computer") or use a cloud service.
 
 ### Can the AI change my settings?
-No. It only explains. Every change to a network device still goes through the firewall editor with a preview, your confirmation and, for real changes, a passkey signature.
+No. It only reads and explains. Its firewall suggestions reach the draft only when you take them over, and then the firewall editor shows a preview, asks for your confirmation and, for real changes, a passkey signature. A suggested device kind counts only after you confirm it, and then only as a weak clue.
 
 ## How does Lanloom know which device is on which switch port?
 

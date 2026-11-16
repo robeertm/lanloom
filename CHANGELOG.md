@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.16.0] – 2026-11-16
+
+### Added
+- **Ask your network** (with an AI set up; operators and admins): an *Ask* button in the top bar opens a conversation panel – a sheet on wide screens, full screen on a phone. Questions about devices, availability, data paths, the firewall configuration and the nightly reports are answered from facts the Lanloom server builds from its own data for each question; the browser only sends the question and the last turns, kept for this tab. Answers name devices and views with references that become links (a device opens its card, a view its tab); references that do not exist are dropped. *Preview what is sent* shows the exact text. Registered as a command for the coming command palette. See [docs/integrations/ai.md](docs/integrations/ai.md#ask-your-network).
+- **Nightly report: In plain words**: an optional AI paragraph above each report, written after the report is made. The rule-based report stays the reference; without an answer within four minutes the paragraph is missing. Operators can write it (again) for any saved report. It goes into deliveries (mail, push, chat, webhook field `plain`) only when *Put the paragraph into the delivered report* is switched on (off by default).
+- **Suggestions for unknown devices**: *Ask AI what this is* on the card of a device Lanloom is unsure about returns one of Lanloom's kinds with a reason. Confirm or dismiss; a confirmed suggestion counts as a weak clue (confidence 0.3, reason "AI hint") that only fills in a kind where Lanloom has nothing better – your own choice always wins. Optional nightly suggestions for up to five unsure devices (off by default); the nightly report's AI section counts new suggestions waiting for a decision.
+- **Firewall suggestions as a draft**: *AI suggestions* in the firewall editor proposes moves to other networks – only moves the editor itself allows. Asking never writes the draft; the suggestions you pick join it with *Take over as draft*, followed by the usual preview, confirmation and signature.
+- Settings › AI: *What the AI may do* (paragraph, its delivery, nightly suggestions) and a cloud permission for each new feature (answering questions, the paragraph, device suggestions, firewall suggestions); all off for the cloud until allowed.
+- Device deep links: `#/devices/<id>` opens the device list with that device's card.
+- Audit log actions for questions (never the question itself), paragraphs on request, device suggestions and decisions, and firewall suggestions.
+- Demo mode: the sample AI answers questions with links, writes the paragraph for the sample reports, has an open suggestion for an unknown device and proposes two moves in the firewall simulation.
+
 ## [1.15.0] – 2026-11-16
 
 ### Added

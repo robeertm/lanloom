@@ -27,7 +27,7 @@
 - **Data paths.** A calm world map shows where your devices send data on the internet, by country: arcs from your home country, width by bytes, outside the EU in amber. 24 hours, 7 days or 30 days, a full-screen map, lists of countries and devices, and calm hints for unusual behaviour (a device talks to a new country, uploads far more than on a typical day, or sits in a network that should not reach the internet). Countries come from an offline database shipped in the image; only countries and byte counts are stored, never addresses. Own networks and tunnels are kept apart, and the EU share only counts traffic with a known country. See [docs/DATA-PATHS.md](docs/DATA-PATHS.md).
 - **Nightly report.** Every morning a short report about the night in plain words: internet outages, new and missing devices, interrupted connections and refused sign-ins, data paths hints, changes to the controller configuration, expiring certificates, and Lanloom's own updates and restarts as maintenance. One headline says "All quiet" or how many things need a look; those can be ticked off. Rule-based from Lanloom's own data, with no online service needed (an AI can explain a note on request, see below); made at the next start if Lanloom was off at report time; 30-day archive; optional delivery by e-mail, webhook, push topic or your own chat bot (off by default). See [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md).
 - **Several users, three roles.** Viewer, operator and admin, enforced on the server for every route. Invitation links, two-step sign-in with an authenticator app, recovery codes or passkeys, sessions you can end, security notices and a tamper-evident audit log. Optional sign-in through your own authentication proxy. See [docs/ACCESS.md](docs/ACCESS.md).
-- **AI, local or cloud (optional).** An Explain button on devices, notes of the nightly report and firewall rules lets an AI answer in plain words, in the language of the app. Off by default; AI never changes a setting. See [docs/integrations/ai.md](docs/integrations/ai.md).
+- **AI, local or cloud (optional).** An Explain button on devices, notes of the nightly report and firewall rules lets an AI answer in plain words, in the language of the app. **Ask your network** answers questions with links to the devices and views concerned, the nightly report gets a paragraph *In plain words*, the AI suggests what an unknown device is (you confirm), and the firewall editor shows suggestions you can take over as a draft. Off by default; AI only reads and never changes a setting. See [docs/integrations/ai.md](docs/integrations/ai.md).
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
 - **Device list** with search, light/dark/auto mode and two colour themes (Circuit green and Aurora), a phone layout with bottom tabs, English and German UI.
 - **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network (or tap it and choose "Move to…" on a phone), collect moves in a draft and get a plain-language preview: what the device may do afterwards, what it may no longer do, and what to watch out for. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
@@ -192,6 +192,19 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 
 ![Another computer: one-time setup code and one command per operating system](docs/screenshots/ai-other-computer-light.png)
 
+![Ask your network: answers with links to the devices and views concerned](docs/screenshots/ask-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/report-plain-dark.png" width="100%" alt="Nightly report with the paragraph In plain words above the rule-based report"><br><sub>In plain words: an AI paragraph above the report, which stays the reference</sub></td>
+<td width="50%"><img src="docs/screenshots/identify-suggestion-light.png" width="100%" alt="AI suggestion for an unknown device with its reason, confirm or dismiss"><br><sub>Unknown device: a suggestion with its reason; nothing changes until you confirm</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/firewall-ai-suggestions-dark.png" width="100%" alt="AI suggestions for moving devices to other networks"><br><sub>Firewall: suggestions to pick from</sub></td>
+<td width="50%"><img src="docs/screenshots/firewall-ai-draft-light.png" width="100%" alt="The chosen suggestions in the draft bar, waiting for the preview"><br><sub>Taken over as a draft: the usual preview and confirmation follow</sub></td>
+</tr>
+</table>
+
 ### Devices and settings
 
 ![Device list](docs/screenshots/devices-light.png)
@@ -212,6 +225,8 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 <td><img src="docs/screenshots/phone-paths-full.png" width="200" alt="Phone: world map in full screen"></td>
 <td><img src="docs/screenshots/phone-reports.png" width="200" alt="Phone: nightly report"></td>
 <td><img src="docs/screenshots/phone-ai-explain.png" width="200" alt="Phone: AI explanation of a device"></td>
+<td><img src="docs/screenshots/phone-ask.png" width="200" alt="Phone: Ask your network"></td>
+<td><img src="docs/screenshots/phone-report-plain.png" width="200" alt="Phone: nightly report in plain words"></td>
 <td><img src="docs/screenshots/phone-wizard-scan.png" width="200" alt="Phone wizard scan step"></td>
 <td><img src="docs/screenshots/phone-firewall-move.png" width="200" alt="Phone: move a device to another network"></td>
 <td><img src="docs/screenshots/phone-firewall-preview.png" width="200" alt="Phone: firewall preview"></td>
@@ -300,6 +315,11 @@ All integrations are optional. Credentials are encrypted at rest with a key file
 ## AI – local or cloud
 
 Optional and off by default. With an AI set up, an **Explain** button appears on a device, on a note of the nightly report and on a firewall rule. The answer is short, in plain words and in the language of the app. The AI only explains: it never changes a setting, and every change still goes through the preview and your confirmation.
+
+- **Ask your network:** a panel from the top bar (full screen on a phone) answers questions about devices, availability, data paths, the firewall configuration and the nightly reports. The facts are built on the server from Lanloom's own data; the answer links to the devices and views it names.
+- **In plain words:** a short AI paragraph above each nightly report. The rule-based report stays the reference; without an answer the paragraph is missing. It goes into the delivered report only if you allow it.
+- **Unknown devices:** the AI suggests a kind with a reason; once you confirm, it counts as a weak clue that never overrides better evidence or your own choice. Optional nightly suggestions for up to five unsure devices.
+- **Firewall suggestions:** proposed moves to other networks, only those the editor allows; your click puts them into the draft, then the usual preview and confirmation apply.
 
 - **Local AI** runs on a computer in your network. It gets the real data, and nothing leaves your network.
 - **Cloud AI** is a service on the internet with your own key. Before anything is sent, every IP and hardware address, host and device name, wireless network name, serial number and location is replaced by a placeholder; the answer is translated back on your host. If an address pattern would still slip through, nothing is sent. Each function needs its own permission, and a daily limit caps the requests. "Preview what is sent" shows the exact text first.

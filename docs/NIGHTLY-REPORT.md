@@ -1,6 +1,6 @@
 # Nightly report
 
-Every morning Lanloom writes a short report about the night: what happened in your network since the previous report, in plain words. It is made from Lanloom's own data by fixed rules. No AI and no online service is involved in making it, and nothing leaves the host unless you switch on a delivery channel. (If you set up AI, a note can be explained on request; see [integrations/ai.md](integrations/ai.md).)
+Every morning Lanloom writes a short report about the night: what happened in your network since the previous report, in plain words. It is made from Lanloom's own data by fixed rules. No AI and no online service is involved in making it, and nothing leaves the host unless you switch on a delivery channel. (If you set up AI, a note can be explained on request, and an optional paragraph *In plain words* stands above the report – written after the report is made, never part of it; without an answer it is simply missing, and it goes into a delivery only if you allow it. See [integrations/ai.md](integrations/ai.md#nightly-report-in-plain-words).)
 
 ## When
 
@@ -23,7 +23,7 @@ At the top one line: **All quiet**, or **N things need a look**. Below it one se
 | Controller configuration | changes to firewall rules, networks, wireless networks, port forwards and zones compared with the previous report; firmware versions that changed | every configuration change |
 | Device families | one section per connection of a device-family adapter that brings its own (for example the hypervisor: nodes offline, guests stopped, added or removed, failed backups, findings) | what the family marks as needing a look |
 | Certificates | TLS certificates of the addresses Lanloom connects to (hub, controller, broker, adapters) | a certificate expires within 14 days or has expired (under 30 days is a note) |
-| AI | only when AI is set up: requests answered per day (local and cloud), the daily limit for cloud requests if it was reached, failed requests | the limit was reached, or requests failed and none succeeded |
+| AI | only when AI is set up: requests answered per day (local and cloud), the daily limit for cloud requests if it was reached, failed requests, new suggestions for unknown devices that wait for a decision | the limit was reached, or requests failed and none succeeded |
 | Backup | the age of the newest backup, automatic backups written that night, a restore from a backup | automatic backups are on and the newest backup is older than twice the interval (at least 25 hours), or the last automatic backup failed |
 | Lanloom | a new version, Lanloom's own updates and restarts (shown as maintenance, never as a fault), sources that stopped sending data, free space on the data volume | a new version is available, a source sent nothing for 30 minutes, less than 10 % or 1 GB is free |
 

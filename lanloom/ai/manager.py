@@ -739,6 +739,23 @@ class AI:
             done += 1
         return done
 
+    def seed_demo_hint(self) -> None:
+        """Demo mode: an open suggestion for the first device Lanloom is unsure about (sample AI, no network)."""
+        if not self.demo:
+            return
+        for d in self.core.devices():
+            if d.get("is_self") or d.get("is_gateway") or d.get("hidden") or self.hints.peek(d["id"]):
+                continue
+            if d.get("kind") == "unknown" or d.get("certainty") == "unknown":
+                try:
+                    job = self.identify(d["id"], "en")
+                except ValueError:
+                    return
+                end = time.monotonic() + 10
+                while time.monotonic() < end and (self.job_view(job["id"]) or {}).get("state") not in ("done", "error"):
+                    time.sleep(0.05)
+                return
+
     # firewall / network suggestions --------------------------------------------------
     def firewall_suggest(self, lang=None, preview: bool = False):
         """Suggested moves as a draft proposal. The AI never touches the draft: the user takes it over."""

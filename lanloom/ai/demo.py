@@ -43,7 +43,8 @@ def _ask(lang: str, user: str) -> str:
     rows = re.findall(r"^\[(D\d+)\] ([^|]+?) \| ([^|]+?) \| [^|]+ \| (\w+)", user, re.M)
     offline = [r for r in rows if r[3] == "down"]
     key = "ai.demo.answer.ask"
-    pick = rows[0] if rows else None
+    named = [r for r in rows if not re.fullmatch(r"[\d.:a-fA-F]+", r[1].strip())]
+    pick = (named or rows or [None])[0]
     if offline and any(w in q for w in ("offline", "down", "weg", "aus", "erreichbar", "missing")):
         key, pick = "ai.demo.answer.ask_offline", offline[0]
     elif any(w in q for w in ("traffic", "daten", "internet", "upload", "country", "land", "länder")):
@@ -64,7 +65,8 @@ def _identify(lang: str, user: str) -> str:
         if clue in user:
             kind = k
             break
-    reason = _text(lang, "ai.demo.answer.identify").replace("{kind}", _text(lang, "kind." + kind))
+    label = _text(lang, "kind." + kind)
+    reason = _text(lang, "ai.demo.answer.identify").replace("{kind}", label if lang == "de" else label.lower())
     return json.dumps({"kind": kind, "label": _text(lang, "ai.demo.answer.identify_label.%s" % kind), "reason": reason})
 
 

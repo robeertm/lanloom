@@ -1,8 +1,8 @@
 # AI: local or cloud
 
-Lanloom can let an AI explain things in plain words: a device on the map, a note of the nightly report, a firewall rule. An **Explain** button appears at those places once an AI is set up. The answer is short and comes in the language of the app.
+Lanloom can let an AI explain things in plain words: a device on the map, a note of the nightly report, a firewall rule. An **Explain** button appears at those places once an AI is set up. The answer is short and comes in the language of the app. With an AI set up there is more (see [What the AI can do](#what-the-ai-can-do)): **Ask your network** answers questions and links to the devices and views it talks about, the nightly report gets a paragraph **In plain words**, the AI can **suggest what an unknown device is**, and the firewall editor can show **suggestions as a draft**.
 
-The AI only explains. It never changes a setting, never writes configuration and never calls the executor; every change still goes through the preview and your confirmation (see [FIREWALL-EDITOR.md](../FIREWALL-EDITOR.md)).
+The AI only reads and explains. It never changes a setting, never writes configuration and never calls the executor; every change still goes through the preview and your confirmation (see [FIREWALL-EDITOR.md](../FIREWALL-EDITOR.md)).
 
 AI is **off by default**. Nothing leaves the host until you set up a service and switch it on. Setup is under **Settings → AI** (the second sub-tab next to *General*), in two cards: *Local AI* and *Cloud AI*.
 
@@ -215,9 +215,34 @@ The message in the app is the plain-language text of one of these keys.
 | `code` | The setup code is wrong or expired. Create a new one. |
 | `peer` | Pairing only works from a computer in your own network. |
 
+## What the AI can do
+
+Every feature below uses the same services, order, privacy layer and daily limit as *Explain*, and each one needs its own permission before a cloud service may be used for it (Settings → AI, *The cloud service may be used for*). A local service may always be used. Operators and admins see the features; viewers do not. Every request is written to the audit log (the action, never the question or the answer).
+
+### Ask your network
+
+The **Ask** button in the top bar (an icon on narrow screens; on a phone the panel fills the screen) opens a conversation about your network: "Which devices are offline?", "What sends the most to the internet?", "Is anything unusual today?". The Lanloom server builds the facts for each question from its own data – the devices with kind, address, status, maker and how sure the identification is, the availability changes of the last 24 hours, the data paths of the last day, the firewall configuration it has read and the latest nightly report – and sends them with your question. The browser only sends the question and the last few turns of the conversation, which it keeps for this tab only.
+
+The answer names devices with a reference such as `[D3]` and views such as `[view:paths]`; Lanloom turns them into links (a device opens its card in the device list, a view opens that tab) and drops any reference that does not exist. *Preview what is sent* shows the exact text for your question. The conversation can be started over at any time. The answer can only read: it cannot change anything, and it says so when a change could help.
+
+### Nightly report: In plain words
+
+With an AI set up, every nightly report gets a short paragraph *In plain words* above the report: whether something needs a look and the most important points. The rule-based report below stays the reference; if the AI does not answer within four minutes, or no AI may be used, the paragraph is simply missing. An operator can write it (again) for any saved report. Settings → AI, *What the AI may do*:
+
+- *Write a paragraph "In plain words" for each nightly report* (on by default once an AI is set up);
+- *Put the paragraph into the delivered report* (off by default): only then does the paragraph go into the e-mail, push message, chat message or webhook (field `plain`).
+
+### Suggestions for unknown devices
+
+On the card of a device Lanloom is not sure about, *Ask AI what this is* sends the clues Lanloom collected (ports, announcements, maker from the hardware address, model, the reasons it already used) and asks for one of Lanloom's kinds with a short reason. The suggestion waits on the card: **Confirm** or **Dismiss**. A confirmed suggestion counts as a weak clue (confidence 0.3, reason "AI hint"): it only fills in a kind where Lanloom has nothing better, and a kind you choose yourself always wins. *Forget suggestion* removes it. With *At night, suggest a kind for up to 5 devices Lanloom is unsure about* (off by default) the AI makes such suggestions for devices it was never asked about; the nightly report then says how many suggestions wait for you. Nothing changes until you confirm.
+
+### Suggestions for networks and the firewall
+
+In the firewall editor (simulation or executor), *AI suggestions* looks at which device sits in which network and suggests moves – for example a TV or a speaker into the smart home network. Only moves the editor itself would allow are shown (never a protected device, never into the management network). Pick the ones you like and choose *Take over as draft*: they join the draft bar, and from there the usual preview, confirmation and – for real changes – passkey signature apply. Asking for suggestions never writes the draft; only your click does.
+
 ## What never happens
 
-- The AI never writes configuration, never calls the executor and never changes a setting.
+- The AI never writes configuration, never calls the executor and never changes a setting. Firewall suggestions reach the draft only by your click; device suggestions count only after you confirm them, and then only as a weak clue.
 - Nothing is sent to a cloud service without a key, an allowed function and the privacy layer.
 - A key is never shown again, logged, exported or put into a report.
 - No address range is scanned to find a service.

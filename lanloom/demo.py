@@ -496,6 +496,15 @@ class Demo:
             report = rep.assemble(since, planned[i] + 2, prev, day.isoformat(), self.report_certs())
             report["created"] = planned[i] + 2
             rep.save(report)
+            if rep.plain_hook is not None:          # the AI paragraph "In plain words" (demo AI; absent without AI)
+                try:
+                    plain = rep.plain_hook(report)
+                except Exception:
+                    plain = None
+                if plain:
+                    plain["t"] = report["created"]
+                    report["plain"] = plain
+                    rep.set_plain(report["day"], plain)
             prev = report
         core.live_cfg.pop(ids.get(fam), None)
         core.live_cfg.pop(ids.get(hv), None)
