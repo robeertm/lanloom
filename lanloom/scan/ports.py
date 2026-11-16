@@ -28,6 +28,7 @@ GENTLE_PORTS: dict[int, str] = {
     5000: "web-alt",
     5001: "web-alt-tls",
     5900: "vnc",
+    8006: "hypervisor-web",
     8008: "web-alt",
     8080: "http-alt",
     8081: "web-alt",
@@ -84,7 +85,7 @@ DEEP_PORTS: dict[int, str] = dict(sorted({**_DEEP_EXTRA, **GENTLE_PORTS}.items()
 # Ports where an HTTP(S) banner (GET /) is attempted; value = use TLS.
 WEB_PORTS: dict[int, bool] = {
     80: False, 81: False, 443: True, 3000: False, 3001: False, 4000: False, 4443: True, 5000: False,
-    5001: True, 7443: True, 8000: False, 8008: False, 8080: False, 8081: False, 8088: False,
+    5001: True, 7443: True, 8000: False, 8006: True, 8008: False, 8080: False, 8081: False, 8088: False,
     8123: False, 8443: True, 8888: False, 9000: False, 9443: True, 32400: False, 49152: False,
     10000: False,
 }

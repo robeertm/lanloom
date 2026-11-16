@@ -38,7 +38,10 @@
       nav, h('div', { class: 'topbar__right' }, updateBtn, gradePill, themeBtn));
     const main = h('main', { class: 'main main--' + active }, content);
     const notes = LL.noticeBar ? LL.noticeBar() : null;              // security notices (new device, lock-out ...)
-    app.replaceChildren(h('div', { class: 'frame' }, header, notes, main));
+    const demoBar = LL.state && LL.state.demo_view ? h('div', { class: 'demo-bar', role: 'status' },
+      h('span', { class: 'demo-bar__text' }, h('strong', {}, t('setup.demo.bar_title')), ' ', t('setup.demo.bar_text')),
+      h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => LL.demoView(false) }, t('setup.demo.leave'))) : null;
+    app.replaceChildren(h('div', { class: 'frame' }, header, demoBar, notes, main));
     const unsub = liveSubscribe(f => {
       const g = (f.overall && f.overall.grade) || 'unknown';
       gradePill.dataset.grade = g;
@@ -504,6 +507,9 @@
           ['hub', 'mqtt', 'snmp', 'controller'].includes(k) ? t('integ.add.' + k) : t('integ.add.family', { name: LL.integTitle(k) })))));
     }
     page.append(card(t('settings.integrations'), [h('p', { class: 'muted' }, t('wizard.connect.safety')), integWrap]));
+    page.append(card(t('setup.again.title'), [h('p', { class: 'muted' }, t('setup.again.text')),
+      h('div', { class: 'btn-row btn-row--wrap' }, h('button', { class: 'btn btn--primary', type: 'button', onclick: () => LL.setupAgain() }, t('setup.again.start')),
+        LL.state && LL.state.demo ? null : h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => LL.demoView(true) }, t('setup.demo.start')))]));
     renderInteg();
     // appearance
     const [lang, theme] = langThemeSelects();

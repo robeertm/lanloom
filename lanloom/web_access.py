@@ -192,6 +192,7 @@ def register(app: FastAPI, c: Ctx) -> None:
         st.sessions.destroy(request.cookies.get(auth.SESSION_COOKIE))
         response = JSONResponse({"ok": True})
         response.delete_cookie(auth.SESSION_COOKIE, path="/")
+        response.delete_cookie("ll_demo", path="/")          # the sample network ends with the session (see demoview)
         return response
 
     @app.post("/api/passkey/login/options")

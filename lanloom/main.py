@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.routing import APIRoute
 from starlette.routing import Match
 
-from . import __version__, access, auth, config as config_mod, mapmodel, textfmt
+from . import __version__, access, auth, config as config_mod, demoview, mapmodel, setup_assist, textfmt
 from .audit import AuditLog
 from .core import Core
 from .crypto import Vault, load_or_create_key
@@ -77,7 +77,8 @@ class App:
         self.audit = AuditLog(store, sub(b"lanloom-audit-v1"))
         self.limiter = auth.LoginLimiter()
         self.setup_code = auth.SetupCode(cfg.data_dir, store)
-        self.core = Core(cfg, store, vault)
+        self.real_core = Core(cfg, store, vault)
+        self.demo_view = demoview.DemoView(cfg)
         self.updates = Updates(cfg, store)
         self.core.reports.update_state = self.updates.state
         from .firewall.editor import Editor
@@ -100,6 +101,14 @@ class App:
                 store.set_setting("setup_done", True)
 
 
+    @property
+    def core(self) -> Core:
+        """The core of this request: the sample network for a demo view (see demoview), else the real one."""
+        if demoview.ACTIVE.get() and self.demo_view.core is not None:
+            return self.demo_view.core
+        return self.real_core
+
+
 def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     cfg = cfg or config_mod.load()
     state = App(cfg, store)
@@ -113,6 +122,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         try:
             yield
         finally:
+            await state.demo_view.stop()
             await state.core.stop()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -212,6 +222,14 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                     if rule and rule.stepup and not (user.get("source") == "proxy" or state.sessions.fresh(user)):
                         return JSONResponse({"error": "auth.err.stepup", "methods": stepup_methods(user)}, status_code=403)
                 request.state.user = user
+            if state.demo_view.requested(request.cookies):
+                # sample network (demo view): only for a signed-in session, and only reading
+                viewer = user if user is not None else (current_user(request) if path == "/api/state" else None)
+                if viewer and viewer.get("stage") != "enroll":
+                    if request.method in STATE_CHANGING and path not in demoview.WRITABLE:
+                        return JSONResponse({"error": "demo.err.read_only"}, status_code=409)
+                    await state.demo_view.ensure()
+                    demoview.ACTIVE.set(True)
         response = await call_next(request)
         if rule is not None and rule.audit and rule.audit != "@" and request.method in STATE_CHANGING:
             info = getattr(request.state, "audit", None) or {}
@@ -266,9 +284,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         language = state.store.get_setting("language", None)
         if user:
             language = state.accounts.prefs(user["id"]).get("language") or language
+        demo_view = bool(user) and demoview.ACTIVE.get()
         out = {"version": __version__, "setup_needed": state.store.user_count() == 0, "authenticated": bool(user),
-               "user": user["username"] if user else None, "demo": cfg.demo,
-               "setup_done": bool(state.store.get_setting("setup_done", False)),
+               "user": user["username"] if user else None, "demo": cfg.demo or demo_view, "demo_view": demo_view,
+               "setup_done": demo_view or bool(state.store.get_setting("setup_done", False)),
                "language": language,
                "rate_unit": state.core.rate_unit() if state.core else "bytes",
                "reports_unread": state.core.reports.unread() if full else 0,
@@ -323,6 +342,40 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             n["allowed"], n["reason"] = ok, key
         host_mode = any(n.get("host_mode") for n in nets)
         return {"networks": nets, "host_mode": host_mode or cfg.demo}
+
+    # ------------------------------------------------------------------ setup assistant (first start, Settings > Setup)
+    @app.get("/api/setup/discover")
+    async def setup_discover():
+        setup_assist.mark_started(state.store)
+        return await asyncio.to_thread(setup_assist.discover, state.core)
+
+    @app.get("/api/setup/suggestions")
+    async def setup_suggestions():
+        from . import integrations as registry
+        items = await asyncio.to_thread(setup_assist.suggestions, state.core)
+        fams = {f.family: f for f in registry.families(selectable_only=True)}
+        for s in items:                      # the dialog form of a family comes from the registry (same as /api/integrations)
+            if s["family"] in fams and state.cfg.demo:
+                s["sample"] = "hypervisor" if s["guide"] == "hv" else True
+        return {"suggestions": items, "guides": setup_assist.GUIDE_STEPS,
+                "timing": setup_assist.timing(state.store, state.core.scan_state)}
+
+    @app.get("/api/setup/timing")
+    async def setup_timing():
+        return setup_assist.timing(state.store, state.core.scan_state)
+
+    @app.post("/api/setup/demo")
+    async def setup_demo(request: Request):
+        data = await body(request)
+        on = data.get("on") is True and not cfg.demo
+        note(request, detail={"on": on})
+        resp = JSONResponse({"ok": True, "demo_view": on})
+        if on:
+            await state.demo_view.ensure()
+            resp.set_cookie(demoview.COOKIE, "1", httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
+        else:
+            resp.delete_cookie(demoview.COOKIE, path="/")
+        return resp
 
     @app.get("/api/scan")
     async def scan_status():
@@ -411,8 +464,11 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         data = await body(request)
         note(request, target=str(data.get("kind") or "")[:24], detail=integ_note(data))
         try:
-            return await state.core.test_integration(str(data.get("kind") or ""), data.get("config") or {}, data.get("secrets") or {},
-                                                     existing_id=data.get("id") if isinstance(data.get("id"), int) else None)
+            res = await state.core.test_integration(str(data.get("kind") or ""), data.get("config") or {}, data.get("secrets") or {},
+                                                    existing_id=data.get("id") if isinstance(data.get("id"), int) else None)
+            if isinstance(res, dict):            # what to look at: rejected credentials, certificate, not reachable, other
+                res["category"] = "ok" if res.get("ok") else setup_assist.error_category(res.get("key"))
+            return res
         except ValueError as exc:
             return err(str(exc))
 
@@ -765,19 +821,20 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if not user or user.get("stage") == "enroll" or not access.allows(user.get("role"), access.RULES[("WS", "/api/live")].role):
             await ws.close(code=4401)
             return
+        core = await state.demo_view.ensure() if state.demo_view.requested(ws.cookies) else state.core
         await ws.accept()
         queue: asyncio.Queue = asyncio.Queue()
-        state.core.clients.add(queue)
+        core.clients.add(queue)
         try:
-            if state.core.last_frame:
-                await ws.send_text(json.dumps(state.core.last_frame, separators=(",", ":")))
+            if core.last_frame:
+                await ws.send_text(json.dumps(core.last_frame, separators=(",", ":")))
             while True:
                 text = await queue.get()
                 await ws.send_text(text)
         except (WebSocketDisconnect, RuntimeError):
             pass
         finally:
-            state.core.clients.discard(queue)
+            core.clients.discard(queue)
 
     # ------------------------------------------------------------------ static web app
     @app.get("/")

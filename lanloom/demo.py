@@ -306,7 +306,7 @@ class Demo:
                 "snmp": {"name": "router", "descr": "Demo router", "ifaces": 4, "lldp": 1, "fdb": 0},
                 "controller": {"clients": len(WIRED) - 1 + len(RADIO), "devices": 3}}.get(kind, {})
 
-    async def scan(self, plan: dict, progress) -> dict:
+    async def scan(self, plan: dict, progress, preview=None) -> dict:
         hosts = [scan_host(h) for h in HOSTS]
         total = 254
         phases = [("neighbors", 0.35), ("mdns", 0.2), ("ssdp", 0.15), ("ports", 0.2), ("banners", 0.1)]
@@ -318,6 +318,8 @@ class Demo:
                 done = min(total, done + int(total * share / steps) + 1)
                 found = min(len(hosts), found + (2 if phase in ("neighbors", "mdns") else 1))
                 progress({"phase": phase, "done": done, "total": total, "found": found})
+            if phase == "ssdp" and preview is not None:       # first picture before ports and banners, like a real scan
+                preview({"hosts": [dict(h, ports=[]) for h in hosts]})
         progress({"phase": "banners", "done": total, "total": total, "found": len(hosts)})
         now = time.time()
         return {"started": now - 15, "finished": now, "mode": "deep" if plan.get("deep") else "gentle",

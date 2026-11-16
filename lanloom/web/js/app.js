@@ -259,6 +259,7 @@
     else if (!st.authenticated) target = 'login';
     else if (st.enroll) target = 'enroll';                                      // second factor required: set it up first
     else if (!st.setup_done) target = 'setup';
+    else if (target === 'setup' && !st.demo_view && LL.can('admin') && LL.setupAgainActive && LL.setupAgainActive()) target = 'setup';   // Settings > Setup: run again
     else if (target === 'login' || target === 'setup' || target === 'invite' || target === 'enroll') target = 'map';
     if (seq !== routeSeq) return;            // a newer navigation started meanwhile
     if (target !== name) history.replaceState(null, '', LL.base + '#/' + target);

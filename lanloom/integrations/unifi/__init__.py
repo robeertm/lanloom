@@ -48,4 +48,5 @@ MANIFEST = IntegrationManifest(
     config_fields=("url", "username", "site", "allow_self_signed"),
     secret_fields=("api_key", "password"),
     form=FORM,
+    detect=({"port": 8443}, {"title": "unifi"}),   # identifier: default API port and web page title
 )

@@ -16,7 +16,9 @@
         h('span', { class: 'stepper__num' }, i < idx ? '✓' : String(i + 1)), h('span', { class: 'stepper__label' }, t('wizard.step.' + s)))));
     app.replaceChildren(h('main', { class: 'wizard' },
       h('header', { class: 'wizard__head' }, h('div', { class: 'wizard__brand' }, LL.logo(30), h('span', { class: 'brand-name' }, 'Lanloom'),
-        LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null), langSwitch()),
+        LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
+        h('div', { class: 'wizard__head-right' }, LL.state && LL.state.setup_done ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: leaveAgain }, t('setup.again.leave')) : null,
+          langSwitch())),
       stepper,
       h('section', { class: 'wizard__card card' }, body),
       LL.footer()));
@@ -30,6 +32,17 @@
   }
 
   function actions(...kids) { return h('div', { class: 'wizard__actions' }, ...kids); }
+  function leaveAgain() { try { sessionStorage.removeItem('ll-wiz-again'); sessionStorage.removeItem('ll-wiz'); } catch (e) { /* ignore */ } LL.go('#/map'); }
+  LL.setupAgain = function () { try { sessionStorage.setItem('ll-wiz-again', '1'); } catch (e) { /* ignore */ } setStep('networks'); LL.go('#/setup/networks'); };
+  LL.setupAgainActive = function () { try { return sessionStorage.getItem('ll-wiz-again') === '1'; } catch (e) { return false; } };
+  // the sample network: a read-only demo view next to the real inventory, left with one click
+  LL.demoView = async function (on) {
+    await api('/api/setup/demo', { method: 'POST', body: { on: !!on } });
+    LL.state = await api('/api/state');
+    LL.go(on ? '#/map' : (LL.state.setup_done ? '#/map' : '#/setup'));
+  };
+  function fmtDuration(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }
+  LL.fmtSetupDuration = fmtDuration;
 
   // ------------------------------------------------------------------ 1 account
   function accountStep(app) {
@@ -69,24 +82,30 @@
         } }, t('wizard.passkey.add')))]);
   }
 
-  // ------------------------------------------------------------------ 2 networks
+  // ------------------------------------------------------------------ 2 networks (detected, proposed, agreed)
   async function networksStep(app) {
-    shell(app, 'networks', [h('h1', {}, t('wizard.networks.title')), h('p', { class: 'lead' }, t('wizard.networks.lead')), h('div', { class: 'skeleton' })]);
+    shell(app, 'networks', [h('h1', {}, t('wizard.networks.title')), h('p', { class: 'lead' }, t('setup.detect.lead')), h('div', { class: 'skeleton' })]);
     let data;
-    try { data = await api('/api/networks'); } catch (e) { data = { networks: [], host_mode: false }; }
-    const chosen = new Set(data.networks.filter(n => n.allowed && (n.gateway || data.networks.length === 1)).map(n => n.cidr));
+    try { data = await api('/api/setup/discover'); } catch (e) { data = { networks: [], host_mode: false, dns: [], dhcp: [] }; }
+    let saved = [];
+    try { saved = JSON.parse(sessionStorage.getItem('ll-cidrs') || '[]'); } catch (e) { /* ignore */ }
+    const chosen = new Set(saved.length ? saved.filter(c => data.networks.some(n => n.cidr === c && n.allowed)) : data.networks.filter(n => n.suggested).map(n => n.cidr));
     const list = h('div', { class: 'choice-list' });
     const manual = h('input', { type: 'text', placeholder: '192.168.1.0/24', class: 'mono', spellcheck: 'false' });
     const msg = h('div', { class: 'msg' });
+    const consent = h('input', { type: 'checkbox' });
     const extra = [];
     function render() {
       list.replaceChildren(...data.networks.concat(extra).map(n => {
         const cb = h('input', { type: 'checkbox', checked: chosen.has(n.cidr), disabled: !n.allowed, onchange: () => { cb.checked ? chosen.add(n.cidr) : chosen.delete(n.cidr); } });
+        const sub = [n.iface ? t('wizard.networks.iface', { name: n.iface }) : null, n.self_ip ? t('wizard.networks.self', { ip: n.self_ip }) : null,
+          n.gateway ? t('wizard.networks.gateway', { ip: n.gateway }) : null, n.size ? t('wizard.networks.size', { n: n.size }) : null,
+          n.neighbours ? t('setup.detect.neighbours', { n: n.neighbours }) : null].filter(Boolean).join(' · ');
         return h('label', { class: 'choice' + (n.allowed ? '' : ' is-disabled') }, cb,
-          h('span', { class: 'choice__main' }, h('span', { class: 'choice__title mono' }, n.cidr),
-            h('span', { class: 'choice__sub' }, [n.iface ? t('wizard.networks.iface', { name: n.iface }) : null, n.self_ip ? t('wizard.networks.self', { ip: n.self_ip }) : null,
-              n.gateway ? t('wizard.networks.gateway', { ip: n.gateway }) : null, n.size ? t('wizard.networks.size', { n: n.size }) : null].filter(Boolean).join(' · '))),
-          n.allowed ? null : h('span', { class: 'chip chip--warn' }, t(n.reason || 'scan.unsafe.public')));
+          h('span', { class: 'choice__main' }, h('span', { class: 'choice__title mono' }, n.cidr), h('span', { class: 'choice__sub' }, sub),
+            n.narrowed ? h('span', { class: 'choice__sub' }, t('setup.detect.narrowed', { net: n.network })) : null),
+          n.allowed ? (n.suggested ? h('span', { class: 'chip chip--ok' }, t('setup.detect.proposed')) : (n.routed ? h('span', { class: 'chip chip--muted' }, t('setup.detect.routed')) : null))
+            : h('span', { class: 'chip chip--warn' }, t(n.reason || 'scan.unsafe.public')));
       }));
       if (!data.networks.length && !extra.length) list.replaceChildren(h('div', { class: 'empty-note' }, t('wizard.networks.none')));
     }
@@ -97,13 +116,28 @@
       LL.msg(msg, ''); extra.push({ cidr: v, allowed: true }); chosen.add(v); manual.value = ''; render();
     } }, t('wizard.networks.add'));
     const warn = data.host_mode ? null : h('div', { class: 'callout callout--warn' }, h('strong', {}, t('wizard.networks.isolated_title')), h('p', {}, t('wizard.networks.isolated_text')));
-    shell(app, 'networks', [h('h1', {}, t('wizard.networks.title')), h('p', { class: 'lead' }, t('wizard.networks.lead')), warn, list,
-      h('div', { class: 'inline-form' }, LL.field(t('wizard.networks.manual'), manual, t('wizard.networks.manual_hint')), add), msg,
-      actions(h('span'), h('button', { class: 'btn btn--primary', onclick: () => {
-        if (!chosen.size) { LL.msg(msg, t('wizard.networks.pick_one'), 'error'); return; }
-        try { sessionStorage.setItem('ll-cidrs', JSON.stringify([...chosen])); } catch (e) { /* ignore */ }
-        setStep('scan'); LL.route();
-      } }, t('wizard.next')))]);
+    const found = LL.facts([[t('setup.detect.gateway'), data.gateway || t('setup.detect.unknown')], [t('setup.detect.dns'), (data.dns || []).join(', ') || t('setup.detect.unknown')],
+      [t('setup.detect.dhcp'), (data.dhcp || []).join(', ') || t('setup.detect.unknown')]]);
+    function pick() {
+      if (!chosen.size) { LL.msg(msg, t('wizard.networks.pick_one'), 'error'); return null; }
+      if (!consent.checked) { LL.msg(msg, t('setup.detect.consent_needed'), 'error'); return null; }
+      try { sessionStorage.setItem('ll-cidrs', JSON.stringify([...chosen])); } catch (e) { /* ignore */ }
+      return [...chosen];
+    }
+    const go = h('button', { class: 'btn btn--primary', onclick: async () => {
+      const cidrs = pick(); if (!cidrs) return;
+      go.disabled = true;
+      try { await api('/api/scan', { method: 'POST', body: { cidrs, deep: false, consent: false } }); setStep('scan'); progressView(app, cidrs); }
+      catch (e) { if (e && e.key === 'scan.err.running') { setStep('scan'); progressView(app, cidrs); return; } LL.msg(msg, LL.errText(e), 'error'); go.disabled = false; }
+    } }, t('setup.detect.scan_now'));
+    const options = h('button', { class: 'btn btn--ghost', onclick: () => { if (pick()) { setStep('scan'); LL.route(); } } }, t('setup.detect.options'));
+    const demo = LL.state && LL.state.demo ? null : h('div', { class: 'callout callout--info setup-demo' }, h('strong', {}, t('setup.demo.title')), h('p', {}, t('setup.demo.text')),
+      h('div', {}, h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => LL.demoView(true).catch(e => LL.msg(msg, LL.errText(e), 'error')) }, t('setup.demo.start'))));
+    shell(app, 'networks', [h('h1', {}, t('wizard.networks.title')), h('p', { class: 'lead' }, t('setup.detect.lead')), warn,
+      h('section', { class: 'setup-found' }, h('h2', { class: 'setup-sub' }, t('setup.detect.found')), found), list,
+      h('div', { class: 'inline-form' }, LL.field(t('wizard.networks.manual'), manual, t('wizard.networks.manual_hint')), add),
+      h('label', { class: 'check check--consent' }, consent, h('span', {}, t('wizard.scan.consent'))), msg,
+      actions(options, go), demo]);
   }
 
   // ------------------------------------------------------------------ 3 scan
@@ -142,12 +176,30 @@
     const phaseList = h('ol', { class: 'phases' }, PHASES.map(p => h('li', { dataset: { p } }, h('span', { class: 'phase-dot' }), t('scan.phase.' + p))));
     const counter = h('div', { class: 'found-counter' }, h('span', { class: 'found-counter__n' }, '0'), h('span', { class: 'found-counter__l' }, t('wizard.scan.found')));
     const sub = h('div', { class: 'muted' }, '');
+    const clock = h('span', { class: 'setup-clock mono', 'aria-live': 'off' }, '');
     const cancel = h('button', { class: 'btn btn--ghost', onclick: () => api('/api/scan', { method: 'DELETE' }) }, t('wizard.scan.cancel'));
+    const first = h('div', { class: 'callout callout--ok setup-first', hidden: true });
     shell(app, 'scan', [h('h1', {}, t('wizard.scan.running')), h('p', { class: 'lead' }, t('wizard.scan.running_lead', { nets: cidrs.join(', ') })),
       h('div', { class: 'scan-live' }, counter, h('div', { class: 'scan-live__right' }, h('div', { class: 'progress' }, bar), sub, phaseList)),
+      first, h('p', { class: 'muted fineprint' }, t('setup.time.elapsed'), ' ', clock),
       actions(cancel, h('span'))]);
+    let t0 = null;
+    api('/api/setup/timing').then(tm => { t0 = tm.started; }).catch(() => {});
+    const tick = () => { if (t0) clock.textContent = fmtDuration(Date.now() / 1000 - t0); };
+    function showFirst(n) {
+      if (!first.hidden) { first.querySelector('strong').textContent = t('setup.first.title', { n }); return; }
+      first.append(h('strong', {}, t('setup.first.title', { n })), h('p', {}, t('setup.first.text')),
+        h('div', { class: 'btn-row' }, h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: async () => {
+          await api('/api/settings', { method: 'PUT', body: { setup_done: true, language: LL.lang } });
+          try { sessionStorage.setItem('ll-wiz', 'connect'); sessionStorage.removeItem('ll-wiz-again'); } catch (e) { /* ignore */ }
+          LL.go('#/map');
+        } }, t('setup.first.open'))));
+      first.hidden = false;
+    }
     const timer = setInterval(async () => {
+      tick();
       let s; try { s = (await api('/api/scan')).current; } catch (e) { return; }
+      if (s.preview && s.state === 'running' && !(LL.state && LL.state.setup_done)) showFirst(s.preview);
       const pct = s.total ? Math.min(100, Math.round(100 * PHASES.indexOf(s.phase) / PHASES.length + 100 / PHASES.length * (s.done / s.total))) : 4;
       bar.style.width = (s.state === 'done' ? 100 : Math.max(4, pct)) + '%';
       counter.firstChild.textContent = String(s.found || 0);
@@ -235,21 +287,22 @@
   LL.integTitle = kind => { const fam = family(kind); return fam ? famTitle(fam) : t('integ.' + kind + '.title'); };
   LL.integKinds = () => ['hub', 'mqtt', 'snmp', 'controller'].concat(LL.families.map(f => f.family));
 
-  LL.integrationCard = function (kind, existing, onChange) {
+  LL.integrationCard = function (kind, existing, onChange, opts) {
     const inputs = {};
+    const pre = (opts && opts.prefill) || {};
     const fam = family(kind);
     const fields = FORMS[kind] || (fam ? fam.form : []);
     // texts per kind of family (a hypervisor reads guests), never per product: 'integ.hint.hv.<field>' before 'integ.hint.family.<field>'
     const famKind = fam && ((fam.capabilities || {}).read || []).includes('guests') ? 'hv' : 'family';
     const hintKey = k => fam ? (t('integ.hint.' + famKind + '.' + k) !== 'integ.hint.' + famKind + '.' + k ? 'integ.hint.' + famKind + '.' + k : 'integ.hint.family.' + k) : 'integ.hint.' + kind + '.' + k;
-    const body = h('div', { class: 'integ__form', hidden: !!existing });
+    const body = h('div', { class: 'integ__form', hidden: !!existing && !(opts && opts.open) });
     const msg = h('div', { class: 'msg' });
-    const name = h('input', { type: 'text', value: existing ? existing.name : LL.integTitle(kind), maxlength: '48' });
+    const name = h('input', { type: 'text', value: existing ? existing.name : ((opts && opts.name) || LL.integTitle(kind)), maxlength: '48' });
     const rows = [LL.field(t('integ.field.name'), name)];
     for (const f of fields) {
       let el;
       if (f.type === 'checkbox') {
-        el = h('input', { type: 'checkbox', checked: existing ? !!existing.config[f.k] : false });
+        el = h('input', { type: 'checkbox', checked: existing ? !!existing.config[f.k] : !!pre[f.k] });
         inputs[f.k] = el;
         rows.push(h('label', { class: 'check', dataset: { k: f.k } }, el, h('span', {}, t('integ.field.' + f.k))));
         continue;
@@ -260,7 +313,8 @@
         el.addEventListener('change', applyWhen);
       } else {
         el = h('input', { type: f.type || 'text', placeholder: f.secret && existing && existing.secrets[f.k] ? t('integ.secret_set') : (f.ph || ''),
-          autocomplete: f.secret ? 'new-password' : 'off', spellcheck: 'false', value: !f.secret && existing && existing.config[f.k] != null ? existing.config[f.k] : '' });
+          autocomplete: f.secret ? 'new-password' : 'off', spellcheck: 'false',
+          value: !f.secret && existing && existing.config[f.k] != null ? existing.config[f.k] : (!f.secret && pre[f.k] != null ? String(pre[f.k]) : '') });
       }
       inputs[f.k] = el;
       const wrap = LL.field(t('integ.field.' + f.k) + (f.req ? '' : ' ' + t('integ.optional')), el, t(hintKey(f.k)) === hintKey(f.k) ? null : t(hintKey(f.k)));
@@ -292,7 +346,8 @@
         const r = await api('/api/integrations/test', { method: 'POST', body: collect() });
         const det = r.details || {};
         const extra = Object.keys(det).length ? ' — ' + Object.entries(det).filter(([, v]) => v != null && v !== '').map(([k, v]) => t('integ.detail.' + k) + ': ' + v).join(', ') : '';
-        LL.msg(msg, (r.ok ? t('integ.test_ok') : t(r.key || 'integ.test_failed')) + (r.ok ? extra : ''), r.ok ? 'ok' : 'error');
+        const fix = !r.ok && r.category ? ' ' + t('setup.fix.' + r.category) : '';
+        LL.msg(msg, (r.ok ? t('integ.test_ok') : t(r.key || 'integ.test_failed')) + (r.ok ? extra : fix), r.ok ? 'ok' : 'error');
       } catch (e) { LL.msg(msg, LL.errText(e), 'error'); }
       testBtn.disabled = false;
     } }, t('integ.test'));
@@ -322,23 +377,58 @@
       body);
   };
 
+  // one guide per kind of source: numbered steps from the translations (setup.guide.<guide>.1 ... n)
+  LL.setupGuide = function (guide, steps) {
+    const n = (steps && steps[guide]) || 4;
+    const items = [];
+    for (let i = 1; i <= n; i++) items.push(h('li', {}, t('setup.guide.' + guide + '.' + i)));
+    return h('div', { class: 'setup-guide' }, h('h4', {}, t('setup.guide.' + guide + '.title')), h('ol', { class: 'setup-guide__steps' }, items),
+      h('p', { class: 'muted fineprint' }, t('setup.guide.readonly')));
+  };
+  function suggestionCard(sg, guides, onChange) {
+    const titleKey = 'setup.suggest.kind.' + sg.guide;
+    const reasons = h('div', { class: 'chip-row' }, sg.reasons.map(r => h('span', { class: 'chip chip--muted' }, t(r.key, r.params || {}))));
+    const body = h('div', { class: 'setup-suggest__body', hidden: true });
+    const btn = h('button', { class: 'btn btn--' + (sg.configured ? 'ghost' : 'primary') + ' btn--sm', type: 'button', 'aria-expanded': 'false', onclick: () => {
+      if (!body.childNodes.length) body.append(LL.setupGuide(sg.guide, guides), LL.integrationCard(sg.kind, null, onChange, { prefill: sg.prefill, name: sg.title, open: true }));
+      body.hidden = !body.hidden; btn.setAttribute('aria-expanded', String(!body.hidden));
+      btn.textContent = body.hidden ? (sg.configured ? t('setup.suggest.again') : t('integ.setup')) : t('integ.close');
+    } }, sg.configured ? t('setup.suggest.again') : t('integ.setup'));
+    return h('article', { class: 'setup-suggest card card--flat' + (sg.configured ? ' is-configured' : '') },
+      h('header', { class: 'setup-suggest__head' }, LL.kindIcon(sg.device_kind || 'unknown'),
+        h('div', { class: 'setup-suggest__titles' }, h('h3', {}, t(titleKey) === titleKey ? LL.integTitle(sg.kind) : t(titleKey)),
+          h('p', { class: 'muted' }, h('span', {}, sg.title), ' · ', h('span', { class: 'mono' }, sg.ip)), reasons),
+        sg.configured ? h('span', { class: 'chip chip--ok' }, t('setup.suggest.connected')) : LL.certaintyChip(sg.certainty), btn),
+      body);
+  }
+
   async function connectStep(app) {
+    const sugWrap = h('div', { class: 'stack' }, h('div', { class: 'skeleton' }));
     const wrap = h('div', { class: 'stack' });
+    async function renderSuggestions() {
+      let data;
+      try { await LL.loadIntegrations(); data = await api('/api/setup/suggestions'); } catch (e) { data = { suggestions: [] }; }
+      const list = data.suggestions || [];
+      sugWrap.replaceChildren(...(list.length ? list.map(sg => suggestionCard(sg, data.guides, () => { renderSuggestions(); render(); }))
+        : [h('div', { class: 'empty-note' }, t('setup.suggest.none'))]));
+    }
     async function render() {
       const list = (await LL.loadIntegrations()).integrations;
       const cards = LL.integKinds().map(kind => {
         const ex = list.filter(i => i.kind === kind);
-        return ex.length ? ex.map(e => LL.integrationCard(kind, e, render)) : [LL.integrationCard(kind, null, render)];
+        return ex.length ? ex.map(e => LL.integrationCard(kind, e, () => { render(); renderSuggestions(); })) : [LL.integrationCard(kind, null, () => { render(); renderSuggestions(); })];
       }).flat();
       // collapse fresh forms in the wizard so the page stays short
       cards.forEach(c => { const b = c.querySelector('.integ__form'); const tg = c.querySelector('.integ__head .btn'); if (b && !b.hidden) { b.hidden = true; tg.textContent = t('integ.setup'); tg.setAttribute('aria-expanded', 'false'); } });
       wrap.replaceChildren(...cards);
     }
-    shell(app, 'connect', [h('h1', {}, t('wizard.connect.title')), h('p', { class: 'lead' }, t('wizard.connect.lead')),
-      h('div', { class: 'callout callout--info' }, h('p', {}, t('wizard.connect.safety'))), wrap,
+    shell(app, 'connect', [h('h1', {}, t('wizard.connect.title')), h('p', { class: 'lead' }, t('setup.suggest.lead')),
+      h('div', { class: 'callout callout--info' }, h('p', {}, t('wizard.connect.safety'))),
+      h('h2', { class: 'setup-sub' }, t('setup.suggest.title')), sugWrap,
+      h('details', { class: 'setup-more' }, h('summary', {}, t('setup.suggest.more')), wrap),
       actions(h('button', { class: 'btn btn--ghost', onclick: () => { setStep('review'); LL.route(); } }, t('wizard.back')),
         h('button', { class: 'btn btn--primary', onclick: () => { setStep('done'); LL.route(); } }, t('wizard.next')))]);
-    await render();
+    await Promise.all([renderSuggestions(), render()]);
   }
 
   // ------------------------------------------------------------------ 6 done
@@ -347,13 +437,17 @@
     const rescan = h('select', { class: 'select' }, [0, 1, 3, 6, 12, 24].map(n => h('option', { value: String(n) }, n ? t('settings.rescan.every', { n }) : t('settings.rescan.never'))));
     rescan.value = String(s.rescan_hours);
     const upd = h('input', { type: 'checkbox', checked: !!s.update_check });
-    shell(app, 'done', [h('h1', {}, t('wizard.done.title')), h('p', { class: 'lead' }, t('wizard.done.lead')),
+    let tm = {};
+    try { tm = await api('/api/setup/timing'); } catch (e) { /* ignore */ }
+    const timeNote = tm.first_picture_s != null ? h('div', { class: 'callout callout--ok' }, h('strong', {}, t('setup.time.first', { time: fmtDuration(tm.first_picture_s) })),
+      h('p', {}, t('setup.time.first_text'))) : null;
+    shell(app, 'done', [h('h1', {}, t('wizard.done.title')), h('p', { class: 'lead' }, t('wizard.done.lead')), timeNote,
       h('div', { class: 'stack' }, LL.field(t('settings.rescan'), rescan, t('settings.rescan.hint')),
         h('label', { class: 'check' }, upd, h('span', {}, t('settings.update_check'))), h('p', { class: 'field__hint' }, t('settings.update_check.hint'))),
       actions(h('button', { class: 'btn btn--ghost', onclick: () => { setStep('connect'); LL.route(); } }, t('wizard.back')),
         h('button', { class: 'btn btn--primary', onclick: async () => {
           await api('/api/settings', { method: 'PUT', body: { rescan_hours: Number(rescan.value), update_check: upd.checked, setup_done: true, language: LL.lang } });
-          try { sessionStorage.removeItem('ll-wiz'); } catch (e) { /* ignore */ }
+          try { sessionStorage.removeItem('ll-wiz'); sessionStorage.removeItem('ll-wiz-again'); } catch (e) { /* ignore */ }
           LL.go('#/map');
         } }, t('wizard.done.open')))]);
   }

@@ -31,6 +31,7 @@ FAMILY_RE = re.compile(r"\A[a-z][a-z0-9_]{1,31}\Z")
 _EXECUTOR = {"on": False}     # set by lanloom.executor.main() only
 FORM_KEYS = {"k", "type", "ph", "req", "secret"}
 FORM_TYPES = ("text", "url", "password", "checkbox", "number")
+DETECT_KEYS = {"port", "title", "mdns", "ssdp"}
 
 
 class ManifestError(ValueError):
@@ -53,6 +54,10 @@ class IntegrationManifest:
     write_secret_fields: tuple = field(default=())   # credentials of the write half (executor options file only)
     form: tuple = ()                             # dialog form: ({"k", "type"?, "ph"?, "req"?, "secret"?}, ...)
     report: str = ""                             # night report contribution: lanloom.integrations.<family>.report:<function>
+    # gentle signs that a scanned device runs this family's API, for the setup assistant's suggestions. One dict per
+    # sign; a sign matches when all of its keys match: "port" (open TCP port), "title" (lower-case part of a web page
+    # title), "mdns" (announced DNS-SD type), "ssdp" (lower-case part of an SSDP server/type). Never a sign-in.
+    detect: tuple = ()
 
     def validate(self) -> "IntegrationManifest":
         if not FAMILY_RE.match(self.family or ""):
@@ -81,13 +86,21 @@ class IntegrationManifest:
                 raise ManifestError("form field %r" % (f.get("k") if isinstance(f, dict) else f))
         if self.form and {f["k"] for f in self.form} != known:
             raise ManifestError("form must name every setting and credential once")
+        for d in self.detect:
+            if not isinstance(d, dict) or not d or set(d) - DETECT_KEYS:
+                raise ManifestError("detect sign %r" % (d,))
+            if "port" in d and (isinstance(d["port"], bool) or not isinstance(d["port"], int) or not 0 < d["port"] < 65536):
+                raise ManifestError("detect port")
+            for k in ("title", "mdns", "ssdp"):
+                if k in d and (not isinstance(d[k], str) or not 2 <= len(d[k]) <= 48 or d[k] != d[k].lower()):
+                    raise ManifestError("detect %s" % k)
         return self
 
     def public(self) -> dict:
         return {"family": self.family, "label": self.label, "api_level": self.api_level, "docs": self.docs or None,
                 "read_half": bool(self.read), "write_half": bool(self.write),
                 "config_fields": list(self.config_fields), "secret_fields": list(self.secret_fields),
-                "form": [dict(f) for f in self.form],
+                "form": [dict(f) for f in self.form], "detect": [dict(d) for d in self.detect],
                 "capabilities": caps_mod.public(caps_mod.validate(self.capabilities, self.family))}
 
 

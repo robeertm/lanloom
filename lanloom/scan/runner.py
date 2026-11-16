@@ -215,8 +215,23 @@ async def _reverse_names(ips, timeout: float) -> dict[str, str]:
     return out
 
 
-async def run(plan, progress=None) -> dict:
-    """Execute a plan. Returns a ScanResult dict. Cancellable."""
+def _host_dict(h: "_Host", gateways, self_ips) -> dict:
+    return {
+        "ip": h.ip, "mac": h.mac, "hostnames": list(h.hostnames), "sources": list(h.sources),
+        "ports": [{"port": p, "proto": "tcp", "service": ports.service_name(p), "banner": h.open[p]}
+                  for p in sorted(h.open)],
+        "mdns": h.mdns, "ssdp": h.ssdp,
+        "ipv6": list(h.ipv6), "wsd": h.wsd, "netbios": h.netbios, "snmp": h.snmp,
+        "is_gateway": h.ip in gateways, "is_self": h.ip in self_ips,
+        "rtt_ms": round(h.rtt, 2) if h.rtt is not None else None,
+    }
+
+
+async def run(plan, progress=None, preview=None) -> dict:
+    """Execute a plan. Returns a ScanResult dict. Cancellable.
+
+    ``preview`` (optional, sync or async): called once after the quick phases (neighbour table, mDNS, SSDP,
+    WS-Discovery) with the hosts known so far - the first picture comes before the slower port and banner phases."""
     nets = validate_plan(plan)
     plan = _with_defaults(plan)
     started = time.time()
@@ -375,6 +390,16 @@ async def run(plan, progress=None) -> dict:
         if in_scope(ip):
             host(ip)
 
+    if preview is not None and hosts:
+        try:
+            res = preview({"hosts": [_host_dict(hosts[ip], gateways, self_ips) for ip in sorted(hosts, key=_sort_key)]})
+            if inspect.isawaitable(res):
+                await res
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # a broken preview must never break the scan
+            log.debug("scan preview failed", exc_info=True)
+
     # ---------------------------------------------------------------- phase: ports (+ reverse DNS)
     targets = sorted(hosts, key=_sort_key)
     port_list = list(plan["ports"])
@@ -476,16 +501,7 @@ async def run(plan, progress=None) -> dict:
     duration = time.monotonic() - t0
     out_hosts = []
     for ip in sorted(hosts, key=_sort_key):
-        h = hosts[ip]
-        out_hosts.append({
-            "ip": ip, "mac": h.mac, "hostnames": list(h.hostnames), "sources": list(h.sources),
-            "ports": [{"port": p, "proto": "tcp", "service": ports.service_name(p), "banner": h.open[p]}
-                      for p in sorted(h.open)],
-            "mdns": h.mdns, "ssdp": h.ssdp,
-            "ipv6": list(h.ipv6), "wsd": h.wsd, "netbios": h.netbios, "snmp": h.snmp,
-            "is_gateway": ip in gateways, "is_self": ip in self_ips,
-            "rtt_ms": round(h.rtt, 2) if h.rtt is not None else None,
-        })
+        out_hosts.append(_host_dict(hosts[ip], gateways, self_ips))
     probes = limiter.probes + extra_probes
     return {"started": started, "finished": finished, "mode": "deep" if deep else "gentle",
             "networks": result_networks, "hosts": out_hosts,

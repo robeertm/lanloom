@@ -44,4 +44,5 @@ MANIFEST = IntegrationManifest(
     secret_fields=("token_secret",),
     form=FORM,
     report="lanloom.integrations.proxmox.report:night_section",
+    detect=({"port": 8006}, {"port": 8006, "title": "proxmox"}),   # identifier: default API port and web page title
 )

@@ -466,11 +466,12 @@ class Core:
 
         try:
             if self.demo:
-                result = await self.demo.scan(plan, progress)
+                result = await self.demo.scan(plan, progress, preview=lambda r: self._preview(r, scan_id))
             else:
                 from . import scan
-                result = await scan.run(plan, progress)
+                result = await scan.run(plan, progress, preview=lambda r: self._preview(r, scan_id))
             count = self.ingest(result, scan_id)
+            self._mark_first_picture()
             self.store.execute("UPDATE scans SET finished=?, status='done', hosts=?, stats=? WHERE id=?",
                                (time.time(), count, json.dumps(result.get("stats") or {}), scan_id))
             self.scan_state.update({"state": "done", "finished": time.time(), "found": count})
@@ -486,6 +487,28 @@ class Core:
             self.scan_state.update({"state": "failed", "finished": time.time(), "error": "scan.err.internal"})
         finally:
             self.cadence.setdefault("scan", live.Cadence()).tick()
+
+    def _preview(self, result: dict, scan_id: int) -> int:
+        """First picture of a running scan: adds the hosts found by the quick phases. Only devices that are not in the
+        inventory yet - a rescan never replaces richer data with the preliminary view; the full result follows."""
+        fresh = [h for h in (result.get("hosts") or [])
+                 if h.get("ip") and not self.store.one("SELECT id FROM devices WHERE id=?", (classify.device_id(h),))]
+        n = self.ingest({"hosts": fresh}, scan_id) if fresh else 0
+        if self.scan_state.get("id") == scan_id:
+            self.scan_state["preview"] = len(result.get("hosts") or [])
+            self.scan_state["preview_at"] = time.time()
+        self._mark_first_picture()
+        return n
+
+    def _mark_first_picture(self) -> None:
+        """Seconds from the start of the setup to the first picture on the map (kept once, shown at the end of the
+        setup and measured by the test bench)."""
+        if self.store.get_setting("setup_first_picture_s", None) is not None:
+            return
+        t0 = self.store.get_setting("setup_started", None)
+        if not isinstance(t0, (int, float)) or not self.store.devices():
+            return
+        self.store.set_setting("setup_first_picture_s", round(max(0.0, time.time() - t0), 1))
 
     def ingest(self, result: dict, scan_id: Optional[int]) -> int:
         """Classify every host of a ScanResult and store it; returns the number of hosts."""
