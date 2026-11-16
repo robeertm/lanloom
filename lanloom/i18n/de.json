@@ -1489,7 +1489,7 @@
  "setup.guide.snmp.title": "Nur-Lese-SNMP erlauben",
  "setup.reason.gateway": "Gateway dieses Netzes",
  "setup.reason.kind": "Als Router oder Switch erkannt",
- "setup.reason.mdns": "Kündigt {type} an",
+ "setup.reason.mdns": "Kündigt diesen Dienst an (mDNS)",
  "setup.reason.port": "Port {port} offen",
  "setup.reason.snmp": "Antwortet auf SNMP",
  "setup.reason.ssdp": "SSDP-Ankündigung",

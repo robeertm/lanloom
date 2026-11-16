@@ -14,13 +14,23 @@ The default gentle scan needs no privileges. In this order:
 | mDNS / DNS-SD | browse queries for common service types | names, services and the TXT records a device announces (model, firmware where the device tells it) |
 | SSDP / UPnP | one search request; descriptions only from the private address that answered, at most 64 KiB, no DOCTYPE or ENTITY | friendly name, maker, model, unique device id |
 | WS-Discovery | one multicast probe | device types (computer, printer, scanner, video transmitter) |
-| Service ports | a TCP connect to 26 well-known ports (deep scan: about 218, only with your consent) | open services, web page title and `Server` header |
+| Service ports | a TCP connect to 27 well-known ports (deep scan: about 218, only with your consent) | open services, web page title and `Server` header |
 | NetBIOS | one node-status request to each found device (UDP 137) | computer name and workgroup |
 | LLMNR | one reverse-name request, only to devices that still have no name | a host name |
 | SNMP (off by default) | one read request for three system values with the factory community, only if you switch it on | system description (model, firmware), system name, object id |
 
 Limits as before: about 40 new connections per second, 24 at once, 4 per device. Every UDP request goes out exactly
 once per device and only answers from that device count. No raw sockets, no ICMP, no logins, never public ranges.
+
+The 27 ports include the web interface of hypervisors (8006) next to the usual web, name, file-sharing, printing, broker and management ports.
+
+### Preview and first picture
+
+The quick phases (neighbours, IPv6 neighbours, mDNS, SSDP, WS-Discovery) run first. As soon as they are done, the devices found so far are published as a preview, before ports and banners are read, so the setup assistant can offer *Open the map now* while the rest continues in the background. The time from the first setup screen to this preview is measured.
+
+### Gentle signs for adapter suggestions
+
+The connect step of the assistant suggests integrations from what the gentle scan already saw: open ports (for example the home-automation hub port or an MQTT broker port), web page titles and mDNS/SSDP types, plus SNMP at the gateway and switches. Families declare their own signs in the manifest (`detect`, see [INTEGRATIONS.md](INTEGRATIONS.md)). Suggestions never involve a sign-in attempt; credentials are only used after you enter them and press *Test*.
 
 ### The SNMP switch
 

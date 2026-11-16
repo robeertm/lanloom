@@ -18,19 +18,22 @@ import os
 import re
 import time
 
+from . import classify
 from .scan import neighbors, netinfo, safety
 
 MAX_PREFIX = 22                      # largest range the assistant proposes (/22 = 1024 addresses)
 RESOLV_PATH = "/etc/resolv.conf"
-# DHCP lease files of common Linux network stacks (read when present; inside a container usually absent)
+# DHCP lease files of common network stacks (read when present; inside a container usually absent)
 LEASE_GLOBS = ("/var/lib/dhcp/*.leases", "/var/lib/dhclient/*.leases", "/var/lib/NetworkManager/*.lease",
                "/run/systemd/netif/leases/*")    # identifier: lease file locations
 _IPV4 = r"(\d{1,3}(?:\.\d{1,3}){3})"
 _LEASE_RES = (re.compile(r"dhcp-server-identifier\s+" + _IPV4), re.compile(r"SERVER_ADDRESS=" + _IPV4))
 
 # built-in sources (no family package) and their gentle signs; same sign format as a family manifest's ``detect``
+# the hub's announced DNS-SD type is the one the classifier knows as a sure sign of a hub (no second copy of it here)
+_HUB_TYPES = tuple({"mdns": t} for t, (kind, weight) in classify.MDNS_RULES.items() if kind == "hub" and weight >= 0.8)
 BUILTIN_SIGNS = {
-    "hub": ({"port": 8123}, {"mdns": "_home-assistant._tcp"}),     # identifier: hub default port and DNS-SD type
+    "hub": ({"port": 8123},) + _HUB_TYPES,
     "mqtt": ({"port": 1883}, {"port": 8883}, {"mdns": "_mqtt._tcp"}),
 }
 # guide per kind of source: the text keys live under setup.guide.<guide>.* (steps 1..n)
@@ -214,7 +217,7 @@ def _sign_matches(sign: dict, dev: dict) -> bool:
 
 def _sign_reason(sign: dict) -> dict:
     if "mdns" in sign:
-        return {"key": "setup.reason.mdns", "params": {"type": sign["mdns"]}}
+        return {"key": "setup.reason.mdns", "params": {}}
     if "ssdp" in sign:
         return {"key": "setup.reason.ssdp", "params": {}}
     if "title" in sign:

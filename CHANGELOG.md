@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.14.0] – 2026-11-16
+
+### Added
+- **Setup assistant 2.0: a first picture in minutes.** The networks step now shows what Lanloom found on the host without sending a packet (interfaces, routes, neighbour table, name servers, DHCP lease files): gateway, DNS and DHCP servers, and the ranges it proposes. Proposals are private and at most a /22 each; a larger interface network is narrowed to the smallest range around this host that holds every known neighbour, and routed networks behind a router are listed but never pre-ticked. Scanning still needs your explicit consent. *Start gentle scan* begins right away; *Scan options …* leads to the deep scan.
+- **First picture during the scan**: after the quick phases (neighbour table, mDNS, SSDP, WS-Discovery) the devices already appear, before ports and web pages are read. *Open the map now* leaves the assistant while the scan finishes in the background. The time from the first setup screen to the first picture is measured and shown at the end; on the isolated test network the first picture is ready after about 7 seconds.
+- **Adapter suggestions**: from what the gentle scan saw (open ports, web page titles, mDNS and SSDP announcements) the connect step suggests a home-automation hub, an MQTT broker, SNMP at the gateway and switches, and every device-family adapter whose manifest declares detection signs (controller and hypervisor families so far). Nothing is ever tried without your credentials. Each suggestion has a step-by-step guide for a read-only account or token, a form prefilled with address and port (never a credential) and a test button. See [docs/INSTALL.md](docs/INSTALL.md#first-start).
+- **Clear test results**: a failed connection test now says what to look at – credentials refused, certificate, not reachable, or something else – with a hint for each.
+- **Sample network from the assistant**: *Explore a sample network* (networks step and Settings › Setup assistant) shows a fictional network next to your own, read-only and only for this browser session, with a banner and *Leave the sample*. It lives in a separate in-memory store; your inventory is not read or changed, every change is refused there, and it ends with sign-out.
+- **Run the assistant again** under Settings › Setup assistant (admins); devices, names and connections stay. *Back to the map* in the assistant header leaves it at any time.
+- Adapter manifests can declare `detect` signs (port, page title, mDNS type, SSDP text); the registry validates them. See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+- The gentle scan also checks the web port of hypervisors (8006), 27 ports in all.
+- Demo mode: the sample controller and hypervisor answer on their usual ports, so every suggestion appears in the demo.
+
+### Changed
+- Screenshots of the assistant renewed; README section "First start", installation guide, discovery notes and FAQ updated.
+
 ## [1.13.0] – 2026-11-16
 
 ### Added

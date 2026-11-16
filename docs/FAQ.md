@@ -60,6 +60,12 @@ Yes, optionally. Set `LANLOOM_AUTH_HEADER` and `LANLOOM_TRUSTED_PROXIES` (and th
 ### Can I try it without scanning my network?
 Yes. Set `LANLOOM_DEMO=1` (optionally with `LANLOOM_DEMO_SEED=1`) to run a fictional network. Nothing is scanned.
 
+### Why does Lanloom suggest an adapter?
+In the connect step of the setup assistant, Lanloom compares what the gentle scan already saw (open ports, web page titles, mDNS and SSDP announcements) with the detection signs of each integration family. It never tries to sign in. A suggestion shows a guide for creating a read-only account or token and a prefilled address; you enter the credentials yourself and press *Test*. Ignore a suggestion and nothing happens.
+
+### Does the sample network touch my data?
+No. *Explore a sample network* shows a fictional network from a separate in-memory store, read-only, per browser session. Your real inventory is not read or changed there, every change is refused, and the sample ends with sign-out or after 15 minutes without activity.
+
 ### Does the AI see my data?
 Only if you set one up, and only what you ask about. A local AI runs in your network and gets the real text; nothing leaves your network. A cloud service only ever receives placeholders instead of addresses, host and device names, wireless network names, serial numbers and locations, only for the functions you allow, and never more requests than the daily limit. "Preview what is sent" shows the exact text first. Details: [integrations/ai.md](integrations/ai.md).
 

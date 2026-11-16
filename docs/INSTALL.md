@@ -50,6 +50,19 @@ docker logs lanloom 2>&1 | grep -i "setup code"
 
 It is also in `setup-code.txt` in the data volume. The wizard then guides you through account, networks, scan, review, integrations and finishing. Passwords need at least 10 characters. Passkeys are offered on HTTPS or localhost.
 
+### The setup assistant
+
+1. **Networks.** Lanloom reads the host's network interfaces, routes, neighbour table, `resolv.conf` and DHCP lease files; no packet is sent. It shows the gateway, DNS servers and DHCP server it found and proposes the ranges to map: private addresses only, at most a /22 each. If an interface network is bigger, it is narrowed to the smallest /24 to /22 around this host that holds all known neighbours. Routed private networks behind a router are listed but never pre-ticked. You must tick the consent box before anything is scanned. *Start gentle scan* begins directly; *Scan options ...* leads to the choice of the deep scan.
+2. **First picture.** After the quick phases (neighbour table, mDNS, SSDP, WS-Discovery) the devices already appear as a preview, before ports and banners are read. *Open the map now* leaves the wizard while the scan continues in the background. The time from the first setup screen to the first picture is shown at the end; the target is under five minutes.
+3. **Review and connect.** The automatic classification can be corrected. In the connect step Lanloom suggests integrations based only on what the gentle scan saw (open ports, web page titles, mDNS and SSDP announcements). Each suggestion has a guide for a read-only account or token, a form prefilled with address and port (never credentials) and a *Test* button; a failed test says what to look at: rejected credentials, certificate, not reachable, or other. Everything else stays under *Other sources*.
+4. **Done.** Rescan interval and update check.
+
+**Sample network.** *Explore a sample network* (networks step, and Settings › Setup assistant) opens a read-only demo with a fictional network. It lives in a separate in-memory store beside your real inventory, per browser session (cookie), under a *Sample network* banner with *Leave the sample*. Every change is refused there. It ends with sign-out and stops after 15 minutes without activity. Your data is not read or changed.
+
+**Run it again.** Administrators can start the assistant again under Settings › Setup assistant › *Run the assistant again*. Devices, names and connections stay. *Back to the map* in the wizard header leaves it at any time.
+
+**No network detected?** The assistant shows no ranges when the container only sees its own isolated network. Run the container with host networking (`network_mode: host` in compose, `--network host` with `docker run`) so it sees the interfaces and neighbours of the host, then reload the wizard. Docker Desktop on macOS and Windows cannot do this; see Platforms below.
+
 ## Platforms
 
 ### Linux server or small single-board computer

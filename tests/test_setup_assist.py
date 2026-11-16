@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from lanloom import config as config_mod, demo, integrations as registry, setup_assist
+from lanloom import classify, config as config_mod, demo, integrations as registry, setup_assist
 from lanloom.core import Core
 from lanloom.main import create_app
 from lanloom.scan import netinfo, ports, safety
@@ -35,7 +35,7 @@ def test_large_network_is_narrowed_around_host_and_neighbours():
 def test_every_proposal_passes_the_scan_safety_rules():
     nets = [{"cidr": "10.0.0.0/8", "iface": "eth0", "self_ip": "10.20.30.40", "gateway": "10.20.30.1", "host_mode": True},
             {"cidr": "192.168.7.0/24", "iface": "eth1", "self_ip": "192.168.7.2", "gateway": None, "host_mode": True},
-            {"cidr": "100.64.0.0/10", "iface": "tun0", "self_ip": "100.64.1.2", "gateway": None, "host_mode": True}]
+            {"cidr": "100.64.0.0/24", "iface": "tun0", "self_ip": None, "gateway": None, "host_mode": True}]
     routes = [{"iface": "eth0", "dest": "172.20.0.0", "gateway": "10.20.30.1", "mask": "255.255.255.0",
                "flags": netinfo.RTF_UP | netinfo.RTF_GATEWAY, "metric": 0},
               {"iface": "eth0", "dest": "172.16.0.0", "gateway": "10.20.30.1", "mask": "255.240.0.0",
@@ -83,14 +83,30 @@ def _host(ip, mac, ports_=(), mdns=(), gateway=False, banners=None, sources=("ar
             "ports": [{"port": p, "proto": "tcp", "service": ports.service_name(p), "banner": (banners or {}).get(p)} for p in ports_]}
 
 
+def _family(caps_guests: bool):
+    """A built-in family by its kind of API (controller or hypervisor), never by name."""
+    return next(f for f in registry.families(selectable_only=True) if ("guests" in f.capabilities["read"]) == caps_guests and f.detect)
+
+
+def _sign(fam, *keys):
+    return next(d for d in fam.detect if set(d) == set(keys))
+
+
+HUB_TYPE = next(t for t, (k, w) in classify.MDNS_RULES.items() if k == "hub" and w >= 0.8)
+
+
 def test_suggestions_from_ports_titles_and_announcements():
+    ctl, hv = _family(False), _family(True)
+    ctl_port, ctl_title = _sign(ctl, "port")["port"], _sign(ctl, "title")["title"]
+    hv_sign = _sign(hv, "port", "title")
     c = _core()
     c.ingest({"hosts": [
         _host("192.168.9.1", "02:00:00:00:00:01", (53, 80), gateway=True),
-        _host("192.168.9.20", "02:00:00:00:00:20", (8123,), mdns=[{"type": "_home-assistant._tcp", "name": "hub", "port": 8123}]),  # identifier: test DNS-SD type
+        _host("192.168.9.20", "02:00:00:00:00:20", (8123,), mdns=[{"type": HUB_TYPE, "name": "hub", "port": 8123}]),
         _host("192.168.9.21", "02:00:00:00:00:21", (1883,)),
-        _host("192.168.9.22", "02:00:00:00:00:22", (8443,), banners={8443: {"title": "UniFi Network", "server": None}}),  # identifier: test page title
-        _host("192.168.9.23", "02:00:00:00:00:23", (22, 8006), banners={8006: {"title": "pve1 - Proxmox Virtual Environment", "server": None}}),  # identifier: test page title
+        _host("192.168.9.22", "02:00:00:00:00:22", (ctl_port,), banners={ctl_port: {"title": "Sample " + ctl_title.title(), "server": None}}),
+        _host("192.168.9.23", "02:00:00:00:00:23", (22, hv_sign["port"]),
+              banners={hv_sign["port"]: {"title": "node1 - " + hv_sign["title"].title(), "server": None}}),
         _host("192.168.9.30", "02:00:00:00:00:30", (80, 443)),
     ]}, None)
     sg = setup_assist.suggestions(c)
@@ -98,9 +114,9 @@ def test_suggestions_from_ports_titles_and_announcements():
     assert ("hub", "192.168.9.20") in got and got[("hub", "192.168.9.20")]["certainty"] == "sure"
     assert got[("hub", "192.168.9.20")]["prefill"] == {"url": "http://192.168.9.20:8123"}
     assert got[("mqtt", "192.168.9.21")]["prefill"] == {"host": "192.168.9.21", "port": 1883, "tls": False}
-    assert got[("unifi", "192.168.9.22")]["certainty"] == "sure" and got[("unifi", "192.168.9.22")]["guide"] == "family"
-    assert got[("unifi", "192.168.9.22")]["prefill"]["url"] == "https://192.168.9.22:8443"
-    assert got[("proxmox", "192.168.9.23")]["guide"] == "hv" and got[("proxmox", "192.168.9.23")]["certainty"] == "sure"
+    assert got[(ctl.family, "192.168.9.22")]["certainty"] == "sure" and got[(ctl.family, "192.168.9.22")]["guide"] == "family"
+    assert got[(ctl.family, "192.168.9.22")]["prefill"]["url"] == "https://192.168.9.22:%d" % ctl_port
+    assert got[(hv.family, "192.168.9.23")]["guide"] == "hv" and got[(hv.family, "192.168.9.23")]["certainty"] == "sure"
     assert got[("snmp", "192.168.9.1")]["reasons"][0]["key"] == "setup.reason.gateway"
     assert not [s for s in sg if s["ip"] == "192.168.9.30"]           # a plain web server is no suggestion
     for s in sg:                                                        # never a credential in a prefill
@@ -119,14 +135,15 @@ def test_configured_source_is_marked_and_sorted_last():
 
 
 def test_family_detect_signs_are_validated():
+    caps = dict(_family(False).capabilities, family="x_test")
     with pytest.raises(registry.ManifestError):
-        registry.IntegrationManifest(family="x_test", label="X", capabilities=registry.get("unifi").capabilities | {"family": "x_test"},
-                                     detect=({"port": 70000},)).validate()
+        registry.IntegrationManifest(family="x_test", label="X", capabilities=caps, detect=({"port": 70000},)).validate()
     with pytest.raises(registry.ManifestError):
-        registry.IntegrationManifest(family="x_test", label="X", capabilities=registry.get("unifi").capabilities | {"family": "x_test"},
-                                     detect=({"title": "Upper"},)).validate()
+        registry.IntegrationManifest(family="x_test", label="X", capabilities=caps, detect=({"title": "Upper"},)).validate()
+    with pytest.raises(registry.ManifestError):
+        registry.IntegrationManifest(family="x_test", label="X", capabilities=caps, detect=({"colour": "x"},)).validate()
     assert all(m.detect for m in registry.families(selectable_only=True))
-    assert registry.get("proxmox").public()["detect"]
+    assert _family(True).public()["detect"]
 
 
 def test_hypervisor_port_is_part_of_the_gentle_scan():

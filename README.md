@@ -44,18 +44,18 @@ All screenshots show the built-in demo network with invented names and addresses
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/wizard-1-account.png" width="100%" alt="Wizard step 1: account"><br><sub>1. Create the account with the one-time setup code</sub></td>
-<td width="50%"><img src="docs/screenshots/wizard-2-networks.png" width="100%" alt="Wizard step 2: networks"><br><sub>2. Choose the networks to map</sub></td>
+<td width="50%"><img src="docs/screenshots/wizard-2-networks.png" width="100%" alt="Wizard step 2: networks"><br><sub>2. Detected networks: gateway, DNS, DHCP and the proposed ranges</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/wizard-3-scan.png" width="100%" alt="Wizard step 3: scan"><br><sub>3. Pick a gentle or deep scan</sub></td>
-<td width="50%"><img src="docs/screenshots/wizard-4-progress.png" width="100%" alt="Wizard scan progress"><br><sub>Scan progress</sub></td>
+<td width="50%"><img src="docs/screenshots/wizard-3-scan.png" width="100%" alt="Wizard step 3: scan"><br><sub>3. Scan options: gentle or deep</sub></td>
+<td width="50%"><img src="docs/screenshots/wizard-4-progress.png" width="100%" alt="Wizard scan progress"><br><sub>First picture while the scan continues</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/wizard-5-review.png" width="100%" alt="Wizard step 4: review"><br><sub>4. Review the automatic classification</sub></td>
-<td width="50%"><img src="docs/screenshots/wizard-6-connect.png" width="100%" alt="Wizard step 5: connect"><br><sub>5. Optionally connect integrations</sub></td>
+<td width="50%"><img src="docs/screenshots/wizard-6-connect.png" width="100%" alt="Wizard step 5: connect"><br><sub>5. Suggested adapters with a read-only guide</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/wizard-7-done.png" width="100%" alt="Wizard step 6: done"><br><sub>6. Done: rescan interval and update check</sub></td>
+<td width="50%"><img src="docs/screenshots/wizard-7-done.png" width="100%" alt="Wizard step 6: done"><br><sub>6. Done: time to the first picture, rescan interval, update check</sub></td>
 <td></td>
 </tr>
 </table>
@@ -231,13 +231,25 @@ docker logs lanloom 2>&1 | grep -i "setup code"
 
 The code is also stored in `setup-code.txt` in the data volume. Enter it in the wizard to create your account. See [docs/INSTALL.md](docs/INSTALL.md) for all platforms and options.
 
+### First start
+
+The setup assistant takes you from the setup code to a first picture of your network, usually in under five minutes (the time is measured and shown on the last screen).
+
+1. **Account.** Enter the setup code and create the administrator account.
+2. **Networks.** Lanloom reads the host's interfaces, routes, neighbour table and DHCP lease files (nothing is sent) and shows the gateway, DNS and DHCP it found. It proposes private ranges of at most /22; routed networks behind a router are listed but never pre-ticked. You confirm with a mandatory consent box, then start the gentle scan directly or open *Scan options* for the deep scan.
+3. **First picture.** As soon as the quick phases (neighbours, mDNS, SSDP, WS-Discovery) are done, the devices appear as a preview. *Open the map now* lets you start looking while the scan finishes in the background.
+4. **Connect**. From what the gentle scan saw, Lanloom suggests integrations (home-automation hub, MQTT broker, SNMP, controllers, hypervisors), each with a step-by-step guide to create a read-only account or token, a prefilled address and a test button. Lanloom never tries a sign-in on its own.
+5. **Done**. Rescan interval, update check and the time to your first picture.
+
+Not sure yet? *Explore a sample network* opens a read-only demo beside your real inventory. You can run the assistant again any time under Settings › Setup assistant; devices, names and connections stay. Details: [docs/INSTALL.md](docs/INSTALL.md#first-start).
+
 ## How the scan works
 
 The default **gentle scan** needs no privileges and sends very little:
 
 - It reads the host's kernel neighbour table and nudges addresses with a single UDP datagram to port 9, so the kernel resolves them. No raw sockets, no ICMP.
 - It browses mDNS/DNS-SD and sends an SSDP M-SEARCH. Device descriptions are fetched only from the responding private address, capped at 64 KiB, and XML with DOCTYPE or ENTITY declarations is refused.
-- It tries a TCP connect to 26 well-known service ports and reads the page title and `Server` header of web services (`GET /` only).
+- It tries a TCP connect to 27 well-known service ports and reads the page title and `Server` header of web services (`GET /` only).
 - It reads the kernel's IPv6 neighbour cache (nothing is sent), sends one WS-Discovery probe, and asks each found device once for its NetBIOS name and, if it has no name yet, once by LLMNR.
 - Asking devices with the factory SNMP community is a separate switch and off by default.
 - Limits: about 40 new connections per second, 24 concurrent, 4 per host. A /24 takes roughly 10 to 60 seconds.
