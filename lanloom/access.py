@@ -103,6 +103,7 @@ RULES = {
     ("GET", "/api/settings"): R(V),
     ("PUT", "/api/settings"): R(A, "settings.change"),
     ("GET", "/api/paths"): R(V),
+    ("GET", "/api/netflow"): R(A),
     ("GET", "/api/networks"): R(V),
     ("GET", "/api/setup/discover"): R(V),
     ("GET", "/api/setup/suggestions"): R(A),

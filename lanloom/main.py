@@ -350,6 +350,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def get_paths(window: str = "24h"):
         return await asyncio.to_thread(state.core.paths_summary, window)
 
+    @app.get("/api/netflow")
+    async def get_netflow():
+        return state.core.netflow_status()
+
     @app.get("/api/networks")
     async def networks():
         from . import scan

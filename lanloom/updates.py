@@ -24,6 +24,7 @@ from . import __version__
 
 CHECK_EVERY = 6 * 3600
 RETRY_AFTER_ERROR = 15 * 60
+UPDATER_KEEPS_TAG = "1.16.0"      # first sidecar that keeps the compose tag ("latest") on the running version
 # A run that is not terminal blocks new requests; one older than this is treated as stuck (the sidecar cleans up).
 BUSY_FOR = 30 * 60
 # Same as updater.engine.TERMINAL (a test keeps them equal; the app does not import the sidecar code).
@@ -119,12 +120,18 @@ class Updates:
 
     def state(self) -> dict:
         cache = self.cached()
+        side = self.sidecar()
+        side_v = parse_version(str((side or {}).get("version") or ""))
         latest = cache.get("latest")
         newer = bool(latest and parse_version(latest) and parse_version(__version__)
                      and parse_version(latest) > parse_version(__version__))
         return {"current": __version__, "enabled": self.enabled(), "latest": latest, "available": newer,
                 "notes": cache.get("notes") if newer else "", "url": cache.get("url"), "checked": cache.get("checked"),
-                "error": cache.get("error"), "sidecar": self.sidecar() is not None, "status": self.status(),
+                "error": cache.get("error"), "sidecar": side is not None, "status": self.status(),
+                "sidecar_version": (side or {}).get("version"),
+                # an updater sidecar from before UPDATER_KEEPS_TAG left "latest" on an old image after a second update;
+                # one "compose pull" + "up" renews it, after that it keeps the tag itself
+                "sidecar_old": bool(side_v and side_v < parse_version(UPDATER_KEEPS_TAG)),
                 "image": self.cfg.image_repo, "demo": self.cfg.demo}
 
     def busy(self) -> bool:

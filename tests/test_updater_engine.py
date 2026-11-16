@@ -61,7 +61,7 @@ class FakeRuntime:
         self.tags[f"{repo}:{version}"] = iid
         return iid
 
-    def add_app(self, version: str, name="lanloom", ref_tag="latest", env_extra=(), repo: str = REPO):
+    def add_app(self, version: str, name="lanloom", ref_tag="latest", env_extra=(), repo: str = REPO, labels_extra=None):
         iid = self.tags[f"{repo}:{version}"]
         self.tags[f"{repo}:{ref_tag}"] = iid
         img = self.images[iid]["Config"]
@@ -72,7 +72,7 @@ class FakeRuntime:
         body = {
             "Image": f"{repo}:{ref_tag}", "User": img["User"], "Cmd": img["Cmd"], "WorkingDir": "/app",
             "Env": img["Env"] + ["LANLOOM_PORT=7380", "TZ=UTC", *env_extra],
-            "Labels": dict(img["Labels"], **{"org.lanloom.role": "app", "com.example.project": "lanloom"}),
+            "Labels": dict(img["Labels"], **{"org.lanloom.role": "app", "com.example.project": "lanloom"}, **(labels_extra or {})),
             "Hostname": "",
             "HostConfig": {"NetworkMode": self.network_mode, "RestartPolicy": {"Name": "unless-stopped"},
                            "ReadonlyRootfs": True},
@@ -341,7 +341,8 @@ def test_happy_path(env):
     assert not upd.request_path.exists()
     new = fake.by_name("lanloom")
     assert new and new["Id"] != old and new["State"]["Running"]
-    assert new["Config"]["Image"] == f"{REPO}:1.1.0"
+    assert new["Config"]["Image"] == f"{REPO}:latest"          # the new container keeps the moving tag of the compose file
+    assert new["Image"] == fake.tags[f"{REPO}:1.1.0"]
     assert old not in fake.ctrs and fake.by_name("lanloom-previous") is None
     # image defaults of the new version apply, user settings are kept
     labels = new["Config"]["Labels"]
@@ -562,7 +563,7 @@ def test_same_repository_only(tmp_path):
     st = request(upd)
     assert st["state"] == "done", st["log"]
     assert fake.pulls == []
-    assert fake.by_name("lanloom")["Config"]["Image"] == "lanloom-local:1.1.0"
+    assert fake.by_name("lanloom")["Config"]["Image"] == "lanloom-local:latest"
 
 
 def test_local_mode_missing_image_fails(tmp_path):
@@ -828,3 +829,123 @@ def test_selftest_needs_the_ok_line_with_the_target_version(env):
         assert fake.by_name("lanloom")["Id"] == old
     lines = ["selftest: ok 1.1.0"]
     assert request(upd)["state"] == "done"
+
+
+# ---------------------------------------------------------------------- moving tag (":latest") across updates
+def compose_up_version(fake: FakeRuntime, ref: str) -> str:
+    """What a later "compose up" / restart would run: the version of the image the compose reference resolves to."""
+    return fake.images[fake.tags[ref]]["Config"]["Labels"]["org.opencontainers.image.version"]
+
+
+def test_two_updates_in_a_row_keep_latest_on_what_runs(env):
+    fake, upd, data, old = env
+    fake.add_image("1.2.0")
+    mounts = fake.ctrs[old]["Mounts"]
+    assert request(upd)["state"] == "done"
+    fake.by_name("lanloom")["Mounts"] = mounts          # the fake clones mounts only from HostConfig
+    upd.status = {"state": "idle", "version": None, "from": None, "message_key": None, "log": [], "nonce": None, "t": 0}
+    st = request(upd, "1.2.0", nonce="b" * 16)
+    assert st["state"] == "done", st["log"]
+    new = fake.by_name("lanloom")
+    assert fake.version_of(new) == "1.2.0"
+    assert new["Config"]["Image"] == f"{REPO}:latest"
+    assert compose_up_version(fake, f"{REPO}:latest") == "1.2.0"     # no fall back to 1.1.0 (the old bug)
+
+
+def test_rollback_moves_latest_back(env):
+    fake, upd, data, old = env
+    fake.behaviours["1.1.0"] = {"app": "unhealthy"}
+    st = request(upd)
+    assert st["state"] == "rolled_back", st["log"]
+    assert fake.tags[f"{REPO}:latest"] == fake.tags[f"{REPO}:1.0.0"]
+    assert any("points at 1.0.0 again" in line for line in st["log"])
+
+
+def test_start_failure_moves_latest_back(env):
+    fake, upd, data, old = env
+    fake.behaviours["1.1.0"] = {"app": "start_fails"}
+    assert request(upd)["state"] == "rolled_back"
+    assert fake.tags[f"{REPO}:latest"] == fake.tags[f"{REPO}:1.0.0"]
+
+
+def test_pinned_version_stays_pinned(tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    make_db(data / "lanloom.db")
+    fake = FakeRuntime(data)
+    fake.add_image("1.0.0")
+    fake.add_image("1.1.0")
+    fake.tags.pop(f"{REPO}:latest", None)          # a pinned install has no local "latest"
+    fake.add_app("1.0.0", ref_tag="1.0.0")
+    upd = E.Updater(fake, fast_settings(data), health_fn=fake.health, echo=lambda line: None)
+    assert request(upd)["state"] == "done"
+    new = fake.by_name("lanloom")
+    assert new["Config"]["Image"] == f"{REPO}:1.1.0" and f"{REPO}:latest" not in fake.tags
+
+
+def test_compose_image_label_follows_the_new_image(tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    make_db(data / "lanloom.db")
+    fake = FakeRuntime(data)
+    fake.add_image("1.0.0")
+    fake.add_image("1.1.0")
+    fake.add_app("1.0.0", labels_extra={E.COMPOSE_PROJECT_LABEL: "lanloom", E.COMPOSE_IMAGE_LABEL: fake.tags[f"{REPO}:1.0.0"]})
+    upd = E.Updater(fake, fast_settings(data), health_fn=fake.health, echo=lambda line: None)
+    assert request(upd)["state"] == "done"
+    new = fake.by_name("lanloom")
+    assert new["Config"]["Labels"][E.COMPOSE_IMAGE_LABEL] == fake.tags[f"{REPO}:1.1.0"]
+
+
+def _broken_install(tmp_path, latest="1.0.0"):
+    """State an older sidecar left behind after two updates: container names 1.1.0, "latest" still at 1.0.0."""
+    data = tmp_path / "data"
+    data.mkdir()
+    make_db(data / "lanloom.db")
+    fake = FakeRuntime(data)
+    for v in ("1.0.0", "1.1.0", "1.2.0"):
+        fake.add_image(v)
+    fake.add_app("1.1.0", ref_tag="1.1.0", labels_extra={E.COMPOSE_PROJECT_LABEL: "lanloom"})
+    fake.tags[f"{REPO}:latest"] = fake.tags[f"{REPO}:{latest}"]
+    upd = E.Updater(fake, fast_settings(data), health_fn=fake.health, echo=lambda line: None)
+    upd.ensure_update_dir()
+    return fake, upd, data
+
+
+def test_heal_moves_a_lagging_latest_forward(tmp_path):
+    fake, upd, data = _broken_install(tmp_path)
+    assert compose_up_version(fake, f"{REPO}:latest") == "1.0.0"
+    line = upd.heal_moving_tag()
+    assert line and "1.0.0" in line and "1.1.0" in line
+    assert compose_up_version(fake, f"{REPO}:latest") == "1.1.0"
+    assert upd.heal_moving_tag() is None                                    # nothing left to do
+
+
+def test_heal_never_moves_latest_backwards(tmp_path):
+    fake, upd, data = _broken_install(tmp_path, latest="1.2.0")             # pulled by hand, not started yet
+    assert upd.heal_moving_tag() is None
+    assert compose_up_version(fake, f"{REPO}:latest") == "1.2.0"
+
+
+def test_heal_leaves_pinned_installs_alone(tmp_path):
+    fake, upd, data = _broken_install(tmp_path)
+    c = fake.by_name("lanloom")
+    c["Config"]["Labels"].pop(E.COMPOSE_PROJECT_LABEL)                       # not managed by compose: a deliberate pin
+    assert upd.heal_moving_tag() is None
+    assert compose_up_version(fake, f"{REPO}:latest") == "1.0.0"
+
+
+def test_update_of_a_broken_install_goes_back_to_latest(tmp_path):
+    fake, upd, data = _broken_install(tmp_path)
+    st = request(upd, "1.2.0")
+    assert st["state"] == "done", st["log"]
+    new = fake.by_name("lanloom")
+    assert new["Config"]["Image"] == f"{REPO}:latest" and compose_up_version(fake, f"{REPO}:latest") == "1.2.0"
+
+
+def test_run_forever_heals_at_start(tmp_path, monkeypatch):
+    fake, upd, data = _broken_install(tmp_path)
+    monkeypatch.setattr(upd, "poll_once", lambda: upd._stop.set())
+    upd.start_heartbeat = lambda: None
+    upd.run_forever()
+    assert compose_up_version(fake, f"{REPO}:latest") == "1.1.0"

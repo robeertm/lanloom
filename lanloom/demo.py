@@ -174,6 +174,7 @@ PATHS = {
 PATHS_NO_INTERNET = ["192.168.50.50/31"]      # the two cameras should not reach the internet
 PATHS_NEW = (30, "KR", 45)                    # the TV talks to a new country since a few hours (MB)
 PATHS_HEAVY = (10, "NL", 1900)                # the storage uploads far more than usual today (MB in 24 h)
+PATHS_EXPORTER = "192.168.50.1"               # the demo router as NetFlow exporter (the demo never opens the port)
 
 
 def _diurnal(hour: int) -> float:
@@ -230,6 +231,9 @@ def seed_paths(core, now: float = None, seed: int = 11) -> None:
         core.store.set_setting("home_country", PATHS_HOME)
     if not core.store.get_setting("paths_no_internet", []):
         core.store.set_setting("paths_no_internet", PATHS_NO_INTERNET)
+    if core.store.get_setting("netflow_exporters", None) is None:      # the demo router "sends" NetFlow (nothing listens)
+        core.store.set_setting("netflow_exporters", [PATHS_EXPORTER])
+        core.store.set_setting("netflow_enabled", True)
 
 
 def book_paths_minute(core, now: float, rng) -> None:
@@ -297,6 +301,18 @@ class Demo:
     def __init__(self, seed: int = 7):
         self.rng = random.Random(seed)
         self.oui = registry()
+
+    def netflow_stats(self, settings: dict) -> dict:
+        """Plausible receiver figures for the settings page of the demo (no socket is opened)."""
+        now = time.time()
+        up = max(1, int(now - self.started)) if getattr(self, "started", None) else 3600
+        flows = 1200 + up // 2
+        ex = {ip: {"packets": flows // 24, "flows": flows, "last": now - 4, "version": 9}
+              for ip in settings.get("netflow_exporters") or []}
+        return {"listening": True, "port": settings.get("netflow_port") or 2055, "packets": flows // 24, "flows": flows,
+                "booked": int(flows * 0.8), "bytes": flows * 52000, "dropped_foreign": 3, "malformed": 0, "waiting": 1,
+                "refused": 0, "skipped_local": flows // 7, "skipped_self": flows // 30, "last_packet": now - 4,
+                "last_flow": now - 4, "exporters": ex, "error": None}
 
     def networks(self) -> list:
         return [{"cidr": NET, "iface": "eth0", "self_ip": "192.168.50.11", "gateway": "192.168.50.1", "private": True,

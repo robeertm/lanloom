@@ -125,12 +125,18 @@ Leave it empty when nothing sits in front of Lanloom. Without it, all sign-ins t
 
 ## Updating
 
-With the updater sidecar, an "Update" button appears when a new version is available. It pulls the image, runs a self-test without network, starts a trial on a copy of the data, backs up the database to `/data/backups` (5 are kept) and tags the old image `:previous`, swaps the container, checks health and rolls back automatically on failure. Only one update runs at a time; a second request while one is waiting or running is refused. The update check takes the highest stable version from the list of releases, so a later bug-fix release for an older line never hides a newer version.
+With the updater sidecar, an "Update" button appears when a new version is available. It pulls the image, runs a self-test without network, starts a trial on a copy of the data, backs up the database to `/data/backups` (5 are kept) and tags the old image `:previous`, swaps the container, checks health and rolls back automatically on failure. The new container keeps the image reference of your compose file (normally `:latest`), and that tag is moved to the new version before the swap (and back on a rollback), so a later `docker compose up -d` or a restart of the host always starts the version that runs now. Only one update runs at a time; a second request while one is waiting or running is refused. The update check takes the highest stable version from the list of releases, so a later bug-fix release for an older line never hides a newer version.
 
 Without the sidecar:
 
 ```sh
 docker compose pull && docker compose up -d
+```
+
+An updater sidecar from before 1.16 created the new container with the version tag and, after a second one-click update, left `:latest` on an older version, so `docker compose up -d` could start that older version again. The settings page shows a note while such a sidecar runs. Renew it once; from then on it keeps the tag itself (and repairs a lagging `:latest` when it starts):
+
+```sh
+docker compose pull && docker compose --profile updater up -d
 ```
 
 ## Backup

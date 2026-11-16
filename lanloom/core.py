@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import classify, datapaths, geo as geo_mod, identity, live, oui as oui_mod, textfmt, topology
+from . import classify, datapaths, geo as geo_mod, identity, live, netflow, oui as oui_mod, textfmt, topology
 from .crypto import Vault
 from .store import Store
 
@@ -32,7 +32,12 @@ DEFAULT_SETTINGS = {
     "paths_own_networks": [],   # data paths: own networks and tunnels beyond the LAN (never "unassigned")
     "paths_no_internet": [],    # data paths: local networks that should not reach the internet
     "scan_snmp_public": False,  # scans may ask devices with the default read community (user choice, off by default)
+    "netflow_enabled": False,   # data paths: NetFlow/IPFIX receiver (off by default; needs at least one allowed exporter)
+    "netflow_port": netflow.DEFAULT_PORT,
+    "netflow_exporters": [],    # addresses allowed to send flows; packets from anyone else are dropped
+    "netflow_lan_networks": [], # extra own LAN ranges for NetFlow (the detected local networks always count)
 }
+NETFLOW_LAN_REFRESH = 300.0
 
 INTEGRATION_FIELDS = {
     # kind -> (plain config fields, secret fields)
@@ -120,6 +125,9 @@ class Core:
         self.oui = oui_mod.Oui(extra=(data_dir / "oui" / "oui.bin.gz") if data_dir else None)
         self._ident_cache = None           # (key, identity.groups result)
         self.paths = datapaths.DataPaths(store, self.geo, self.settings)
+        self.ip6_to_device: dict = {}
+        self._nf_lan = (0.0, [])           # (ts, detected local networks) for the NetFlow direction check
+        self.netflow = netflow.Collector(self.paths, self._netflow_device, self._netflow_lan, self._netflow_skip)
         from .nightly import Reports
         self.reports = Reports(self, getattr(cfg, "data_dir", None))
         self._refresh_index()
@@ -138,13 +146,28 @@ class Core:
     def update_settings(self, patch: dict) -> dict:
         allowed = {"rescan_hours": int, "update_check": bool, "language": (str, type(None)), "setup_done": bool,
                    "uplink_iface": str, "rate_unit": str, "home_country": str, "paths_own_networks": list,
-                   "paths_no_internet": list}
+                   "paths_no_internet": list, "netflow_enabled": bool, "netflow_port": int, "netflow_exporters": list,
+                   "netflow_lan_networks": list}
         nets = {}
-        for key in ("paths_own_networks", "paths_no_internet"):         # all or nothing: check before writing anything
+        for key in ("paths_own_networks", "paths_no_internet", "netflow_lan_networks"):   # all or nothing: check first
             if key in patch:
                 nets[key] = datapaths.parse_networks(patch[key])
                 if nets[key] is None:
                     raise ValueError("settings.paths.invalid_network")
+        if "netflow_exporters" in patch:
+            nets["netflow_exporters"] = [] if patch["netflow_exporters"] == [] else netflow.parse_exporters(patch["netflow_exporters"])
+            if nets["netflow_exporters"] is None:
+                raise ValueError("settings.netflow.invalid_exporter")
+        if "netflow_port" in patch:
+            nets["netflow_port"] = netflow.parse_port(patch["netflow_port"])
+            if nets["netflow_port"] is None:
+                raise ValueError("settings.netflow.invalid_port")
+        nf_keys = ("netflow_enabled", "netflow_port", "netflow_exporters", "netflow_lan_networks")
+        if any(k in patch for k in nf_keys):
+            enabled = patch.get("netflow_enabled", self.store.get_setting("netflow_enabled", False)) is True
+            exporters = nets.get("netflow_exporters", self.store.get_setting("netflow_exporters", []) or [])
+            if enabled and not exporters:
+                raise ValueError("settings.netflow.exporter_required")   # never a receiver that accepts anyone
         for key, value in patch.items():
             if key in allowed and isinstance(value, allowed[key]):
                 if key in nets:
@@ -160,7 +183,75 @@ class Core:
                 if key == "rate_unit" and value not in live.RATE_UNITS:
                     continue
                 self.store.set_setting(key, value)
+        if any(k in patch for k in nf_keys):
+            self._netflow_schedule()
         return self.settings()
+
+    # ------------------------------------------------------------------ NetFlow / IPFIX receiver (data paths)
+    def _netflow_device(self, ip: str) -> Optional[str]:
+        return self.ip_to_device.get(ip) or self.ip6_to_device.get(ip)
+
+    def _netflow_lan(self) -> list:
+        ts, detected = self._nf_lan
+        now = time.time()
+        if now - ts > NETFLOW_LAN_REFRESH:
+            detected = []
+            for n in self.networks():
+                try:
+                    detected.append(ipaddress.ip_network(n.get("cidr") or "", strict=False))
+                except (ValueError, TypeError):
+                    pass
+            self._nf_lan = (now, detected)
+        extra = []
+        for v in self.store.get_setting("netflow_lan_networks", []) or []:
+            try:
+                extra.append(ipaddress.ip_network(v, strict=False))
+            except (ValueError, TypeError):
+                pass
+        return detected + extra
+
+    def _netflow_skip(self) -> set:
+        """The host source books this host's own flows exactly; NetFlow must not count them a second time."""
+        return {self.self_ip} if self.self_ip and not self.demo else set()
+
+    def _netflow_schedule(self) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._tasks.append(loop.create_task(self.netflow_apply()))
+
+    async def netflow_apply(self) -> None:
+        """Open, move or close the UDP receiver to match the settings (never in a probe start or the demo)."""
+        s = self.settings()
+        exporters = list(s.get("netflow_exporters") or [])
+        port = s.get("netflow_port") or netflow.DEFAULT_PORT
+        on = bool(s.get("netflow_enabled")) and bool(exporters) and not self.cfg.probe and not self.demo
+        self.netflow.configure(exporters if on else [], port)
+        if not on:
+            self.netflow.stop()
+            return
+        st = self.netflow.stats()
+        if not st["listening"] or st["port"] != port:
+            await self.netflow.start(port=port)
+
+    def netflow_status(self) -> dict:
+        s = self.settings()
+        out = self.netflow.stats()
+        out["enabled"] = bool(s.get("netflow_enabled"))
+        if self.demo and out["enabled"]:
+            out = dict(out, **self.demo.netflow_stats(s)) if hasattr(self.demo, "netflow_stats") else out
+        return out
+
+    def paths_source(self) -> dict:
+        """Where the data paths come from: this host's connections, NetFlow from the allowed exporters, or both."""
+        nf = self.netflow_status()
+        out = {"kind": "host", "unbooked": self.paths.unbooked}
+        if nf["enabled"]:
+            out["kind"] = "both"
+            out["netflow"] = {"exporters": sorted(nf.get("exporters") or {}), "listening": nf["listening"],
+                              "last_flow": nf.get("last_flow"), "error": nf.get("error")}
+        return out
 
     # ------------------------------------------------------------------ lifecycle
     async def start(self) -> None:
@@ -178,10 +269,12 @@ class Core:
                     self._start_integration(integ)
             self._tasks.append(asyncio.create_task(self._presence_loop()))
             self._tasks.append(asyncio.create_task(self._rescan_loop()))
+            await self.netflow_apply()
         self._tasks.append(asyncio.create_task(self._tick_loop()))
         self._tasks.append(asyncio.create_task(self.reports.loop()))
 
     async def stop(self) -> None:
+        self.netflow.stop()
         for task in list(self._tasks) + list(self._source_tasks.values()) + ([self._scan_task] if self._scan_task else []):
             task.cancel()
         for task in list(self._tasks) + list(self._source_tasks.values()):
@@ -195,13 +288,20 @@ class Core:
     # ------------------------------------------------------------------ inventory
     def _refresh_index(self) -> None:
         self.ip_to_device = {}
+        ip6 = {}
         for dev in self.store.devices():
             self.ip_to_device[dev["ip"]] = dev["id"]
             data = dev["data"]
+            for a in (data.get("ipv6") or [])[:16]:
+                try:
+                    ip6.setdefault(str(ipaddress.ip_address(str(a).split("%", 1)[0])), dev["id"])
+                except ValueError:
+                    pass
             if data.get("is_self"):
                 self.self_ip = dev["ip"]
             if data.get("is_gateway"):
                 self.gateway_ip = dev["ip"]
+        self.ip6_to_device = ip6
         self.structure_version += 1
 
     def devices(self) -> list:
@@ -365,8 +465,9 @@ class Core:
             devices[dev["id"]] = {"title": title, "ip": dev["ip"],
                                   "kind": dev.get("user_kind") or dev["kind"], "self": bool(data.get("is_self"))}
         devices.setdefault("self", {"title": "", "ip": self.self_ip, "kind": "server", "self": True})
-        out = self.paths.summary(window, devices)
-        out["source"] = {"kind": "host", "unbooked": self.paths.unbooked}
+        devices.setdefault(netflow.UNKNOWN_DEVICE, {"title": "", "ip": None, "kind": "", "self": False})
+        out = dict(self.paths.summary(window, devices))
+        out["source"] = self.paths_source()
         return out
 
     def manual_links(self) -> dict:

@@ -16,7 +16,8 @@ services:
     restart: unless-stopped
     # Host networking lets Lanloom see the local network (neighbour table, mDNS, SSDP) and count
     # this host's TCP bytes. It opens no privileges: the container runs as an unprivileged user,
-    # with a read-only file system and all capabilities dropped.
+    # with a read-only file system and all capabilities dropped. The optional NetFlow/IPFIX receiver (Settings,
+    # off by default) listens on UDP 2055 of this host; with host networking no port mapping is needed.
     network_mode: host
     read_only: true
     tmpfs:

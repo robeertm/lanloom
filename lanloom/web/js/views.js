@@ -402,7 +402,8 @@
       try { const req = await api('/api/update/apply', { method: 'POST', body: { version: u.latest } }); followUpdate(msg, u.latest, req.nonce); }
       catch (e) { LL.msg(msg, LL.errText(e), 'error'); apply.disabled = false; }
     } }, t('update.apply', { v: u.latest })) : null;
-    dialog(t('update.title', { v: u.latest }), h('div', { class: 'stack' }, h('p', {}, t('update.lead', { cur: u.current, v: u.latest })), notes, u.sidecar ? h('p', { class: 'muted' }, t('update.sidecar_text')) : manual, msg),
+    dialog(t('update.title', { v: u.latest }), h('div', { class: 'stack' }, h('p', {}, t('update.lead', { cur: u.current, v: u.latest })), notes, u.sidecar ? h('p', { class: 'muted' }, t('update.sidecar_text')) : manual,
+      u.sidecar_old ? h('div', { class: 'callout' }, h('p', {}, t('update.sidecar_old')), h('code', { class: 'cmd' }, 'docker compose pull && docker compose --profile updater up -d')) : null, msg),
       h('div', { class: 'btn-row' }, u.url ? h('a', { class: 'btn btn--ghost', href: u.url, target: '_blank', rel: 'noopener noreferrer' }, t('update.notes_link')) : null, apply));
   }
   function followUpdate(msg, version, nonce) {
@@ -523,6 +524,7 @@
     page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)),
       paletteField(), LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint'))]));
     if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
+    if (LL.netflowSettingsCard) page.append(LL.netflowSettingsCard(s));
     // updates + about
     const updToggle = h('input', { type: 'checkbox', checked: !!s.update_check, onchange: () => api('/api/settings', { method: 'PUT', body: { update_check: updToggle.checked } }).then(() => LL.toast(t('settings.saved'), 'ok')) });
     const updMsg = h('div', { class: 'msg' });
@@ -531,6 +533,7 @@
     page.append(card(t('settings.updates'), [
       facts([[t('settings.version'), upd.current], [t('settings.latest'), upd.latest || '—'], [t('settings.checked'), upd.checked ? LL.fmtDate(upd.checked) : '—'],
         [t('settings.sidecar'), upd.sidecar ? t('settings.sidecar.yes') : t('settings.sidecar.no')]]),
+      upd.sidecar_old ? h('div', { class: 'callout' }, h('p', {}, t('update.sidecar_old')), h('code', { class: 'cmd' }, 'docker compose pull && docker compose --profile updater up -d')) : null,
       h('label', { class: 'check' }, updToggle, h('span', {}, t('settings.update_check'))), h('p', { class: 'field__hint' }, t('settings.update_check.hint')), updMsg,
       h('div', { class: 'btn-row' }, h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => {
         try { updateState = await api('/api/update/check', { method: 'POST', body: {} }); LL.msg(updMsg, updateState.available ? t('update.available', { v: updateState.latest }) : (updateState.error ? t('update.check_failed') : t('update.current')), updateState.available ? 'ok' : 'info'); if (updateState.available) openUpdate(); }

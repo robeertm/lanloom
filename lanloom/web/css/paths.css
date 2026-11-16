@@ -14,6 +14,13 @@
 .pw-kpi--warn b { color: var(--ll-warn-text); }
 .pw-kpi--none b { color: var(--ll-text-3); font-size: var(--ll-fs-lg); line-height: 30px; }
 .pw-note { font-size: var(--ll-fs-sm); color: var(--ll-text-2); margin-top: -6px; }
+.pw-board .pw-note--netflow { margin: 0; color: var(--ll-text-3); }
+.pw-board .pw-note--warn { color: var(--ll-warn-text); }
+
+/* settings: NetFlow / IPFIX receiver status */
+.nf-status .facts { margin-top: 4px; }
+.nf-ok { color: var(--ll-ok-text); font-weight: var(--ll-fw-semibold); }
+.nf-bad { color: var(--ll-warn-text); font-weight: var(--ll-fw-semibold); }
 
 /* map board */
 .pw-board { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; position: relative; }
@@ -25,13 +32,13 @@
 .pw-map-empty { position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); background: var(--ll-surface); border: 1px solid var(--ll-border);
   border-radius: var(--ll-radius-pill); padding: 6px 14px; font-size: var(--ll-fs-sm); color: var(--ll-text-2); white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
 
-.pw-land { fill: var(--ll-surface-3); stroke: var(--ll-border-strong); stroke-width: .35; fill-rule: evenodd; transition: fill var(--ll-dur-fast); }
+.pw-land { fill: var(--ll-surface-3); stroke: var(--ll-border-strong); stroke-width: calc(.35px / var(--pw-z, 1)); fill-rule: evenodd; transition: fill var(--ll-dur-fast); }
 .pw-dest { cursor: pointer; }
 .pw-dest.pw-out { fill: color-mix(in srgb, var(--pw-out) calc(var(--pw-a, .4) * 70%), var(--ll-surface-3)); }
 .pw-dest.pw-eu { fill: color-mix(in srgb, var(--pw-eu) calc(var(--pw-a, .4) * 55%), var(--ll-surface-3)); }
-.pw-home { fill: color-mix(in srgb, var(--pw-eu) 30%, var(--ll-surface-3)); stroke: var(--pw-eu); stroke-width: .6; }
-.pw-land.is-selected, .pw-dot.is-selected { stroke: var(--ll-text); stroke-width: 1.1; }
-.pw-dot { stroke: var(--ll-surface); stroke-width: .8; cursor: pointer; }
+.pw-home { fill: color-mix(in srgb, var(--pw-eu) 30%, var(--ll-surface-3)); stroke: var(--pw-eu); stroke-width: calc(.6px / var(--pw-z, 1)); }
+.pw-land.is-selected, .pw-dot.is-selected { stroke: var(--ll-text); stroke-width: calc(1.1px / var(--pw-z, 1)); }
+.pw-dot { stroke: var(--ll-surface); stroke-width: calc(.8px / var(--pw-z, 1)); cursor: pointer; }
 .pw-dot.pw-out { fill: var(--pw-out); }
 .pw-dot.pw-eu { fill: var(--pw-eu); }
 .pw-arc { fill: none; stroke-linecap: round; opacity: .55; pointer-events: stroke; cursor: pointer; }
@@ -39,15 +46,24 @@
 .pw-arc.pw-eu { stroke: var(--pw-eu); opacity: .45; }
 .pw-arc.is-selected { opacity: .9; }
 .pw-arc.is-quiet, .pw-end.is-quiet { opacity: .12; }
-.pw-end { stroke: var(--ll-surface); stroke-width: .7; }
+.pw-end { stroke: var(--ll-surface); stroke-width: calc(.7px / var(--pw-z, 1)); }
 .pw-end.pw-out { fill: var(--pw-out); }
 .pw-end.pw-eu { fill: var(--pw-eu); }
-.pw-home-ring { fill: none; stroke: var(--pw-eu); stroke-width: 1.4; opacity: .7; }
-.pw-home-core { fill: var(--pw-eu); stroke: var(--ll-surface); stroke-width: 1; }
+.pw-home-ring { fill: none; stroke: var(--pw-eu); stroke-width: calc(1.4px / var(--pw-z, 1)); opacity: .7; }
+.pw-home-core { fill: var(--pw-eu); stroke: var(--ll-surface); stroke-width: calc(1px / var(--pw-z, 1)); }
 .pw-label { font-size: 10px; fill: var(--ll-text); paint-order: stroke; stroke: var(--ll-surface); stroke-width: 3px; stroke-linejoin: round; cursor: pointer; }
 .pw-label__name { font-weight: var(--ll-fw-semibold); }
 .pw-label__value { fill: var(--ll-text-2); font-size: 9.5px; font-variant-numeric: tabular-nums; }
 .pw-label.pw-out .pw-label__value { fill: var(--ll-warn-text); }
+
+/* zoom and pan: wheel, drag, pinch; the reset button shows only while zoomed */
+.pw-zoomable { overflow: hidden; }
+.pw-zoomable .pw-map { touch-action: pan-x pan-y; user-select: none; -webkit-user-select: none; }
+.pw-zoomable .pw-map.is-zoomed { cursor: grab; touch-action: none; }
+.pw-zoomable .pw-map.is-panning { cursor: grabbing; }
+.pw-zoom-reset { position: absolute; top: 8px; left: 8px; z-index: 3; background: var(--ll-surface); }
+.pw-zoom-reset--bar { position: static; }
+.pw-zoom-reset[hidden] { display: none; }
 
 /* legend + selection */
 .pw-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--ll-fs-sm); color: var(--ll-text-2); min-width: 0; }

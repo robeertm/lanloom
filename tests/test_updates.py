@@ -209,3 +209,15 @@ def test_selftest_prints_the_line_the_updater_requires(capsys):
     assert selftest() == 0
     out = [ln.strip() for ln in capsys.readouterr().out.splitlines() if ln.strip()]
     assert out[-1] == "selftest: ok %s" % __version__
+
+
+def test_an_old_sidecar_is_flagged_once_for_renewal(tmp_path):
+    from lanloom.updates import UPDATER_KEEPS_TAG
+    up = make(tmp_path)
+    up.dir.mkdir(parents=True, exist_ok=True)
+    for version, old in (("1.5.0", True), (UPDATER_KEEPS_TAG, False), ("99.0.0", False), ("garbage", False)):
+        (up.dir / "sidecar.json").write_text(json.dumps({"version": version, "t": time.time()}))
+        st = up.state()
+        assert st["sidecar"] is True and st["sidecar_old"] is old, version
+    (up.dir / "sidecar.json").unlink()
+    assert up.state()["sidecar_old"] is False

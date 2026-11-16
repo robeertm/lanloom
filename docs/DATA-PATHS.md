@@ -9,6 +9,8 @@ The **Data paths** tab shows where the devices of your network send data on the 
 - **Key figures:** data exchanged with the internet, number of countries, share outside the EU, number of devices, number of hints.
 - **Lists** of countries and devices. Click a country to see which devices talk to it; click a device to see its countries. The map follows the selection. Esc or the × on the chip clears it.
 - **Full screen:** the button at the top right of the map. Esc, the close button and the back gesture or key close it without leaving the view. On a phone held upright the map is wider than the screen and can be moved sideways; it starts at the home country.
+- **Zoom:** the mouse wheel inside the map zooms in and out at the pointer, up to 16 times; outside the map, or when it is fully zoomed out, the page scrolls as usual. Drag to move the zoomed map (a drag never selects a country). On a phone, pinch with two fingers; one finger moves the map only while it is zoomed, otherwise the page scrolls. A double click or the reset button at the top left shows the whole world again. Lines, dots and labels keep their size on screen, and the labels are laid out again for every zoom level, so neighbouring countries get their own label once you zoom in. The zoom works in the full screen too and stays when the map refreshes every minute.
+- **Overseas parts:** a country lights up only with its main area. A territory with its own country code (French Guiana, Réunion, Guadeloupe and others) is a shape or a dot of its own, and far-away parts of a country without an own code are drawn but never lit with it.
 
 ## What is counted where
 
@@ -34,16 +36,32 @@ Hints are calm and never change anything. Lanloom never creates a firewall rule 
 
 ## Sources
 
-The first version counts the connections of the Lanloom host itself, read from the kernel's socket diagnostics with host networking. Flow sources from the gateway follow in a later release and will feed the same buckets per device.
+The footer of the view names the source of the numbers.
+
+- **Connections of this host** (always on): the TCP connections of the Lanloom host itself, read from the kernel's socket diagnostics with host networking.
+- **NetFlow / IPFIX from your router** (off by default): your firewall or router reports the traffic of every device on the network, and Lanloom books it into the same buckets, per device. The footer then says *connections of this host and NetFlow from* the exporter address.
+
+### Setting up NetFlow / IPFIX
+
+1. In Lanloom, open *Settings → NetFlow / IPFIX from your router*. Enter the router's address under **Allowed exporter addresses** (required; up to 8, one per line), keep the UDP port **2055** or choose another one from 1024 to 65535, tick **Receive NetFlow / IPFIX** and save. Without an allowed exporter the receiver cannot be switched on: packets from any other address are dropped and only counted, so no device in the network can send made-up flows.
+2. On the router or firewall, enable flow export (often called NetFlow, IPFIX, flow monitoring or traffic accounting) to the address of the Lanloom host and that port. Supported are NetFlow v5 (IPv4 only), NetFlow v9 and IPFIX (both with IPv6). Where you can choose:
+   - export from the **LAN side, before address translation**, so the records carry the devices' own addresses (after translation every device looks like the router);
+   - set the **active timeout** to about 60 seconds. Most routers send a flow only when the connection ends or the active timeout runs out, so without it a long download or a video stream shows up late and in one piece;
+   - some firewalls export only traffic of rules that have logging enabled; enable it on the rule from the LAN to the internet.
+3. The settings card shows the receiver's state: the port it listens on, the last packet, flows received and booked, packets dropped because they came from another address, and records that wait for a template (NetFlow v9 and IPFIX send the description of their records every few minutes; until it arrives, records cannot be read).
+
+With the standard `compose.yaml` Lanloom uses host networking, so the port is open on the host directly; allow it in a host firewall if you use one. With a bridge network instead, publish it: `ports: ["2055:2055/udp"]`. No second container is needed.
+
+How flows are booked: a flow from a local address to an address on the internet counts as upload of that device, the reverse as download. Local addresses are the networks Lanloom detects on the host, private and unique-local ranges, every address of a known device (also its IPv6 addresses) and the networks you add under *Extra own networks* (for example your public IPv6 prefix). An address no device is known for is booked as **Unknown device**. Traffic between two local devices is not a data path and is not counted. The Lanloom host's own traffic is skipped in flows, because the host source above already counts it exactly. Sampling is not corrected.
 
 ## Privacy
 
-Stored are only country, device id and bytes per hour (49 hours) and per day (31 days), plus the first and last day a device talked to a country. No peer addresses, host names or visited sites are kept. Nothing is looked up online.
+Stored are only country, device id and bytes per hour (49 hours) and per day (31 days), plus the first and last day a device talked to a country. No peer addresses, host names or visited sites are kept, also not from NetFlow records (they are read in memory and dropped). Nothing is looked up online.
 
 ## Country data and map
 
 - Country data: the free *IP to Country Lite* database, [IP Geolocation by DB-IP](https://db-ip.com), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). It ships in the image in a compact form (`lanloom/data/geo-country.bin.gz`) and is renewed with a release: download the monthly CSV and run `python3 -I scripts/build_geodb.py dbip-country-lite-YYYY-MM.csv.gz`. The script checks the input (complete, ascending without gaps, enough rows, known samples) before it replaces the file.
-- Base map: Natural Earth (public domain), simplified with `scripts/build_worldmap.py`.
+- Base map: Natural Earth (public domain), simplified with `scripts/build_worldmap.py`. The script also moves far-away parts out of a country's main shape (a territory with its own code becomes its own shape) and adds label points for territories the country data knows but the base map has no shape for; `--refine` repeats only this step on the generated file. A test checks that every country code of the country data can be drawn.
 
 ## Performance
 

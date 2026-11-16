@@ -31,6 +31,7 @@ ALLOWED = {
     ("backup.js", "ABCD-EFGH"): "an example of the shape of the setup code, not a word",
     ("wizard.js", 'docker logs lanloom 2>&1 | grep -i "setup code"'): "a shell command the reader copies; commands are not translated",
     ("views.js", "docker compose pull && docker compose up -d"): "a shell command the reader copies; commands are not translated",
+    ("views.js", "docker compose pull && docker compose --profile updater up -d"): "a shell command the reader copies (renews the updater sidecar); commands are not translated",
     ("ai.js", "sh install.sh --with-ai"): "a shell command the reader copies; commands are not translated",
     ("firewall.js", "VLAN "): "VLAN is the standard term in every language",
     ("firewall.js", "G"): "unit prefix on a port tile (2.5G), the same in every language",
@@ -267,7 +268,7 @@ const d = /Some Words/.test(s) ? 1 : 2;
 # ------------------------------------------------------------------ numbers, dates, times, plurals
 # `.toFixed(` writes a decimal point; for text a person reads use LL.fmtNum (Intl). Remaining uses are SVG / CSS geometry (always a point).
 TOFIXED_GEOMETRY = {
-    "paths.js": (16, "SVG path and style values of the world map arcs"),
+    "paths.js": (21, "SVG path and style values of the world map arcs, zoom viewBox, label transforms and radii"),
     "hypervisor.js": (2, "SVG path of the sparkline"),
     "endmarks.js": (8, "CSS transform and SVG line coordinates"),
     "textfmt.js": (1, "fallback of the number formatter when Intl is missing"),

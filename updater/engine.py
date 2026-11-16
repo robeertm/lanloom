@@ -47,6 +47,9 @@ ROLE_APP = "app"
 ROLE_PROBE = "updater-probe"
 PARENT_LABEL = "org.lanloom.updater.parent"
 VERSION_LABEL = "org.opencontainers.image.version"
+COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
+COMPOSE_IMAGE_LABEL = "com.docker.compose.image"      # image id compose compares on "up" (newer compose versions)
+MOVING_TAG = "latest"
 
 DB_NAME = "lanloom.db"
 DB_SIDE_FILES = ("-wal", "-shm", "-journal")
@@ -387,6 +390,9 @@ class _Run:
     baseline: str | None = None
     new_id: str | None = None
     swap_started: bool = False
+    candidate_id: str | None = None
+    moving_tag: str | None = None      # tag the compose file names (e.g. "latest"); kept on what runs
+    moved: bool = False
 
 
 class Updater:
@@ -661,7 +667,9 @@ class Updater:
             if parse_semver(version) < parse_semver(run.current) and not rollback:  # type: ignore[operator]
                 raise UpdateError("update.err.downgrade_refused", f"{version} is older than {run.current}")
         run.candidate = f"{run.repo}:{version}"
-        self.log(f"target {run.name} runs {run.current or 'unknown'}")
+        run.moving_tag = self.moving_tag_of(run.target, run.repo, run.original_tag)
+        self.log(f"target {run.name} runs {run.current or 'unknown'}"
+                 + (f", keeps tag {run.moving_tag}" if run.moving_tag else ""))
 
         self.step_pull(run)
         self.set_state("selftest", None, "selftest of candidate")
@@ -708,6 +716,7 @@ class Updater:
         label = ((local.get("Config") or {}).get("Labels") or {}).get(VERSION_LABEL)
         if label and label != run.version:
             raise UpdateError("update.err.version_label_mismatch", f"image says {label}")
+        run.candidate_id = local.get("Id")
         self.log("candidate image present")
 
     # ---------------------------------------------------------- selftest
@@ -1023,7 +1032,18 @@ class Updater:
         old_id = run.target["Id"]
         prev_name = run.name + PREVIOUS_SUFFIX
         try:
-            body, extra = self.build_create_body(run.target, run.candidate)
+            image_ref = run.candidate
+            if run.moving_tag:
+                # The new container names the moving tag (as the compose file does) and the tag points at the
+                # candidate before the container is created: a later "compose up" or restart finds what runs now,
+                # never the old image. A rollback moves the tag back.
+                self.api.image_tag(run.candidate, run.repo, run.moving_tag)
+                run.moved = True
+                image_ref = f"{run.repo}:{run.moving_tag}"
+            body, extra = self.build_create_body(run.target, image_ref)
+            labels = body.get("Labels") or {}
+            if run.candidate_id and COMPOSE_IMAGE_LABEL in labels:
+                labels[COMPOSE_IMAGE_LABEL] = run.candidate_id
             try:
                 stale = self.api.container_inspect(prev_name)
                 if stale.get("Id") != old_id:
@@ -1033,6 +1053,7 @@ class Updater:
                 pass
             self.api.container_rename(old_id, prev_name)
         except RuntimeAPIError as exc:
+            self.restore_moving_tag(run)
             raise UpdateError("update.err.swap_failed", f"swap not started: {exc.message}") from None
         run.swap_started = True
         try:
@@ -1053,13 +1074,8 @@ class Updater:
             self.rollback(run, "update.err.health_failed", reason)
             return
         self._remove_quietly(old_id)
-        if run.original_tag and run.original_tag != run.version and not parse_semver(run.original_tag):
-            # Keep a moving tag (e.g. "latest") pointing at what now runs, so a later
-            # compose "up" does not recreate the container with the old image.
-            try:
-                self.api.image_tag(run.candidate, run.repo, run.original_tag)
-            except RuntimeAPIError:
-                self.log(f"could not move tag {run.original_tag}")
+        if run.moving_tag:
+            self.log(f"tag {run.moving_tag} points at {run.version}")
         self.set_state("done", "update.msg.done", f"updated {run.current or 'unknown'} -> {run.version}")
 
     def final_backup(self, run: _Run) -> None:
@@ -1104,10 +1120,24 @@ class Updater:
         os.replace(tmp, self.db_path)
         self.log(f"database restored from {run.backup_dir.name}")
 
+    def restore_moving_tag(self, run: _Run) -> bool:
+        """Point the moving tag back at the old image (rollback); True when nothing is left to do."""
+        if not run.moved:
+            return True
+        try:
+            self.api.image_tag(run.target["Image"], run.repo, run.moving_tag)
+            run.moved = False
+            self.log(f"tag {run.moving_tag} points at {run.current or 'the previous version'} again")
+            return True
+        except RuntimeAPIError:
+            return False
+
     def rollback(self, run: _Run, key: str, reason: str) -> None:
         self.log(f"{reason}; rolling back to {run.current or 'previous version'}")
         old_id = run.target["Id"]
         problems = []
+        if not self.restore_moving_tag(run):
+            problems.append(f"tag: {run.moving_tag} not moved back")
         if run.new_id:
             try:
                 self.api.container_stop(run.new_id, 10)
@@ -1152,6 +1182,59 @@ class Updater:
         except RuntimeAPIError:
             return False
         return bool((info.get("State") or {}).get("Running")) and int(info.get("RestartCount") or 0) == 0
+
+    # ---------------------------------------------------------- moving tag (":latest")
+    def image_version(self, ref: str) -> tuple[int, int, int] | None:
+        img = self.api.image_inspect(ref) or {}
+        return parse_semver(((img.get("Config") or {}).get("Labels") or {}).get(VERSION_LABEL))
+
+    def moving_tag_of(self, container: dict, repo: str, tag: str | None) -> str | None:
+        """The tag a later "compose up" resolves for this container, or None when the version is pinned.
+
+        A non-version tag in the container's image reference is it (the compose file names it). Sidecars before 1.16
+        created the new container with the version tag, so an installation updated twice by them shows a version tag
+        although its compose file names "latest": a compose-managed container with a local "latest" of the same
+        repository counts as such an installation.
+        """
+        if tag and not parse_semver(tag):
+            return tag
+        labels = (container.get("Config") or {}).get("Labels") or {}
+        if labels.get(COMPOSE_PROJECT_LABEL) and self.api.image_inspect(f"{repo}:{MOVING_TAG}"):
+            return MOVING_TAG
+        return None
+
+    def heal_moving_tag(self) -> str | None:
+        """At start: a moving tag that points at an older version than the running app moves forward to it.
+
+        Repairs installations where an older sidecar left "latest" behind; never moves a tag backwards (a pulled
+        but not yet started newer image stays). Returns a log line when something was done."""
+        try:
+            target = self.find_target()
+        except UpdateError:
+            return None
+        repo, tag = split_ref((target.get("Config") or {}).get("Image") or "")
+        image_id = target.get("Image") or ""
+        if not image_id or not (target.get("State") or {}).get("Running"):
+            return None
+        try:
+            moving = self.moving_tag_of(target, repo, tag)
+            if not moving:
+                return None
+            running = self.image_version(image_id)
+            ref = f"{repo}:{moving}"
+            tagged = self.api.image_inspect(ref) or {}
+            if not running or tagged.get("Id") == image_id:
+                return None
+            behind = self.image_version(ref)
+            if behind is not None and behind >= running:
+                return None
+            self.api.image_tag(image_id, repo, moving)
+        except RuntimeAPIError:
+            return None
+        line = "tag %s moved from %s to the running %s" % (
+            moving, ".".join(map(str, behind)) if behind else "nothing", ".".join(map(str, running)))
+        self.log(line)
+        return line
 
     # ---------------------------------------------------------- recovery
     def recover(self) -> None:
@@ -1237,6 +1320,10 @@ class Updater:
         except RuntimeAPIError:
             self.echo("updater: container runtime not reachable yet")
         self.recover()
+        try:
+            self.heal_moving_tag()
+        except Exception as exc:  # pragma: no cover - never block the loop
+            self.echo(f"updater: tag check failed {type(exc).__name__}")
         while not self._stop.is_set():
             try:
                 self.poll_once()
