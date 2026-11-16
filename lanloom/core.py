@@ -760,6 +760,27 @@ class Core:
         self.structure_version += 1
         return ok
 
+    def reload_after_restore(self) -> None:
+        """A backup was restored into the database: drop what was read from the old configuration and start the
+        restored connections (lanloom/backup.py)."""
+        for key in [k for k in self._source_tasks if k.startswith("int:")]:
+            self._stop_source(key)
+        for d in (self.hub, self.mqtt, self.snmp, self.topic_order, self.live_cfg):
+            d.clear()
+        for key in [k for k in self.topo_obs if k.startswith("int:")]:
+            self.topo_obs.pop(key, None)
+        for key in [k for k in self.source_status if k.startswith("int:")]:
+            self.source_status.pop(key, None)
+        self._topo_cache = None
+        self._ident_cache = None
+        self._manual_ver += 1
+        self.structure_version += 1
+        self._refresh_index()
+        if not self.demo and not self.cfg.probe and self._tasks:
+            for integ in self.integrations():
+                if integ["enabled"]:
+                    self._start_integration(integ)
+
     def _start_integration(self, integ: dict) -> None:
         sec = {}
         if self.vault:

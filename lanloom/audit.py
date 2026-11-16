@@ -118,6 +118,43 @@ class AuditLog:
             self._set_meta("audit_anchor_id", str(last_old["id"]))
         return n
 
+    def rewrite(self, entries: list) -> int:
+        """Replace the whole log with `entries` (oldest first), numbered from 1 and chained with this instance's key.
+
+        Only used when a backup is restored into an instance without history of its own (lanloom/backup.py): the
+        backup's log (checked against the old key when it was written) moves along, followed by the few entries of the
+        new instance. The restore itself is recorded right after, naming how many entries came from the file."""
+        n = 0
+        with self._lock, self.store.transaction() as tx:
+            tx.execute("DELETE FROM audit")
+            prev = ""
+            for src in entries:
+                if not isinstance(src, dict):
+                    continue
+                n += 1
+                detail = src.get("detail")
+                if not isinstance(detail, str):
+                    detail = json.dumps(scrub(detail or {}), separators=(",", ":"), ensure_ascii=False, sort_keys=True)
+                try:
+                    t = round(float(src.get("t") or 0), 3)
+                except (TypeError, ValueError):
+                    t = 0.0
+                entry = {"id": n, "t": t, "actor": str(src.get("actor") or "")[:64],
+                         "actor_id": src.get("actor_id") if isinstance(src.get("actor_id"), int) and not isinstance(src.get("actor_id"), bool) else None,
+                         "role": str(src.get("role") or "")[:16], "action": str(src.get("action") or "")[:64],
+                         "target": str(src.get("target") or "")[:120], "outcome": str(src.get("outcome") or "")[:16],
+                         "ip": str(src.get("ip") or "")[:64], "agent": str(src.get("agent") or "")[:80], "detail": detail[:4000]}
+                entry["hash"] = self._mac(prev, entry)
+                tx.execute("INSERT INTO audit(id, t, actor, actor_id, role, action, target, outcome, ip, agent, detail, prev, hash)"
+                           " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                           (entry["id"], entry["t"], entry["actor"], entry["actor_id"], entry["role"], entry["action"], entry["target"],
+                            entry["outcome"], entry["ip"], entry["agent"], entry["detail"], prev, entry["hash"]))
+                prev = entry["hash"]
+            tx.execute("DELETE FROM meta WHERE key IN ('audit_anchor', 'audit_anchor_id', 'audit_head')")
+            if n:
+                tx.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('audit_head', ?)", ("%d:%s" % (n, prev),))
+        return n
+
     # ------------------------------------------------------------------ check
     def verify(self) -> dict:
         """Walk the chain. {"ok", "count", "broken_at", "reason"}."""

@@ -85,6 +85,20 @@ RULES = {
     ("GET", "/api/audit"): R(A),
     ("GET", "/api/audit/export"): R(A),
 
+    # ---------------------------------------------------------------- backup and restore (admin; set-up page: set-up code)
+    ("GET", "/api/backup"): R(A),
+    ("PUT", "/api/backup/settings"): R(A, "backup.settings", stepup=True),
+    ("POST", "/api/backup/export"): R(A, "backup.export", stepup=True),
+    ("POST", "/api/backup/run"): R(A, "backup.run"),
+    ("GET", "/api/backup/files/{name}"): R(A, stepup=True),             # the handler writes backup.download
+    ("DELETE", "/api/backup/files/{name}"): R(A, "backup.delete"),
+    ("POST", "/api/backup/upload"): R(A, "backup.upload"),
+    ("POST", "/api/backup/check"): R(A, "backup.check"),
+    ("POST", "/api/backup/restore"): R(A, "@", stepup=True),
+    ("POST", "/api/setup/restore/upload"): R("public", "@"),
+    ("POST", "/api/setup/restore/check"): R("public", "@"),
+    ("POST", "/api/setup/restore"): R("public", "@"),
+
     # ---------------------------------------------------------------- settings, networks, scans
     ("GET", "/api/settings"): R(V),
     ("PUT", "/api/settings"): R(A, "settings.change"),
@@ -166,7 +180,8 @@ RULES = {
 # Every action name the audit log can carry: the ones of the table plus those the handlers write themselves.
 # The page shows them through the texts audit.action.<name>; tests/test_access_matrix.py checks that each has one.
 HANDLER_ACTIONS = ("auth.login", "auth.login_failed", "auth.lockout", "auth.setup_failed", "auth.stepup", "users.joined",
-                   "users.reset_done", "invite.failed", "audit.export", "access.denied")
+                   "users.reset_done", "invite.failed", "audit.export", "access.denied", "backup.download", "backup.restored",
+                   "backup.restore_failed")
 AUDIT_ACTIONS = frozenset({r.audit for r in RULES.values() if r.audit and r.audit != "@"} | set(HANDLER_ACTIONS))
 
 # Fields that only admins see, whatever route carries them (location of the site, e.g. the cell of a mobile router).

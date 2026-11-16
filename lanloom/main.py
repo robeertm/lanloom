@@ -69,7 +69,9 @@ class App:
         self.accounts = auth.Accounts(store)
         self.sessions = auth.Sessions(store)
         self.passkeys = auth.Passkeys(store)
-        self.factors = auth.SecondFactor(store, vault, sub(b"lanloom-recovery-v1"))
+        from .backup import recovery_pepper
+        # the pepper of the recovery codes moves with a restored backup; otherwise it is derived from the instance key
+        self.factors = auth.SecondFactor(store, vault, recovery_pepper(vault, sub(b"lanloom-recovery-v1")))
         self.tickets = auth.Tickets()
         self.invites = auth.Invites(store)
         self.notices = auth.Notices(store)
@@ -90,6 +92,10 @@ class App:
         self.core.ai = self.ai
         self.core.audit = self.audit
         from . import access_report as _access_report  # noqa: F401 - registers the nightly report section
+        from .backup import Backups
+        from . import backup_report as _backup_report  # noqa: F401 - registers the nightly report section
+        self.backups = Backups(self)
+        self.core.backups = self.backups
         if cfg.demo:
             from .demo import Demo
             self.core.demo = Demo()
@@ -119,9 +125,11 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if code:
             log.warning("First start: open the web page and enter the setup code %s (also in %s)", code, state.setup_code.path)
         await state.core.start()
+        state.backups.start()
         try:
             yield
         finally:
+            await state.backups.stop()
             await state.demo_view.stop()
             await state.core.stop()
 
@@ -308,6 +316,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     web_access.register(app, web_access.Ctx(
         state=state, cfg=cfg, body=body, err=err, note=note, client_of=client_of, requester_ip=requester_ip,
         secure_cookie=secure_cookie, rp_of=rp_of, audit_from=audit_from, current_user=current_user, langs=LANGS))
+
+    from . import web_backup
+    web_backup.register(app, web_backup.Ctx(
+        state=state, body=body, err=err, note=note, client_of=client_of, requester_ip=requester_ip, audit_from=audit_from))
 
     # ------------------------------------------------------------------ settings, networks, scans
     @app.get("/api/settings")
