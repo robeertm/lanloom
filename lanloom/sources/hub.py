@@ -94,7 +94,7 @@ MAX_DEVICES = 5000
 MAX_ENTITIES = 20000
 MAX_AREAS = 500
 MAX_PENDING = 20000
-MAX_ITEMS = 3000                 # automations + scripts followed in admin mode
+MAX_ITEMS = 5000                 # automations + scripts followed (scripts first: their loops matter for safety)
 MAX_CONTEXTS = 5000              # recent automation/script runs, to say "by" for the changes they cause
 CONTEXT_TTL_S = 600.0
 MAX_TRACE_WANTED = 20
@@ -107,6 +107,7 @@ TRACE_PER_MIN = 6
 CONFIG_FRESH_S = 3600.0
 RELATED_FRESH_S = 7200.0
 DEPS_FRAME_S = 60.0
+IDLE_S = 5.0                     # nothing due: look again after this long
 
 
 class ForbiddenMessage(Exception):
@@ -257,6 +258,8 @@ class Hub:
                          "trace": deps.Budget(TRACE_PER_MIN, burst=2, mono=clock())}
         self._trace_wanted: OrderedDict = OrderedDict()
         self._deps_dirty = False
+        self._idle_until = 0.0
+        self._first_pass = False          # every configuration read once (or not readable): loops are known
 
     def __repr__(self):
         return "Hub(url=%r)" % self._ws_url
@@ -483,14 +486,16 @@ class Hub:
             if privacy.domain_of(eid) in ITEM_DOMAINS:
                 items[eid] = attrs
         self._states, self._trackers = states, trackers
+        self._idle_until = 0.0
         self.private_dropped += dropped
         old = self._items
         self._items = {}
-        for eid, attrs in items.items():
+        for eid, attrs in sorted(items.items(), key=lambda kv: (not kv[0].startswith("script."), kv[0])):
             self._note_item(eid, states[eid][0], attrs)
         for eid in set(old) - set(self._items):
             self._refs.pop(eid, None)
             self._related.pop(eid, None)
+        self._first_pass = self._first_pass_done(time.time())
 
     async def _registry(self, conn: _Conn, type_: str):
         if type_ in self._dead_types:
@@ -532,8 +537,8 @@ class Hub:
         """(configuration reads due, related lookups due) - fresh answers, blocked items and loops are left out."""
         configs, related = [], []
         in_loop = {e for comp in self._cycles for e in comp}
-        for eid, item in sorted(self._items.items()):
-            dom = privacy.domain_of(eid)
+        for eid, item in sorted(self._items.items(), key=lambda kv: (not kv[0].startswith("script."), kv[0])):
+            dom = privacy.domain_of(eid)                 # scripts first: their loops must be known early
             type_ = dom + "/config"
             refs = self._refs.get(eid)
             fp = refs.get("fp") if refs else None
@@ -549,6 +554,18 @@ class Hub:
                     related.append(eid)       # only after the configuration is known (or cannot be known)
         return configs, related
 
+    def _first_pass_done(self, wall: float) -> bool:
+        """Every configuration was read once (or cannot be read): script loops are known."""
+        for eid in self._items:
+            if eid in self._refs or (privacy.domain_of(eid) + "/config") in self._dead_types or self._blocks.blocked("c:" + eid, wall):
+                continue
+            return False
+        return True
+
+    def _fresh(self, base: float, per_min: int) -> float:
+        """How long an answer stays fresh: the base time, longer for big installations (half the budget at most)."""
+        return deps.jitter(max(base, 120.0 * len(self._items) / per_min))
+
     async def _read_config(self, conn: _Conn, eid: str, wall: float) -> None:
         dom = privacy.domain_of(eid)
         try:
@@ -556,7 +573,8 @@ class Hub:
         except SourceError as exc:
             if exc.key != "source.hub.unknown_command":
                 self._blocks.fail("c:" + eid, wall, exc.key, timeout=exc.key == "source.hub.timeout")
-            self._due_config[eid] = wall + deps.jitter(CONFIG_FRESH_S)
+            self._due_config[eid] = wall + self._fresh(CONFIG_FRESH_S, CONFIG_PER_MIN)
+            self._first_pass = self._first_pass or self._first_pass_done(wall)
             return
         cfg = result.get("config") if isinstance(result, dict) and isinstance(result.get("config"), dict) else result
         refs = deps.refs_from_config(cfg if isinstance(cfg, dict) else {}, self._known())
@@ -567,8 +585,10 @@ class Hub:
             self._deps_dirty = True
         self._refs[eid] = refs
         self._blocks.ok("c:" + eid)
-        self._due_config[eid] = wall + deps.jitter(CONFIG_FRESH_S)
-        self._cycles = deps.cycles(deps.script_calls({e: r for e, r in self._refs.items() if e.startswith("script.")}))
+        self._due_config[eid] = wall + self._fresh(CONFIG_FRESH_S, CONFIG_PER_MIN)
+        if eid.startswith("script."):
+            self._cycles = deps.cycles(deps.script_calls({e: r for e, r in self._refs.items() if e.startswith("script.")}))
+        self._first_pass = self._first_pass or self._first_pass_done(wall)
 
     async def _lookup_related(self, conn: _Conn, eid: str, wall: float) -> None:
         fp = (self._refs.get(eid) or {}).get("fp")
@@ -577,13 +597,13 @@ class Hub:
         except SourceError as exc:
             if exc.key != "source.hub.unknown_command":
                 self._blocks.fail("r:" + eid, wall, exc.key, fp=fp, timeout=exc.key == "source.hub.timeout")
-            self._due_related[eid] = wall + deps.jitter(RELATED_FRESH_S)
+            self._due_related[eid] = wall + self._fresh(RELATED_FRESH_S, RELATED_PER_MIN)
             self._deps_dirty = True
             return
         ids = [e for e in deps.related_ids(result) if not privacy.is_private(e, self.show) and e != eid]
         self._related[eid] = {"ids": ids, "t": now(), "fp": fp}
         self._blocks.ok("r:" + eid)
-        self._due_related[eid] = wall + deps.jitter(RELATED_FRESH_S)
+        self._due_related[eid] = wall + self._fresh(RELATED_FRESH_S, RELATED_PER_MIN)
         self._deps_dirty = True
 
     async def _read_traces(self, conn: _Conn, eid: str) -> dict | None:
@@ -636,31 +656,41 @@ class Hub:
                 "blocked": [dict(b, kind="config" if b["key"].startswith("c:") else "related", entity_id=b["key"][2:])
                             for b in self._blocks.active(wall)]}
 
+    async def _deps_step(self, conn: _Conn, emit, mono: float, wall: float) -> bool:
+        """At most one lookup, within its budget; requested traces first. True when something was asked."""
+        if self._trace_wanted and "trace/list" not in self._dead_types and self._budgets["trace"].take(mono):
+            eid = next(iter(self._trace_wanted))
+            self._trace_wanted.pop(eid, None)
+            try:
+                frame = await self._read_traces(conn, eid)
+            except SourceError as exc:
+                frame = {"type": "hub_traces", "source": SOURCE, "t": now(), "entity_id": eid, "runs": [], "steps": [],
+                         "error": exc.key}
+            if frame:
+                await emit_event(emit, frame)
+            return True
+        cfg_ready = self._budgets["config"].ready(mono)
+        rel_ready = self._first_pass and self._budgets["related"].ready(mono)
+        if wall < self._idle_until or not (cfg_ready or rel_ready):
+            return False                                 # cheap: plan only when a lookup could go out
+        configs, related = self._plan_lookups(wall)
+        if not configs and not related:
+            self._idle_until = wall + IDLE_S             # nothing due: do not plan again for a few seconds
+            return False
+        if configs and self._budgets["config"].take(mono):
+            await self._read_config(conn, configs[0], wall)
+            return True
+        if related and self._first_pass and self._budgets["related"].take(mono):
+            await self._lookup_related(conn, related[0], wall)     # only after every configuration was read once:
+            return True                                            # loops are known before anything is looked up
+        return False
+
     async def _deps_loop(self, conn: _Conn, emit) -> None:
-        """Admin mode: one lookup at a time, each within its budget; requested traces first."""
+        """Admin mode: one lookup at a time, each within its budget."""
         last_frame = self._clock()
         while True:
-            mono, wall = self._clock(), time.time()
-            did = False
-            if self._trace_wanted and "trace/list" not in self._dead_types and self._budgets["trace"].take(mono):
-                eid = next(iter(self._trace_wanted))
-                self._trace_wanted.pop(eid, None)
-                try:
-                    frame = await self._read_traces(conn, eid)
-                except SourceError as exc:
-                    frame = {"type": "hub_traces", "source": SOURCE, "t": now(), "entity_id": eid, "runs": [], "steps": [],
-                             "error": exc.key}
-                if frame:
-                    await emit_event(emit, frame)
-                did = True
-            else:
-                configs, related = self._plan_lookups(wall)
-                if configs and self._budgets["config"].take(mono):
-                    await self._read_config(conn, configs[0], wall)
-                    did = True
-                elif related and self._budgets["related"].take(mono):
-                    await self._lookup_related(conn, related[0], wall)
-                    did = True
+            mono = self._clock()
+            did = await self._deps_step(conn, emit, mono, time.time())
             if self._deps_dirty and (mono - last_frame >= DEPS_FRAME_S or not did):
                 self._deps_dirty = False
                 last_frame = mono

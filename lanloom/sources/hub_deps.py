@@ -164,6 +164,10 @@ class Budget:
         self.waits += 1
         return False
 
+    def ready(self, mono: float) -> bool:
+        self._fill(mono)
+        return self.tokens >= 1.0
+
     def wait_s(self, mono: float) -> float:
         self._fill(mono)
         return 0.0 if self.tokens >= 1.0 else (1.0 - self.tokens) / self.rate
