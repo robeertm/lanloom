@@ -406,6 +406,9 @@ class Updater:
                              "log": [], "nonce": None, "t": 0}
         self._stop = threading.Event()
         self._hb_thread: threading.Thread | None = None
+        from .localai import LocalAI  # late import: localai builds on this module
+        self.localai = LocalAI(api, settings, clock=clock, echo=self.echo, sleep=sleep,
+                               find_target=self.find_target, owner=self.data_owner)
 
     # ------------------------------------------------------------- paths
     @property
@@ -1221,7 +1224,8 @@ class Updater:
             self.log(f"failed: {exc.detail}")
             return True
         if req is None:
-            return False
+            # An AI request never runs during an update; an update request always goes first.
+            return self.localai.poll_once()
         self.handle_request(req)
         return True
 
@@ -1270,6 +1274,7 @@ class Updater:
         report["health_url"] = url
         h = self.health_fn(url) if url else None
         report["health_version"] = h.get("version") if h else None
+        report["local_ai"] = self.localai.check()
         report["ok"] = bool(report["data_writable"] and report["repository_allowed"]
                             and report["target"]["has_data_mount"] and report["health_version"])
         return report

@@ -1,0 +1,76 @@
+/* Lanloom — AI: settings sub-navigation, AI cards, "Explain" button and dialog. */
+.settings-head { flex-wrap: wrap; align-items: center; justify-content: space-between; row-gap: 10px; }
+.settings-subnav { flex: none; }
+.settings-subnav .seg__btn { display: inline-flex; align-items: center; text-decoration: none; color: var(--ll-text-2); }
+.settings-subnav .seg__btn.is-active { color: var(--ll-text); }
+
+.ai-page { gap: var(--ll-space-4); }
+.ai-card h3 { font-size: var(--ll-fs-md); font-weight: var(--ll-fw-semibold); margin: 0; }
+.ai-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: var(--ll-fs-md); }
+.ai-status > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.ai-never { font-size: var(--ll-fs-sm); }
+.ai-notice { font-size: var(--ll-fs-xs); }
+.ai-form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.ai-model-row { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.ai-model-row .input { flex: 1 1 auto; min-width: 0; }
+.ai-model-row .btn { flex: none; }
+.ai-answer { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: var(--ll-fs-sm); background: var(--ll-surface-2);
+  border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); padding: 8px 12px; overflow-wrap: anywhere; }
+.ai-answer__label { color: var(--ll-text-3); font-size: var(--ll-fs-xs); text-transform: uppercase; letter-spacing: .05em; }
+.ai-manual > summary { cursor: pointer; font-weight: var(--ll-fw-semibold); font-size: var(--ll-fs-md); padding: 4px 0; }
+.ai-limit { max-width: 140px; }
+.ai-allow { display: flex; flex-direction: column; gap: 8px; }
+
+.ai-advice { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--ll-border); border-left: 3px solid var(--ll-ok);
+  border-radius: var(--ll-radius-sm); background: var(--ll-surface-2); padding: 10px 14px; }
+.ai-advice--slow { border-left-color: var(--ll-warn); }
+.ai-advice--unsuitable { border-left-color: var(--ll-danger); }
+.ai-advice__main { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: var(--ll-fs-md); }
+.ai-advice__main > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.ai-advice__facts { font-size: var(--ll-fs-sm); }
+.ai-notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: var(--ll-fs-sm); color: var(--ll-text-2); }
+.ai-setup { display: flex; flex-direction: column; gap: 8px; }
+
+.ai-cmd { margin: 0; background: var(--ll-surface-2); border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); padding: 8px 12px;
+  font-family: var(--ll-font-mono); font-size: var(--ll-fs-xs); white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; }
+.ai-found, .ai-sugg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ai-found__row { display: flex; gap: 12px; align-items: center; justify-content: space-between; border: 1px solid var(--ll-border);
+  border-radius: var(--ll-radius-sm); padding: 8px 12px; background: var(--ll-surface); }
+.ai-found__main { min-width: 0; }
+.ai-found__title { font-weight: var(--ll-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-found__meta { font-size: var(--ll-fs-xs); overflow-wrap: anywhere; }
+.ai-sugg li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: var(--ll-fs-sm);
+  border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); padding: 6px 12px; background: var(--ll-surface); }
+.ai-sugg__title { font-weight: var(--ll-fw-medium); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-code { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); padding: 12px 14px; background: var(--ll-surface-2); }
+.ai-code__head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.ai-code__value { font-size: var(--ll-fs-xl); letter-spacing: .08em; color: var(--ll-text); }
+.ai-code__os { display: flex; flex-direction: column; gap: 6px; }
+.ai-code__os-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* "Explain" */
+.ai-explain { gap: 6px; }
+.ai-explain__icon { color: var(--ll-accent-text); font-size: 12px; line-height: 1; }
+.ai-explain--small { min-height: 26px; padding: 2px 10px; font-size: var(--ll-fs-xs); flex: none; }
+.detail__chips .ai-explain { min-height: 24px; height: 24px; padding: 0 10px; font-size: var(--ll-fs-xs); margin-left: auto; }
+.rp-item--point:has(.ai-explain) { display: flex; align-items: flex-start; }
+.rp-item--point:has(.ai-explain) > .rp-check { flex: 1 1 auto; min-width: 0; }
+.rp-item--point > .ai-explain { margin: 7px 8px 0 0; }
+.rp-item--note > .ai-explain { margin-left: auto; align-self: center; }
+.modal--ai .modal__body { display: flex; flex-direction: column; gap: 12px; }
+.ai-explain__answer p { margin: 0 0 8px; line-height: var(--ll-lh-body); font-size: var(--ll-fs-md); overflow-wrap: anywhere; }
+.ai-explain__meta { font-size: var(--ll-fs-xs); }
+.ai-explain__foot { justify-content: space-between; align-items: center; flex-wrap: wrap; width: 100%; }
+.ai-preview { display: flex; flex-direction: column; gap: 12px; }
+.ai-preview__route { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--ll-border); padding-top: 10px; }
+.ai-preview__head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ai-preview__text { margin: 0; max-height: 220px; overflow: auto; background: var(--ll-surface-2); border: 1px solid var(--ll-border);
+  border-radius: var(--ll-radius-sm); padding: 8px 12px; font-family: var(--ll-font-mono); font-size: var(--ll-fs-xs); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+@media (max-width: 700px) {
+  .ai-explain--small { padding: 2px 9px; }
+  .ai-explain--small .ai-explain__label { display: none; }
+  .ai-found__row { flex-direction: column; align-items: stretch; }
+  .ai-code__value { font-size: var(--ll-fs-lg); }
+  .detail__chips .ai-explain { margin-left: 0; }
+}

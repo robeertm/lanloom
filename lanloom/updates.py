@@ -2,7 +2,7 @@
 
 * The release feed is asked at most every 6 hours (15 minutes after a network error), only while someone has the
   page open, and never when the check is switched off (setting or LANLOOM_UPDATE_CHECK=0). It is the only outbound
-  connection Lanloom makes. The feed lists recent releases; the highest stable version wins, not the newest date,
+  connection of its own; others exist only when switched on (report delivery, cloud AI). The feed lists recent releases; the highest stable version wins, not the newest date,
   so a backport published after a feature release does not hide it.
 * With the optional updater sidecar, "Update" writes a request into the shared data volume; the sidecar pulls the
   new image, tests it (self-test without network, then a probe start on a copy of the data), backs up the database,

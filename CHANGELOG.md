@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] – 2026-11-16
+
+### Added
+- **AI, local or cloud** (Settings, new sub-tab "AI" next to "General"): let an AI explain a device, a note of the nightly report or a firewall rule in plain words. Off by default; nothing leaves the host until you set up a service and switch it on. Setup is in two cards, "Local AI" and "Cloud AI". See [docs/integrations/ai.md](docs/integrations/ai.md).
+- Choice of service: a local model server, compatible local servers, five cloud services and any compatible address; the list is in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). Cloud services need your own key.
+- "Test the connection" asks the model a real question and shows the answer and the response time. "Load models" reads the model list from the service itself and pre-selects the recommended model. The order can be "local first, cloud only if needed" or "cloud first, local as fallback"; the default is local first.
+- **One-click local AI on this computer** through the updater sidecar: the app only writes a trigger file, the sidecar creates the service next to Lanloom, so the app itself still has no container rights. The model is downloaded with a progress bar, and the setup counts as done only after the model has answered a test question. Without the sidecar the card shows the command to use instead. Models stay in their own volume when the service is removed.
+- `install.sh --with-ai` adds the local AI service to a new installation (written to `compose.override.yaml`, safe to delete).
+- **Another computer**: if this host is small, a setup script puts the model on a stronger computer that is always on. One command per operating system for the three common desktop and server operating systems; the script installs the model server, lets it listen in your network, downloads the recommended model and pairs it with Lanloom. The one-time setup code is valid for 4 hours and works once. Suggestions come from your own inventory (servers, storage and computers that are on). Looking for a running service only asks known addresses on the AI port (this host, configured and known devices); no address ranges are swept. Lanloom itself checks that the other computer answers.
+- **Hardware advice** before a local model is installed: below 4 GB of memory no local AI is offered, below 8 GB only a small model with an honest warning; slow computers get a pointer to the other ways.
+- **Explain** button on the device card, a note in the nightly report and a firewall rule (hidden while no AI is set up). The answer comes in the language of the app. "Preview what is sent" shows the exact text and which values are hidden before anything leaves.
+- Nightly report: new section "AI" (requests per day, daily limit reached, failed requests); it appears only when AI is set up.
+- Demo mode shows a sample AI service without any product names. The self-test checks the privacy layer.
+
+### Changed
+- The text of the update-check setting no longer calls the update check the only outbound connection; report delivery and cloud AI are optional connections of their own.
+
+### Security
+- Cloud services only get placeholders instead of IP and hardware addresses, host and device names, wireless network names, serial numbers and locations. The answer is translated back on the host. A final check refuses to send when an address pattern survived (fail closed).
+- Every function needs its own permission to use a cloud service, and a daily limit caps the requests. A local address that leads to the internet counts as a cloud service.
+- Keys are stored encrypted like other credentials and never appear in answers, logs, exports or reports.
+- The setup code is stored only as a hash, is used up after a successful pairing and the pairing endpoints are rate limited; they accept only private peer addresses.
+- AI never writes configuration. It only explains; every change still goes through the executor with preview and confirmation.
+- New outbound connections exist only after switching them on: a cloud service you set up, and the download of the local AI service image and of the models when you ask for them.
+
 ## [1.9.0] – 2026-11-16
 
 ### Added

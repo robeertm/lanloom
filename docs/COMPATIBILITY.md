@@ -28,6 +28,23 @@ The read adapters show the configuration they read in the Firewall tab (read onl
 
 Each adapter publishes its capability list at start (and may narrow it after checking the device version). The interface only shows controls the list covers.
 
+## AI services
+
+Optional. They only explain devices, notes of the nightly report and firewall rules; they never change anything. Cloud services receive placeholders instead of addresses and names (see [integrations/ai.md](integrations/ai.md)). Lanloom reads the model list from the service itself and pre-selects a recommended model.
+
+| Service | Kind | Address | Key | Model list | Notes |
+|---|---|---|---|---|---|
+| Ollama | local | `http://<host>:11434` (default port) | none | yes | native API; one-click setup on this computer or on another one |
+| OpenAI-compatible local server (LM Studio, llama.cpp server, vLLM) | local | for example `http://127.0.0.1:1234/v1` | optional | yes | address with or without `/v1` |
+| OpenAI | cloud | `https://api.openai.com/v1` | required | yes | |
+| Anthropic | cloud | `https://api.anthropic.com` | required | yes | |
+| Google Gemini | cloud | `https://generativelanguage.googleapis.com/v1beta` | required | yes | |
+| Mistral | cloud | `https://api.mistral.ai/v1` | required | yes | |
+| OpenRouter | cloud | `https://openrouter.ai/api/v1` | required | yes | |
+| Other OpenAI-compatible service | cloud | the address you enter | optional | yes | treated as cloud: placeholders and daily limit apply |
+
+A local address that leads to the internet is treated as a cloud service. The test asks the model a real question and shows the answer and the response time.
+
 ---
 
 Product names are used only to identify compatible products. No affiliation or endorsement: Lanloom is not affiliated with, endorsed or sponsored by their owners; all trademarks belong to their owners.

@@ -45,6 +45,15 @@ There is no remote reset. Stop the container, delete `lanloom.db` in the data vo
 ### Can I try it without scanning my network?
 Yes. Set `LANLOOM_DEMO=1` (optionally with `LANLOOM_DEMO_SEED=1`) to run a fictional network. Nothing is scanned.
 
+### Does the AI see my data?
+Only if you set one up, and only what you ask about. A local AI runs in your network and gets the real text; nothing leaves your network. A cloud service only ever receives placeholders instead of addresses, host and device names, wireless network names, serial numbers and locations, only for the functions you allow, and never more requests than the daily limit. "Preview what is sent" shows the exact text first. Details: [integrations/ai.md](integrations/ai.md).
+
+### Which hardware do I need for a local AI?
+A computer that is always on, with at least 4 GB of memory for a small model and 8 GB or more for a medium one; a graphics unit makes answers much faster. Without one, the number of processor cores is the limit and answers can take a minute. Lanloom measures the computer and says honestly if it is too small. If this host is small, put the model on another computer in your network (Settings, AI, "Another computer") or use a cloud service.
+
+### Can the AI change my settings?
+No. It only explains. Every change to a network device still goes through the firewall editor with a preview, your confirmation and, for real changes, a passkey signature.
+
 ## How does Lanloom know which device is on which switch port?
 
 From up to four sources, in this order of precedence: a manual "connected via" entry on the component card, a switch controller with a view-only account, LLDP neighbours over SNMP and the switch address table over SNMP. Without any of them the Network view shows the gateway and one zone per subnet as before. Details: [TOPOLOGY.md](TOPOLOGY.md).

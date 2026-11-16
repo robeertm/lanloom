@@ -25,7 +25,8 @@
 - **Two views.** *Map* is an overview by kind; *Network* shows the gateway, the switches and access points, one zone per subnet and the guests of virtualization hosts.
 - **Physical topology.** Which device hangs on which switch port, which clients use which access point (with band and network name), and which guests run on a host. Cables are solid traces, wireless links dashed with a radio mark, guests dotted; the port number sits at the device end. The data comes from a manual "connected via" field, a switch controller (view-only account), LLDP neighbours and switch address tables over SNMP, in this order of precedence. Clients behind an access point default to wireless. This host's measured traffic flows along the cabling. See [docs/TOPOLOGY.md](docs/TOPOLOGY.md).
 - **Data paths.** A calm world map shows where your devices send data on the internet, by country: arcs from your home country, width by bytes, outside the EU in amber. 24 hours, 7 days or 30 days, a full-screen map, lists of countries and devices, and calm hints for unusual behaviour (a device talks to a new country, uploads far more than on a typical day, or sits in a network that should not reach the internet). Countries come from an offline database shipped in the image; only countries and byte counts are stored, never addresses. Own networks and tunnels are kept apart, and the EU share only counts traffic with a known country. See [docs/DATA-PATHS.md](docs/DATA-PATHS.md).
-- **Nightly report.** Every morning a short report about the night in plain words: internet outages, new and missing devices, interrupted connections and refused sign-ins, data paths hints, changes to the controller configuration, expiring certificates, and Lanloom's own updates and restarts as maintenance. One headline says "All quiet" or how many things need a look; those can be ticked off. Rule-based from Lanloom's own data, no AI and no online service; made at the next start if Lanloom was off at report time; 30-day archive; optional delivery by e-mail, webhook, push topic or your own chat bot (off by default). See [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md).
+- **Nightly report.** Every morning a short report about the night in plain words: internet outages, new and missing devices, interrupted connections and refused sign-ins, data paths hints, changes to the controller configuration, expiring certificates, and Lanloom's own updates and restarts as maintenance. One headline says "All quiet" or how many things need a look; those can be ticked off. Rule-based from Lanloom's own data, with no online service needed (an AI can explain a note on request, see below); made at the next start if Lanloom was off at report time; 30-day archive; optional delivery by e-mail, webhook, push topic or your own chat bot (off by default). See [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md).
+- **AI, local or cloud (optional).** An Explain button on devices, notes of the nightly report and firewall rules lets an AI answer in plain words, in the language of the app. Off by default; AI never changes a setting. See [docs/integrations/ai.md](docs/integrations/ai.md).
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
 - **Device list** with search, light/dark/auto mode and two colour themes (Circuit green and Aurora), a phone layout with bottom tabs, English and German UI.
 - **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network (or tap it and choose "Move to…" on a phone), collect moves in a draft and get a plain-language preview: what the device may do afterwards, what it may no longer do, and what to watch out for. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
@@ -155,6 +156,19 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 
 ![Colour theme setting with a preview of each theme](docs/screenshots/colour-theme-picker-light.png)
 
+### AI
+
+![Settings, AI: local and cloud services, order and privacy](docs/screenshots/ai-settings-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/ai-explain-dark.png" width="100%" alt="Explain dialog with the answer, the service and the response time"><br><sub>Explain: a short answer, and where it was made</sub></td>
+<td width="50%"><img src="docs/screenshots/ai-preview-light.png" width="100%" alt="Preview of the exact text that is sent, with placeholders"><br><sub>Preview what is sent: placeholders instead of addresses and names</sub></td>
+</tr>
+</table>
+
+![Another computer: one-time setup code and one command per operating system](docs/screenshots/ai-other-computer-light.png)
+
 ### Devices and settings
 
 ![Device list](docs/screenshots/devices-light.png)
@@ -173,6 +187,7 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 <td><img src="docs/screenshots/phone-paths.png" width="200" alt="Phone: data paths"></td>
 <td><img src="docs/screenshots/phone-paths-full.png" width="200" alt="Phone: world map in full screen"></td>
 <td><img src="docs/screenshots/phone-reports.png" width="200" alt="Phone: nightly report"></td>
+<td><img src="docs/screenshots/phone-ai-explain.png" width="200" alt="Phone: AI explanation of a device"></td>
 <td><img src="docs/screenshots/phone-wizard-scan.png" width="200" alt="Phone wizard scan step"></td>
 <td><img src="docs/screenshots/phone-firewall-move.png" width="200" alt="Phone: move a device to another network"></td>
 <td><img src="docs/screenshots/phone-firewall-preview.png" width="200" alt="Phone: firewall preview"></td>
@@ -233,9 +248,20 @@ Supported integrations: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 All integrations are optional. Credentials are encrypted at rest with a key file (`secret.key`, mode 0600) in the data volume, never displayed again and never logged.
 
+## AI – local or cloud
+
+Optional and off by default. With an AI set up, an **Explain** button appears on a device, on a note of the nightly report and on a firewall rule. The answer is short, in plain words and in the language of the app. The AI only explains: it never changes a setting, and every change still goes through the preview and your confirmation.
+
+- **Local AI** runs on a computer in your network. It gets the real data, and nothing leaves your network.
+- **Cloud AI** is a service on the internet with your own key. Before anything is sent, every IP and hardware address, host and device name, wireless network name, serial number and location is replaced by a placeholder; the answer is translated back on your host. If an address pattern would still slip through, nothing is sent. Each function needs its own permission, and a daily limit caps the requests. "Preview what is sent" shows the exact text first.
+- **Three one-click ways to a local AI:** in the app (Settings, AI, "Install local AI here", through the updater sidecar), with the installer option `--with-ai`, or on another, stronger computer with a short setup command and a one-time code. Setup counts as done only after the model has answered a test question.
+- **Honest hardware advice:** below 4 GB of memory no local AI is offered, below 8 GB only a small model, and slow computers are pointed to the other ways.
+
+Supported services: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). Step-by-step guide: [docs/integrations/ai.md](docs/integrations/ai.md).
+
 ## Security and privacy
 
-Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The only outbound connection is the optional update check against the public release feed, plus the delivery of the nightly report summary if you switch on a channel yourself. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The optional update check against the public release feed is the only outbound connection of its own; everything else happens only when you switch it on: the delivery of the nightly report summary, a cloud AI service (which only ever receives placeholders instead of addresses and names) and the download of the local AI service and its models. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
 ## Updating
 
@@ -256,7 +282,8 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
 - [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md): the nightly report, its sections, the archive, optional delivery, adding a section
-- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): supported integrations, what each can read and write
+- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): supported integrations and AI services, what each can read and write
+- [docs/integrations/ai.md](docs/integrations/ai.md): AI, local or cloud: setup in three ways, privacy layer, hardware, troubleshooting
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): how device-family adapters are built (read and write halves, capabilities, plan steps, credentials)
 - [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md): the firewall editor, the executor service and its safety checks
 - [docs/FAQ.md](docs/FAQ.md): frequently asked questions

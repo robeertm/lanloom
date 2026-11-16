@@ -18,6 +18,7 @@ It installs into `~/lanloom`, uses port 7380 and enables the updater sidecar. Op
 | `--port <n>` | web port (default 7380) |
 | `--no-updater` | do not enable the updater sidecar |
 | `--no-update-check` | never contact the release feed |
+| `--with-ai` | also run a local AI service next to Lanloom (adds `compose.override.yaml`; a model of several GB is downloaded only when you pick one in Settings, AI). See [integrations/ai.md](integrations/ai.md) |
 
 The installer is idempotent: running it again updates the installation and never deletes data.
 

@@ -25,7 +25,10 @@ I18N = Path(__file__).resolve().parent / "i18n"
 LANGS = ("en", "de")
 STATE_CHANGING = ("POST", "PUT", "PATCH", "DELETE")
 PUBLIC_API = {"/api/health", "/api/state", "/api/login", "/api/setup/account", "/api/passkey/login/options",
-              "/api/passkey/login/verify"}
+              "/api/passkey/login/verify",
+              # setup script on another computer: no session, it proves itself with the one-time pairing code
+              "/api/ai/pair/hello", "/api/ai/pair", "/api/ai/pair/status"}
+PUBLIC_PREFIX = ("/api/i18n/", "/api/ai/installer/")
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; "
        "connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 
@@ -65,6 +68,10 @@ class App:
         from .firewall.editor import Editor
         self.firewall = Editor(cfg, store)
         self.firewall.live = self.core.live_configs
+        from .ai.manager import AI
+        from .ai import report as _ai_report  # noqa: F401 - registers the nightly report section
+        self.ai = AI(self.core, store, vault, cfg)
+        self.core.ai = self.ai
         if cfg.demo:
             from .demo import Demo
             self.core.demo = Demo()
@@ -130,7 +137,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             if path.startswith("/api/executor/"):
                 if not state.firewall.token_ok(request.headers.get("authorization", "")):
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)   # token of the executor service, no session
-            elif path not in PUBLIC_API and not path.startswith("/api/i18n/"):
+            elif path not in PUBLIC_API and not path.startswith(PUBLIC_PREFIX):
                 user = current_user(request)
                 if not user:
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)
@@ -176,7 +183,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                 "language": state.store.get_setting("language", None),
                 "rate_unit": state.core.rate_unit() if state.core else "bytes",
                 "reports_unread": state.core.reports.unread() if user else 0,
-                "report_tz_auto": state.store.get_setting("report_tz_auto", "") if user else ""}
+                "report_tz_auto": state.store.get_setting("report_tz_auto", "") if user else "",
+                "ai": state.ai.ready() if user else {}}
 
     @app.get("/api/i18n/{lang}")
     async def i18n(lang: str):
@@ -468,6 +476,156 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             return err(str(exc))
         return rep if rep else err("report.err.missing", 404)
 
+    # ------------------------------------------------------------------ AI (lanloom/ai): explain, providers, local setup
+    ai = state.ai
+
+    def ai_err(exc: Exception, status: int = 400) -> JSONResponse:
+        key = str(exc)
+        return err(key if key.startswith("ai.") else "ai.err.internal", status)
+
+    @app.get("/api/ai")
+    async def ai_get():
+        return await asyncio.to_thread(ai.public_settings)
+
+    @app.put("/api/ai")
+    async def ai_put(request: Request):
+        data = await body(request)
+        try:
+            return await asyncio.to_thread(ai.update_settings, data.get("settings") if isinstance(data.get("settings"), dict) else {},
+                                           data.get("secrets") if isinstance(data.get("secrets"), dict) else {})
+        except ValueError as exc:
+            return ai_err(exc)
+
+    @app.post("/api/ai/models")
+    async def ai_models(request: Request):
+        data = await body(request)
+        try:
+            return await asyncio.to_thread(ai.models, str(data.get("scope") or ""), data)
+        except ValueError as exc:
+            return ai_err(exc)
+
+    @app.post("/api/ai/test")
+    async def ai_test(request: Request):
+        data = await body(request)
+        try:
+            return await asyncio.to_thread(ai.test, str(data.get("scope") or ""), data)
+        except ValueError as exc:
+            return ai_err(exc)
+        except Exception as exc:
+            from .ai.providers import AIError
+            if isinstance(exc, AIError):
+                return err(exc.key)
+            raise
+
+    @app.get("/api/ai/jobs/{job_id}")
+    async def ai_job(job_id: str):
+        job = ai.job_view(job_id)
+        return job if job and job["kind"] != "pair" else err("ai.err.job", 404)
+
+    @app.post("/api/ai/explain")
+    async def ai_explain(request: Request):
+        data = await body(request)
+        subject, ref, lang = str(data.get("subject") or ""), data.get("ref") if isinstance(data.get("ref"), dict) else {}, data.get("lang")
+        try:
+            if data.get("preview"):
+                return await asyncio.to_thread(ai.preview, subject, ref, lang)
+            return await asyncio.to_thread(ai.explain, subject, ref, lang)
+        except ValueError as exc:
+            return ai_err(exc)
+
+    @app.get("/api/ai/local")
+    async def ai_local():
+        return {"setup": ai.setup_state(), "sidecar": ai._sidecar_alive(), "suggestions": await asyncio.to_thread(ai.suggestions),
+                "discovered": ai._discovered}
+
+    @app.post("/api/ai/local/discover")
+    async def ai_discover(request: Request):
+        data = await body(request)
+        return await asyncio.to_thread(ai.discover, data.get("ids") if isinstance(data.get("ids"), list) else None)
+
+    @app.post("/api/ai/local/install")
+    async def ai_install():
+        try:
+            return await asyncio.to_thread(ai.install_local)
+        except ValueError as exc:
+            return ai_err(exc)
+
+    @app.post("/api/ai/local/use")
+    async def ai_use(request: Request):
+        data = await body(request)
+        try:
+            return await asyncio.to_thread(ai.use_existing, str(data.get("url") or ""), str(data.get("model") or ""))
+        except ValueError as exc:
+            return ai_err(exc)
+
+    @app.post("/api/ai/local/remove")
+    async def ai_remove():
+        try:
+            return await asyncio.to_thread(ai.remove_local)
+        except ValueError as exc:
+            return ai_err(exc)
+
+    @app.post("/api/ai/pairing")
+    async def ai_pairing():
+        return ai.new_pairing()
+
+    def pair_guard(request: Request) -> Optional[JSONResponse]:
+        wait = state.limiter.wait_seconds("ai-pair:" + client_of(request))
+        if wait > 0:
+            return JSONResponse({"error": "auth.err.rate", "wait": int(wait) + 1}, status_code=429)
+        return None
+
+    def pair_refused(request: Request) -> JSONResponse:
+        state.limiter.failure("ai-pair:" + client_of(request))
+        return err("ai.err.code", 403)
+
+    @app.get("/api/ai/installer/{os_name}")
+    async def ai_installer(os_name: str, request: Request, code: str = ""):
+        blocked = pair_guard(request)
+        if blocked:
+            return blocked
+        try:
+            name, text = ai.installer(os_name, code, request.headers.get("host", ""), request.url.scheme)
+        except PermissionError:
+            return pair_refused(request)
+        except ValueError as exc:
+            return ai_err(exc)
+        return Response(text, media_type="text/plain; charset=utf-8",
+                        headers={"Content-Disposition": 'attachment; filename="%s"' % name})
+
+    @app.post("/api/ai/pair/hello")
+    async def ai_pair_hello(request: Request):
+        blocked = pair_guard(request)
+        if blocked:
+            return blocked
+        data = await body(request)
+        try:
+            return ai.pair_hello(data.get("code"), data.get("hw") if isinstance(data.get("hw"), dict) else {})
+        except PermissionError:
+            return pair_refused(request)
+
+    @app.post("/api/ai/pair")
+    async def ai_pair(request: Request):
+        blocked = pair_guard(request)
+        if blocked:
+            return blocked
+        data = await body(request)
+        try:
+            return ai.pair(data.get("code"), requester_ip(request), data)
+        except PermissionError:
+            return pair_refused(request)
+        except ValueError as exc:
+            return ai_err(exc)
+
+    @app.post("/api/ai/pair/status")
+    async def ai_pair_status(request: Request):
+        blocked = pair_guard(request)
+        if blocked:
+            return blocked
+        data = await body(request)
+        st = ai.pair_status(data.get("code"), str(data.get("job") or ""))
+        return st if st else pair_refused(request)
+
     # ------------------------------------------------------------------ updates
     @app.get("/api/update")
     async def update_state():
@@ -660,10 +818,16 @@ def selftest() -> int:
         rep = c.reports.assemble(0, time.time(), None, "2026-01-01", [])
         if not rep["sections"] or any(s["summary"]["key"] == "report.section_failed" for s in rep["sections"]):
             problems.append("nightly report")
+        from .ai import privacy as ai_privacy, providers as ai_providers
+        ps = ai_privacy.Pseudonymizer({"HOST": ["sample-host"]})
+        probe_text = "sample-host 192.168.1.20 aa:bb:cc:dd:ee:01"
+        sent = ps.out(probe_text)
+        if ai_privacy.leaks(sent) or "sample-host" in sent or ps.back(sent) != probe_text or not ai_providers.public_list():
+            problems.append("ai privacy layer")
         en, de = load_i18n("en"), load_i18n("de")
         if not en or set(en) != set(de):
             problems.append("i18n keys differ (%d en / %d de)" % (len(en), len(de)))
-        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

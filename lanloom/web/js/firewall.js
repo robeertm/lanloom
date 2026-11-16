@@ -57,6 +57,7 @@
         if (v.quiet) kids.push(h('div', { class: 'callout callout--warn' }, t('fw.quiet.now', { hours: v.quiet_hours })));
         if (v.running) kids.push(progressCard(v.running));
         if (!(v.mode === 'live' && v.state.hosts && v.state.hosts.length)) kids.push(board(v));
+        st.pol.source = v.mode === 'live' ? v.source : null;     // "Explain" (AI) reads the rule from this live source
         if (v.state.policies && v.state.policies.length) kids.push(LL.fwPolicies(v.state, st.pol, render));
         if (v.mode === 'live') kids.push(...LL.fwLiveExtras(v.state));
         const hist = history(v);
@@ -428,7 +429,8 @@
             p.hits != null ? h('span', { class: 'fw-rule__hits', title: t('fw.pol.hits', { n: p.hits }) }, t('fw.pol.hits', { n: fmtCount(p.hits) })) : null,
             !p.enabled ? h('span', { class: 'chip chip--muted' }, t('fw.pol.disabled')) : null,
             p.scheduled ? h('span', { class: 'chip chip--muted' }, t('fw.pol.scheduled')) : null,
-            p.builtin ? h('span', { class: 'chip chip--muted' }, t('fw.pol.builtin')) : null))))))
+            p.builtin ? h('span', { class: 'chip chip--muted' }, t('fw.pol.builtin')) : null,
+            f.source && LL.aiExplainButton ? LL.aiExplainButton('rule', { source: f.source, id: p.id }, { small: true, title: p.name }) : null))))))
         : [h('p', { class: 'muted fw-pol__none' }, t('fw.pol.none'))]));
     }
     q.addEventListener('input', () => { f.q = q.value; drawList(); });

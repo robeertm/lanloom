@@ -4,6 +4,9 @@
 #   docker compose --profile updater up -d      app + one-click updater sidecar
 #
 # Then open http://<this-host>:7380 and enter the setup code from:  docker logs lanloom
+#
+# Optional local AI service: one click in Settings > AI (needs the updater profile), or
+# `sh deploy/install.sh --with-ai`, or see docs/integrations/ai.md for a compose snippet.
 name: lanloom
 
 services:

@@ -24,6 +24,10 @@ PUBLIC = {
     ("POST", "/api/login"): "sign-in, rate limited",
     ("POST", "/api/passkey/login/options"): "passkey sign-in challenge",
     ("POST", "/api/passkey/login/verify"): "passkey sign-in, rate limited",
+    ("GET", "/api/ai/installer/{os_name}"): "AI setup script for another computer, needs the one-time pairing code, rate limited",
+    ("POST", "/api/ai/pair/hello"): "AI setup script: code check and model advice, needs the pairing code, rate limited",
+    ("POST", "/api/ai/pair"): "AI setup script: pairing, needs the pairing code, rate limited",
+    ("POST", "/api/ai/pair/status"): "AI setup script: pairing result, needs the pairing code, rate limited",
     ("GET", "/"): "the web page itself",
     ("GET", "/{path:path}"): "static files of the web page (never /api/)",
 }

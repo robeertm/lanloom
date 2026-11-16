@@ -199,7 +199,7 @@
     const icon = h('span', { class: 'rp-sec__icon', 'aria-hidden': 'true' });
     icon.innerHTML = svg(ICONS[s.id] || (s.id.indexOf('family:') === 0 ? ICONS.family : ICONS.other), 18);
     const items = s.items.map(i => i.point ? pointEl(i, rep, page) : h('li', { class: 'rp-item rp-item--note', dataset: { level: i.level } },
-      h('span', { class: 'rp-item__dot', 'aria-hidden': 'true' }), h('span', { class: 'rp-item__text' }, line(i, rep))));
+      h('span', { class: 'rp-item__dot', 'aria-hidden': 'true' }), h('span', { class: 'rp-item__text' }, line(i, rep)), explainEl(i, rep)));
     return h('section', { class: 'rp-sec', dataset: { level: s.level, section: s.id } },
       h('div', { class: 'rp-sec__head' }, icon, h('h3', { class: 'rp-sec__title' }, t(s.title), s.name ? h('span', { class: 'rp-sec__name' }, ' · ' + s.name) : null),
         h('span', { class: 'rp-sec__sum' }, line(s.summary, rep))),
@@ -225,7 +225,12 @@
     });
     return h('li', { class: 'rp-item rp-item--point' + (i.done ? ' is-done' : ''), dataset: { level: i.level, item: i.id } },
       h('label', { class: 'rp-check' }, box, h('span', { class: 'rp-check__box', 'aria-hidden': 'true' }),
-        h('span', { class: 'rp-item__text' }, h('span', { class: 'rp-item__line' }, line(i, rep)), when)));
+        h('span', { class: 'rp-item__text' }, h('span', { class: 'rp-item__line' }, line(i, rep)), when)), explainEl(i, rep));
+  }
+
+  function explainEl(i, rep) {          // "Explain" (AI) for a saved report's note; absent without an AI set up
+    if (rep.preview || !LL.aiExplainButton) return null;
+    return LL.aiExplainButton('finding', { day: rep.day, item: i.id }, { small: true });
   }
 
   function deliveryNote(rep) {

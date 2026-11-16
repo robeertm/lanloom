@@ -158,7 +158,8 @@
       h('span', { class: 'trace-sw trace-sw--' + tr.kind }), t('board.trace.' + tr.kind), h('span', { class: 'muted' }, ' · ' + (tr.measured ? t('detail.measured') : t('detail.unmeasured'))))) : [h('li', { class: 'muted' }, t('detail.no_links'))])));
     if (foot) sections.push(foot);
     panel.replaceChildren(h('div', { class: 'detail__head' }, LL.kindIcon(c.kind), h('div', { class: 'detail__titles' }, h('h2', {}, c.title || '—'), h('div', { class: 'muted mono' }, c.subtitle || t('kind.' + c.kind))), close),
-      h('div', { class: 'detail__chips' }, h('span', { class: 'chip' }, t('kind.' + c.kind)), statusEl, gradeEl),
+      h('div', { class: 'detail__chips' }, h('span', { class: 'chip' }, t('kind.' + c.kind)), statusEl, gradeEl,
+        d.device && LL.aiExplainButton ? LL.aiExplainButton('device', { id: d.device.id }, { title: c.title }) : null),
       h('div', { class: 'detail__body' }, sections));
     function drawChart() {
       if (!d.series || !d.series.length) return;
@@ -397,10 +398,22 @@
   }
 
   // ------------------------------------------------------------------ settings
+  function settingsSubnav(active) {
+    return h('nav', { class: 'seg settings-subnav', 'aria-label': t('settings.sections') }, [['general', '#/settings', 'settings.general'], ['ai', '#/settings/ai', 'ai.tab']].map(([k, href, label]) =>
+      h('a', { href, class: 'seg__btn' + (k === active ? ' is-active' : ''), 'aria-current': k === active ? 'page' : null }, t(label))));
+  }
   async function settingsView(app, rest) {
     const fr = frame(app, 'settings');
+    if (rest && rest[0] === 'ai' && LL.aiSettingsPage) {
+      const aiPage = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav('ai')));
+      fr.main.append(aiPage);
+      const sub = await LL.aiSettingsPage(aiPage);
+      const destroy = fr.destroy;
+      fr.destroy = () => { if (sub && sub.destroy) sub.destroy(); if (destroy) destroy.call(fr); };
+      return fr;
+    }
     const [s, scan, nets, pk, upd] = await Promise.all([api('/api/settings'), api('/api/scan'), api('/api/networks'), api('/api/passkeys'), api('/api/update')]);
-    const page = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head' }, h('h1', {}, t('nav.settings'))));
+    const page = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav('general')));
     // scanning
     const cidrs = new Set((s.rescan_cidrs && s.rescan_cidrs.length ? s.rescan_cidrs : nets.networks.filter(n => n.allowed && n.gateway).map(n => n.cidr)));
     const netBox = h('div', { class: 'choice-list choice-list--compact' }, nets.networks.concat([...cidrs].filter(c => !nets.networks.some(n => n.cidr === c)).map(c => ({ cidr: c, allowed: true }))).map(n => {

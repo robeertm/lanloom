@@ -5,12 +5,14 @@
 #   curl -fsSL https://raw.githubusercontent.com/robeertm/lanloom/main/deploy/install.sh | sh -s -- --no-updater
 #
 # Options: --dir <path> (default ~/lanloom)  --port <n> (default 7380)  --no-updater  --no-update-check
+#          --with-ai  also run a local AI service next to Lanloom (downloads several GB later, when you pick a model)
 set -eu
 
 DIR="${HOME}/lanloom"
 PORT=7380
 UPDATER=1
 UPDATE_CHECK=1
+WITH_AI=0
 IMAGE="ghcr.io/robeertm/lanloom:latest"
 
 while [ $# -gt 0 ]; do
@@ -19,7 +21,8 @@ while [ $# -gt 0 ]; do
     --port) PORT="$2"; shift 2 ;;
     --no-updater) UPDATER=0; shift ;;
     --no-update-check) UPDATE_CHECK=0; shift ;;
-    -h|--help) sed -n '2,9p' "$0" 2>/dev/null || true; exit 0 ;;
+    --with-ai) WITH_AI=1; shift ;;
+    -h|--help) sed -n '2,10p' "$0" 2>/dev/null || true; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -108,6 +111,31 @@ if [ "$ok" != 1 ]; then
   exit 1
 fi
 
+AI_NOTE="Local AI: add it later in Settings > AI (one click with the updater sidecar) or re-run with --with-ai."
+if [ "$WITH_AI" = 1 ]; then
+  if [ -f compose.override.yaml ]; then
+    if grep -q 'lanloom-ai' compose.override.yaml; then
+      say "compose.override.yaml already defines the local AI service - leaving it as it is."
+    else
+      echo "Note: compose.override.yaml exists without the local AI service; not touching it (see docs/integrations/ai.md)." >&2
+    fi
+  else
+    say "Adding the local AI service ..."
+    AI_TMP=$(mktemp "$DIR/.compose.override.XXXXXX") || die "cannot create a temporary file in $DIR"
+    if docker exec lanloom python -m lanloom.ai.runtime compose > "$AI_TMP" && [ -s "$AI_TMP" ]; then
+      mv "$AI_TMP" compose.override.yaml
+    else
+      rm -f "$AI_TMP"
+      die "could not get the local AI service definition from the Lanloom image (see docs/integrations/ai.md)"
+    fi
+  fi
+  if grep -q 'lanloom-ai' compose.override.yaml; then
+    # shellcheck disable=SC2086
+    docker compose $PROFILE up -d
+    AI_NOTE="Local AI service: running - open Settings > AI in Lanloom to pick a model."
+  fi
+fi
+
 HOSTIP=$(hostname -I 2>/dev/null | awk '{print $1}')
 [ -n "$HOSTIP" ] || HOSTIP="<this-host>"
 CODE=$(docker logs lanloom 2>&1 | sed -n 's/.*setup code \([A-Z0-9-]*\).*/\1/p' | tail -n 1)
@@ -118,3 +146,4 @@ else
   echo "Already set up - sign in with your account."
 fi
 [ "$UPDATER" = 1 ] && echo "One-click updates: enabled (sidecar lanloom-updater)." || echo "One-click updates: off (update with: cd $DIR && docker compose pull && docker compose up -d)."
+echo "$AI_NOTE"
