@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.15.0] – 2026-11-16
+
+### Added
+- **Backup in the app** (Settings › Backup, admins): one file with the whole configuration – settings, users and roles with their second factors and recovery codes, passkeys, every connection with its credentials, the inventory with every name, kind and hidden device set by hand, "connected via" entries, firewall drafts and the audit log; history (scans, event journal, nightly reports, data paths) optionally, with its size shown first. The file is encrypted with your passphrase (Argon2id, AES-256-GCM with an authenticated header); credentials are only inside the encrypted content, and the instance key never leaves the host. See [docs/BACKUP.md](docs/BACKUP.md).
+- **Automatic backups**: every 6 or 12 hours, daily, every 3 days or weekly into `/data/config-backups`, keeping 1–60 files; the app keeps only a key derived from the passphrase. Stored backups can be downloaded, restored or deleted, and one can be written at once.
+- **Restore** with a preview of what is replaced and what stays (accounts, connections, devices and names, connections set by hand, drafts, settings, credentials, history, audit log, sessions that end). A safety copy of the database is taken first; credentials are encrypted again with the key of the restoring instance; every session ends; the restore is written to the audit log and every admin gets a notice. An instance with its own audit log keeps it. Wrong passphrases are rate limited; a damaged or changed file and a file that is not a backup are refused with a clear message.
+- **Versions**: a backup from an older version is brought up to date while restoring; one from a newer version is refused and names the version to update to first.
+- **Move to another host**: on the first-start page, *Restore from a backup instead* (needs the setup code) brings accounts, second factors, connections and names to a new instance, also across architectures – tested from an arm64 board to an amd64 server and back. The new host keeps its own instance key; old sessions are not valid there.
+- Nightly report: new section "Backup" (age of the newest backup, automatic backups written, a restore) with a point when automatic backups are on and the newest one is older than twice the interval, or when the last automatic backup failed.
+- Audit log actions for exporting, downloading, uploading, checking, writing, deleting and restoring backups and for changed backup settings.
+- Demo mode shows automatic backups with three stored files.
+
 ## [1.14.0] – 2026-11-16
 
 ### Added

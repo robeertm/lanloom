@@ -8,7 +8,7 @@ Everything is under **Settings › Backup** (admins only).
 
 ## Back up now
 
-Enter a passphrase twice (at least 12 characters; a sentence of a few words works well), choose whether history goes in (its size is shown next to the box) and press **Download backup**. The browser saves a file named like `lanloom-20261116-101500-1.14.0.llbackup`.
+Enter a passphrase twice (at least 12 characters; a sentence of a few words works well), choose whether history goes in (its size is shown next to the box) and press **Download backup**. The browser saves a file named like `lanloom-20261116-101500-1.15.0.llbackup`.
 
 - The passphrase is **not stored anywhere**. Without it the file cannot be restored. Keep it apart from the file, for example in a password manager.
 - Exporting needs a fresh confirmation (passkey, app code or password), like other critical actions. The export is written to the audit log; the passphrase never is.
