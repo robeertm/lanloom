@@ -82,7 +82,7 @@ HISTORY_TABLES = ("scans", "events", "reports", "report_marks", "paths_hour", "p
 INSTANCE_TABLES = ("sessions", "invites", "notices", "known_logins")       # emptied on restore (they name old user ids)
 # settings that describe this instance at runtime, not the configuration
 LOCAL_SETTINGS = frozenset({"fw_sim_state", "fw_jobs", "update_cache", "report_heartbeat", "report_epoch",
-                            "report_last_version", "ai_pairing", "ai_usage", "backup_state"})
+                            "report_last_version", "ai_pairing", "ai_usage", "backup_state", "backup_demo_seeded"})
 # vault entries that are never exported (half-finished set-ups, the imported pepper travels separately)
 LOCAL_SECRET_PREFIXES = ("totp_pending:",)
 PEPPER_SECRET = "auth:recovery_pepper"
@@ -462,7 +462,32 @@ class Backups:
         hist = sum(self._table_bytes(t)[1] for t in HISTORY_TABLES)
         return {"config_bytes": conf, "history_bytes": hist}
 
+    DEMO_PASSPHRASE = "sample backup passphrase"
+
+    def seed_demo(self) -> None:
+        """Demo mode: automatic backups switched on with three stored files (passphrase DEMO_PASSPHRASE), so the page
+        shows a realistic list. Runs once, after the demo network is set up."""
+        if not self.demo or self.store.get_setting("backup_demo_seeded", False) or not self.store.get_setting("setup_done", False):
+            return
+        self.store.set_setting("backup_demo_seeded", True)
+        self.vault.put(KEK_SECRET, json.dumps(new_kek(self.DEMO_PASSPHRASE)))
+        self.store.set_setting("backup_cfg", dict(DEFAULT_SCHEDULE, enabled=True))
+        real = self.clock
+        now = real()
+        try:
+            for ago in (2 * 86400 + 600, 86400 + 540, 3600 + 30):
+                self.clock = lambda ago=ago: now - ago
+                out = self.run_now("demo")
+                os.utime(self.folder / out["name"], (now - ago, now - ago))
+        finally:
+            self.clock = real
+
     def public_state(self) -> dict:
+        if self.demo:
+            try:
+                self.seed_demo()
+            except Exception:
+                log.exception("demo backups")
         st = self._state()
         last = self.newest()
         return {"schedule": self.schedule(), "key_set": self.key_set(), "files": self.files(), "estimate": self.estimate(),

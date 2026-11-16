@@ -446,3 +446,19 @@ def test_report_texts_and_error_texts_exist_in_every_language():
                        "backup.download", "backup.restored", "backup.restore_failed"):
             assert "audit.action." + action in texts, (lang, action)
         assert "notice.title.restored" in texts and "notice.text.restored" in texts
+
+
+def test_demo_mode_shows_stored_backups(tmp_path, monkeypatch):
+    app = make_app(tmp_path, "demo", monkeypatch, demo=True)
+    with TestClient(app, base_url="http://lanloom.test") as c:
+        st = app.state.ll
+        uid = st.accounts.create("admin", PW, role="admin")
+        sign_in(c, st, uid)
+        assert c.get("/api/backup").json()["files"] == []           # nothing before the demo network is set up
+        st.store.set_setting("setup_done", True)
+        state = c.get("/api/backup").json()
+        assert len(state["files"]) == 3 and state["schedule"]["enabled"] and state["key_set"] and not state["stale"]
+        newest = tmp_path / "demo" / backup.FOLDER / state["files"][0]["name"]
+        _, content = st.backups.check(newest.read_bytes(), backup.Backups.DEMO_PASSPHRASE)
+        assert content["tables"]["users"]
+        assert len(c.get("/api/backup").json()["files"]) == 3       # seeded once
