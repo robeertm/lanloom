@@ -31,7 +31,7 @@ It is designed for homes and small offices, up to a few hundred devices. A scann
 Yes. The interface is responsive with bottom tabs. Open it in the phone's browser and add it to the home screen. For passkeys and remote access, use HTTPS through a reverse proxy.
 
 ### Which languages are available?
-English and German.
+English and German. Every text, number, date and time follows the language you choose (decimal comma and 24-hour clock in German, proper singular and plural). Another language can be suggested in an issue; see [CONTRIBUTING.md](../CONTRIBUTING.md#translations).
 
 ### Can I change the colours?
 Yes. Settings > Appearance > Colour theme offers **Circuit green** (default) and **Aurora**; "Light / dark" next to it switches between light, dark and automatic. Both settings are remembered in the browser, so every device can have its own. Warning and error colours keep their meaning in every theme.

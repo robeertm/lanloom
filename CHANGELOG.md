@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] – 2026-11-16
+
+### Added
+- Plural forms inside the translations (`{n, plural, one {# device} other {# devices}}`): "1 device", "3 devices", "1 Gerät", "2.000 Geräte". About 50 texts that used to say "1 devices" or picked their form in code now carry their plural forms in the language files, in the app, on the map and in delivered night reports.
+- Checks that every release has to pass (they run with the unit tests, so the release gate runs them too): all languages have the same keys and placeholders, plural forms are complete, no key is missing or unused, no text equals its English original by accident, every list of languages in the code agrees with the language files, and visible text in the web files only comes from the translation files. A planted gap in any of these places fails the check.
+- A short section on suggesting translations in CONTRIBUTING.md.
+
+### Changed
+- Numbers follow the language everywhere: decimal comma and thousands separator in German in sizes, rates, counters, percentages, durations, load and the live values on the map tiles; also in the plain-text night report that is delivered. Times use the 24-hour clock, dates follow the language.
+- The list of languages exists once in the app (one list for both language selectors and for picking the language of the browser, which now looks at all preferred languages).
+- The self-test compares every language file with English, including the placeholders.
+
+### Removed
+- Five texts nothing used any more.
+
+### Fixed
+- The German text of one scan refusal (IPv6 ranges) was missing; it now has both languages.
+- Two tests of the night report depended on the time of day and failed after a while on the day they were written; they no longer do.
+
 ## [1.10.1] – 2026-11-16
 
 ### Fixed

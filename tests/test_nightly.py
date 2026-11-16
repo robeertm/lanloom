@@ -6,6 +6,7 @@ Names and addresses are sample data (192.168.50.0/24, RFC 5737 outside).
 import asyncio
 import json
 import threading
+import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -351,7 +352,7 @@ def test_controller_changes_against_the_previous_report(tmp_path):
     iid = add_integration(c, "sample", "Sample controller")
     st = {"policies": [{"id": "p1", "name": "Block guests", "action": "block", "hits": 3}],
           "networks": [{"id": "n1", "name": "Home"}], "equipment": [{"id": "e1", "name": "Gateway", "firmware": "4.2.1"}]}
-    c.live_cfg[iid] = {"state": st, "caps": {}, "family": "sample", "t": clock.t}
+    c.live_cfg[iid] = {"state": st, "caps": {}, "family": "sample", "t": time.time()}   # freshness is judged on the wall clock
     first = rep.assemble(0, clock.t, None, "2026-11-15", [])
     assert section(first, "controller")["summary"]["key"] == "report.ctl.baseline"
     st2 = json.loads(json.dumps(st))
@@ -673,7 +674,7 @@ def test_device_family_sections_from_the_integration_register(tmp_path, monkeypa
 
     monkeypatch.setattr(integrations, "night_sections", lambda: [("fam-x", night)])
     c.live_cfg[iid] = {"state": {"hosts": [{"name": "node-1", "online": False}], "guests": [], "ports": [1] * 50}, "caps": {},
-                       "family": "fam-x", "t": clock.t}
+                       "family": "fam-x", "t": time.time()}
     first = rep.assemble(at(2026, 11, 15, 6, 30), clock.t, None, "2026-11-16", [])
     sec = section(first, "family:int:%d" % iid)
     assert sec["name"] == "Sample hypervisor" and sec["level"] == "danger"
