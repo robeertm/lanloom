@@ -484,3 +484,44 @@ def test_udp_bind_error_is_reported_not_raised():
 
     st = asyncio.run(run())
     assert st["listening"] is False and st["error"] == "settings.netflow.bind_failed"
+
+
+# ---------------------------------------------------------------------- sampling (1 of N packets -> bytes x N)
+def test_v5_sampling_header_scales_bytes():
+    col, paths = make()
+    pkt = bytearray(v5_packet([("192.0.2.10", "203.0.113.5", 1000)]))
+    struct.pack_into(">H", pkt, 22, (1 << 14) | 100)          # mode 1, interval 100
+    assert col.handle(bytes(pkt), EXP) == 1
+    assert paths.calls[0][2] == 100_000
+    pkt2 = bytearray(v5_packet([("192.0.2.10", "203.0.113.5", 1000)]))
+    struct.pack_into(">H", pkt2, 22, 100)                     # no mode: not sampled, the interval means nothing
+    col.handle(bytes(pkt2), EXP)
+    assert paths.calls[1][2] == 1000
+
+
+def test_v9_sampling_interval_in_the_record():
+    col, paths = make()
+    fields = V4_FIELDS + [(34, 4)]
+    pkt = v9_packet([v9_template(256, fields), data_set(256, [v4_record("192.0.2.10", "203.0.113.5", 50) + struct.pack(">I", 10)])])
+    assert col.handle(pkt, EXP) == 1 and paths.calls[0][2] == 500
+
+
+def test_v9_sampling_announced_in_options_data_applies_to_later_flows():
+    col, paths = make()
+    opt_body = struct.pack(">HHH", 300, 4, 4) + struct.pack(">HHHH", 1, 4, 34, 4)
+    opt = struct.pack(">HH", 1, 4 + len(opt_body)) + opt_body
+    col.handle(v9_packet([opt, data_set(300, [struct.pack(">II", 7, 64)])]), EXP)
+    pkt = v9_packet([v9_template(256, V4_FIELDS), data_set(256, [v4_record("192.0.2.10", "203.0.113.5", 3)])])
+    assert col.handle(pkt, EXP) == 1 and paths.calls[0][2] == 192
+    other = v9_packet([v9_template(256, V4_FIELDS), data_set(256, [v4_record("192.0.2.10", "203.0.113.5", 3)])], source=2)
+    col.handle(other, EXP)
+    assert paths.calls[1][2] == 3                              # another observation domain is not sampled
+
+
+def test_ipfix_packet_interval_and_space_in_options_data():
+    col, paths = make()
+    body = struct.pack(">HHH", 600, 3, 1) + struct.pack(">HH", 144, 4) + struct.pack(">HH", 305, 4) + struct.pack(">HH", 306, 4)
+    opt = struct.pack(">HH", 3, 4 + len(body)) + body
+    col.handle(ipfix_packet([opt, data_set(600, [struct.pack(">III", 1, 1, 9)])]), EXP)     # 1 selected, 9 skipped -> x10
+    col.handle(ipfix_packet([ipfix_template(256, V4_FIELDS), data_set(256, [v4_record("192.0.2.10", "203.0.113.5", 40)])]), EXP)
+    assert paths.calls[0][2] == 400 and col.stats()["malformed"] == 0

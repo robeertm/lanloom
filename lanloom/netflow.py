@@ -16,6 +16,9 @@ Safety: only exporters on the allow list are accepted (an empty list accepts nob
 malformed or hostile packets are only counted and never raise, template tables are capped (512 templates per exporter,
 128 fields per template). A data record whose template has not arrived yet cannot be read; it is counted as ``waiting``
 (per data set) and the exporter's next template packet fixes that.
+
+Sampling: an exporter that looks at only 1 of N packets says so (v5 header, the v9/IPFIX sampling interval in a record
+or in options data, IPFIX packet interval/space); its byte counts are scaled up by that rate.
 """
 from __future__ import annotations
 
@@ -43,7 +46,11 @@ BIND_FAILED = "settings.netflow.bind_failed"
 
 _IE_IN_BYTES, _IE_OUT_BYTES = 1, 23
 _IE_SRC4, _IE_DST4, _IE_SRC6, _IE_DST6 = 8, 12, 27, 28
-_WANTED = frozenset((_IE_IN_BYTES, _IE_OUT_BYTES, _IE_SRC4, _IE_DST4, _IE_SRC6, _IE_DST6))
+_IE_SAMPLING = 34                     # v9 SAMPLING_INTERVAL / IPFIX samplingInterval: 1 of N packets
+_IE_PKT_INTERVAL, _IE_PKT_SPACE = 305, 306   # IPFIX: N packets selected, then M skipped -> rate (N + M) / N
+_WANTED = frozenset((_IE_IN_BYTES, _IE_OUT_BYTES, _IE_SRC4, _IE_DST4, _IE_SRC6, _IE_DST6, _IE_SAMPLING,
+                     _IE_PKT_INTERVAL, _IE_PKT_SPACE))
+MAX_SAMPLING = 1 << 20
 _CGNAT = ipaddress.ip_network("100.64.0.0/10")
 _V5_HEADER, _V5_RECORD, _V5_MAX = 24, 48, 30
 
@@ -62,11 +69,23 @@ class Template:
 _OPTIONS_MARK = Template((), options=True)
 
 
+def _rate(vals: dict):
+    """Sampling rate from the sampling fields of one record, None without them."""
+    n = vals.get(_IE_SAMPLING)
+    if n:
+        return min(n, MAX_SAMPLING)
+    sel, skip = vals.get(_IE_PKT_INTERVAL), vals.get(_IE_PKT_SPACE)
+    if sel:
+        return min(max(1.0, (sel + (skip or 0)) / sel), MAX_SAMPLING)
+    return None
+
+
 class TemplateCache:
     """Templates per (exporter, protocol version, observation domain, template id); capped per exporter."""
 
     def __init__(self):
         self._by_exporter: dict = {}
+        self.sampling: dict = {}            # (exporter, version, domain) -> rate announced in options data
 
     def get(self, exporter: str, version: int, domain: int, tid: int) -> Optional[Template]:
         return self._by_exporter.get(exporter, {}).get((version, domain, tid))
@@ -87,6 +106,7 @@ class TemplateCache:
 
     def forget(self, exporter: str) -> None:
         self._by_exporter.pop(exporter, None)
+        self.sampling = {k: v for k, v in self.sampling.items() if k[0] != exporter}
 
 
 def new_counters() -> dict:
@@ -126,8 +146,9 @@ def _read_fields(buf: bytes, off: int, end: int, count: int, ipfix: bool):
 
 
 def _read_record(tpl: Template, buf: bytes, off: int, end: int):
-    """One data record -> (new offset, src, dst, in bytes, out bytes) or None when it is cut off."""
+    """One data record -> (new offset, src, dst, in bytes, out bytes, sampling rate) or None when it is cut off."""
     src4 = dst4 = src6 = dst6 = b_in = b_out = None
+    samp: dict = {}
     for ie, ln in tpl.fields:
         if ln is None:                              # IPFIX variable length: 1 byte, or 255 + 2 bytes
             if off >= end:
@@ -143,7 +164,10 @@ def _read_record(tpl: Template, buf: bytes, off: int, end: int):
             return None
         if ie:
             raw = buf[off:off + ln]
-            if ie == _IE_IN_BYTES or ie == _IE_OUT_BYTES:
+            if ie in (_IE_SAMPLING, _IE_PKT_INTERVAL, _IE_PKT_SPACE):
+                if 1 <= ln <= 8:
+                    samp[ie] = int.from_bytes(raw, "big")
+            elif ie == _IE_IN_BYTES or ie == _IE_OUT_BYTES:
                 if 1 <= ln <= 8:
                     val = int.from_bytes(raw, "big")
                     if ie == _IE_IN_BYTES:
@@ -160,20 +184,30 @@ def _read_record(tpl: Template, buf: bytes, off: int, end: int):
                 dst6 = raw
         off += ln
     src, dst = src4 or src6, dst4 or dst6
-    return off, (_addr(src) if src else None), (_addr(dst) if dst else None), b_in, b_out
+    return off, (_addr(src) if src else None), (_addr(dst) if dst else None), b_in, b_out, _rate(samp)
 
 
-def _read_data(tpl: Template, buf: bytes, off: int, end: int, flows: list, counters: dict) -> None:
-    """All records of one data set; trailing padding (shorter than a record) is ignored."""
-    if tpl.options or tpl.minlen <= 0:
+def _read_data(tpl: Template, buf: bytes, off: int, end: int, flows: list, counters: dict,
+               sampling: Optional[dict] = None, skey=None) -> None:
+    """All records of one data set; trailing padding (shorter than a record) is ignored. Options records only update
+    the sampling rate of their exporter; flow records are scaled up by their own or the announced rate."""
+    if tpl.minlen <= 0:
         return
     while end - off >= tpl.minlen:
         rec = _read_record(tpl, buf, off, end)
         if rec is None:
             counters["malformed"] += 1
             return
-        off, src, dst, b_in, b_out = rec
+        off, src, dst, b_in, b_out, rate = rec
+        if tpl.options:
+            if rate and sampling is not None:
+                sampling[skey] = rate
+            continue
         nbytes = b_in if b_in is not None else b_out
+        if rate is None and sampling is not None:
+            rate = sampling.get(skey)
+        if nbytes is not None and rate and rate > 1:
+            nbytes = int(nbytes * rate)
         if src is not None and dst is not None and nbytes is not None:
             flows.append((src, dst, nbytes))
 
@@ -187,11 +221,13 @@ def parse_v5(data: bytes, counters: dict) -> list:
     if count == 0 or count > _V5_MAX or len(data) < _V5_HEADER + count * _V5_RECORD:
         counters["malformed"] += 1
         return []
+    samp = struct.unpack_from(">H", data, 22)[0]       # 2 bits mode, 14 bits interval (1 of N packets)
+    rate = (samp & 0x3FFF) if (samp >> 14) and (samp & 0x3FFF) > 1 else 1
     flows = []
     for i in range(count):
         o = _V5_HEADER + i * _V5_RECORD
         flows.append((ipaddress.IPv4Address(data[o:o + 4]), ipaddress.IPv4Address(data[o + 4:o + 8]),
-                      struct.unpack_from(">I", data, o + 20)[0]))
+                      struct.unpack_from(">I", data, o + 20)[0] * rate))
     return flows
 
 
@@ -238,13 +274,21 @@ def _parse_options_set(buf, off, end, exporter, ver, domain, cache: TemplateCach
             if got is None:
                 counters["malformed"] += 1
                 return
-            off = got[1]
+            fields, off = got
+            fields = tuple((0, ln) if i < b else (ie, ln) for i, (ie, ln) in enumerate(fields))   # b scope fields
         else:                                       # v9: scope length and option length in bytes
-            if off + a + b > end:
+            if off + a + b > end or a % 4 or b % 4 or (a + b) // 4 > MAX_FIELDS:
                 counters["malformed"] += 1
                 return
+            scope = _read_fields(buf, off, off + a, a // 4, False)
+            opts = _read_fields(buf, off + a, off + a + b, b // 4, False)
+            if scope is None or opts is None:
+                counters["malformed"] += 1
+                return
+            fields = tuple((0, ln) for _ie, ln in scope[0]) + opts[0]
             off += a + b
-        if tid >= 256 and not cache.put(exporter, ver, domain, tid, _OPTIONS_MARK):
+        tpl = Template(fields, options=True) if fields else _OPTIONS_MARK
+        if tid >= 256 and not cache.put(exporter, ver, domain, tid, tpl):
             counters["refused"] += 1
 
 
@@ -266,7 +310,7 @@ def _parse_sets(buf, off, end, exporter, ver, domain, cache, counters, ipfix: bo
             if tpl is None:
                 counters["waiting"] += 1
             else:
-                _read_data(tpl, buf, body, stop, flows, counters)
+                _read_data(tpl, buf, body, stop, flows, counters, cache.sampling, (exporter, ver, domain))
         off = stop
     return flows
 

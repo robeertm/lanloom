@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.17.2] – 2026-11-16
+
+### Added
+- NetFlow / IPFIX: **sampled exports are scaled up** by their sampling rate – from the NetFlow v5 header, the v9/IPFIX sampling interval of a record or in the exporter's options data, and the IPFIX packet interval and space – so an exporter that looks at only 1 of N packets no longer shows N times too little.
+- NetFlow / IPFIX settings: while no exporter is entered, a button offers the gateway Lanloom detected (never filled in silently).
+- Data paths map: keyboard zoom – Tab to the map, `+` and `-` zoom at the centre, `0` shows the whole world; the map shows a focus ring.
+
 ## [1.17.1] – 2026-11-16
 
 ### Added

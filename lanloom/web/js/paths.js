@@ -247,6 +247,17 @@
     };
     const on = [];
     const listen = (el, type, fn, opt) => { el.addEventListener(type, fn, opt); on.push([el, type, fn, opt]); };
+    // keyboard: + / - zoom at the centre, 0 shows the whole world (the map takes the focus with Tab)
+    svg.setAttribute('tabindex', '0');
+    listen(svg, 'keydown', ev => {
+      if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+      const b = svg.getBoundingClientRect(), cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+      if (ev.key === '+' || ev.key === '=') zoomAt(cx, cy, 1.6);
+      else if (ev.key === '-' || ev.key === '_') { if (!zoomed()) return; zoomAt(cx, cy, 1 / 1.6); }
+      else if (ev.key === '0') set(null);
+      else return;
+      ev.preventDefault();
+    });
     listen(svg, 'wheel', ev => {
       if (ev.deltaY > 0 && !zoomed()) return;                    // fully out: let the page scroll
       if (!ev.deltaY) return;
@@ -692,6 +703,15 @@
     const msg = h('div', { class: 'msg' });
     const need = () => { ex.required = on.checked; ex.setAttribute('aria-required', String(on.checked)); };
     on.addEventListener('change', need); need();
+    // the detected gateway is usually the exporter: offer it while the field is empty (never filled in silently)
+    const suggest = h('div', { class: 'btn-row nf-suggest', hidden: true });
+    api('/api/networks').then(r => {
+      const gw = ((r && r.networks) || []).map(n => n.gateway).find(Boolean);
+      if (!gw || lines(ex.value).length) return;
+      suggest.replaceChildren(h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => { ex.value = gw; suggest.hidden = true; ex.focus(); } },
+        t('settings.netflow.use_gateway', { ip: gw })));
+      suggest.hidden = false;
+    }).catch(() => {});
     async function refresh() {
       let st;
       try { st = await api('/api/netflow'); } catch (e) { status.replaceChildren(); return; }
@@ -720,7 +740,7 @@
     return h('section', { class: 'card settings-card nf-card' }, h('h2', {}, t('settings.netflow.title')),
       h('p', { class: 'muted' }, t('settings.netflow.text')),
       h('label', { class: 'check' }, on, h('span', {}, t('settings.netflow.enable'))),
-      h('div', { class: 'grid-2' }, LL.field(t('settings.netflow.exporters'), ex, t('settings.netflow.exporters.hint')), LL.field(t('settings.netflow.port'), port, t('settings.netflow.port.hint'))),
+      h('div', { class: 'grid-2' }, h('div', {}, LL.field(t('settings.netflow.exporters'), ex, t('settings.netflow.exporters.hint')), suggest), LL.field(t('settings.netflow.port'), port, t('settings.netflow.port.hint'))),
       LL.field(t('settings.netflow.lan'), lan, t('settings.netflow.lan.hint')),
       h('p', { class: 'muted fineprint' }, t('settings.netflow.delay')),
       status, msg, h('div', { class: 'btn-row' }, save));

@@ -64,6 +64,10 @@
 .pw-zoom-reset { position: absolute; top: 8px; left: 8px; z-index: 3; background: var(--ll-surface); }
 .pw-zoom-reset--bar { position: static; }
 .pw-zoom-reset[hidden] { display: none; }
+.pw-map:focus { outline: none; }
+.pw-map:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 2px; border-radius: var(--ll-radius-sm, 6px); }
+.nf-suggest { margin-top: 6px; justify-content: flex-start; }
+.nf-suggest[hidden] { display: none; }
 
 /* legend + selection */
 .pw-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--ll-fs-sm); color: var(--ll-text-2); min-width: 0; }
