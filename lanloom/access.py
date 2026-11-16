@@ -145,6 +145,12 @@ RULES = {
     ("POST", "/api/ai/test"): R(A, "ai.test"),
     ("GET", "/api/ai/jobs/{job_id}"): R(O),
     ("POST", "/api/ai/explain"): R(O, "ai.explain"),
+    ("POST", "/api/ai/ask"): R(O, "ai.ask"),                     # read-only facts; the question is never logged
+    ("POST", "/api/ai/report"): R(O, "ai.report_plain"),
+    ("POST", "/api/ai/identify"): R(O, "ai.identify"),
+    ("GET", "/api/ai/hints"): R(O),
+    ("POST", "/api/ai/hints/{device_id}"): R(O, "ai.hint"),
+    ("POST", "/api/ai/firewall"): R(O, "ai.firewall_suggest"),   # a proposal only; the draft is the user's click
     ("GET", "/api/ai/local"): R(A),
     ("POST", "/api/ai/local/discover"): R(A, "ai.discover"),
     ("POST", "/api/ai/local/install"): R(A, "ai.install"),

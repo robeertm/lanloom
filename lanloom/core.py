@@ -306,6 +306,10 @@ class Core:
             "status": self.device_status(dev),
         }
         view.update(self._identity_view(dev))
+        ai = getattr(self, "ai", None)
+        if ai is not None and getattr(ai, "hints", None) is not None:
+            from .ai.features import apply_hint
+            view = apply_hint(view, ai.hints.peek(dev["id"]))      # a confirmed AI hint: weak evidence only
         return view
 
     def device_status(self, dev: dict) -> str:

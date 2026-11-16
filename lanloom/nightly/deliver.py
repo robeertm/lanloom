@@ -93,7 +93,8 @@ def send(ch: str, cfg: dict, secrets: dict, msg: dict) -> tuple:
             _email(cfg, secrets, msg)
         elif ch == "webhook":
             _post(secrets["url"], json.dumps({"title": msg["title"], "headline": msg["headline"], "lines": msg["lines"],
-                                              "points": msg["points"], "day": msg["day"], "link": msg.get("url") or None}).encode(),
+                                              "points": msg["points"], "day": msg["day"], "link": msg.get("url") or None,
+                                              **({"plain": msg["plain"]} if msg.get("plain") else {})}).encode(),
                   {"Content-Type": "application/json"})
         elif ch == "ntfy":
             headers = {"Title": msg["title"].encode("utf-8").decode("latin-1", "replace"), "Tags": "lanloom"}

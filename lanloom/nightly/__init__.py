@@ -41,6 +41,7 @@ DEFAULTS = {
         "chatbot": {"enabled": False, "chat_id": ""},
     },
 }
+PLAIN_WAIT_S = 240           # the AI paragraph may delay the delivery this long at most
 CATCH_UP_AFTER_S = 600       # a report made this much later than planned says "made at the next start"
 WATCH_EVERY_S = 60
 LOOP_EVERY_S = 30
@@ -64,6 +65,9 @@ class Reports:
         self.vault = core.vault
         self.clock = clock
         self.data_dir = data_dir
+        self.plain_hook = None          # AI: report -> {"text", ...} or None (set by the app when AI exists)
+        self.plain_delivery = lambda: False     # AI: may the paragraph go into outside deliveries?
+        self.night_hook = None          # AI: nightly identification suggestions (only when switched on)
         self.journal = Journal(core.store, clock)
         self.watch = Watch(core, self.journal, clock)
         self.update_state: Callable[[], dict] = lambda: {}
@@ -232,8 +236,47 @@ class Reports:
             report = await self.build(since, now, prev, key, catch_up=now - planned > CATCH_UP_AFTER_S, planned=planned)
             self.save(report)
             self.prune()
+        await self.add_plain(report)
         await self.deliver(report)
+        self.after_report()
         return report
+
+    # ------------------------------------------------------------------ AI paragraph "In plain words" (optional)
+    async def add_plain(self, report: dict) -> None:
+        """Ask the AI for the plain-words paragraph (when one is set up and switched on). The rule-based report stays
+        the truth: without an answer the paragraph is simply missing."""
+        hook = self.plain_hook
+        if hook is None:
+            return
+        try:
+            plain = await asyncio.wait_for(asyncio.to_thread(hook, report), PLAIN_WAIT_S)
+        except Exception:
+            plain = None
+        if plain and plain.get("text"):
+            report["plain"] = plain
+            self.set_plain(report["day"], plain)
+
+    def set_plain(self, day: str, plain: dict) -> None:
+        row = self.store.one("SELECT data FROM reports WHERE day=?", (day,))
+        if not row:
+            return
+        data = json.loads(row["data"])
+        data["plain"] = plain
+        self.store.execute("UPDATE reports SET data=? WHERE day=?", (json.dumps(data, separators=(",", ":")), day))
+
+    def after_report(self) -> None:
+        hook = self.night_hook
+        if hook is None:
+            return
+        import threading
+        threading.Thread(target=self._night, args=(hook,), name="report-after", daemon=True).start()
+
+    @staticmethod
+    def _night(hook) -> None:
+        try:
+            hook()
+        except Exception:
+            log.exception("nightly report: follow-up failed")
 
     async def build(self, since: float, until: float, prev: Optional[dict], day: str, catch_up: bool = False,
                     planned: Optional[float] = None, preview: bool = False) -> dict:
@@ -398,7 +441,13 @@ class Reports:
         from .render import short_text
         s = self.settings()
         lang = self.store.get_setting("language", None) or "en"
-        msg = short_text(report, lang, self.tz(), s.get("link") or "")
+        plain = None
+        try:
+            if self.plain_delivery():
+                plain = (report.get("plain") or {}).get("text") or None
+        except Exception:
+            plain = None
+        msg = short_text(report, lang, self.tz(), s.get("link") or "", plain=plain)
         row = self.store.one("SELECT delivery FROM reports WHERE day=?", (report["day"],))
         state = json.loads(row["delivery"] or "{}") if row else {}
         for ch in chans:

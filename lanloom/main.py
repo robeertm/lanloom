@@ -90,6 +90,10 @@ class App:
         from .ai import report as _ai_report  # noqa: F401 - registers the nightly report section
         self.ai = AI(self.core, store, vault, cfg)
         self.core.ai = self.ai
+        self.ai.firewall = self.firewall                       # read for suggestions; the AI never writes a draft
+        self.core.reports.plain_hook = self.ai.plain_for       # "In plain words" paragraph (optional)
+        self.core.reports.plain_delivery = self.ai.deliver_plain
+        self.core.reports.night_hook = self.ai.nightly_identify
         self.core.audit = self.audit
         from . import access_report as _access_report  # noqa: F401 - registers the nightly report section
         from .backup import Backups
@@ -617,6 +621,49 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             return await asyncio.to_thread(ai.explain, subject, ref, lang)
         except ValueError as exc:
             return ai_err(exc)
+
+    # KI2: ask, plain-words paragraph, identification help, firewall suggestions (all read-only)
+    async def ai_call(fn, *args):
+        try:
+            return await asyncio.to_thread(fn, *args)
+        except ValueError as exc:
+            return ai_err(exc)
+
+    @app.post("/api/ai/ask")
+    async def ai_ask(request: Request):
+        data = await body(request)
+        hist = data.get("history") if isinstance(data.get("history"), list) else []
+        note(request, detail={"turns": min(len(hist), 99), "preview": bool(data.get("preview"))})   # never the question itself
+        return await ai_call(ai.ask, data.get("question"), hist, data.get("lang"), bool(data.get("preview")))
+
+    @app.post("/api/ai/report")
+    async def ai_report(request: Request):
+        data = await body(request)
+        note(request, detail={"day": str(data.get("day") or "")[:10], "preview": bool(data.get("preview"))})
+        return await ai_call(ai.report_plain, str(data.get("day") or ""), data.get("lang"), bool(data.get("preview")))
+
+    @app.post("/api/ai/identify")
+    async def ai_identify(request: Request):
+        data = await body(request)
+        note(request, detail={"device": str(data.get("id") or "")[:80], "preview": bool(data.get("preview"))})
+        return await ai_call(ai.identify, str(data.get("id") or ""), data.get("lang"), bool(data.get("preview")))
+
+    @app.get("/api/ai/hints")
+    async def ai_hints():
+        return {"hints": await asyncio.to_thread(ai.hints_view)}
+
+    @app.post("/api/ai/hints/{device_id}")
+    async def ai_hint(device_id: str, request: Request):
+        data = await body(request)
+        action = str(data.get("action") or "")
+        note(request, detail={"device": device_id[:80], "action": action[:12]})
+        return await ai_call(ai.hint_decide, device_id, action)
+
+    @app.post("/api/ai/firewall")
+    async def ai_firewall(request: Request):
+        data = await body(request)
+        note(request, detail={"preview": bool(data.get("preview"))})
+        return await ai_call(ai.firewall_suggest, data.get("lang"), bool(data.get("preview")))
 
     @app.get("/api/ai/local")
     async def ai_local():

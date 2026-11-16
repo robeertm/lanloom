@@ -96,7 +96,7 @@ def headline(report: dict, r: Renderer) -> str:
     return r.tr("report.head", n=n)
 
 
-def short_text(report: dict, lang: str, tz, link: str) -> dict:
+def short_text(report: dict, lang: str, tz, link: str, plain: str = None) -> dict:
     r = Renderer(lang, tz, report["day"])
     title = r.tr("report.mail.title", date=fmt_date(report["day"], r.lang))
     head = headline(report, r)
@@ -110,9 +110,13 @@ def short_text(report: dict, lang: str, tz, link: str) -> dict:
         for sec in report["sections"][:2]:
             lines.append("%s: %s" % (r.tr(sec["title"]), r.line(sec["summary"])))
     url = ("%s/#/reports/%s" % (link, report["day"])) if link else ""
-    text = "\n".join([head] + lines[:2] + ([url] if url else []))
-    return {"title": title, "headline": head, "lines": lines[:2], "text": text, "url": url, "points": report.get("points", 0),
-            "day": report["day"]}
+    plain = str(plain or "").strip()[:900]
+    text = "\n".join([head] + ([plain] if plain else []) + lines[:2] + ([url] if url else []))
+    out = {"title": title, "headline": head, "lines": lines[:2], "text": text, "url": url, "points": report.get("points", 0),
+           "day": report["day"]}
+    if plain:
+        out["plain"] = plain
+    return out
 
 
 def test_text(lang: str, link: str) -> dict:

@@ -31,13 +31,15 @@ import urllib.parse
 from pathlib import Path
 from typing import Optional
 
-from . import hardware, privacy, providers, runtime
+from . import features, hardware, privacy, providers, runtime
 from .providers import AIError, Client
 
 log = logging.getLogger("lanloom.ai")
 
-FUNCTIONS = ("explain_device", "explain_finding", "explain_rule")
+FUNCTIONS = ("explain_device", "explain_finding", "explain_rule", "ask", "report_plain", "identify", "suggest_firewall")
 SUBJECTS = {"device": "explain_device", "finding": "explain_finding", "rule": "explain_rule"}
+# what the page may offer (key in /api/state "ai") -> function
+FEATURES = {"ask": "ask", "report": "report_plain", "identify": "identify", "firewall": "suggest_firewall"}
 LANG_NAMES = {"en": "English", "de": "German"}
 DEFAULTS = {
     "local": {"enabled": False, "kind": "ollama", "url": "", "model": "", "origin": ""},
@@ -45,7 +47,13 @@ DEFAULTS = {
     "order": "local_first",              # local_first | public_first
     "allow": {f: False for f in FUNCTIONS},   # per function: may it use a public service?
     "daily_limit": 50,                   # requests to public services per day (0 = none at all)
+    "features": {
+        "report_plain": True,            # write the "In plain words" paragraph of each nightly report
+        "deliver_plain": False,          # ... and put it into the outside delivery (mail, webhook, ...)
+        "nightly_identify": False,       # at night, suggest a kind for a few devices Lanloom is unsure about
+    },
 }
+FEATURE_FLAGS = tuple(DEFAULTS["features"])
 ORDERS = ("local_first", "public_first")
 JOB_KEEP_S = 900
 MAX_JOBS = 64
@@ -111,6 +119,8 @@ class AI:
         self._setup_thread = None
         self._discovered = {"t": 0, "found": [], "probed": 0}
         self._where = {}          # local address -> (checked at, is it inside the network?)
+        self.hints = features.Hints(store, clock)
+        self.firewall = None      # the firewall editor (set by the app): read for suggestions, never written
 
     # ------------------------------------------------------------------ settings
     def settings(self) -> dict:
@@ -193,6 +203,10 @@ class AI:
             for f, v in patch["allow"].items():
                 if f in FUNCTIONS:
                     s["allow"][f] = bool(v)
+        if isinstance(patch.get("features"), dict):
+            for f, v in patch["features"].items():
+                if f in FEATURE_FLAGS:
+                    s["features"][f] = bool(v)
         if "daily_limit" in patch:
             try:
                 s["daily_limit"] = max(0, min(1000, int(patch["daily_limit"])))
@@ -286,7 +300,10 @@ class AI:
 
     def ready(self) -> dict:
         s = self.settings()
-        return {subj: bool(self.routes(fn, s)) for subj, fn in SUBJECTS.items()}
+        out = {subj: bool(self.routes(fn, s)) for subj, fn in SUBJECTS.items()}
+        for key, fn in FEATURES.items():
+            out[key] = bool(self.routes(fn, s))
+        return out
 
     # ------------------------------------------------------------------ usage and daily limit
     def _usage(self) -> dict:
@@ -489,8 +506,11 @@ class AI:
         if not fn:
             raise ValueError("ai.err.subject")
         lang = self._lang(lang)
-        s = self.settings()
         system, user = self._messages(subject, ref, lang)
+        return self._preview(fn, system, user)
+
+    def _preview(self, fn: str, system: str, user: str) -> dict:
+        s = self.settings()
         known = privacy.known_values(self.core)
         out = []
         for scope in self.routes(fn, s):
@@ -554,6 +574,189 @@ class AI:
             return {"text": text, "ms": res["ms"], "route": scope, "label": plan["label"], "model": res["model"],
                     "pseudonymised": bool(ps)}
         raise AIError(first_error or "ai.err.not_ready")
+
+    # ------------------------------------------------------------------ KI2: features built on the same routes
+    def _ready_for(self, fn: str, s: dict = None) -> list:
+        routes = self.routes(fn, s or self.settings())
+        if not routes:
+            raise ValueError("ai.err.not_ready")
+        return routes
+
+    def _run(self, kind: str, fn: str, system: str, user: str, post, preview: bool = False):
+        """Preview, or a job that asks the model and hands the answer to ``post(result) -> dict``."""
+        if preview:
+            return self._preview(fn, system, user)
+        s = self.settings()
+        routes = self._ready_for(fn, s)
+        known = privacy.known_values(self.core)
+
+        def work(job):
+            res = self._explain_work(job, s, routes, system, user, known)
+            return post(res)
+        return self._new_job(kind, work)
+
+    @staticmethod
+    def _meta(res: dict) -> dict:
+        return {k: res[k] for k in ("ms", "route", "label", "model", "pseudonymised")}
+
+    # "Ask your network" ------------------------------------------------------
+    def ask(self, question, history=None, lang=None, preview: bool = False):
+        """A question about the network: read-only facts from Lanloom's data, an answer with links."""
+        question = features.clean_question(question)
+        hist = features.clean_history(history)
+        lang = self._lang(lang)
+        facts = features.network_facts(self.core, question, hist, self.clock(), self.firewall)
+        system = features.ASK_PROMPT.format(lang=LANG_NAMES[lang])
+        user = features.ask_user_text(facts, question, hist)
+
+        def post(res):
+            out = features.resolve_refs(res["text"], facts)
+            out.update(self._meta(res))
+            return out
+        return self._run("ask", "ask", system, user, post, preview)
+
+    # nightly report: "In plain words" -------------------------------------------
+    def _report_text(self, rep: dict) -> str:
+        lines = ["Subject: report", "Report day: %s" % rep.get("day"), "Points that need a look: %d" % int(rep.get("points") or 0)]
+        lines += features.report_lines(rep, getattr(self.core, "reports", None), limit=30)
+        return "\n".join(lines)
+
+    def _plain_record(self, res: dict, lang: str) -> dict:
+        text = re.sub(r"\s*\n\s*", " ", str(res.get("text") or "")).strip()[:900]
+        return {"text": text, "lang": lang, "t": self.clock(), **self._meta(res)}
+
+    def report_plain(self, day: str, lang=None, preview: bool = False):
+        """Write (or rewrite) the paragraph of a saved report on request."""
+        reports = getattr(self.core, "reports", None)
+        rep = reports.get(str(day or "")[:10]) if reports else None
+        if not rep:
+            raise ValueError("ai.err.subject")
+        lang = self._lang(lang)
+        system = features.REPORT_PROMPT.format(lang=LANG_NAMES[lang])
+
+        def post(res):
+            rec = self._plain_record(res, lang)
+            reports.set_plain(rep["day"], rec)
+            return rec
+        return self._run("report_plain", "report_plain", system, self._report_text(rep), post, preview)
+
+    def plain_for(self, rep: dict):
+        """Called by the nightly report after it was saved: the paragraph, or None (no AI, switched off, failed).
+        Runs in the caller's thread; the provider limits bound how long it takes."""
+        s = self.settings()
+        if not s["features"].get("report_plain"):
+            return None
+        routes = self.routes("report_plain", s)
+        if not routes:
+            return None
+        lang = self._lang(None)
+        system = features.REPORT_PROMPT.format(lang=LANG_NAMES[lang])
+        job = {"state": "running"}
+        try:
+            res = self._explain_work(job, s, routes, system, self._report_text(rep), privacy.known_values(self.core))
+        except (AIError, ValueError):
+            return None
+        return self._plain_record(res, lang)
+
+    def deliver_plain(self) -> bool:
+        return bool(self.settings()["features"].get("deliver_plain"))
+
+    # identification help ----------------------------------------------------------
+    def _device(self, device_id) -> dict:
+        dev = self.core.store.device(str(device_id or "")[:80])
+        if not dev:
+            raise ValueError("ai.err.subject")
+        view = self.core.device_view(dev)
+        if view.get("is_self"):
+            raise ValueError("ai.err.subject")
+        return view
+
+    def identify(self, device_id, lang=None, preview: bool = False):
+        """Suggest a kind for one device; the suggestion waits for the user's decision."""
+        from ..classify import KINDS
+        dev = self._device(device_id)
+        lang = self._lang(lang)
+        kinds = [k for k in KINDS if k not in ("self", "internet")]
+        system = features.IDENTIFY_PROMPT.format(kinds=", ".join(kinds), lang=LANG_NAMES[lang])
+        user = features.identify_text(self.core, dev, self.clock())
+
+        def post(res):
+            sug = features.parse_identify(res["text"], kinds)
+            hint = dict(sug, state="open", t=self.clock(), lang=lang, **self._meta(res))
+            self.hints.put(dev["id"], hint)
+            return dict(hint, device=dev["id"])
+        return self._run("identify", "identify", system, user, post, preview)
+
+    def hint_decide(self, device_id, action: str) -> dict:
+        res = self.hints.decide(str(device_id or "")[:80], str(action or ""))
+        if res is None:
+            raise ValueError("ai.err.hint_missing")
+        try:
+            self.core.structure_version += 1        # the map redraws with the new kind
+        except Exception:
+            pass
+        return res
+
+    def hints_view(self) -> list:
+        out = []
+        for did, hnt in self.hints.all().items():
+            dev = self.core.store.device(did)
+            if not dev or hnt.get("state") != "open":
+                continue
+            out.append({"device": did, "title": dev.get("user_title") or dev.get("title") or dev.get("ip"), "ip": dev.get("ip"),
+                        "kind": hnt.get("kind"), "what": hnt.get("what") or "", "reason": hnt.get("reason") or "", "t": hnt.get("t")})
+        out.sort(key=lambda x: -(x["t"] or 0))
+        return out
+
+    def nightly_identify(self, limit: int = features.NIGHT_MAX) -> int:
+        """At night (only when switched on): suggestions for a few devices Lanloom is unsure about. Never a change."""
+        s = self.settings()
+        if not s["features"].get("nightly_identify") or not self.routes("identify", s):
+            return 0
+        done = 0
+        for d in self.core.devices():
+            if done >= limit:
+                break
+            if d.get("hidden") or d.get("is_self") or d.get("is_gateway") or d.get("kind") != d.get("auto_kind"):
+                continue
+            if d.get("certainty") not in ("unknown", None) and d.get("kind") != "unknown":
+                continue
+            if self.hints.peek(d["id"]):
+                continue                   # asked before: open, accepted or dismissed - never ask again on its own
+            try:
+                job = self.identify(d["id"])
+            except ValueError:
+                break
+            end = time.monotonic() + 600
+            while time.monotonic() < end:
+                v = self.job_view(job["id"])
+                if v and v["state"] in ("done", "error"):
+                    break
+                time.sleep(0.5)
+            v = self.job_view(job["id"]) or {}
+            if v.get("error") in ("ai.err.daily_limit", "ai.err.not_ready"):
+                break
+            done += 1
+        return done
+
+    # firewall / network suggestions --------------------------------------------------
+    def firewall_suggest(self, lang=None, preview: bool = False):
+        """Suggested moves as a draft proposal. The AI never touches the draft: the user takes it over."""
+        st = self.firewall.state() if self.firewall is not None else None
+        if not st:
+            raise ValueError("ai.err.no_firewall")
+        from ..firewall.model import MAX_OBJECTS
+        lang = self._lang(lang)
+        facts, possible = features.firewall_facts(st, self.core)
+        if not possible:
+            raise ValueError("ai.err.no_moves")
+        system = features.FIREWALL_PROMPT.format(max=MAX_OBJECTS, lang=LANG_NAMES[lang])
+
+        def post(res):
+            out = features.parse_firewall(res["text"], facts, possible, MAX_OBJECTS)
+            out.update(self._meta(res))
+            return out
+        return self._run("firewall", "suggest_firewall", system, facts.text(), post, preview)
 
     # ------------------------------------------------------------------ local service: detect, install, pull, test
     def _update_dir(self) -> Path:
