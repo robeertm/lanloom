@@ -1,0 +1,201 @@
+"""Roles and the one table that says who may call which route.
+
+Three roles, each includes the rights of the one before:
+
+* viewer   - reads everything that is not an administrative secret; changes only its own account.
+* operator - additionally drafts, renames, hides devices, runs scans and ticks report items.
+* admin    - additionally settings, credentials, users, executor approvals, AI and updates.
+
+The table is enforced on the server for every request (main.py guard); the web page only hides what a role cannot
+use. A route missing from the table is refused for everyone below admin (fail closed), and tests/test_access_matrix.py
+checks every route of the app against this table, so a new route cannot slip through unnoticed.
+
+Per route:
+  role    - lowest role that may call it ("public" for the sign-in routes, "executor" for the executor token)
+  stepup  - True: needs a recent second confirmation (passkey, one-time code, or password without second factor)
+  audit   - action name written to the audit log for state-changing calls ("@" = the handler writes it itself)
+  enroll  - reachable by a session that still has to set up its second factor
+"""
+from collections import namedtuple
+
+ROLES = ("viewer", "operator", "admin")
+RANK = {r: i for i, r in enumerate(ROLES)}
+DEFAULT_ROLE = "viewer"
+
+Rule = namedtuple("Rule", "role stepup audit enroll")
+
+
+def R(role: str, audit=None, stepup: bool = False, enroll: bool = False) -> Rule:
+    return Rule(role, stepup, audit, enroll)
+
+
+V, O, A = "viewer", "operator", "admin"
+
+RULES = {
+    # ---------------------------------------------------------------- public (no session)
+    ("GET", "/api/health"): R("public"),
+    ("GET", "/api/state"): R("public", enroll=True),
+    ("GET", "/api/i18n/{lang}"): R("public", enroll=True),
+    ("POST", "/api/setup/account"): R("public", "@"),
+    ("POST", "/api/login"): R("public", "@"),
+    ("POST", "/api/login/second"): R("public", "@"),
+    ("POST", "/api/passkey/login/options"): R("public"),
+    ("POST", "/api/passkey/login/verify"): R("public", "@"),
+    ("POST", "/api/invite/check"): R("public"),
+    ("POST", "/api/invite/accept"): R("public", "@"),
+    ("GET", "/api/ai/installer/{os_name}"): R("public"),
+    ("POST", "/api/ai/pair/hello"): R("public"),
+    ("POST", "/api/ai/pair"): R("public", "ai.paired"),
+    ("POST", "/api/ai/pair/status"): R("public"),
+    ("GET", "/"): R("public"),
+    ("GET", "/{path:path}"): R("public"),
+
+    # ---------------------------------------------------------------- own account (every role)
+    ("POST", "/api/logout"): R(V, "auth.logout", enroll=True),
+    ("GET", "/api/account"): R(V, enroll=True),
+    ("PUT", "/api/account/prefs"): R(V, "account.prefs"),
+    ("POST", "/api/account/password"): R(V, "account.password"),
+    ("POST", "/api/account/stepup/options"): R(V),
+    ("POST", "/api/account/stepup"): R(V, "@"),
+    ("POST", "/api/account/totp/setup"): R(V, enroll=True),
+    ("POST", "/api/account/totp/enable"): R(V, "account.totp_on", stepup=True, enroll=True),
+    ("DELETE", "/api/account/totp"): R(V, "account.totp_off", stepup=True),
+    ("POST", "/api/account/recovery"): R(V, "account.recovery_new", stepup=True),
+    ("GET", "/api/passkeys"): R(V, enroll=True),
+    ("POST", "/api/passkey/register/options"): R(V, stepup=True, enroll=True),
+    ("POST", "/api/passkey/register/verify"): R(V, "account.passkey_add", stepup=True, enroll=True),
+    ("DELETE", "/api/passkeys/{key_id}"): R(V, "account.passkey_remove", stepup=True),
+    ("GET", "/api/account/sessions"): R(V),
+    ("DELETE", "/api/account/sessions"): R(V, "account.signout_all"),
+    ("DELETE", "/api/account/sessions/{sid}"): R(V, "account.session_end"),
+    ("GET", "/api/account/notices"): R(V),
+    ("POST", "/api/account/notices/seen"): R(V, "account.notices_seen"),
+
+    # ---------------------------------------------------------------- users, security policy, audit log (admin)
+    ("GET", "/api/users"): R(A),
+    ("POST", "/api/users/invite"): R(A, "users.invite", stepup=True),
+    ("DELETE", "/api/users/invites/{invite_id}"): R(A, "users.invite_revoke"),
+    ("PATCH", "/api/users/{user_id}"): R(A, "users.change", stepup=True),
+    ("DELETE", "/api/users/{user_id}"): R(A, "users.delete", stepup=True),
+    ("POST", "/api/users/{user_id}/reset"): R(A, "users.reset_link", stepup=True),
+    ("GET", "/api/users/{user_id}/sessions"): R(A),
+    ("DELETE", "/api/users/{user_id}/sessions"): R(A, "users.signout_all", stepup=True),
+    ("GET", "/api/security"): R(A),
+    ("PUT", "/api/security"): R(A, "security.policy", stepup=True),
+    ("GET", "/api/audit"): R(A),
+    ("GET", "/api/audit/export"): R(A),
+
+    # ---------------------------------------------------------------- settings, networks, scans
+    ("GET", "/api/settings"): R(V),
+    ("PUT", "/api/settings"): R(A, "settings.change"),
+    ("GET", "/api/paths"): R(V),
+    ("GET", "/api/networks"): R(V),
+    ("GET", "/api/scan"): R(V),
+    ("POST", "/api/scan"): R(O, "scan.start"),
+    ("DELETE", "/api/scan"): R(O, "scan.cancel"),
+
+    # ---------------------------------------------------------------- inventory and map
+    ("GET", "/api/devices"): R(V),
+    ("PATCH", "/api/devices/{device_id}"): R(O, "device.change"),
+    ("DELETE", "/api/devices/{device_id}"): R(O, "device.forget"),
+    ("GET", "/api/topology"): R(V),
+    ("GET", "/api/map"): R(V),
+    ("GET", "/api/component/{comp_id:path}"): R(V),
+
+    # ---------------------------------------------------------------- integrations (credentials: admin)
+    ("GET", "/api/integrations"): R(O),
+    ("POST", "/api/integrations/test"): R(A, "integration.test"),
+    ("POST", "/api/integrations"): R(A, "integration.save", stepup=True),
+    ("DELETE", "/api/integrations/{integ_id}"): R(A, "integration.delete", stepup=True),
+
+    # ---------------------------------------------------------------- nightly reports
+    ("GET", "/api/reports"): R(V),
+    ("GET", "/api/reports/preview"): R(V),
+    ("GET", "/api/reports/settings"): R(A),
+    ("PUT", "/api/reports/settings"): R(A, "reports.settings"),
+    ("POST", "/api/reports/tz"): R(O, "reports.timezone"),
+    ("POST", "/api/reports/test"): R(A, "reports.test"),
+    ("GET", "/api/reports/{day}"): R(V),
+    ("POST", "/api/reports/{day}/read"): R(O, "reports.read"),
+    ("PUT", "/api/reports/{day}/items"): R(O, "reports.tick"),
+
+    # ---------------------------------------------------------------- AI (explain: operator, everything else: admin)
+    ("GET", "/api/ai"): R(A),
+    ("PUT", "/api/ai"): R(A, "ai.settings"),
+    ("POST", "/api/ai/models"): R(A, "ai.models"),
+    ("POST", "/api/ai/test"): R(A, "ai.test"),
+    ("GET", "/api/ai/jobs/{job_id}"): R(O),
+    ("POST", "/api/ai/explain"): R(O, "ai.explain"),
+    ("GET", "/api/ai/local"): R(A),
+    ("POST", "/api/ai/local/discover"): R(A, "ai.discover"),
+    ("POST", "/api/ai/local/install"): R(A, "ai.install"),
+    ("POST", "/api/ai/local/use"): R(A, "ai.use"),
+    ("POST", "/api/ai/local/remove"): R(A, "ai.remove"),
+    ("POST", "/api/ai/pairing"): R(A, "ai.pairing", stepup=True),
+
+    # ---------------------------------------------------------------- updates
+    ("GET", "/api/update"): R(V),
+    ("POST", "/api/update/check"): R(A, "update.check"),
+    ("POST", "/api/update/apply"): R(A, "update.apply"),
+
+    # ---------------------------------------------------------------- firewall editor
+    ("GET", "/api/firewall"): R(V),
+    ("PUT", "/api/firewall/draft"): R(O, "firewall.draft"),
+    ("DELETE", "/api/firewall/draft"): R(O, "firewall.draft_clear"),
+    ("POST", "/api/firewall/preview"): R(O, "firewall.preview"),
+    ("POST", "/api/firewall/plan"): R(A, "firewall.plan"),
+    ("POST", "/api/firewall/approve"): R(A, "firewall.approve"),      # the approval itself is a passkey signature
+    ("POST", "/api/firewall/undo"): R(O, "firewall.undo"),
+    ("POST", "/api/firewall/reset"): R(A, "firewall.reset"),
+    ("GET", "/api/firewall/keys"): R(A),
+
+    # ---------------------------------------------------------------- executor service (bearer token, no session)
+    ("GET", "/api/executor/plans"): R("executor"),
+    ("POST", "/api/executor/state"): R("executor"),
+    ("POST", "/api/executor/report"): R("executor"),
+
+    # ---------------------------------------------------------------- live feed (WebSocket)
+    ("WS", "/api/live"): R(V),
+}
+
+# Fields that only admins see, whatever route carries them (location of the site, e.g. the cell of a mobile router).
+ADMIN_ONLY_FIELDS = frozenset({"location", "cell_id", "cell", "lac", "tac", "latitude", "longitude"})
+
+# Routes a viewer reaches although they change something: harmless per-user state, listed so the matrix test knows.
+VIEWER_WRITES = {k for k, r in RULES.items() if r.role == V and k[0] not in ("GET", "WS")}
+
+
+def rank(role) -> int:
+    return RANK.get(role, -1)
+
+
+def allows(role, need: str) -> bool:
+    if need == "public":
+        return True
+    if need not in RANK:
+        return False
+    return rank(role) >= RANK[need]
+
+
+def rule_for(method: str, path: str):
+    return RULES.get((method, path))
+
+
+def redact_admin_fields(data, role):
+    """Copy of `data` without ADMIN_ONLY_FIELDS (recursively) unless `role` is admin."""
+    if allows(role, A):
+        return data
+    if isinstance(data, dict):
+        return {k: redact_admin_fields(v, role) for k, v in data.items() if k not in ADMIN_ONLY_FIELDS}
+    if isinstance(data, list):
+        return [redact_admin_fields(v, role) for v in data]
+    return data
+
+
+def capabilities(role) -> dict:
+    """What the web page may offer to this role (only for showing or hiding controls; the server decides)."""
+    return {
+        "role": role,
+        "operate": allows(role, O),
+        "admin": allows(role, A),
+    }

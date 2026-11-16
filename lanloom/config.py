@@ -24,6 +24,32 @@ class Config:
     cookie_secure: str          # "auto" | "always" | "never"
     trusted_origins: tuple
     trusted_proxies: tuple      # addresses/networks whose X-Forwarded-* headers are believed (empty = none)
+    auth_header: str = ""       # sign-in through a trusted auth proxy: header with the user name (empty = off)
+    auth_groups_header: str = ""    # header with the user's groups (comma or space separated)
+    auth_group_roles: tuple = ()    # ((group, role), ...) - the highest matching role wins
+    auth_default_role: str = ""     # role for proxy users without a matching group ("" = refuse)
+    base_path: str = ""         # served below a sub-path, e.g. "/lanloom" (optional; a proxy may also strip it)
+
+
+def _group_roles(raw: str) -> tuple:
+    out = []
+    for part in (raw or "").split(","):
+        if "=" in part:
+            group, role = part.split("=", 1)
+            group, role = group.strip(), role.strip().lower()
+            if group and role in ("viewer", "operator", "admin"):
+                out.append((group, role))
+    return tuple(out)
+
+
+def _base_path(raw: str) -> str:
+    raw = (raw or "").strip().rstrip("/")
+    if not raw:
+        return ""
+    if not raw.startswith("/"):
+        raw = "/" + raw
+    import re
+    return raw if re.fullmatch(r"(/[A-Za-z0-9._~-]+)+", raw) else ""
 
 
 def load() -> Config:
@@ -46,4 +72,10 @@ def load() -> Config:
         cookie_secure=os.environ.get("LANLOOM_COOKIE_SECURE", "auto").strip().lower(),
         trusted_origins=origins,
         trusted_proxies=proxies,
+        auth_header=os.environ.get("LANLOOM_AUTH_HEADER", "").strip(),
+        auth_groups_header=os.environ.get("LANLOOM_AUTH_GROUPS_HEADER", "").strip(),
+        auth_group_roles=_group_roles(os.environ.get("LANLOOM_AUTH_GROUP_ROLES", "")),
+        auth_default_role=(os.environ.get("LANLOOM_AUTH_DEFAULT_ROLE", "").strip().lower()
+                           if os.environ.get("LANLOOM_AUTH_DEFAULT_ROLE", "").strip().lower() in ("viewer", "operator", "admin") else ""),
+        base_path=_base_path(os.environ.get("LANLOOM_BASE_PATH", "")),
     )

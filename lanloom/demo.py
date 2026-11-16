@@ -330,6 +330,41 @@ class Demo:
                 {"id": "demo:broker", "name": "Message broker", "days": 23},
                 {"id": "demo:storage", "name": "Storage", "days": 240}]
 
+    def seed_access(self, app, now: float = None) -> None:
+        """Sample users, an open invitation and a few audit entries, so the access views have something to show.
+        The sample accounts cannot sign in (no usable password)."""
+        if app.store.one("SELECT 1 AS x FROM users WHERE source='sample'") or app.store.one("SELECT 1 AS x FROM audit LIMIT 1"):
+            return
+        from . import totp as _totp
+        now = time.time() if now is None else now
+        day = 86400.0
+        guest = app.accounts.create("guest", None, role="viewer", source="sample")
+        shift = app.accounts.create("night-shift", None, role="operator", source="sample")
+        app.store.execute("UPDATE users SET created=?, last_login=? WHERE id=?", (now - 20 * day, now - 2 * day, guest))
+        app.store.execute("UPDATE users SET created=?, last_login=? WHERE id=?", (now - 41 * day, now - 5 * 3600, shift))
+        app.vault.put("totp:%d" % shift, _totp.new_secret())
+        app.factors.new_recovery(shift)
+        app.invites.create("invite", "viewer", "admin", note="Workshop tablet")
+        clock = app.audit.clock
+        rows = [
+            (41 * day, "users.joined", {"username": "night-shift", "role": "operator"}, "night-shift", "ok", {"role": "operator", "invited_by": "admin"}),
+            (40.9 * day, "account.totp_on", {"username": "night-shift", "role": "operator"}, "", "ok", {}),
+            (20 * day, "users.joined", {"username": "guest", "role": "viewer"}, "guest", "ok", {"role": "viewer", "invited_by": "admin"}),
+            (3 * day, "auth.login_failed", None, "", "failed", {"reason": "password"}),
+            (2 * day, "auth.login", {"username": "guest", "role": "viewer"}, "guest", "ok", {"method": "password", "public_computer": True}),
+            (1.2 * day, "settings.change", {"username": "night-shift", "role": "operator"}, "", "denied", {"need": "admin"}),
+            (5 * 3600, "auth.login", {"username": "night-shift", "role": "operator"}, "night-shift", "ok", {"method": "password+totp"}),
+            (4.8 * 3600, "device.change", {"username": "night-shift", "role": "operator"}, "d-sample", "ok", {"fields": ["title"]}),
+            (4.5 * 3600, "firewall.draft", {"username": "night-shift", "role": "operator"}, "", "ok", {"moves": 1}),
+        ]
+        try:
+            for ago, action, actor, target, outcome, detail in rows:
+                app.audit.clock = lambda ago=ago: now - ago
+                app.audit.record(action, actor, target=target, outcome=outcome, ip="192.0.2.%d" % (20 + len(action) % 9),
+                                 agent="Firefox · Linux", detail=detail)
+        finally:
+            app.audit.clock = clock
+
     def seed_reports(self, core, now: float = None) -> None:
         """Three mornings of nightly reports from a synthetic event journal (sample names, documentation addresses)."""
         rep = core.reports

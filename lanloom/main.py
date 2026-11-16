@@ -1,6 +1,8 @@
 """HTTP API, WebSocket live feed and static web app."""
 import argparse
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -12,8 +14,11 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.routing import APIRoute
+from starlette.routing import Match
 
-from . import __version__, auth, config as config_mod, mapmodel, textfmt
+from . import __version__, access, auth, config as config_mod, mapmodel, textfmt
+from .audit import AuditLog
 from .core import Core
 from .crypto import Vault, load_or_create_key
 from .store import Store
@@ -24,11 +29,8 @@ WEB = Path(__file__).resolve().parent / "web"
 I18N = Path(__file__).resolve().parent / "i18n"
 LANGS = tuple(textfmt.languages())
 STATE_CHANGING = ("POST", "PUT", "PATCH", "DELETE")
-PUBLIC_API = {"/api/health", "/api/state", "/api/login", "/api/setup/account", "/api/passkey/login/options",
-              "/api/passkey/login/verify",
-              # setup script on another computer: no session, it proves itself with the one-time pairing code
-              "/api/ai/pair/hello", "/api/ai/pair", "/api/ai/pair/status"}
-PUBLIC_PREFIX = ("/api/i18n/", "/api/ai/installer/")
+# routes reachable without a session (the full table with roles is access.RULES)
+PUBLIC_API = {p for (m, p), r in access.RULES.items() if r.role == "public" and p.startswith("/api/") and "{" not in p}
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; "
        "connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 
@@ -56,15 +58,23 @@ class App:
         if store is None:
             cfg.data_dir.mkdir(parents=True, exist_ok=True)
             store = Store(str(cfg.data_dir / "lanloom.db"))
-            vault = Vault(store, load_or_create_key(cfg.data_dir))
+            key = load_or_create_key(cfg.data_dir)
         else:
             from .crypto import KEY_BYTES
-            vault = Vault(store, os.urandom(KEY_BYTES))
+            key = os.urandom(KEY_BYTES)
+        vault = Vault(store, key)
         self.store = store
         self.vault = vault
+        sub = lambda label: hmac.new(key, label, hashlib.sha256).digest()     # separate keys per purpose
         self.accounts = auth.Accounts(store)
         self.sessions = auth.Sessions(store)
         self.passkeys = auth.Passkeys(store)
+        self.factors = auth.SecondFactor(store, vault, sub(b"lanloom-recovery-v1"))
+        self.tickets = auth.Tickets()
+        self.invites = auth.Invites(store)
+        self.notices = auth.Notices(store)
+        self.policy = auth.Policy(store)
+        self.audit = AuditLog(store, sub(b"lanloom-audit-v1"))
         self.limiter = auth.LoginLimiter()
         self.setup_code = auth.SetupCode(cfg.data_dir, store)
         self.core = Core(cfg, store, vault)
@@ -84,6 +94,7 @@ class App:
                 self.core.demo.seed(self.core)
                 self.core.demo.seed_integrations(self.core)
                 self.core.demo.seed_reports(self.core)
+                self.core.demo.seed_access(self)
                 store.set_setting("setup_done", True)
 
 
@@ -107,16 +118,28 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
 
     # ------------------------------------------------------------------ guards
     proxies = auth.parse_proxies(getattr(cfg, "trusted_proxies", ()))
+    proxy_auth = auth.ProxyAuth(cfg, proxies, state)
 
-    def peer_of(request: Request) -> str:
+    def peer_of(request) -> str:
         return request.client.host if request.client else "?"
 
-    def client_of(request: Request) -> str:
+    def client_of(request) -> str:
         """Rate-limit key of the client (forwarding headers only from LANLOOM_TRUSTED_PROXIES)."""
         return auth.limit_key(auth.client_address(peer_of(request), request.headers, proxies))
 
+    def requester_ip(request) -> str:
+        return auth.client_address(peer_of(request), request.headers, proxies)
+
+    def identify(conn) -> Optional[dict]:
+        """The signed-in user of a request or WebSocket: trusted auth proxy header first, then the session cookie."""
+        user = proxy_auth.user(peer_of(conn), conn.headers, agent=auth.agent_label(conn.headers.get("user-agent", "")),
+                               ip=requester_ip(conn))
+        if user is not None:
+            return user or None          # {} = the proxy named somebody Lanloom refuses
+        return state.sessions.resolve(conn.cookies.get(auth.SESSION_COOKIE))
+
     def current_user(request: Request) -> Optional[dict]:
-        return state.sessions.resolve(request.cookies.get(auth.SESSION_COOKIE))
+        return identify(request)
 
     def secure_cookie(request: Request) -> bool:
         if cfg.cookie_secure == "always":
@@ -127,9 +150,34 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             return True
         return auth.from_trusted_proxy(peer_of(request), proxies) and request.headers.get("x-forwarded-proto", "") == "https"
 
+    def match_route(scope) -> tuple:
+        """(route template, path params) of the route that will answer, or (None, {})."""
+        for route in app.router.routes:
+            if isinstance(route, APIRoute):
+                m, child = route.matches(scope)
+                if m == Match.FULL:
+                    return route.path, child.get("path_params", {})
+        return None, {}
+
+    def stepup_methods(user: dict) -> list:
+        if user.get("source") == "proxy":
+            return []
+        f = state.factors.summary(user["id"])
+        out = (["passkey"] if f["passkeys"] else []) + (["totp"] if f["totp"] else []) + (["recovery"] if f["recovery_left"] else [])
+        return out or ["password"]
+
+    def audit_from(request, user, action: str, outcome: str = "ok", target: str = "", detail=None, actor_name=None) -> None:
+        try:
+            state.audit.record(action, user, target=target, outcome=outcome, ip=requester_ip(request),
+                               agent=auth.agent_label(request.headers.get("user-agent", "")), detail=detail, actor_name=actor_name)
+        except Exception:        # the audit log must never break the request; a failure is visible in the log
+            log.exception("audit log write failed (%s)", action)
+
     @app.middleware("http")
     async def guard(request: Request, call_next):
         path = request.url.path
+        rule = None
+        user = None
         if cfg.probe and path.startswith("/api/") and path != "/api/health":
             # trial start of an update candidate: the updater only reads the health check
             return JSONResponse({"error": "app.err.probe"}, status_code=503)
@@ -139,15 +187,39 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                     return JSONResponse({"error": "auth.err.header"}, status_code=403)
                 if not auth.origin_allowed(request.headers.get("origin"), request.headers.get("host"), cfg.trusted_origins):
                     return JSONResponse({"error": "auth.err.origin"}, status_code=403)
-            if path.startswith("/api/executor/"):
+            template, params = match_route(request.scope)
+            rule = access.rule_for(request.method, template) if template else None
+            if rule is not None and rule.role == "executor":
                 if not state.firewall.token_ok(request.headers.get("authorization", "")):
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)   # token of the executor service, no session
-            elif path not in PUBLIC_API and not path.startswith(PUBLIC_PREFIX):
+            elif rule is None or rule.role != "public":
                 user = current_user(request)
                 if not user:
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)
+                if template is None:
+                    pass                                   # unknown /api/ path: answered with 404 below
+                elif user.get("stage") == "enroll" and not (rule and rule.enroll):
+                    return JSONResponse({"error": "auth.err.enroll"}, status_code=403)
+                else:
+                    need = rule.role if rule else "admin"   # a route missing from the table: administrators only
+                    if not access.allows(user.get("role"), need):
+                        if request.method in STATE_CHANGING:
+                            audit_from(request, user, rule.audit if rule and rule.audit not in (None, "@") else "access.denied",
+                                       "denied", target=template, detail={"need": need})
+                        return JSONResponse({"error": "auth.err.role", "need": need}, status_code=403)
+                    if rule and rule.stepup and not (user.get("source") == "proxy" or state.sessions.fresh(user)):
+                        return JSONResponse({"error": "auth.err.stepup", "methods": stepup_methods(user)}, status_code=403)
                 request.state.user = user
         response = await call_next(request)
+        if rule is not None and rule.audit and rule.audit != "@" and request.method in STATE_CHANGING:
+            info = getattr(request.state, "audit", None) or {}
+            if not info.get("skip"):
+                code = response.status_code
+                outcome = "ok" if code < 400 else ("denied" if code in (401, 403) else "failed")
+                target = info.get("target")
+                if target is None:
+                    target = ",".join("%s" % v for v in params.values()) if params else ""
+                audit_from(request, user, info.get("action") or rule.audit, outcome, target=target, detail=info.get("detail"))
         response.headers["Content-Security-Policy"] = CSP
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -166,13 +238,19 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             raise HTTPException(400, "request.err.json")
         return data
 
-    def set_session(response: Response, request: Request, user_id: int) -> None:
-        token = state.sessions.create(user_id)
-        response.set_cookie(auth.SESSION_COOKIE, token, max_age=auth.SESSION_DAYS * 86400, httponly=True,
-                            samesite="strict", secure=secure_cookie(request), path="/")
-
     def err(key: str, status: int = 400, **extra) -> JSONResponse:
         return JSONResponse(dict({"error": key}, **extra), status_code=status)
+
+    def note(request: Request, **info) -> None:
+        """Details for the audit entry the guard writes after the handler (never secrets: see audit.scrub)."""
+        current = getattr(request.state, "audit", None) or {}
+        current.update(info)
+        request.state.audit = current
+
+    def rp_of(request: Request) -> tuple:
+        host = (request.headers.get("host") or "").split(":")[0]
+        origin = request.headers.get("origin") or ("%s://%s" % (request.url.scheme, request.headers.get("host")))
+        return host, origin.rstrip("/")
 
     # ------------------------------------------------------------------ public
     @app.get("/api/health")
@@ -182,14 +260,22 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.get("/api/state")
     async def get_state(request: Request):
         user = current_user(request)
-        return {"version": __version__, "setup_needed": state.store.user_count() == 0, "authenticated": bool(user),
-                "user": user["username"] if user else None, "demo": cfg.demo,
-                "setup_done": bool(state.store.get_setting("setup_done", False)),
-                "language": state.store.get_setting("language", None),
-                "rate_unit": state.core.rate_unit() if state.core else "bytes",
-                "reports_unread": state.core.reports.unread() if user else 0,
-                "report_tz_auto": state.store.get_setting("report_tz_auto", "") if user else "",
-                "ai": state.ai.ready() if user else {}}
+        full = bool(user) and user.get("stage") != "enroll"
+        language = state.store.get_setting("language", None)
+        if user:
+            language = state.accounts.prefs(user["id"]).get("language") or language
+        out = {"version": __version__, "setup_needed": state.store.user_count() == 0, "authenticated": bool(user),
+               "user": user["username"] if user else None, "demo": cfg.demo,
+               "setup_done": bool(state.store.get_setting("setup_done", False)),
+               "language": language,
+               "rate_unit": state.core.rate_unit() if state.core else "bytes",
+               "reports_unread": state.core.reports.unread() if full else 0,
+               "report_tz_auto": state.store.get_setting("report_tz_auto", "") if full else "",
+               "ai": state.ai.ready() if full and access.allows(user.get("role"), "operator") else {},
+               "can": access.capabilities(user.get("role")) if user else {}, "enroll": bool(user) and not full,
+               "proxy": bool(user) and user.get("source") == "proxy",
+               "notices": len(state.notices.unseen(user["id"])) if full else 0}
+        return out
 
     @app.get("/api/i18n/{lang}")
     async def i18n(lang: str):
@@ -197,114 +283,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             raise HTTPException(404)
         return JSONResponse(load_i18n(lang), headers={"Cache-Control": "no-cache"})
 
-    @app.post("/api/setup/account")
-    async def setup_account(request: Request):
-        data = await body(request)
-        client = client_of(request)
-        wait = state.limiter.wait_seconds(client)
-        if wait:
-            return err("auth.err.rate", 429, wait=round(wait))
-        if state.store.user_count() > 0:
-            return err("setup.err.done", 409)
-        if not state.setup_code.check(str(data.get("code") or "")):
-            state.limiter.failure(client)
-            return err("setup.err.code", 403)
-        problem = auth.Accounts.validate(str(data.get("username") or ""), str(data.get("password") or ""))
-        if problem:
-            return err(problem)
-        if data.get("language") in LANGS:
-            state.store.set_setting("language", data["language"])
-        user_id = state.accounts.create(str(data["username"]), str(data["password"]))
-        state.setup_code.clear()
-        state.limiter.success(client)
-        response = JSONResponse({"ok": True})
-        set_session(response, request, user_id)
-        return response
-
-    @app.post("/api/login")
-    async def login(request: Request):
-        data = await body(request)
-        client = client_of(request)
-        wait = state.limiter.wait_seconds(client)
-        if wait:
-            return err("auth.err.rate", 429, wait=round(wait))
-        user = await asyncio.to_thread(state.accounts.verify, str(data.get("username") or ""), str(data.get("password") or ""))
-        if not user:
-            state.limiter.failure(client)
-            return err("auth.err.invalid", 401)
-        state.limiter.success(client)
-        response = JSONResponse({"ok": True})
-        set_session(response, request, user["id"])
-        return response
-
-    @app.post("/api/logout")
-    async def logout(request: Request):
-        state.sessions.destroy(request.cookies.get(auth.SESSION_COOKIE))
-        response = JSONResponse({"ok": True})
-        response.delete_cookie(auth.SESSION_COOKIE, path="/")
-        return response
-
-    def rp_of(request: Request) -> tuple:
-        host = (request.headers.get("host") or "").split(":")[0]
-        origin = request.headers.get("origin") or ("%s://%s" % (request.url.scheme, request.headers.get("host")))
-        return host, origin.rstrip("/")
-
-    @app.post("/api/passkey/login/options")
-    async def pk_login_options(request: Request):
-        rp_id, origin = rp_of(request)
-        return state.passkeys.login_options(rp_id, origin)
-
-    @app.post("/api/passkey/login/verify")
-    async def pk_login_verify(request: Request):
-        data = await body(request)
-        client = client_of(request)
-        wait = state.limiter.wait_seconds(client)
-        if wait:
-            return err("auth.err.rate", 429, wait=round(wait))
-        user_id = await asyncio.to_thread(state.passkeys.login_verify, str(data.get("ceremony") or ""), data.get("credential") or {})
-        if not user_id:
-            state.limiter.failure(client)
-            return err("auth.err.passkey", 401)
-        state.limiter.success(client)
-        response = JSONResponse({"ok": True})
-        set_session(response, request, user_id)
-        return response
-
-    # ------------------------------------------------------------------ account
-    @app.get("/api/passkeys")
-    async def pk_list(request: Request):
-        return {"passkeys": state.passkeys.list(request.state.user["id"])}
-
-    @app.post("/api/passkey/register/options")
-    async def pk_reg_options(request: Request):
-        rp_id, origin = rp_of(request)
-        user = state.accounts.get(request.state.user["id"])
-        return state.passkeys.registration_options(user, rp_id, origin)
-
-    @app.post("/api/passkey/register/verify")
-    async def pk_reg_verify(request: Request):
-        data = await body(request)
-        ok = await asyncio.to_thread(state.passkeys.registration_verify, request.state.user["id"],
-                                     str(data.get("ceremony") or ""), data.get("credential") or {}, str(data.get("name") or ""))
-        return {"ok": True} if ok else err("auth.err.passkey")
-
-    @app.delete("/api/passkeys/{key_id}")
-    async def pk_delete(key_id: int, request: Request):
-        return {"ok": state.passkeys.delete(request.state.user["id"], key_id)}
-
-    @app.post("/api/account/password")
-    async def change_password(request: Request):
-        data = await body(request)
-        user = state.accounts.get(request.state.user["id"])
-        if not await asyncio.to_thread(state.accounts.verify, user["username"], str(data.get("current") or "")):
-            return err("auth.err.invalid", 403)
-        problem = auth.Accounts.validate(user["username"], str(data.get("password") or ""))
-        if problem:
-            return err(problem)
-        state.accounts.set_password(user["id"], str(data["password"]))
-        response = JSONResponse({"ok": True})
-        set_session(response, request, user["id"])
-        return response
+    from . import web_access
+    web_access.register(app, web_access.Ctx(
+        state=state, cfg=cfg, body=body, err=err, note=note, client_of=client_of, requester_ip=requester_ip,
+        secure_cookie=secure_cookie, rp_of=rp_of, audit_from=audit_from, current_user=current_user, langs=LANGS))
 
     # ------------------------------------------------------------------ settings, networks, scans
     @app.get("/api/settings")
@@ -314,6 +296,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.put("/api/settings")
     async def put_settings(request: Request):
         data = await body(request)
+        note(request, detail={k: v for k, v in data.items() if isinstance(v, (bool, int, float, str, type(None), list))})
         try:
             result = state.core.update_settings(data)
         except ValueError as exc:
@@ -321,6 +304,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if data.get("setup_done") and cfg.demo and state.core.demo:
             state.core.demo.seed_integrations(state.core)
             state.core.demo.seed_reports(state.core)
+            state.core.demo.seed_access(state)
             state.core.structure_version += 1
         return result
 
@@ -347,6 +331,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def scan_start(request: Request):
         data = await body(request)
         cidrs = [str(c) for c in (data.get("cidrs") or []) if isinstance(c, str)][:8]
+        note(request, detail={"networks": cidrs, "deep": bool(data.get("deep"))})
         try:
             return state.core.start_scan(cidrs, deep=bool(data.get("deep")), consent=bool(data.get("consent")))
         except ValueError as exc:
@@ -364,6 +349,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.patch("/api/devices/{device_id}")
     async def patch_device(device_id: str, request: Request):
         data = await body(request)
+        note(request, detail={"fields": sorted(str(k) for k in data)[:12]})
         try:
             dev = state.core.patch_device(device_id, data)
         except ValueError as exc:
@@ -400,9 +386,17 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                     else dict(f, label="Sample controller (local API)", sample=True) for f in fams]
         return {"integrations": state.core.integrations(), "families": fams, "api_level": registry.INTEGRATION_API}
 
+    def integ_note(data: dict) -> dict:
+        """Kind, name and the names of changed fields; values of the secret fields never."""
+        cfg_in = data.get("config") if isinstance(data.get("config"), dict) else {}
+        sec_in = data.get("secrets") if isinstance(data.get("secrets"), dict) else {}
+        return {"kind": str(data.get("kind") or "")[:24], "name": str(data.get("name") or "")[:60],
+                "fields": sorted(str(k) for k in cfg_in)[:20], "hidden_fields": sorted(str(k) for k, v in sec_in.items() if v)[:20]}
+
     @app.post("/api/integrations/test")
     async def integration_test(request: Request):
         data = await body(request)
+        note(request, target=str(data.get("kind") or "")[:24], detail=integ_note(data))
         try:
             return await state.core.test_integration(str(data.get("kind") or ""), data.get("config") or {}, data.get("secrets") or {},
                                                      existing_id=data.get("id") if isinstance(data.get("id"), int) else None)
@@ -412,6 +406,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.post("/api/integrations")
     async def integration_save(request: Request):
         data = await body(request)
+        note(request, target=str(data.get("name") or data.get("kind") or "")[:60], detail=integ_note(data))
         try:
             return state.core.save_integration(str(data.get("kind") or ""), str(data.get("name") or ""), data.get("config") or {},
                                                data.get("secrets") or {},
@@ -443,6 +438,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         data = await body(request)
         patch = data.get("settings") if isinstance(data.get("settings"), dict) else {}
         secrets = data.get("secrets") if isinstance(data.get("secrets"), dict) else {}
+        note(request, detail={"fields": sorted(str(k) for k in patch)[:30], "hidden_fields": sorted(str(k) for k, v in secrets.items() if v)[:20]})
         try:
             return reports.update_settings(patch, secrets)
         except ValueError as exc:
@@ -495,6 +491,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.put("/api/ai")
     async def ai_put(request: Request):
         data = await body(request)
+        sets = data.get("settings") if isinstance(data.get("settings"), dict) else {}
+        secs = data.get("secrets") if isinstance(data.get("secrets"), dict) else {}
+        note(request, detail={"fields": sorted(str(k) for k in sets)[:30], "hidden_fields": sorted(str(k) for k, v in secs.items() if v)[:20]})
         try:
             return await asyncio.to_thread(ai.update_settings, data.get("settings") if isinstance(data.get("settings"), dict) else {},
                                            data.get("secrets") if isinstance(data.get("secrets"), dict) else {})
@@ -643,6 +642,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.post("/api/update/apply")
     async def update_apply(request: Request):
         data = await body(request)
+        note(request, target=str(data.get("version") or "")[:20])
         try:
             return state.updates.request(str(data.get("version") or ""))
         except ValueError as exc:
@@ -654,9 +654,6 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     def refused(exc: Refused, status: int = 409) -> JSONResponse:
         return JSONResponse({"error": exc.key, "vars": exc.vars}, status_code=status)
 
-    def requester_ip(request: Request) -> str:
-        return auth.client_address(peer_of(request), request.headers, proxies)
-
     @app.get("/api/firewall")
     async def fw_view(request: Request):
         src = str(request.query_params.get("source") or "")[:24] or None
@@ -666,6 +663,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def fw_draft(request: Request):
         data = await body(request)
         moves = data.get("moves") if isinstance(data.get("moves"), dict) else {}
+        note(request, detail={"moves": len(moves)})
         try:
             return state.firewall.set_draft(request.state.user, moves)
         except Refused as exc:
@@ -696,6 +694,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def fw_approve(request: Request):
         data = await body(request)
         rp_id, origin = rp_of(request)
+        note(request, target=str(data.get("plan") or "")[:40])
         try:
             return state.firewall.approve(request.state.user, str(data.get("plan") or ""), data.get("assertion"), rp_id, origin)
         except Refused as exc:
@@ -748,7 +747,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if not auth.origin_allowed(ws.headers.get("origin"), ws.headers.get("host"), cfg.trusted_origins):
             await ws.close(code=4403)
             return
-        if not state.sessions.resolve(ws.cookies.get(auth.SESSION_COOKIE)):
+        user = identify(ws)
+        if not user or user.get("stage") == "enroll" or not access.allows(user.get("role"), access.RULES[("WS", "/api/live")].role):
             await ws.close(code=4401)
             return
         await ws.accept()
@@ -780,7 +780,34 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         headers = {"Cache-Control": "no-cache"}
         return FileResponse(target, headers=headers)
 
+    base = getattr(cfg, "base_path", "") or ""
+    if base:
+        app.add_middleware(BasePath, base=base)
     return app
+
+
+class BasePath:
+    """Serve below LANLOOM_BASE_PATH (e.g. "/lanloom"): the prefix is removed before routing. Requests without the
+    prefix keep working, so a reverse proxy may strip it or pass it on. The web page derives every address (API,
+    WebSocket, worker) from its own location, so it needs no setting of its own."""
+
+    def __init__(self, app, base: str):
+        self.app = app
+        self.base = base
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            path = scope.get("path", "")
+            if path == self.base and scope["type"] == "http":
+                await send({"type": "http.response.start", "status": 308,
+                            "headers": [(b"location", (self.base + "/").encode("ascii")), (b"content-length", b"0")]})
+                await send({"type": "http.response.body", "body": b""})
+                return
+            if path.startswith(self.base + "/"):
+                scope = dict(scope, path=path[len(self.base):], root_path=scope.get("root_path", "") + self.base)
+                if "raw_path" in scope and scope["raw_path"]:
+                    scope["raw_path"] = scope["raw_path"][len(self.base):]
+        await self.app(scope, receive, send)
 
 
 # ---------------------------------------------------------------------- self-test and entry point
