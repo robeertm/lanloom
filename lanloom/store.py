@@ -212,6 +212,8 @@ class Store:
         if not self._db.execute("SELECT value FROM meta WHERE key='access'").fetchone():
             # accounts from before roles existed: the one account there was becomes an administrator
             self._db.execute("UPDATE users SET role='admin'")
+            # ... with the default time (48 h) to set up a second factor, so an update never locks anybody out at once
+            self._db.execute("UPDATE users SET mfa_due=? WHERE mfa_due IS NULL", (time.time() + 48 * 3600,))
             self._db.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('access', '1')")
         self._db.execute("UPDATE sessions SET sid=lower(hex(randomblob(12))) WHERE sid IS NULL")
         self._db.execute("CREATE UNIQUE INDEX IF NOT EXISTS sessions_sid ON sessions(sid)")

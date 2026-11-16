@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.12.1] – 2026-11-16
+
+### Fixed
+- After an update from an earlier version, the existing account went straight to the set-up page for a second factor instead of getting the 48 hours to set it up. Found by the update test before 1.12.0 was released; 1.12.1 contains everything from 1.12.0.
+
 ## [1.12.0] – 2026-11-16
 
 ### Added

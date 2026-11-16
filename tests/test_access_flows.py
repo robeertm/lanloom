@@ -171,6 +171,7 @@ def test_existing_account_becomes_admin_on_upgrade(tmp_path):
     con.close()
     store = Store(str(db))
     assert store.one("SELECT role, source, disabled FROM users WHERE username='owner'") == {"role": "admin", "source": "local", "disabled": 0}
+    assert store.one("SELECT mfa_due FROM users WHERE username='owner'")["mfa_due"] > time.time() + 47 * 3600   # grace, no lock-out
     assert store.one("SELECT sid FROM sessions")["sid"]
     store.close()
     again = Store(str(db))           # the migration runs once: a later viewer stays a viewer
@@ -274,6 +275,16 @@ def test_public_computer_gets_a_short_session_without_a_lasting_cookie(c):
     # idle for longer than the short idle time: gone
     c.st.store.execute("UPDATE sessions SET last_seen=? WHERE sid=?", (time.time() - auth.FOREIGN_IDLE_MIN * 60 - 5, mine["id"]))
     assert c.get("/api/devices").status_code == 401
+
+
+def test_account_without_a_deadline_gets_the_grace_period_not_the_set_up_page(c):
+    st = c.st
+    uid = st.accounts.by_name("admin")["id"]
+    st.store.execute("UPDATE users SET mfa_due=NULL WHERE id=?", (uid,))
+    r = login(c)
+    assert r.json()["ok"] is True and not r.json().get("enroll")
+    assert c.get("/api/devices").status_code == 200
+    assert st.accounts.get(uid)["mfa_due"] > time.time() + 47 * 3600
 
 
 def test_enrolment_after_the_grace_period(c):

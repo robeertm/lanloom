@@ -53,6 +53,10 @@ def register(app: FastAPI, c: Ctx) -> None:
         has = st.factors.has_any(user["id"])
         due = row.get("mfa_due")
         exempt = row.get("source") == "proxy"
+        if required and not has and not exempt and due is None and row:
+            # no deadline recorded (older data): the grace period starts now instead of locking the account at once
+            due = st.policy.due_from_now()
+            st.accounts.set_role(row["id"], row["role"], due)
         overdue = required and not has and not exempt and (due is None or due <= time.time())
         return {"required": required and not exempt, "ok": has or not required or exempt, "due": due, "overdue": overdue}
 
