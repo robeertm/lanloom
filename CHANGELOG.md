@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.11.1] – 2026-11-16
+
+### Fixed
+- Tests only, no behaviour change: the checks of the new language scanner no longer write helper files into the source folder (they failed in read-only test runners), and the list of texts that may equal their English original is keyed by pattern.
+
 ## [1.11.0] – 2026-11-16
 
 ### Added

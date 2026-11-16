@@ -88,7 +88,12 @@ def html_text(s):
 def scan_js(path):
     """[(line, literal, rule)] of visible literals in one JS file."""
     with open(path, encoding="utf-8") as f:
-        src = strip_builtin_strings(f.read())
+        return scan_source(f.read())
+
+
+def scan_source(src):
+    """The same for JS source text (the scanner's own tests plant literals without touching the source tree)."""
+    src = strip_builtin_strings(src)
     toks = tokenize(src)
     hits = []
 
@@ -239,13 +244,7 @@ const z = h('p', {}, cond ? 'Shown text' : t('other.key'));
 box.innerHTML = '<b>Bold text</b>';
 const f = `<span>Template text ${n}</span>`;
 """
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_planted_scan.tmp.js")
-    try:
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(planted)
-        got = {lit for _, lit, _ in scan_js(path)}
-    finally:
-        os.remove(path)
+    got = {lit for _, lit, _ in scan_source(planted)}
     for lit in ("Hello there", "Save changes", "Close", "Nothing here", "Open menu", "It did not work", "Shown text", "Bold text", "Template text"):
         assert lit in got, (lit, sorted(got))
     assert not ({"ok.key", "other.key", "error"} & got)
@@ -259,13 +258,7 @@ el.className = 'on';
 const c = ['alpha', 'beta'].includes(v) ? 1 : 2;
 const d = /Some Words/.test(s) ? 1 : 2;
 """
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_clean_scan.tmp.js")
-    try:
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(clean)
-        got = scan_js(path)
-    finally:
-        os.remove(path)
+    got = scan_source(clean)
     assert not got, got
 
 

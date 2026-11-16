@@ -18,10 +18,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 I18N = os.path.join(ROOT, "lanloom", "i18n")
 WEB = os.path.join(ROOT, "lanloom", "web")
 
-# Keys whose text is the same in German and English on purpose: key -> reason. A stale entry fails the test.
+# Keys whose text is the same in German and English on purpose: key pattern (regular expression) -> reason. A stale entry fails the test.
 SAME_AS_ENGLISH = {
-    "ai.status.public": "only a label and a model name around the word Cloud, which German uses as it is",
-    "integrations.family.proxmox": "a product name with its standard description",
+    r"ai\.status\.public": "only a label and a model name around the word Cloud, which German uses as it is",
+    r"integrations\.family\..+": "a product name with its standard description",
 }
 
 # Families of keys chosen at run time ('kind.' + x). A key counts as used when the code builds its prefix. Prefixes with two or more
@@ -120,9 +120,10 @@ def test_text_equal_to_english_is_listed():
         for k, v in both(lang).items():
             if v == en[k] and len(re.findall(r"[^\W\d_]{3,}", v)) >= 2:
                 same.add(k)       # two or more real words and identical: untranslated, or a name that needs a reason
-    unlisted = sorted(same - set(SAME_AS_ENGLISH))
-    assert not unlisted, "text equal to the English original (translate it or list it in SAME_AS_ENGLISH with a reason): %s" % unlisted[:20]
-    assert not set(SAME_AS_ENGLISH) - same, "stale entries in SAME_AS_ENGLISH: %s" % sorted(set(SAME_AS_ENGLISH) - same)
+    listed = {k for k in same if any(re.fullmatch(pat, k) for pat in SAME_AS_ENGLISH)}
+    assert not same - listed, "text equal to the English original (translate it or list its key pattern in SAME_AS_ENGLISH with a reason): %s" % sorted(same - listed)[:20]
+    stale = [pat for pat in SAME_AS_ENGLISH if not any(re.fullmatch(pat, k) for k in same)]
+    assert not stale, "stale entries in SAME_AS_ENGLISH: %s" % stale
 
 
 # ------------------------------------------------------------------ keys in use
