@@ -196,8 +196,8 @@ def test_name_evidence_needs_both_devices_current():
     assert identity.groups([a, b])["members"] == {}
     b["last_scan"] = 5
     assert [m["reasons"] for m in identity.groups([a, b])["members"].values()] == [["same_mdns"]]
-    c = dev("d-c", "02:00:00:00:00:03", hostnames=["android.local"], scan=5)
-    d = dev("d-d", "02:00:00:00:00:04", hostnames=["android.local"], scan=5)
+    c = dev("d-c", "02:00:00:00:00:03", hostnames=["device.local"], scan=5)
+    d = dev("d-d", "02:00:00:00:00:04", hostnames=["device.local"], scan=5)
     assert identity.groups([c, d])["members"] == {}                              # generic names never merge
 
 

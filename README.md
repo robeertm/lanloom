@@ -195,6 +195,7 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 <td><img src="docs/screenshots/phone-map-dark.png" width="200" alt="Phone map, dark"></td>
 <td><img src="docs/screenshots/phone-detail.png" width="200" alt="Phone component card"></td>
 <td><img src="docs/screenshots/phone-connection.png" width="200" alt="Phone: connection of a device"></td>
+<td><img src="docs/screenshots/phone-identity.png" width="200" alt="Phone: two addresses that may be one device"></td>
 <td><img src="docs/screenshots/phone-devices.png" width="200" alt="Phone device list"></td>
 <td><img src="docs/screenshots/phone-paths.png" width="200" alt="Phone: data paths"></td>
 <td><img src="docs/screenshots/phone-paths-full.png" width="200" alt="Phone: world map in full screen"></td>
@@ -237,13 +238,26 @@ The default **gentle scan** needs no privileges and sends very little:
 - It reads the host's kernel neighbour table and nudges addresses with a single UDP datagram to port 9, so the kernel resolves them. No raw sockets, no ICMP.
 - It browses mDNS/DNS-SD and sends an SSDP M-SEARCH. Device descriptions are fetched only from the responding private address, capped at 64 KiB, and XML with DOCTYPE or ENTITY declarations is refused.
 - It tries a TCP connect to 26 well-known service ports and reads the page title and `Server` header of web services (`GET /` only).
+- It reads the kernel's IPv6 neighbour cache (nothing is sent), sends one WS-Discovery probe, and asks each found device once for its NetBIOS name and, if it has no name yet, once by LLMNR.
+- Asking devices with the factory SNMP community is a separate switch and off by default.
 - Limits: about 40 new connections per second, 24 concurrent, 4 per host. A /24 takes roughly 10 to 60 seconds.
 
 The **deep scan** checks about 218 common ports with the same limits and only runs with your explicit consent. Lanloom never scans public ranges, never reaches into the internet, and never tries logins. Only private ranges up to a /22 (1024 addresses) are accepted.
 
 A presence check runs every 2 minutes (one TCP connect to a known open port, or a look at the neighbour table). A gentle rescan runs automatically every N hours (default 6).
 
-Devices are classified by deterministic rules (gateway or self role, DNS-SD types, UPnP device types, port combinations, neutral words in titles and host names). A score of 0.6 or more is "sure", 0.3 or more "probable", otherwise "unknown".
+Devices are classified by deterministic rules (gateway or self role, DNS-SD types, UPnP and WS-Discovery device types, port combinations, neutral words in titles and host names). A score of 0.6 or more is "sure", 0.3 or more "probable", otherwise "unknown".
+
+### Finding everything: maker, model, interfaces
+
+Every device card shows the maker (what the device says itself, otherwise the public IEEE address register that ships with the image and is never fetched at run time), model, firmware, IPv6 addresses and the origin of the hardware address. A private (random) address never gets a maker. Two addresses of one device (two network cards, cable and radio) are drawn as one component when the evidence is strong (same UPnP device id, same SNMP system name, same NetBIOS or mDNS name, neighbouring addresses on the same port); weaker cases are offered as a suggestion, and every grouping can be undone. The nightly report names the maker of new devices and does not report a second interface of a known device as new. Details: [docs/DISCOVERY.md](docs/DISCOVERY.md).
+
+<table>
+<tr>
+<td><img src="docs/screenshots/identity-light.png" width="380" alt="Device card with maker, model, firmware and a second interface, light"></td>
+<td><img src="docs/screenshots/identity-dark.png" width="380" alt="The same card, dark"></td>
+</tr>
+</table>
 
 ## Live data and integrations
 
@@ -292,6 +306,7 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, uninstall
 - [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path
+- [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
 - [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md): the nightly report, its sections, the archive, optional delivery, adding a section

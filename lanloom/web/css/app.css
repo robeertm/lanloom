@@ -357,3 +357,4 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .ident-row > div { min-width: 0; }
 .ident-acts { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 @media (max-width: 560px) { .ident-row { flex-direction: column; } .ident-acts { justify-content: flex-start; } }
+.ident-lead { font-size: var(--ll-fs-sm); margin: 0 0 4px; }

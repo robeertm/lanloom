@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] – 2026-11-16
+
+### Added
+- **Maker, model and firmware on every device card**: what the device says itself (UPnP description, mDNS TXT records, SNMP system description) wins over the address register; the source of each value is shown. See [docs/DISCOVERY.md](docs/DISCOVERY.md).
+- **Offline address register**: the public IEEE MA-L, MA-M and MA-S lists ship with the image as a compact, checksummed file (about 450 KB, 54,000 prefixes, longest prefix wins) and are renewed with each release. Nothing is downloaded at run time; a newer table can be dropped into the data directory. Private (random) addresses never get a maker.
+- **Address origin** per device: registered maker, private or random address, unregistered address, or only an IP address known.
+- **One device, several interfaces**: two addresses of one device (two network cards, cable and radio) are drawn as one component when the evidence is strong (same UPnP device id, same SNMP system name, same NetBIOS or mDNS name, neighbouring hardware addresses on the same port or first seen together). The card lists the interfaces with reasons and confidence; weaker cases are offered as suggestions (*Same device* / *Different devices*), and *Show separately* undoes a grouping. Changing it needs the operator role and is written to the audit log.
+- **More ways to find devices**, all gentle and without privileges: the kernel's IPv6 neighbour cache is read (nothing is sent) and IPv6 addresses are attached to their devices; one WS-Discovery probe; one NetBIOS name request per found device; one LLMNR reverse-name request for devices without a name. A new scan step *Names and identity*.
+- **Optional SNMP with the factory community** (off by default, in the wizard and in Settings › General › Network scan): reads only the system description, object id and name.
+- The classifier also weighs WS-Discovery types, NetBIOS names, SNMP answers, model words in TXT records and, weakly, neutral words in the maker's name.
+- Each device keeps its raw identification features (address prefix, UPnP id and model, SNMP object id and description, WS-Discovery types, NetBIOS name) for the inventory.
+- Nightly report: new devices name the registered maker of their address, or say that the address is private or in no register; a second interface of a known device is no longer reported as a new device.
+- Demo mode shows makers from a fictional register, a storage box with two interfaces, a grouping suggestion, IPv6 addresses, a NetBIOS name, WS-Discovery types and SNMP data.
 ## [1.12.1] – 2026-11-16
 
 ### Fixed

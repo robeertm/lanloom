@@ -265,7 +265,7 @@
     if (!items.length && !sugg.length) return null;
     return section(t('ident.title'), h('div', { class: 'stack-sm' },
       items.length ? h('ul', { class: 'plain-list ident-list' }, items) : null,
-      sugg.length ? h('div', {}, h('p', { class: 'muted' }, t('ident.suggest_lead')), h('ul', { class: 'plain-list ident-list' }, sugg)) : null));
+      sugg.length ? h('div', {}, h('p', { class: 'muted ident-lead' }, t('ident.suggest_lead')), h('ul', { class: 'plain-list ident-list' }, sugg)) : null));
   }
 
   // ------------------------------------------------------------------ physical connection (manual > controller > LLDP > address table)

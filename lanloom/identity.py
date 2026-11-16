@@ -36,7 +36,7 @@ TXT_MAKER = ("manufacturer", "usb_mfg", "mfg", "vendor", "mf")
 TXT_FIRMWARE = ("fw", "fwversion", "fw_version", "firmware", "swversion", "sw", "version", "ver", "vs")
 _VERSION_RX = re.compile(r"(?:\bv(?:er(?:sion)?)?\.?\s*|\bfirmware\s*|\brelease\s*)(\d+(?:\.\d+){1,3}[a-z0-9-]*)", re.I)
 _BARE_VERSION_RX = re.compile(r"\b(\d+\.\d+(?:\.\d+){0,2})\b")
-GENERIC_NAMES = {"localhost", "workgroup", "android", "iphone", "ipad", "unknown", "esp", "espressif", "device", "host",
+GENERIC_NAMES = {"localhost", "workgroup", "unknown", "esp", "device", "host", "phone", "tablet", "laptop", "desktop",
                  "default", "user", "admin", "router", "gateway", "printer", "camera", "tv"}
 SOURCES_RANK = {"upnp": 3, "mdns": 3, "snmp": 3, "wsd": 2, "oui": 1}
 

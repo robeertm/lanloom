@@ -61,7 +61,7 @@ def test_read_ndp_never_raises(monkeypatch):
 _MATCH = (b'<?xml version="1.0"?><s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"'
           b' xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"'
           b' xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery"'
-          b' xmlns:i="http://schemas.microsoft.com/windows/pnpx/2005/10"><s:Body><d:ProbeMatches><d:ProbeMatch>'
+          b' xmlns:i="http://example.org/pnpx/2005/10"><s:Body><d:ProbeMatches><d:ProbeMatch>'
           b'<a:EndpointReference><a:Address>urn:uuid:11111111-2222-3333-4444-555555555555</a:Address>'
           b'</a:EndpointReference><d:Types>i:NetworkVideoTransmitter wsdp:Device</d:Types>'
           b'<d:XAddrs>http://192.168.77.12:80/onvif/device_service ftp://x/y</d:XAddrs>'

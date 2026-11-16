@@ -54,4 +54,5 @@ Where a package offers a choice of licenses ("OR"), the choice is yours. Copyrig
 | Component | License |
 | --- | --- |
 | IP to Country Lite database by DB-IP (`lanloom/data/geo-country.bin.gz`, converted to a compact format by `scripts/build_geodb.py`). Attribution: [IP Geolocation by DB-IP](https://db-ip.com) | Creative Commons Attribution 4.0 International ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)). The attribution is also shown in the app (Data paths view). |
+| Hardware address register (`lanloom/data/oui.bin.gz`, converted to a compact format by `scripts/build_oui.py`) from the public MA-L, MA-M and MA-S listings of the [IEEE Registration Authority](https://standards-oui.ieee.org/). Organisation names are shortened (legal-form suffixes removed). | Public listing of the IEEE Registration Authority, redistributed as factual data |
 | World base map (`lanloom/web/js/worldmap.js`), simplified from Natural Earth admin-0 countries, 1:110m shapes and 1:50m label points, built with `scripts/build_worldmap.py` | Public domain (Natural Earth) |
