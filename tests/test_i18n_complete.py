@@ -199,6 +199,8 @@ def test_every_key_the_code_names_exists():
         "zone.create": "firewall step identifier (firewall/steps.py), not a text",
         "zone.update": "firewall step identifier (firewall/steps.py), not a text",
         "zone.delete": "firewall step identifier (firewall/steps.py), not a text",
+        "backup.lan": "host name of a sample device (demo.py)",
+        "backup.json": "file name of the updater's record of an update (updater/engine.py)",
     }
     # audit log action names ("auth.login", "users.invite" ...) are identifiers stored in the log; their labels are audit.action.<name>
     from lanloom import access

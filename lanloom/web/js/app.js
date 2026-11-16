@@ -41,7 +41,7 @@
         if (await LL.stepUp(data.methods || [])) return api(path, Object.assign({}, opts, { noStepUp: true }));
       }
       const err = new Error(data.error || data.detail || ('HTTP ' + r.status));
-      err.status = r.status; err.key = data.error || data.detail; err.wait = data.wait;
+      err.status = r.status; err.key = data.error || data.detail; err.wait = data.wait; err.vars = data.vars;
       if (r.status === 401 && !opts.allow401) LL.go('#/login');
       if (r.status === 403 && data.error === 'auth.err.enroll') LL.go('#/enroll');
       throw err;
@@ -64,7 +64,7 @@
   LL.errText = function (e) {
     if (!e) return t('error.generic');
     if (e.status === 429) return t('auth.err.rate', { s: e.wait || 60 });
-    if (e.key && LL.strings[e.key]) return t(e.key);
+    if (e.key && LL.strings[e.key]) return t(e.key, e.vars);
     if (e.name === 'NotAllowedError') return t('passkey.err.cancelled');
     return t('error.generic');
   };

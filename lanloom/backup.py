@@ -85,8 +85,8 @@ LOCAL_SETTINGS = frozenset({"fw_sim_state", "fw_jobs", "update_cache", "report_h
                             "report_last_version", "ai_pairing", "ai_usage", "backup_state"})
 # vault entries that are never exported (half-finished set-ups, the imported pepper travels separately)
 LOCAL_SECRET_PREFIXES = ("totp_pending:",)
-PEPPER_SECRET = "auth.recovery_pepper"
-KEK_SECRET = "backup.kek"
+PEPPER_SECRET = "auth:recovery_pepper"
+KEK_SECRET = "backup:kek"
 _NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,120}$")
 
 
