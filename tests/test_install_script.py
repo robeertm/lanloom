@@ -31,6 +31,14 @@ exit 0
 """
 
 
+def require_exec(path):
+    """Dry runs put stand-in programs on PATH. A temporary folder mounted without the right to execute (some
+    sandboxed test runners) would make the shell silently take the real programs instead, so the dry run is skipped
+    there; it runs on every normal machine and in CI."""
+    if not os.access(str(path), os.X_OK):
+        pytest.skip("the temporary folder does not allow executing files (noexec); stand-ins cannot run here")
+
+
 @pytest.fixture()
 def sandbox(tmp_path):
     bin_dir = tmp_path / "bin"
@@ -38,6 +46,7 @@ def sandbox(tmp_path):
     docker = bin_dir / "docker"
     docker.write_text(FAKE_DOCKER)
     docker.chmod(docker.stat().st_mode | stat.S_IXUSR)
+    require_exec(docker)
     log = tmp_path / "calls.log"
     log.write_text("")
     env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", FAKE_LOG=str(log), REPO=str(ROOT),

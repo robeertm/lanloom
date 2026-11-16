@@ -102,6 +102,14 @@ printf '%s' "$code"
 }
 
 
+def require_exec(path):
+    """Dry runs put stand-in programs on PATH. A temporary folder mounted without the right to execute (some
+    sandboxed test runners) would make the shell silently take the real programs instead, so the dry run is skipped
+    there; it runs on every normal machine and in CI."""
+    if not os.access(str(path), os.X_OK):
+        pytest.skip("the temporary folder does not allow executing files (noexec); stand-ins cannot run here")
+
+
 def _dry_run(ai, tmp_path, **env_extra):
     script, code = _render(ai, "linux", tmp_path)
     bindir = tmp_path / "bin"
@@ -110,6 +118,7 @@ def _dry_run(ai, tmp_path, **env_extra):
         f = bindir / name
         f.write_text(body)
         f.chmod(0o755)
+    require_exec(bindir / "curl")
     meminfo = tmp_path / "meminfo"
     meminfo.write_text("MemTotal:       16384000 kB\n")
     log = tmp_path / "log"

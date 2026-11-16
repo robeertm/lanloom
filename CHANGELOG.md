@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.10.1] – 2026-11-16
+
+### Fixed
+- Tests: the dry runs of the installer and of the AI setup script are skipped in sandboxed test runners whose temporary folder does not allow executing files (the stand-in programs could not run there, so the shell used the real ones). No change to the app; everything from 1.10.0 is included.
+
 ## [1.10.0] – 2026-11-16
 
 ### Added
