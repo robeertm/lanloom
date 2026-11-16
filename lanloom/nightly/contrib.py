@@ -59,6 +59,7 @@ class Ctx:
     update: dict = field(default_factory=dict)     # update state (current, latest, available)
     data_dir: object = None
     snapshot: dict = field(default_factory=dict)   # controller configuration seen now (filled by the controller section)
+    families: dict = field(default_factory=dict)   # family states seen now (filled by the family sections)
 
     def events(self, *kinds) -> list:
         return self.journal.between(self.since, self.until, kinds or None)
@@ -68,7 +69,7 @@ def item(iid: str, key: str, level: str = "info", point: bool = False, **vars_) 
     return {"id": iid, "key": key, "vars": vars_, "level": level, "point": bool(point)}
 
 
-def section(cid: str, title: str, summary_key: str, items: list, parts: Optional[list] = None, **vars_) -> dict:
+def section(cid: str, title: str, summary_key: str, items: list, parts: Optional[list] = None, name: str = "", **vars_) -> dict:
     order = {"danger": 0, "warn": 1, "info": 2, "ok": 3}
     items = sorted(items, key=lambda i: (0 if i["point"] else 1, order.get(i["level"], 2)))
     level = "ok"
@@ -80,7 +81,10 @@ def section(cid: str, title: str, summary_key: str, items: list, parts: Optional
     summary = {"key": summary_key, "vars": vars_}
     if parts:
         summary["parts"] = parts            # shown after the summary, joined with " · "
-    return {"id": cid, "title": title, "level": level, "summary": summary, "items": shown, "more": len(items) - len(shown)}
+    out = {"id": cid, "title": title, "level": level, "summary": summary, "items": shown, "more": len(items) - len(shown)}
+    if name:
+        out["name"] = name                  # the connection a section belongs to, shown next to the title
+    return out
 
 
 def _short(text, n=60) -> str:
@@ -322,6 +326,61 @@ def _controller(ctx: Ctx) -> dict:
                    n=len([i for i in items if i["point"]]))
 
 
+# ---------------------------------------------------------------------- sections of device families (integrations.night_sections)
+FAMILY_STATE_DROP = ("devices", "ports", "policies", "guest_rules", "guest_nics", "raw", "dhcp_reservations")
+FAMILY_LEVELS = {"alert": ("danger", True), "warn": ("warn", True), "info": ("info", False)}
+
+
+def _family_fns() -> dict:
+    from .. import integrations
+    try:
+        return dict(integrations.night_sections())
+    except Exception:
+        return {}
+
+
+def family_states(core, until: float) -> dict:
+    """What a family section needs from tonight's state next time (big lists left out), per connection."""
+    fns = _family_fns()
+    out = {}
+    for cfg in core.live_configs():
+        if cfg.get("family") in fns and isinstance(cfg.get("state"), dict):
+            st = {k: v for k, v in cfg["state"].items() if k not in FAMILY_STATE_DROP}
+            st["t"] = until
+            out[cfg["key"]] = {"family": cfg["family"], "state": st}
+    return out
+
+
+def _families_available(ctx: Ctx) -> bool:
+    fns = _family_fns()
+    return any(cfg.get("family") in fns for cfg in ctx.core.live_configs())
+
+
+def _families(ctx: Ctx) -> list:
+    fns = _family_fns()
+    before = (ctx.prev or {}).get("family_states") or {}
+    ctx.families = family_states(ctx.core, ctx.until)
+    out = []
+    for cfg in ctx.core.live_configs():
+        fn = fns.get(cfg.get("family"))
+        if not fn:
+            continue
+        prev = (before.get(cfg["key"]) or {}).get("state")
+        fam = fn(prev, cfg["state"], ctx.until, cfg.get("name"))
+        if not fam:
+            continue
+        items = []
+        for it in fam.get("items") or []:
+            level, point = FAMILY_LEVELS.get(it.get("level"), ("info", False))
+            params = {k: v for k, v in (it.get("params") or {}).items() if isinstance(v, (str, int, float))}
+            iid = "fam:%s:%s:%s" % (cfg["key"], it.get("key"), hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:10])
+            items.append(item(iid, it.get("key") or "", level, point, **params))
+        params = {k: v for k, v in (fam.get("params") or {}).items() if isinstance(v, (str, int, float))}
+        out.append(section("family:%s" % cfg["key"], fam.get("title") or "report.sec.controller", fam.get("summary") or "",
+                           items, name=_short(cfg.get("name") or ""), **params))
+    return out
+
+
 # ---------------------------------------------------------------------- certificates
 def _certs_available(ctx: Ctx) -> bool:
     return bool(ctx.certs)
@@ -390,6 +449,7 @@ for _c in (Contribution("internet", 10, "report.sec.internet", _internet_availab
            Contribution("logins", 35, "report.sec.logins", lambda ctx: bool(_integrations(ctx)), _logins),
            Contribution("paths", 40, "report.sec.paths", _paths_available, _paths),
            Contribution("controller", 50, "report.sec.controller", _controller_available, _controller),
+           Contribution("families", 55, "report.sec.controller", _families_available, _families),
            Contribution("certificates", 60, "report.sec.certificates", _certs_available, _certs),
            Contribution("lanloom", 90, "report.sec.lanloom", lambda ctx: True, _lanloom)):
     register(_c)

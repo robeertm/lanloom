@@ -732,7 +732,7 @@
  "report.paths.summary": "{amount} in {n} Länder in 24 h, {pct} % außerhalb der EU.",
  "report.sec.certificates": "Zertifikate",
  "report.sec.connections": "Verbindungen",
- "report.sec.controller": "Controller-Konfiguration",
+ "report.sec.controller": "Konfigurationsänderungen",
  "report.sec.devices": "Geräte",
  "report.sec.internet": "Internet",
  "report.sec.lanloom": "Lanloom",

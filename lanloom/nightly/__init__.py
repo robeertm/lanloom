@@ -253,7 +253,9 @@ class Reports:
             except Exception:
                 log.exception("nightly report: section %s failed", c.id)
                 sec = contrib.section(c.id, c.title, "report.section_failed", [])
-            if sec:
+            if isinstance(sec, list):           # a contribution may give one section per connection
+                sections.extend(x for x in sec if x)
+            elif sec:
                 sections.append(sec)
         points = sum(1 for s in sections for i in s["items"] if i["point"])
         level = "ok"
@@ -265,6 +267,8 @@ class Reports:
                "long": until - since > 30 * 3600, "version": __version__}
         if ctx.snapshot or (prev or {}).get("controller_snapshot"):
             out["controller_snapshot"] = ctx.snapshot or (prev or {}).get("controller_snapshot")
+        if ctx.families or (prev or {}).get("family_states"):
+            out["family_states"] = ctx.families or (prev or {}).get("family_states")
         return out
 
     def _update(self) -> dict:
@@ -333,6 +337,7 @@ class Reports:
             return None
         data = json.loads(row["data"])
         data.pop("controller_snapshot", None)
+        data.pop("family_states", None)
         marks = self._marks(day)
         for s in data["sections"]:
             for i in s["items"]:
@@ -372,6 +377,7 @@ class Reports:
         since = prev["until"] if prev else max(now - 86400, min(self.epoch(), now - 3600))
         rep = await self.build(since, now, prev, datetime.fromtimestamp(now, self.tz()).date().isoformat(), preview=True)
         rep.pop("controller_snapshot", None)
+        rep.pop("family_states", None)
         for s in rep["sections"]:
             for i in s["items"]:
                 if i["point"]:

@@ -732,7 +732,7 @@
  "report.paths.summary": "{amount} to {n} countries in 24 h, {pct} % outside the EU.",
  "report.sec.certificates": "Certificates",
  "report.sec.connections": "Connections",
- "report.sec.controller": "Controller configuration",
+ "report.sec.controller": "Configuration changes",
  "report.sec.devices": "Devices",
  "report.sec.internet": "Internet",
  "report.sec.lanloom": "Lanloom",

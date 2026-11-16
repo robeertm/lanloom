@@ -18,6 +18,7 @@
     paths: '<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8 16.5C11 15 9.5 9 16 7.5"/>',
     controller: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/>',
     certificates: '<path d="M12 3l7 3v5c0 4.4-3 8.3-7 10-4-1.7-7-5.6-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+    family: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/>',
     lanloom: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h4.5v7.5"/>',
     other: '<circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16h.01"/>'
   };
@@ -196,11 +197,12 @@
 
   function sectionEl(s, rep, page) {
     const icon = h('span', { class: 'rp-sec__icon', 'aria-hidden': 'true' });
-    icon.innerHTML = svg(ICONS[s.id] || ICONS.other, 18);
+    icon.innerHTML = svg(ICONS[s.id] || (s.id.indexOf('family:') === 0 ? ICONS.family : ICONS.other), 18);
     const items = s.items.map(i => i.point ? pointEl(i, rep, page) : h('li', { class: 'rp-item rp-item--note', dataset: { level: i.level } },
       h('span', { class: 'rp-item__dot', 'aria-hidden': 'true' }), h('span', { class: 'rp-item__text' }, line(i, rep))));
     return h('section', { class: 'rp-sec', dataset: { level: s.level, section: s.id } },
-      h('div', { class: 'rp-sec__head' }, icon, h('h3', { class: 'rp-sec__title' }, t(s.title)), h('span', { class: 'rp-sec__sum' }, line(s.summary, rep))),
+      h('div', { class: 'rp-sec__head' }, icon, h('h3', { class: 'rp-sec__title' }, t(s.title), s.name ? h('span', { class: 'rp-sec__name' }, ' · ' + s.name) : null),
+        h('span', { class: 'rp-sec__sum' }, line(s.summary, rep))),
       items.length ? h('ul', { class: 'rp-items' }, items) : null,
       s.more ? h('p', { class: 'rp-more muted' }, t('reports.more', { n: s.more })) : null);
   }

@@ -398,17 +398,30 @@ class Demo:
                                     "cidr": "192.168.77.0/24", "vlan": 77, "management": False})
         if changed.get("equipment"):
             changed["equipment"][0]["firmware"] = "4.2.2"
+        hv = _demo_family("guests")
+        hv_states = []
+        if hv and hv in ids:                   # the hypervisor: one guest that ran yesterday is stopped this morning
+            from .demo_live import hypervisor_capabilities, hypervisor_sample
+            _, hv_now = hypervisor_sample(now, hv)
+            hv_before = json.loads(json.dumps(hv_now))
+            stopped = [g for g in hv_now.get("guests") or [] if g.get("status") == "stopped" and not g.get("template")]
+            if stopped:
+                next(g for g in hv_before["guests"] if g["id"] == stopped[0]["id"])["status"] = "running"
+            hv_states = [hv_before, hv_before, hv_now]
         prev = None
         for i, day in enumerate(days):
             if fam and fam in ids:
                 core.live_cfg[ids[fam]] = {"state": sample if i < 2 else changed, "caps": live_capabilities(fam), "family": fam,
                                            "t": time.time()}
+            if hv_states:
+                core.live_cfg[ids[hv]] = {"state": hv_states[i], "caps": hypervisor_capabilities(hv), "family": hv, "t": time.time()}
             since = prev["until"] if prev else planned[0] - 86400
             report = rep.assemble(since, planned[i] + 2, prev, day.isoformat(), self.report_certs())
             report["created"] = planned[i] + 2
             rep.save(report)
             prev = report
         core.live_cfg.pop(ids.get(fam), None)
+        core.live_cfg.pop(ids.get(hv), None)
         for day in days[:2]:
             core.store.execute("UPDATE reports SET read=? WHERE day=?", (now, day.isoformat()))
         first = rep.get(days[0].isoformat())

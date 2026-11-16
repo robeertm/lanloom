@@ -656,3 +656,32 @@ def test_reports_api(tmp_path, monkeypatch):
         assert ok["time"] == "07:15" and ok["keep_days"] == 90
         t = cl.post("/api/reports/test", json={"channel": "ntfy"}, headers=hdr).json()
         assert t == {"ok": False, "key": "report.err.channel_incomplete"}
+
+
+def test_device_family_sections_from_the_integration_register(tmp_path, monkeypatch):
+    from lanloom import integrations
+    clock = Clock(at(2026, 11, 16, 6, 30))
+    c, rep = make(tmp_path, clock)
+    iid = add_integration(c, "fam-x", "Sample hypervisor")
+    seen = []
+
+    def night(prev, state, now, name):
+        seen.append((prev, now, name))
+        items = [{"level": "alert", "key": "night.hv.node_offline", "params": {"host": "node-1"}},
+                 {"level": "info", "key": "night.hv.backup_ok", "params": {"n": 2}}]
+        return {"family": "fam-x", "title": "night.hv.title", "summary": "night.hv.summary_look", "params": {"n": 1}, "items": items}
+
+    monkeypatch.setattr(integrations, "night_sections", lambda: [("fam-x", night)])
+    c.live_cfg[iid] = {"state": {"hosts": [{"name": "node-1", "online": False}], "guests": [], "ports": [1] * 50}, "caps": {},
+                       "family": "fam-x", "t": clock.t}
+    first = rep.assemble(at(2026, 11, 15, 6, 30), clock.t, None, "2026-11-16", [])
+    sec = section(first, "family:int:%d" % iid)
+    assert sec["name"] == "Sample hypervisor" and sec["level"] == "danger"
+    assert [(i["key"], i["point"]) for i in sec["items"]] == [("night.hv.node_offline", True), ("night.hv.backup_ok", False)]
+    assert seen[0] == (None, clock.t, "Sample hypervisor")
+    stored = first["family_states"]["int:%d" % iid]["state"]
+    assert "ports" not in stored and stored["t"] == clock.t             # big lists stay out of the archive
+    rep.assemble(clock.t, clock.t + 86400, first, "2026-11-17", [])
+    assert seen[1][0]["hosts"][0]["name"] == "node-1"                   # the next report gets last night's state
+    c.live_cfg.clear()
+    assert section(rep.assemble(0, clock.t, first, "2026-11-17", []), "family:int:%d" % iid) is None   # no source, no section
