@@ -571,6 +571,8 @@ class Hub:
         try:
             result = await self._request(conn, "automation/config" if dom == "automation" else "script/config", entity_id=eid)
         except SourceError as exc:
+            if exc.key == "source.hub.closed":
+                raise                         # the connection ended: not the item's fault, the session reconnects
             if exc.key != "source.hub.unknown_command":
                 self._blocks.fail("c:" + eid, wall, exc.key, timeout=exc.key == "source.hub.timeout")
             self._due_config[eid] = wall + self._fresh(CONFIG_FRESH_S, CONFIG_PER_MIN)
@@ -595,6 +597,8 @@ class Hub:
         try:
             result = await self._request(conn, "search/related", item_type=privacy.domain_of(eid), item_id=eid)
         except SourceError as exc:
+            if exc.key == "source.hub.closed":
+                raise                         # the connection ended: not the item's fault, the session reconnects
             if exc.key != "source.hub.unknown_command":
                 self._blocks.fail("r:" + eid, wall, exc.key, fp=fp, timeout=exc.key == "source.hub.timeout")
             self._due_related[eid] = wall + self._fresh(RELATED_FRESH_S, RELATED_PER_MIN)
@@ -664,6 +668,8 @@ class Hub:
             try:
                 frame = await self._read_traces(conn, eid)
             except SourceError as exc:
+                if exc.key == "source.hub.closed":
+                    raise
                 frame = {"type": "hub_traces", "source": SOURCE, "t": now(), "entity_id": eid, "runs": [], "steps": [],
                          "error": exc.key}
             if frame:

@@ -232,7 +232,7 @@ def test_tracker_link_keeps_only_mac_and_ip_normalised():
 
 
 def test_device_macs_normalises_and_ignores_other_connections():
-    conns = [["mac", "AA-BB-CC-DD-EE-01"], ["mac", "aa:bb:cc:dd:ee:01"], ["zigbee", "00:11:22:33:44:55"], ["mac", "bogus"],
+    conns = [["mac", "AA-BB-CC-DD-EE-01"], ["mac", "aa:bb:cc:dd:ee:01"], ["radio", "00:11:22:33:44:55"], ["mac", "bogus"],
              ["mac"], "junk", ["mac", 5], ("mac", "aa:bb:cc:dd:ee:02")]
     assert hp.device_macs(conns) == ["aa:bb:cc:dd:ee:01", "aa:bb:cc:dd:ee:02"]
     assert hp.device_macs(None) == [] and hp.device_macs("aa:bb:cc:dd:ee:01") == []

@@ -75,7 +75,7 @@ class AdminHub(FakeHub):
             return await ok(STATES)
         if t == "config/device_registry/list":
             return await ok([{"id": "d1", "name": "Hall lamp", "area_id": "hall", "config_entries": ["e1"], "sw_version": "1.2",
-                              "connections": [["mac", "AA:BB:CC:00:11:33"], ["zigbee", "0x00124b"]]}])
+                              "connections": [["mac", "AA:BB:CC:00:11:33"], ["radio", "0x00124b"]]}])
         if t == "config/entity_registry/list":
             return await ok([{"entity_id": "light.hall", "device_id": "d1"}, {"entity_id": "person.alice", "device_id": None}])
         if t == "config/area_registry/list":
@@ -430,3 +430,20 @@ def test_load_event_flood_stays_bounded_and_fast():
         out.append(len(hub.take_states()))
     assert max(out) <= m.STATE_RATE
     assert cpu / (n * 1.33) < 2e-4, cpu                        # well under 0.2 ms per event even on a small host
+
+
+def test_a_closed_connection_never_blocks_an_item():
+    hub = m.Hub("http://127.0.0.1:1", TOKEN, admin_mode=True)
+    hub._store_states([{"entity_id": "automation.x", "state": "on", "attributes": {"id": "1"}}])
+
+    async def closed(conn, type_, **fields):
+        raise m.SourceError("source.hub.closed", "connection closed")
+    hub._request = closed
+
+    async def go():
+        with pytest.raises(m.SourceError):
+            await hub._read_config(None, "automation.x", 1_800_000_000.0)
+        with pytest.raises(m.SourceError):
+            await hub._lookup_related(None, "automation.x", 1_800_000_000.0)
+    run(go())
+    assert hub._blocks.items == {}
