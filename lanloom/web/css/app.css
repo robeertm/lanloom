@@ -403,10 +403,10 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .hub-sub { margin-top: 12px; }
 .hub-privacy li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .hub-table td .chip { vertical-align: middle; }
-.hub-table tr.is-warn td { background: color-mix(in srgb, var(--ll-warn, #c98a00) 10%, transparent); }
+.hub-table tr.is-warn td { background: var(--ll-warn-soft); }
 .link-btn { background: none; border: 0; padding: 0; color: var(--ll-accent); font: inherit; cursor: pointer; text-align: left; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .link-btn:hover, .link-btn:focus-visible { text-decoration: underline; }
-.hub-runs-holder:not(:empty) { margin-top: 10px; padding: 10px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm, 8px); }
+.hub-runs-holder:not(:empty) { margin-top: 10px; padding: 10px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); }
 .hub-runs__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .hub-steps { margin: 6px 0 0; overflow-wrap: anywhere; }

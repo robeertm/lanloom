@@ -99,10 +99,12 @@ def test_mqtt_cannot_publish():
 
 def test_hub_allow_list_is_read_only():
     from lanloom.sources import hub
-    assert hub.ALLOWED_EVENTS == frozenset({"state_changed"})
+    assert hub.ALLOWED_EVENTS == frozenset({"state_changed", "automation_triggered", "script_started"})
     for t in hub.ALLOWED_TYPES:
         assert t in ("auth", "get_states", "get_config", "config/device_registry/list", "config/entity_registry/list",
-                     "config/area_registry/list", "subscribe_events"), t
+                     "config/area_registry/list", "config_entries/get", "subscribe_events", "automation/config",
+                     "script/config", "trace/list", "trace/get", "search/related"), t
+    assert hub.ADMIN_TYPES == {"automation/config", "script/config", "trace/list", "trace/get", "search/related"}
 
 
 def test_no_subprocess_or_shell_in_product():

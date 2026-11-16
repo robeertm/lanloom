@@ -82,7 +82,7 @@ def related_ids(result) -> list:
 
 
 def script_calls(refs_by_script: dict) -> dict:
-    """{script.x: {script.y, …}} from the action references of every script."""
+    """{script.x: {script.y, ...}} from the action references of every script."""
     graph = {}
     for eid, refs in refs_by_script.items():
         graph[eid] = {e for e in (refs or {}).get("action", ()) if e.startswith("script.")}
@@ -137,7 +137,7 @@ def fingerprint(obj) -> str:
 
 
 def jitter(seconds: float, rng=random) -> float:
-    """Spread renewals (x0.75 … x1.25) so that not every item falls due in the same round."""
+    """Spread renewals (x0.75 ... x1.25) so that not every item falls due in the same round."""
     return seconds * (0.75 + 0.5 * rng.random())
 
 
