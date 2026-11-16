@@ -31,7 +31,8 @@ def _host_of(url_or_host: str) -> str:
 
 
 def _visible_devices(core) -> list:
-    return [d for d in core.devices() if not d["hidden"]]
+    # a second interface of a device is drawn as part of that device (its card lists the interface)
+    return [d for d in core.devices() if not d["hidden"] and not d.get("merged_into")]
 
 
 def _special_components(core, devices: list) -> dict:

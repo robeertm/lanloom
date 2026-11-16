@@ -98,6 +98,7 @@ RULES = {
     ("GET", "/api/devices"): R(V),
     ("PATCH", "/api/devices/{device_id}"): R(O, "device.change"),
     ("DELETE", "/api/devices/{device_id}"): R(O, "device.forget"),
+    ("POST", "/api/devices/{device_id}/identity"): R(O, "device.identity"),
     ("GET", "/api/topology"): R(V),
     ("GET", "/api/map"): R(V),
     ("GET", "/api/component/{comp_id:path}"): R(V),

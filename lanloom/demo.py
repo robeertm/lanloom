@@ -32,7 +32,9 @@ HOSTS = [
      "ssdp": [{"st": "urn:schemas-upnp-org:device:InternetGatewayDevice:1", "friendly_name": "Router", "model": "Home gateway",
                "manufacturer": "Example Networks", "device_type": "urn:schemas-upnp-org:device:InternetGatewayDevice:1", "server": None}]},
     {"ip": "192.168.50.2", "n": 2, "names": ["core-switch.lan"],
-     "ports": [_port(80, "http", "Switch management"), _port(443, "https", "Switch management")]},
+     "ports": [_port(80, "http", "Switch management"), _port(443, "https", "Switch management")],
+     "snmp": {"descr": "Managed switch SW-8, firmware 2.4.1", "object_id": "1.3.6.1.4.1.32473.1.8", "name": "core-switch",
+              "enterprise": 32473}},
     {"ip": "192.168.50.3", "n": 3, "names": ["ap-upstairs.lan"],
      "ports": [_port(443, "https", "Access point")],
      "ssdp": [{"st": "urn:schemas-upnp-org:device:WLANAccessPointDevice:1", "friendly_name": "Access point upstairs",  # identifier: UPnP device type
@@ -44,7 +46,15 @@ HOSTS = [
     {"ip": "192.168.50.10", "n": 10, "names": ["storage.local"],
      "ports": [_port(22, "ssh"), _port(80, "http"), _port(443, "https"), _port(445, "smb"), _port(5000, "web-alt", "Storage"),
                _port(5001, "web-alt-tls", "Storage")],
-     "mdns": [{"type": "_smb._tcp", "name": "Storage", "port": 445, "txt": {}}, {"type": "_nfs._tcp", "name": "Storage", "port": 2049, "txt": {}}]},
+     "mdns": [{"type": "_smb._tcp", "name": "Storage", "port": 445, "txt": {}}, {"type": "_nfs._tcp", "name": "Storage", "port": 2049, "txt": {}},
+              {"type": "_device-info._tcp", "name": "Storage", "port": 0, "txt": {"model": "ST-4 Bay", "fw": "7.2.1"}}],
+     "ssdp": [{"st": "upnp:rootdevice", "friendly_name": "Storage", "model": "ST-4 Bay", "manufacturer": None,
+               "device_type": "urn:schemas-upnp-org:device:Basic:1", "server": None, "udn": "4c4c0000-0000-4000-8000-00000000000a"}],
+     "ipv6": ["fd4c:4c00:50::10", "fe80::4c:4cff:fe00:a"]},
+    {"ip": "192.168.50.16", "n": 16, "names": ["storage.local"], "second_nic": True,
+     "ports": [_port(445, "smb"), _port(5001, "web-alt-tls", "Storage")],
+     "ssdp": [{"st": "upnp:rootdevice", "friendly_name": "Storage", "model": "ST-4 Bay", "manufacturer": None,
+               "device_type": "urn:schemas-upnp-org:device:Basic:1", "server": None, "udn": "4c4c0000-0000-4000-8000-00000000000a"}]},
     {"ip": "192.168.50.11", "n": 11, "self": True, "names": ["homeserver.lan"],
      "ports": [_port(22, "ssh"), _port(80, "http"), _port(443, "https"), _port(8080, "http-alt")]},
     {"ip": "192.168.50.12", "n": 12, "names": ["backup.lan"],
@@ -59,9 +69,12 @@ HOSTS = [
      "ports": [_port(22, "ssh"), _port(443, "https", "Virtualization host")], "title": "Virtualization host"},
     {"ip": "192.168.50.20", "n": 20, "names": ["office-laptop.lan"],
      "ports": [_port(22, "ssh")],
-     "mdns": [{"type": "_workstation._tcp", "name": "Office laptop", "port": 9, "txt": {}}]},
+     "mdns": [{"type": "_workstation._tcp", "name": "Office laptop", "port": 9, "txt": {}}],
+     "ipv6": ["fd4c:4c00:50::20", "fe80::4c:4cff:fe00:14"]},
     {"ip": "192.168.50.21", "n": 21, "names": ["studio-desktop.lan"],
-     "ports": [_port(139, "netbios"), _port(445, "smb"), _port(3389, "remote-desktop")], "title": "Studio desktop"},
+     "ports": [_port(139, "netbios"), _port(445, "smb"), _port(3389, "remote-desktop")], "title": "Studio desktop",
+     "netbios": {"computer": "STUDIO-PC", "workgroup": "HOME"},
+     "wsd": [{"types": ["wsdp:Device", "pub:Computer"], "xaddrs": [], "endpoint": None}]},
     {"ip": "192.168.50.22", "n": 22, "names": ["phone-1.lan"],
      "mdns": [{"type": "_companion-link._tcp", "name": "Phone 1", "port": 49152, "txt": {}}], "ports": []},  # identifier: demo DNS-SD type
     {"ip": "192.168.50.23", "n": 23, "names": ["tablet.lan"],
@@ -79,9 +92,11 @@ HOSTS = [
                "manufacturer": "Example Corp", "device_type": "urn:schemas-upnp-org:device:MediaRenderer:1", "server": None}], "ports": []},
     {"ip": "192.168.50.40", "n": 40, "names": ["office-printer.lan"],
      "ports": [_port(80, "http", "Printer status"), _port(631, "ipp"), _port(9100, "printer-raw")],
-     "mdns": [{"type": "_ipp._tcp", "name": "Office printer", "port": 631, "txt": {}}]},
+     "mdns": [{"type": "_ipp._tcp", "name": "Office printer", "port": 631, "txt": {"ty": "Office Laser P-200", "usb_MFG": "Example Imaging"}}],
+     "wsd": [{"types": ["wsdp:Device", "wprt:PrintDeviceType"], "xaddrs": [], "endpoint": None}]},
     {"ip": "192.168.50.50", "n": 50, "names": ["front-door-cam.lan"],
-     "ports": [_port(80, "http", "Camera"), _port(554, "rtsp")], "title": "Front door camera"},
+     "ports": [_port(80, "http", "Camera"), _port(554, "rtsp")], "title": "Front door camera",
+     "wsd": [{"types": ["dn:NetworkVideoTransmitter"], "xaddrs": [], "endpoint": None}]},
     {"ip": "192.168.50.51", "n": 51, "names": ["garage-cam.lan"],
      "ports": [_port(80, "http", "Camera"), _port(554, "rtsp")], "title": "Garage camera"},
     {"ip": "192.168.50.60", "n": 60, "names": ["plug-washer.lan"], "ports": [_port(80, "http", "Smart plug")], "title": "Washer plug"},
@@ -90,7 +105,9 @@ HOSTS = [
     {"ip": "192.168.50.63", "n": 63, "names": ["light-strip.lan"], "ports": [_port(80, "http", "Light strip")], "title": "Desk light strip"},
     {"ip": "192.168.50.64", "n": 64, "names": ["air-quality.lan"], "ports": [_port(80, "http", "Air quality sensor")], "title": "Air quality sensor"},
     {"ip": "192.168.50.65", "n": 65, "names": ["vacuum.lan"], "ports": [_port(80, "http", "Robot vacuum")], "title": "Robot vacuum"},
-    {"ip": "192.168.50.66", "n": 66, "names": ["inverter.lan"], "ports": [_port(80, "http", "Solar inverter sensor")], "title": "Solar inverter"},
+    {"ip": "192.168.50.66", "n": 66, "names": ["inverter.lan"], "ports": [_port(80, "http", "Solar inverter sensor")], "title": "Solar inverter",
+     "mac": "4c:4c:00:00:00:42"},
+    {"ip": "192.168.50.67", "n": 67, "names": [], "ports": [_port(80, "http", "Inverter service")], "mac": "4c:4c:00:00:00:43"},
     {"ip": "192.168.50.99", "n": 99, "names": [], "ports": [_port(49152, "upnp")]},
 ]
 
@@ -105,7 +122,7 @@ SWITCH, AP_1, AP_2, GATEWAY = 2, 3, 4, 1
 WIRED = {AP_1: "2", 10: "3", 11: "4", 12: "5", 15: "6", 13: "6", 14: "6", 21: "7", 30: "8", 40: "10"}
 RADIO = {20: (AP_1, "5ghz"), 22: (AP_1, "5ghz"), 31: (AP_1, "5ghz"), 32: (AP_1, "5ghz"), 60: (AP_1, "2.4ghz"),
          61: (AP_1, "2.4ghz"), 62: (AP_1, "2.4ghz"), 63: (AP_1, "2.4ghz"), 23: (AP_2, "5ghz"), 50: (AP_2, "2.4ghz"),
-         51: (AP_2, "2.4ghz"), 64: (AP_2, "2.4ghz"), 65: (AP_2, "2.4ghz"), 66: (AP_2, "2.4ghz")}
+         51: (AP_2, "2.4ghz"), 64: (AP_2, "2.4ghz"), 65: (AP_2, "2.4ghz"), 66: (AP_2, "2.4ghz"), 67: (AP_2, "2.4ghz")}
 MANUAL = {40: (SWITCH, "9")}          # the printer was re-plugged: the manual entry wins over the controller's older view
 SSID = "Home"
 
@@ -115,7 +132,25 @@ def _host(n: int) -> dict:
 
 
 def _hmac(n: int) -> str:
-    return _vmac(n) if _host(n).get("vm") else _mac(n)
+    h = _host(n)
+    return h.get("mac") or (_vmac(n) if h.get("vm") else _mac(n))
+
+
+# Fictional address register of the demo (screenshots never show real organisation names): host number -> maker.
+# Phones (22, 23) and the virtual machines (13, 14) use private addresses; host 99 is in no register.
+MAKERS = {1: "Example Networks", 2: "Example Networks", 3: "Example Networks", 4: "Example Networks", 10: "Example Storage",
+          16: "Example Storage", 11: "Example Systems", 12: "Example Systems", 15: "Example Systems", 20: "Example Computers",
+          21: "Example Computers", 30: "Example Corp", 31: "Example Audio", 32: "Example Corp", 40: "Example Imaging",
+          50: "Example Vision", 51: "Example Vision", 60: "Example Sensors", 61: "Example Sensors", 62: "Example Sensors",
+          63: "Example Sensors", 64: "Example Sensors", 65: "Example Sensors", 66: "Example Energy", 67: "Example Energy"}
+RANDOM_MACS = (22, 23, 13, 14)
+
+
+def registry():
+    from .oui import Oui
+    reg = Oui()
+    reg.override = {"names": {_hmac(n): name for n, name in MAKERS.items()}, "random": {_hmac(n) for n in RANDOM_MACS}}
+    return reg
 
 
 # Data paths (synthetic history): host number -> [(country, MB sent per day, MB received per day)]. "~own" is a tunnel.
@@ -248,15 +283,19 @@ def scan_host(h: dict) -> dict:
         p0 = dict(ports[0])
         p0["banner"] = {"title": title, "server": None}
         ports[0] = p0
-    return {"ip": h["ip"], "mac": _vmac(h["n"]) if h.get("vm") else _mac(h["n"]), "hostnames": list(h.get("names") or []),
-            "sources": ["arp"] + (["mdns"] if h.get("mdns") else []) + (["ssdp"] if h.get("ssdp") else []) + (["tcp"] if ports else []),
+    extra = [k for k, src in (("ndp", "ipv6"), ("wsd", "wsd"), ("netbios", "netbios"), ("snmp", "snmp")) if h.get(src)]
+    mac = h.get("mac") or (_vmac(h["n"]) if h.get("vm") else _mac(h["n"]))
+    return {"ip": h["ip"], "mac": mac, "hostnames": list(h.get("names") or []),
+            "sources": ["arp"] + (["mdns"] if h.get("mdns") else []) + (["ssdp"] if h.get("ssdp") else []) + (["tcp"] if ports else []) + extra,
             "ports": ports, "mdns": list(h.get("mdns") or []), "ssdp": list(h.get("ssdp") or []),
+            "ipv6": list(h.get("ipv6") or []), "wsd": list(h.get("wsd") or []), "netbios": h.get("netbios"), "snmp": h.get("snmp"),
             "is_gateway": bool(h.get("gw")), "is_self": bool(h.get("self")), "rtt_ms": round(random.uniform(0.4, 6.0), 2)}
 
 
 class Demo:
     def __init__(self, seed: int = 7):
         self.rng = random.Random(seed)
+        self.oui = registry()
 
     def networks(self) -> list:
         return [{"cidr": NET, "iface": "eth0", "self_ip": "192.168.50.11", "gateway": "192.168.50.1", "private": True,
@@ -405,7 +444,7 @@ class Demo:
         ev("wan_up", p - 3.3 * h + 14 * 60, name="wan")
         ev("wan_down", p - 1.1 * h, name="wan")
         ev("wan_up", p - 1.1 * h + 40, name="wan")
-        ev("dev_new", p - 5.2 * h, id="d-demo-guest", title="Guest phone", ip="192.168.50.77", kind="phone")
+        ev("dev_new", p - 5.2 * h, id="d-demo-guest", title="Guest phone", ip="192.168.50.77", kind="phone", vendor="", origin="random")
         devev("dev_offline", 51, p - 5.4 * h)
         devev("dev_back", 51, p - 5.3 * h)
         for k in range(3):

@@ -78,6 +78,18 @@ _WORD_RX = [(re.compile(p, re.I), k, w) for p, k, w in WORD_RULES]
 
 WEB_PORTS = {80, 81, 443, 3000, 5000, 5001, 8080, 8081, 8443, 9000}
 
+# WS-Discovery types (local part, lower case) -> (kind, weight)
+WSD_RULES = {
+    "networkvideotransmitter": ("camera", 0.75), "printdevicetype": ("printer", 0.7), "printertype": ("printer", 0.6),
+    "scandevicetype": ("printer", 0.45), "computer": ("computer", 0.5), "networkvideodisplay": ("tv", 0.5),
+    "mediarenderer": ("media", 0.4), "storagedevice": ("nas", 0.5),
+}
+# SNMP sysObjectID prefixes of generic agent software (no device maker) -> (kind, weight)
+SNMP_OID_RULES = (
+    ("1.3.6.1.4.1.8072.", "server", 0.3),       # identifier: enterprise subtree of a common open-source SNMP agent
+    ("1.3.6.1.4.1.2021.", "server", 0.3),       # identifier: older subtree of the same agent
+)
+
 
 def _add(scores: dict, reasons: dict, kind: str, weight: float, why: str) -> None:
     # independent evidence combines like probabilities: 1 - (1-a)(1-b)
@@ -93,8 +105,10 @@ def _clean_host(name: str) -> str:
     return name
 
 
-def classify(host: dict) -> dict:
-    """Return {"kind","confidence","certainty","reasons","runner_up","title","subtitle"} for one ScanResult host."""
+def classify(host: dict, vendor: Optional[str] = None) -> dict:
+    """Return {"kind","confidence","certainty","reasons","runner_up","title","subtitle"} for one ScanResult host.
+
+    ``vendor`` is the registered organisation of the hardware address (only its neutral words count, weakly)."""
     scores, reasons = {}, {}
     ports = {p.get("port") for p in host.get("ports") or [] if isinstance(p.get("port"), int)}
 
@@ -117,6 +131,32 @@ def classify(host: dict) -> dict:
                 break
         texts += [dev.get("friendly_name"), dev.get("model")]
 
+    seen_wsd = set()
+    for w in host.get("wsd") or []:
+        for t in w.get("types") or []:
+            local = str(t).split(":")[-1].lower()
+            rule = WSD_RULES.get(local)
+            if rule and local not in seen_wsd:
+                seen_wsd.add(local)
+                _add(scores, reasons, rule[0], rule[1], "wsd:" + local)
+
+    snmp = host.get("snmp") or {}
+    if snmp:
+        oid = str(snmp.get("object_id") or "")
+        for prefix, kind, weight in SNMP_OID_RULES:
+            if oid.startswith(prefix):
+                _add(scores, reasons, kind, weight, "snmp:agent")
+                break
+        texts.append(snmp.get("descr"))
+        if snmp.get("descr") and not scores:
+            _add(scores, reasons, "switch", 0.2, "snmp:answers")
+    nb = host.get("netbios") or {}
+    if nb.get("computer"):
+        _add(scores, reasons, "computer", 0.3, "netbios:name")
+    for svc in host.get("mdns") or []:
+        txt = {str(k).lower(): v for k, v in (svc.get("txt") or {}).items()}
+        texts += [v for k, v in txt.items() if k in ("model", "md", "ty", "product") and isinstance(v, str)]
+
     for port in sorted(ports):
         rule = PORT_RULES.get(port)
         if rule:
@@ -130,7 +170,13 @@ def classify(host: dict) -> dict:
         texts += [banner.get("title"), banner.get("server")]
     texts += [_clean_host(h) for h in host.get("hostnames") or []]
     texts += [svc.get("name") for svc in host.get("mdns") or []]
-    blob = " ".join(t for t in texts if t)[:2000]
+    blob = " ".join(t for t in texts if isinstance(t, str) and t)[:2000]
+    if vendor:
+        vb = vendor.replace("-", " ").replace("_", " ")
+        for rx, kind, weight in _WORD_RX:
+            if rx.search(vb):
+                _add(scores, reasons, kind, min(weight, 0.15), "vendor:" + kind)
+                break
     if blob:
         seen = set()
         for rx, kind, weight in _WORD_RX:

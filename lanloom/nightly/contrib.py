@@ -126,6 +126,8 @@ def _internet(ctx: Ctx) -> dict:
 
 
 # ---------------------------------------------------------------------- devices
+NEW_BY_ORIGIN = {"random": "report.devices.new_random", "unregistered": "report.devices.new_unregistered"}
+
 def _devices_available(ctx: Ctx) -> bool:
     return ctx.core.store.one("SELECT 1 AS x FROM devices LIMIT 1") is not None
 
@@ -142,7 +144,15 @@ def _devices(ctx: Ctx) -> dict:
             title = _short(cur.get("user_title") or cur["title"] or title)
         if ev["kind"] == "dev_new":
             new += 1
-            items.append(item("new:%s" % did, "report.devices.new", "warn", True, name=title, ip=d.get("ip") or "", at_at=ev["t"]))
+            origin = d.get("origin") or ""
+            if d.get("vendor"):
+                items.append(item("new:%s" % did, "report.devices.new_vendor", "warn", True, name=title, ip=d.get("ip") or "",
+                                  vendor=_short(d.get("vendor")), at_at=ev["t"]))
+            elif origin in NEW_BY_ORIGIN:
+                items.append(item("new:%s" % did, NEW_BY_ORIGIN[origin], "warn", True, name=title, ip=d.get("ip") or "",
+                                  at_at=ev["t"]))
+            else:
+                items.append(item("new:%s" % did, "report.devices.new", "warn", True, name=title, ip=d.get("ip") or "", at_at=ev["t"]))
         elif ev["kind"] == "dev_gone":
             gone += 1
             items.append(item("gone:%s:%d" % (did, d.get("since") or ev["t"]), "report.devices.gone", "warn", True,

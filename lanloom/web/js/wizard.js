@@ -4,7 +4,7 @@
   const LL = window.Lanloom;
   const { h, t, api } = LL;
   const STEPS = ['account', 'networks', 'scan', 'review', 'connect', 'done'];
-  const PHASES = ['neighbors', 'mdns', 'ssdp', 'ports', 'banners'];
+  const PHASES = ['neighbors', 'mdns', 'ssdp', 'ports', 'banners', 'identify'];
 
   function stepKey() { try { return sessionStorage.getItem('ll-wiz') || 'networks'; } catch (e) { return 'networks'; } }
   function setStep(s) { try { sessionStorage.setItem('ll-wiz', s); } catch (e) { /* ignore */ } }
@@ -115,12 +115,13 @@
     const deep = h('input', { type: 'checkbox' });
     const consent = h('input', { type: 'checkbox', disabled: true });
     deep.addEventListener('change', () => { consent.disabled = !deep.checked; if (!deep.checked) consent.checked = false; });
+    const snmpPub = h('input', { type: 'checkbox' });
     const msg = h('div', { class: 'msg' });
     const startBtn = h('button', { class: 'btn btn--primary', onclick: async () => {
       LL.msg(msg, '');
       if (deep.checked && !consent.checked) { LL.msg(msg, t('scan.unsafe.consent'), 'error'); return; }
       startBtn.disabled = true;
-      try { await api('/api/scan', { method: 'POST', body: { cidrs, deep: deep.checked, consent: consent.checked } }); progressView(app, cidrs); }
+      try { await api('/api/scan', { method: 'POST', body: { cidrs, deep: deep.checked, consent: consent.checked, snmp_public: snmpPub.checked } }); progressView(app, cidrs); }
       catch (e) { LL.msg(msg, LL.errText(e), 'error'); startBtn.disabled = false; }
     } }, t('wizard.scan.start'));
     if (running) { progressView(app, cidrs); return; }
@@ -131,6 +132,7 @@
         h('div', { class: 'mode-card' }, h('div', { class: 'mode-card__head' }, h('label', { class: 'check' }, deep, h('strong', {}, t('wizard.scan.deep')))),
           h('p', { class: 'muted' }, t('wizard.scan.deep_text')),
           h('label', { class: 'check check--consent' }, consent, h('span', {}, t('wizard.scan.consent'))))),
+      h('label', { class: 'check' }, snmpPub, h('span', {}, t('scan.snmp_public'))), h('p', { class: 'muted fineprint' }, t('scan.snmp_public.hint')),
       h('p', { class: 'fineprint' }, t('wizard.scan.fineprint')), msg,
       actions(h('button', { class: 'btn btn--ghost', onclick: () => { setStep('networks'); LL.route(); } }, t('wizard.back')), startBtn)]);
   }

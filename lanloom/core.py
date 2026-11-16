@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import classify, datapaths, geo as geo_mod, live, textfmt, topology
+from . import classify, datapaths, geo as geo_mod, identity, live, oui as oui_mod, textfmt, topology
 from .crypto import Vault
 from .store import Store
 
@@ -31,6 +31,7 @@ DEFAULT_SETTINGS = {
     "home_country": "",         # data paths: ISO code of the home country ("" = the browser's region)
     "paths_own_networks": [],   # data paths: own networks and tunnels beyond the LAN (never "unassigned")
     "paths_no_internet": [],    # data paths: local networks that should not reach the internet
+    "scan_snmp_public": False,  # scans may ask devices with the default read community (user choice, off by default)
 }
 
 INTEGRATION_FIELDS = {
@@ -115,6 +116,9 @@ class Core:
         self.structure_version = 0
         self.last_frame: dict = {}
         self.geo = geo_mod.Geo()
+        data_dir = getattr(cfg, "data_dir", None)
+        self.oui = oui_mod.Oui(extra=(data_dir / "oui" / "oui.bin.gz") if data_dir else None)
+        self._ident_cache = None           # (key, identity.groups result)
         self.paths = datapaths.DataPaths(store, self.geo, self.settings)
         from .nightly import Reports
         self.reports = Reports(self, getattr(cfg, "data_dir", None))
@@ -163,6 +167,7 @@ class Core:
         if self.cfg.probe:
             return            # probe start of an update candidate: serve the UI only, no discovery, no sources
         self.geo.start()
+        self.oui.start()
         self.reports.on_start()
         if self.demo:
             self._tasks.append(asyncio.create_task(self.demo.run(self)))
@@ -205,11 +210,92 @@ class Core:
             out.append(self.device_view(dev))
         return out
 
+    # ------------------------------------------------------------------ identity (manufacturer, interfaces)
+    def registry(self) -> oui_mod.Oui:
+        """The manufacturer table: the bundled one, or the demo's fictional one."""
+        reg = getattr(self.demo, "oui", None)
+        return reg if isinstance(reg, oui_mod.Oui) else self.oui
+
+    def identity_rules(self) -> dict:
+        rules = self.store.get_setting("identity", {}) or {}
+        return {"split": [list(p) for p in rules.get("split") or [] if isinstance(p, list) and len(p) == 2],
+                "join": [list(p) for p in rules.get("join") or [] if isinstance(p, list) and len(p) == 2]}
+
+    def identity_groups(self) -> dict:
+        """One device, several interfaces (see identity.groups); cached until devices or rules change."""
+        rules = self.identity_rules()
+        topo = self._topo_cache[1] if self._topo_cache else None
+        key = (self.structure_version, json.dumps(rules, sort_keys=True), id(topo))
+        if self._ident_cache and self._ident_cache[0] == key:
+            return self._ident_cache[1]
+        links = (topo or {}).get("links") or {}
+        rows = []
+        for d in self.store.devices():
+            link = links.get(d["id"]) or {}
+            port = "%s#%s" % (link.get("parent"), link.get("port")) if link.get("parent") and link.get("port") else None
+            rows.append(dict(d, link_port=port))
+        res = identity.groups(rows, rules["split"], rules["join"])
+        self._ident_cache = (key, res)
+        return res
+
+    def set_identity(self, device_id: str, action: str, other: str) -> dict:
+        """split: show two devices separately for good; join: treat them as one; reset: forget both choices."""
+        if action not in ("split", "join", "reset") or not isinstance(other, str) or other == device_id:
+            raise ValueError("device.identity.invalid")
+        if not self.store.device(device_id) or not self.store.device(other):
+            raise ValueError("device.err.missing")
+        pair = sorted([device_id, other])
+        rules = self.identity_rules()
+        rules["split"] = [p for p in rules["split"] if sorted(p) != pair]
+        rules["join"] = [p for p in rules["join"] if sorted(p) != pair]
+        if action != "reset":
+            rules[action].append(pair)
+        rules["split"], rules["join"] = rules["split"][-500:], rules["join"][-500:]
+        self.store.set_setting("identity", rules)
+        self._ident_cache = None
+        self.structure_version += 1
+        return self.device_view(self.store.device(device_id))
+
+    def is_merged(self, device_id: str) -> bool:
+        """A secondary interface of another device (not drawn on its own)."""
+        return device_id in self.identity_groups()["members"]
+
+    def _identity_view(self, dev: dict) -> dict:
+        reg = self.registry()
+        fp = identity.fingerprint(dict(dev["data"], mac=dev.get("mac")), reg)
+        groups = self.identity_groups()
+        did = dev["id"]
+        out = {"vendor": fp["vendor"], "vendor_source": fp["vendor_source"], "model": fp["model"],
+               "model_source": fp["model_source"], "firmware": fp["firmware"], "firmware_source": fp["firmware_source"],
+               "origin": fp["origin"], "identity_confidence": fp["confidence"], "identity_reasons": fp["reasons"],
+               "features": fp["features"], "ipv6": list(dev["data"].get("ipv6") or [])[:8],
+               "netbios": dev["data"].get("netbios") or None, "merged_into": None, "aliases": [], "suggestions": []}
+        mem = groups["members"].get(did)
+        if mem:
+            prim = self.store.device(mem["primary"])
+            out["merged_into"] = {"id": mem["primary"], "title": (prim and (prim.get("user_title") or prim["title"])) or "",
+                                  "ip": prim["ip"] if prim else "", "confidence": mem["confidence"], "reasons": mem["reasons"],
+                                  "manual": mem["manual"]}
+        for sid in groups["aliases"].get(did, []):
+            sd, m = self.store.device(sid), groups["members"].get(sid) or {}
+            if sd:
+                out["aliases"].append({"id": sid, "ip": sd["ip"], "mac": sd.get("mac"), "ipv6": list(sd["data"].get("ipv6") or [])[:4],
+                                       "confidence": m.get("confidence"), "reasons": m.get("reasons") or [],
+                                       "manual": bool(m.get("manual")), "first_seen": sd["first_seen"]})
+        for sg in groups["suggestions"]:
+            if did in (sg["a"], sg["b"]):
+                oid = sg["b"] if sg["a"] == did else sg["a"]
+                od = self.store.device(oid)
+                if od:
+                    out["suggestions"].append({"id": oid, "title": od.get("user_title") or od["title"] or "", "ip": od["ip"],
+                                               "confidence": sg["confidence"], "reasons": sg["reasons"]})
+        return out
+
     def device_view(self, dev: dict) -> dict:
         data = dev["data"]
         kind = dev.get("user_kind") or dev["kind"]
         title = dev.get("user_title") or dev["title"] or ""
-        return {
+        view = {
             "id": dev["id"], "ip": dev["ip"], "mac": dev.get("mac"), "kind": kind, "auto_kind": dev["kind"],
             "title": title, "auto_title": dev["title"], "confidence": dev["confidence"],
             "certainty": data.get("certainty", "unknown"), "reasons": data.get("reasons", []),
@@ -219,6 +305,8 @@ class Core:
             "hidden": bool(dev["hidden"]), "first_seen": dev["first_seen"], "last_seen": dev["last_seen"],
             "status": self.device_status(dev),
         }
+        view.update(self._identity_view(dev))
+        return view
 
     def device_status(self, dev: dict) -> str:
         now = time.time()
@@ -333,7 +421,10 @@ class Core:
             log.exception("network detection failed")
             return []
 
-    def start_scan(self, cidrs: list, deep: bool = False, consent: bool = False, automatic: bool = False) -> dict:
+    def start_scan(self, cidrs: list, deep: bool = False, consent: bool = False, automatic: bool = False,
+                   snmp_public: Optional[bool] = None) -> dict:
+        """``snmp_public``: ask devices with the default read community (off unless the user switched it on; the
+        choice is kept for automatic rescans)."""
         if self.cfg.probe:
             raise ValueError("app.err.probe")     # a trial start never sends a packet into the LAN
         if self._scan_task and not self._scan_task.done():
@@ -344,7 +435,10 @@ class Core:
             plan = {"cidrs": list(cidrs), "deep": bool(deep)}
         else:
             from . import scan
-            plan = scan.make_plan(list(cidrs), deep=bool(deep), consent=bool(consent))   # raises ValueError(reason_key)
+            if snmp_public is None:
+                snmp_public = self.store.get_setting("scan_snmp_public", False) is True
+            plan = scan.make_plan(list(cidrs), deep=bool(deep), consent=bool(consent),
+                                  snmp_public=bool(snmp_public))   # raises ValueError(reason_key)
         mode = "deep" if deep else "gentle"
         scan_id = self.store.execute(
             "INSERT INTO scans(started, mode, cidrs, status) VALUES(?,?,?,?)",
@@ -354,6 +448,8 @@ class Core:
         self._scan_task = asyncio.create_task(self._run_scan(scan_id, plan))
         if not automatic:
             self.store.set_setting("rescan_cidrs", list(cidrs))
+            if snmp_public is not None:
+                self.store.set_setting("scan_snmp_public", bool(snmp_public))
         return dict(self.scan_state)
 
     def cancel_scan(self) -> bool:
@@ -398,7 +494,7 @@ class Core:
             for host in hosts:
                 if not host.get("ip"):
                     continue
-                verdict = classify.classify(host)
+                verdict = classify.classify(host, vendor=self.registry().lookup(host.get("mac")))
                 data = dict(host)
                 data.update({"certainty": verdict["certainty"], "reasons": verdict["reasons"],
                              "runner_up": verdict["runner_up"]})

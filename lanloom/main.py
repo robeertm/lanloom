@@ -335,7 +335,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         cidrs = [str(c) for c in (data.get("cidrs") or []) if isinstance(c, str)][:8]
         note(request, detail={"networks": cidrs, "deep": bool(data.get("deep"))})
         try:
-            return state.core.start_scan(cidrs, deep=bool(data.get("deep")), consent=bool(data.get("consent")))
+            return state.core.start_scan(cidrs, deep=bool(data.get("deep")), consent=bool(data.get("consent")),
+                                         snmp_public=data.get("snmp_public") is True)
         except ValueError as exc:
             return err(str(exc) or "scan.err.invalid")
 
@@ -357,6 +358,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         except ValueError as exc:
             return err(str(exc))
         return dev if dev else err("device.err.missing", 404)
+
+    @app.post("/api/devices/{device_id}/identity")
+    async def device_identity(device_id: str, request: Request):
+        data = await body(request)
+        action, other = data.get("action"), data.get("other")
+        note(request, target="%s,%s" % (device_id, str(other)[:40]), detail={"action": str(action)[:8]})
+        try:
+            return state.core.set_identity(device_id, action, other)
+        except ValueError as exc:
+            return err(str(exc), 404 if str(exc) == "device.err.missing" else 400)
 
     @app.get("/api/topology")
     async def get_topology():

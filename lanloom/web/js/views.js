@@ -206,12 +206,24 @@
       const kind = r.split(':')[0]; let v = r.split(':').slice(1).join(':');
       if (kind === 'word') v = t('kind.' + v);
       if (kind === 'role') v = t('role.' + v);
+      if (kind === 'vendor') v = t('kind.' + v);
+      if (kind === 'snmp' || kind === 'netbios') return t('reason.' + kind + '.' + v);
       return t('reason.' + kind, { v });
     };
     const reasons = (dev.reasons || []).map(reasonText).join(' · ');
+    const srcChip = s => s ? h('span', { class: 'chip chip--muted ident-src' }, t('ident.src.' + s)) : null;
+    const withSrc = (v, s) => v ? h('span', { class: 'ident-val' }, h('span', {}, v), srcChip(s)) : null;
+    const vendorCell = dev.vendor ? withSrc(dev.vendor, dev.vendor_source)
+      : dev.origin === 'random' ? h('span', { class: 'muted' }, t('ident.origin.random'))
+      : dev.origin === 'unregistered' ? h('span', { class: 'muted' }, t('ident.origin.unregistered')) : null;
     const rows = [[t('device.name'), name], [t('device.kind'), kindSel], [t('device.certainty'), LL.certaintyChip(dev.certainty)], [t('device.why'), reasons || '—'],
+      [t('ident.vendor'), vendorCell], [t('ident.model'), withSrc(dev.model, dev.model_source)],
+      [t('ident.firmware'), withSrc(dev.firmware, dev.firmware_source)],
       [t('device.ip'), h('span', { class: 'mono' }, dev.ip)], [t('device.mac'), dev.mac ? h('span', { class: 'mono' }, dev.mac) : null],
+      [t('ident.ipv6'), dev.ipv6 && dev.ipv6.length ? h('span', { class: 'mono ident-v6' }, dev.ipv6.join('\n')) : null],
       [t('device.hostnames'), dev.hostnames && dev.hostnames.length ? dev.hostnames.join(', ') : null],
+      [t('ident.netbios'), dev.netbios && dev.netbios.computer ? dev.netbios.computer + (dev.netbios.workgroup ? ' · ' + dev.netbios.workgroup : '') : null],
+      [t('ident.origin'), t('ident.origin_short.' + (dev.origin || 'no_mac'))],
       [t('device.found_by'), (dev.sources || []).map(s => t('source.kind.' + s)).join(', ')],
       [t('device.first_seen'), LL.fmtDate(dev.first_seen)], [t('device.last_seen'), LL.fmtDate(dev.last_seen)],
       [t('device.presence'), d.presence_age_s != null ? t('device.presence_ago', { age: LL.fmtAge(d.presence_age_s) }) : '—']];
@@ -221,8 +233,39 @@
     (dev.mdns || []).forEach(m => ann.push(h('li', {}, h('span', { class: 'mono' }, m.type), ' — ', m.name || '')));
     (dev.ssdp || []).forEach(s => ann.push(h('li', {}, h('span', { class: 'mono' }, (s.device_type || s.st || '').replace(/^urn:/, '')), ' — ', [s.friendly_name, s.model].filter(Boolean).join(' · '))));
     const hide = !may ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
-    return h('div', {}, section(t('detail.device'), facts(rows)), ports ? section(t('device.ports'), ports) : null,
+    return h('div', {}, section(t('detail.device'), facts(rows)), identitySection(dev, may), ports ? section(t('device.ports'), ports) : null,
       ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, hide ? h('div', { class: 'detail__foot' }, hide) : null);
+  }
+
+  // ------------------------------------------------------------------ one device, several interfaces
+  function identitySection(dev, may) {
+    const why = rs => (rs || []).map(r => t('ident.why.' + r)).join(' · ');
+    const pct = c => Math.round((c || 0) * 100) + ' %';
+    const act = async (action, other) => {
+      try {
+        await api('/api/devices/' + encodeURIComponent(dev.id) + '/identity', { method: 'POST', body: { action, other } });
+        LL.toast(t('device.saved'), 'ok'); LL.route();
+      } catch (e) { LL.toast(t(e.message || 'device.identity.invalid'), 'error'); }
+    };
+    const btn = (label, action, other) => may ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => act(action, other) }, label) : null;
+    const items = [];
+    if (dev.merged_into) {
+      const m = dev.merged_into;
+      items.push(h('li', { class: 'ident-row' }, h('div', {}, h('strong', {}, t('ident.part_of', { name: m.title || m.ip })),
+        h('div', { class: 'muted' }, m.manual ? t('ident.manual') : t('ident.because', { why: why(m.reasons), conf: pct(m.confidence) }))),
+        btn(t('ident.split'), 'split', m.id)));
+    }
+    (dev.aliases || []).forEach(a => items.push(h('li', { class: 'ident-row' },
+      h('div', {}, h('span', { class: 'mono' }, [a.ip, a.mac].filter(Boolean).join(' · ')),
+        h('div', { class: 'muted' }, a.manual ? t('ident.manual') : t('ident.because', { why: why(a.reasons), conf: pct(a.confidence) }))),
+      btn(t('ident.split'), 'split', a.id))));
+    const sugg = (dev.suggestions || []).map(sg => h('li', { class: 'ident-row' },
+      h('div', {}, h('span', {}, t('ident.maybe', { name: sg.title || sg.ip })), h('div', { class: 'muted' }, t('ident.because', { why: why(sg.reasons), conf: pct(sg.confidence) }))),
+      h('span', { class: 'ident-acts' }, btn(t('ident.join'), 'join', sg.id), btn(t('ident.keep_apart'), 'split', sg.id))));
+    if (!items.length && !sugg.length) return null;
+    return section(t('ident.title'), h('div', { class: 'stack-sm' },
+      items.length ? h('ul', { class: 'plain-list ident-list' }, items) : null,
+      sugg.length ? h('div', {}, h('p', { class: 'muted' }, t('ident.suggest_lead')), h('ul', { class: 'plain-list ident-list' }, sugg)) : null));
   }
 
   // ------------------------------------------------------------------ physical connection (manual > controller > LLDP > address table)
@@ -433,11 +476,12 @@
     const deep = h('input', { type: 'checkbox' });
     const consent = h('input', { type: 'checkbox', disabled: true });
     deep.addEventListener('change', () => { consent.disabled = !deep.checked; if (!deep.checked) consent.checked = false; });
+    const snmpPub = h('input', { type: 'checkbox', checked: !!s.scan_snmp_public });
     const scanMsg = h('div', { class: 'msg' });
     const last = scan.last;
     const scanBtn = h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
       LL.msg(scanMsg, '');
-      try { await api('/api/scan', { method: 'POST', body: { cidrs: [...cidrs], deep: deep.checked, consent: consent.checked } }); LL.msg(scanMsg, t('settings.scan.started'), 'ok'); watchScan(scanMsg); }
+      try { await api('/api/scan', { method: 'POST', body: { cidrs: [...cidrs], deep: deep.checked, consent: consent.checked, snmp_public: snmpPub.checked } }); LL.msg(scanMsg, t('settings.scan.started'), 'ok'); watchScan(scanMsg); }
       catch (e) { LL.msg(scanMsg, LL.errText(e), 'error'); }
     } }, t('settings.scan.now'));
     const rescan = h('select', { class: 'select', onchange: () => api('/api/settings', { method: 'PUT', body: { rescan_hours: Number(rescan.value) } }).then(() => LL.toast(t('settings.saved'), 'ok')) },
@@ -447,6 +491,7 @@
       h('p', { class: 'muted' }, last ? t('settings.scan.last', { when: LL.fmtDate(last.started), n: last.hosts, mode: t('scan.mode.' + last.mode) }) : t('settings.scan.never')),
       netBox,
       h('label', { class: 'check' }, deep, h('span', {}, t('wizard.scan.deep'))), h('label', { class: 'check check--consent' }, consent, h('span', {}, t('wizard.scan.consent'))),
+      h('label', { class: 'check' }, snmpPub, h('span', {}, t('scan.snmp_public'))), h('p', { class: 'muted fineprint' }, t('scan.snmp_public.hint')),
       scanMsg, h('div', { class: 'btn-row' }, scanBtn),
       h('hr'), LL.field(t('settings.rescan'), rescan, t('settings.rescan.hint'))]));
     if (scan.current && scan.current.state === 'running') watchScan(scanMsg);

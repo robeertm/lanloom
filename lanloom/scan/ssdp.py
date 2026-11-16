@@ -48,6 +48,15 @@ def _clean(value, limit: int = MAX_FIELD) -> str | None:
     return scrub(text)[:limit] or None
 
 
+_UDN_RX = re.compile(r"uuid:([0-9a-zA-Z-]{8,64})")
+
+
+def udn_of(usn) -> str | None:
+    """Unique device name from a USN header ("uuid:<id>::<type>" or "uuid:<id>"), lower case, or None."""
+    m = _UDN_RX.search(usn or "") if isinstance(usn, str) else None
+    return m.group(1).lower() if m else None
+
+
 def parse_response(data: bytes) -> dict | None:
     """Parse an SSDP search response or NOTIFY. Returns lower-cased headers or None."""
     if not data or len(data) > 8192:
@@ -249,7 +258,7 @@ async def search(duration: float = 3.0, networks=(), target: tuple[str, int] = (
         for key, items in groups.items():
             st, h = min(items, key=lambda it: _st_rank(it[0]))
             desc = descriptions.get(h.get("location") or "") or {}
-            entries.append({"st": _clean(st) or "", "server": _clean(h.get("server")),
+            entries.append({"st": _clean(st) or "", "server": _clean(h.get("server")), "udn": udn_of(h.get("usn")),
                             "friendly_name": desc.get("friendly_name"), "model": desc.get("model"),
                             "manufacturer": desc.get("manufacturer"), "device_type": desc.get("device_type")})
         if entries:

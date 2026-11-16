@@ -5,7 +5,8 @@ overnight, so a gentle watcher compares the live state once a minute and writes 
 
     wan_down / wan_up          {name}                internet uplink of the router (SNMP oper status)
     wan_switch                 {from, to}            the active uplink changed (adapters that know it)
-    dev_new                    {id, title, ip}       a device seen for the first time
+    dev_new                    {id, title, ip, kind, vendor, origin}  a device seen for the first time
+                                                     (not a second interface of a known device)
     dev_offline / dev_back     {id, title}           a known device stopped / started answering
     dev_gone                   {id, title, since}    offline for a day (once per absence)
     src_fail / src_ok          {id, name, key}       a connection (integration) failed / recovered
@@ -117,15 +118,21 @@ class Watch:
         presence_ready = bool(core.cadence.get("presence") and core.cadence["presence"].last) or bool(core.demo)
         settled = presence_ready and now - self.started >= START_GRACE_S
         ids = set()
+        groups = core.identity_groups() if hasattr(core, "identity_groups") else {"members": {}}
         for dev in core.store.devices():
             did = dev["id"]
             ids.add(did)
             title = dev.get("user_title") or dev["title"] or dev["ip"]
             if did not in self.known:
                 self.known.add(did)
-                if self.seeded and not dev["data"].get("is_self"):
+                merged = groups["members"].get(did)
+                second_iface = bool(merged) and merged["primary"] in self.known   # not a new device
+                if self.seeded and not dev["data"].get("is_self") and not second_iface:
+                    reg = core.registry()
                     self.journal.add("dev_new", {"id": did, "title": title, "ip": dev["ip"],
-                                                 "kind": dev.get("user_kind") or dev["kind"]}, now)
+                                                 "kind": dev.get("user_kind") or dev["kind"],
+                                                 "vendor": reg.lookup(dev.get("mac")) or "",
+                                                 "origin": reg.origin_of(dev.get("mac"))}, now)
                     n += 1
             if not settled or dev["hidden"]:
                 continue

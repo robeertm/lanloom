@@ -1,7 +1,8 @@
 """Scan plan validation and the scan pipeline.
 
 Phases (progress callback receives {"phase","done","total","found"}):
-  neighbors -> mdns + ssdp (concurrently) -> ports -> banners
+  neighbors (+ passive IPv6 neighbour table) -> mdns + ssdp + wsd (concurrently) -> ports -> banners
+  -> identify (NetBIOS, LLMNR and, only when switched on, SNMP "public": one datagram per host)
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import logging
 import socket
 import time
 
-from . import banners, mdns, neighbors, netinfo, ports, safety, ssdp
+from . import banners, llmnr, mdns, nbns, ndp, neighbors, netinfo, ports, safety, snmpprobe, ssdp, wsd
 from .ratelimit import Limiter, TokenBucket
 
 log = logging.getLogger("lanloom.scan")
@@ -33,8 +34,14 @@ OPTIONS: dict[str, tuple] = {
     "ssdp_s": (3.0, 3.0, 0.0, 10.0),
     "banner_timeout": (2.0, 2.0, 0.2, 5.0),
     "rdns_timeout": (1.0, 1.0, 0.0, 5.0),
+    "wsd_s": (3.0, 3.0, 0.0, 10.0),
+    "udp_timeout": (1.0, 1.0, 0.2, 5.0),
 }
-SWITCHES = ("neighbors", "mdns", "ssdp", "banners", "rdns")
+SWITCHES = ("neighbors", "mdns", "ssdp", "banners", "rdns", "ndp", "wsd", "netbios", "llmnr", "snmp_public")
+SWITCH_DEFAULTS = {"snmp_public": False}     # everything else defaults to on
+# keys added after the first stored plans: a stored plan without them stays valid (defaults apply)
+NEW_OPTIONS = ("wsd_s", "udp_timeout")
+NEW_SWITCHES = ("ndp", "wsd", "netbios", "llmnr", "snmp_public")
 MAX_HOSTNAMES = 8
 
 
@@ -55,7 +62,7 @@ def make_plan(cidrs, deep: bool = False, consent: bool = False, **overrides) -> 
     for name, (g, d, _lo, _hi) in OPTIONS.items():
         plan[name] = d if deep else g
     for name in SWITCHES:
-        plan[name] = True
+        plan[name] = SWITCH_DEFAULTS.get(name, True)
     for name, value in overrides.items():
         if name in OPTIONS:
             lo, hi = OPTIONS[name][2], OPTIONS[name][3]
@@ -88,13 +95,30 @@ def validate_plan(plan) -> list:
     if not isinstance(plist, list) or not plist or any(not isinstance(p, int) or p not in allowed for p in plist):
         raise ValueError(R_PLAN_INVALID)
     for name, (_g, _d, lo, hi) in OPTIONS.items():
+        if name in NEW_OPTIONS and name not in plan:
+            continue
         v = plan.get(name)
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not lo <= v <= hi:
             raise ValueError(R_PLAN_INVALID)
     for name in SWITCHES:
+        if name in NEW_SWITCHES and name not in plan:
+            continue
         if not isinstance(plan.get(name), bool):
             raise ValueError(R_PLAN_INVALID)
     return nets
+
+
+def _with_defaults(plan: dict) -> dict:
+    """Copy of a validated plan with defaults for keys that older stored plans lack."""
+    full = dict(plan)
+    deep = plan.get("mode") == "deep"
+    for name in NEW_OPTIONS:
+        if name not in full:
+            full[name] = OPTIONS[name][1] if deep else OPTIONS[name][0]
+    for name in NEW_SWITCHES:
+        if name not in full:
+            full[name] = SWITCH_DEFAULTS.get(name, True)
+    return full
 
 
 class _Progress:
@@ -129,7 +153,8 @@ class _Progress:
 
 
 class _Host:
-    __slots__ = ("ip", "mac", "hostnames", "sources", "open", "mdns", "ssdp", "rtt")
+    __slots__ = ("ip", "mac", "hostnames", "sources", "open", "mdns", "ssdp", "rtt", "ipv6", "wsd", "netbios",
+                 "snmp")
 
     def __init__(self, ip: str):
         self.ip = ip
@@ -140,6 +165,10 @@ class _Host:
         self.mdns: list[dict] = []
         self.ssdp: list[dict] = []
         self.rtt: float | None = None
+        self.ipv6: list[str] = []
+        self.wsd: list[dict] = []
+        self.netbios: dict | None = None
+        self.snmp: dict | None = None
 
     def add_source(self, s: str) -> None:
         if s not in self.sources:
@@ -189,6 +218,7 @@ async def _reverse_names(ips, timeout: float) -> dict[str, str]:
 async def run(plan, progress=None) -> dict:
     """Execute a plan. Returns a ScanResult dict. Cancellable."""
     nets = validate_plan(plan)
+    plan = _with_defaults(plan)
     started = time.time()
     t0 = time.monotonic()
     prog = _Progress(progress)
@@ -255,6 +285,17 @@ async def run(plan, progress=None) -> dict:
             h.mac = entry["mac"]
             h.add_source("arp")
 
+    # IPv6 addresses from the passive neighbour cache: attach to known hosts by MAC, never create hosts
+    if plan["ndp"]:
+        v6 = await _safe(asyncio.to_thread(ndp.read_ndp), None)
+        if v6:
+            for h in hosts.values():
+                if h.mac and h.mac in v6:
+                    new = [a for a in v6[h.mac] if a not in h.ipv6][:ndp.MAX_PER_MAC]
+                    if new:
+                        h.ipv6.extend(new)
+                        h.add_source("ndp")
+
     # liveness sweep where the neighbour table cannot help (routed ranges / no /proc)
     linked_set = set(linked_addrs)
     sweep_addrs = [a for a in all_addrs if a not in hosts and (arp is None or a not in linked_set)]
@@ -298,8 +339,14 @@ async def run(plan, progress=None) -> dict:
         prog("ssdp", 100, 100, len(res), force=True)
         return res, sent
 
-    (mres, msent), (sres, ssent) = await asyncio.gather(_safe(do_mdns(), ({}, 0)), _safe(do_ssdp(), ({}, 0)))
-    extra_probes += msent + ssent
+    async def do_wsd():
+        if not plan["wsd"] or plan["wsd_s"] <= 0:
+            return {}, 0
+        return await wsd.probe(plan["wsd_s"], networks=nets, iface_ips=iface_ips)
+
+    (mres, msent), (sres, ssent), (wres, wsent) = await asyncio.gather(
+        _safe(do_mdns(), ({}, 0)), _safe(do_ssdp(), ({}, 0)), _safe(do_wsd(), ({}, 0)))
+    extra_probes += msent + ssent + wsent
     for ip, info in mres.items():
         if not in_scope(ip):
             continue
@@ -316,6 +363,13 @@ async def run(plan, progress=None) -> dict:
         h = host(ip)
         h.add_source("ssdp")
         h.ssdp.extend(entries[:16])
+
+    for ip, entries in wres.items():
+        if not in_scope(ip):
+            continue
+        h = host(ip)
+        h.add_source("wsd")
+        h.wsd.extend(entries[:wsd.MAX_ENTRIES_PER_IP])
 
     for ip in self_ips | gateways:
         if in_scope(ip):
@@ -378,6 +432,45 @@ async def run(plan, progress=None) -> dict:
     await _bounded(web_jobs, grab, plan["concurrency"])
     prog("banners", len(web_jobs), len(web_jobs), len(hosts), force=True)
 
+    # ---------------------------------------------------------------- phase: identify (one datagram per host)
+    ask_ips = [ip for ip in targets if ip not in self_ips]
+    udp_t = float(plan["udp_timeout"])
+    id_total = len(ask_ips) * (int(plan["netbios"]) + int(plan["llmnr"]) + int(plan["snmp_public"]))
+    id_done = 0
+    prog("identify", 0, id_total, len(hosts), force=True)
+
+    def sent_tick():
+        nonlocal id_done
+        id_done += 1
+        extra[0] += 1
+        prog("identify", min(id_done, id_total), id_total, len(hosts))
+
+    extra = [0]
+    if plan["netbios"] and ask_ips:
+        res = await _safe(nbns.query(ask_ips, TokenBucket(plan["rate"]), udp_t, on_sent=sent_tick), {})
+        for ip, r in res.items():
+            if ip not in hosts or not isinstance(r, dict):
+                continue
+            h = hosts[ip]
+            h.netbios = {"computer": r.get("computer"), "workgroup": r.get("workgroup"), "mac": r.get("mac")}
+            h.add_source("netbios")
+            h.add_name(r.get("computer"))
+    if plan["llmnr"]:
+        nameless = [ip for ip in ask_ips if not hosts[ip].hostnames]
+        res = await _safe(llmnr.reverse(nameless, TokenBucket(plan["rate"]), udp_t, on_sent=sent_tick), {})
+        for ip, name in res.items():
+            if ip in hosts and name:
+                hosts[ip].add_name(name)
+                hosts[ip].add_source("llmnr")
+    if plan["snmp_public"] and ask_ips:
+        res = await _safe(snmpprobe.query(ask_ips, TokenBucket(plan["rate"]), udp_t, on_sent=sent_tick), {})
+        for ip, r in res.items():
+            if ip in hosts and isinstance(r, dict):
+                hosts[ip].snmp = {k: r.get(k) for k in ("descr", "object_id", "name", "enterprise")}
+                hosts[ip].add_source("snmp")
+    extra_probes += extra[0]
+    prog("identify", id_total, id_total, len(hosts), force=True)
+
     # ---------------------------------------------------------------- result
     finished = time.time()
     duration = time.monotonic() - t0
@@ -389,6 +482,7 @@ async def run(plan, progress=None) -> dict:
             "ports": [{"port": p, "proto": "tcp", "service": ports.service_name(p), "banner": h.open[p]}
                       for p in sorted(h.open)],
             "mdns": h.mdns, "ssdp": h.ssdp,
+            "ipv6": list(h.ipv6), "wsd": h.wsd, "netbios": h.netbios, "snmp": h.snmp,
             "is_gateway": ip in gateways, "is_self": ip in self_ips,
             "rtt_ms": round(h.rtt, 2) if h.rtt is not None else None,
         })

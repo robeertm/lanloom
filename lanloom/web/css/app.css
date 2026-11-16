@@ -347,3 +347,13 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .pp__trace--uplink { background: var(--ll-pcb-trace-uplink); }
 .pp__name { font-weight: var(--ll-fw-semibold); font-size: var(--ll-fs-md); color: var(--ll-text); }
 .pp__desc { font-size: var(--ll-fs-sm); color: var(--ll-text-3); }
+
+/* identity facts on the device card: value + where it came from; interfaces of one device */
+.ident-val { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; min-width: 0; }
+.ident-src { font-size: var(--ll-fs-xs); padding: 0 6px; line-height: 1.5; }
+.ident-v6 { white-space: pre-line; }
+.ident-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--ll-border); }
+.ident-row:first-child { border-top: 0; }
+.ident-row > div { min-width: 0; }
+.ident-acts { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+@media (max-width: 560px) { .ident-row { flex-direction: column; } .ident-acts { justify-content: flex-start; } }

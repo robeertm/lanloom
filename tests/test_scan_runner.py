@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from lanloom.scan import banners, make_plan, mdns, neighbors, netinfo, ports, run, runner, ssdp
+from lanloom.scan import banners, llmnr, make_plan, mdns, nbns, ndp, neighbors, netinfo, ports, run, runner, snmpprobe, ssdp, wsd
 
 NET = "192.168.77.0/24"
 OPEN = {("192.168.77.1", 53), ("192.168.77.1", 80), ("192.168.77.10", 80), ("192.168.77.11", 631),
@@ -69,6 +69,18 @@ def fake_net(monkeypatch):
     monkeypatch.setattr(ports, "tcp_probe", tcp_probe)
     monkeypatch.setattr(banners, "fetch_banner", fetch_banner)
     monkeypatch.setattr(runner, "_reverse_names", rnames)
+
+    async def no_wsd(*a, **kw):
+        return {}, 0
+
+    async def no_answers(*a, **kw):
+        return {}
+
+    monkeypatch.setattr(wsd, "probe", no_wsd)
+    monkeypatch.setattr(ndp, "read_ndp", lambda timeout=1.0: {})
+    monkeypatch.setattr(nbns, "query", no_answers)
+    monkeypatch.setattr(llmnr, "reverse", no_answers)
+    monkeypatch.setattr(snmpprobe, "query", no_answers)
     return calls
 
 
@@ -86,7 +98,7 @@ def test_result_schema_and_content(fake_net):
     assert hosts["192.168.77.99"]["sources"] == ["mdns"] and hosts["192.168.77.99"]["hostnames"] == ["phantom.local"]
     for h in res["hosts"]:
         assert set(h) == {"ip", "mac", "hostnames", "sources", "ports", "mdns", "ssdp", "is_gateway",
-                          "is_self", "rtt_ms"}
+                          "is_self", "rtt_ms", "ipv6", "wsd", "netbios", "snmp"}
         for p in h["ports"]:
             assert set(p) == {"port", "proto", "service", "banner"} and p["proto"] == "tcp"
     gw = hosts["192.168.77.1"]
@@ -106,6 +118,7 @@ def test_result_schema_and_content(fake_net):
         assert set(e) == {"phase", "done", "total", "found"}
         if e["phase"] not in order:
             order.append(e["phase"])
+    assert order.pop() == "identify"
     assert order == ["neighbors", "mdns", "ssdp", "ports", "banners"] or \
         order == ["neighbors", "ssdp", "mdns", "ports", "banners"]
     # only in-range addresses touched; self is not nudged; banners only on web ports
@@ -195,8 +208,14 @@ PKG = pathlib.Path(runner.__file__).parent
 
 def test_no_raw_sockets_or_privileged_calls():
     src = "\n".join(p.read_text() for p in PKG.glob("*.py"))
-    for forbidden in ("SOCK_RAW", "IPPROTO_ICMP", "AF_PACKET", "subprocess", "os.system", "shell=True"):
+    for forbidden in ("IPPROTO_ICMP", "AF_PACKET", "subprocess", "os.system", "shell=True"):
         assert forbidden not in src
+    # the only SOCK_RAW allowed is the netlink route socket of the passive IPv6 neighbour reader
+    for p in PKG.glob("*.py"):
+        for line in p.read_text().splitlines():
+            if "SOCK_RAW" in line:
+                assert p.name == "ndp.py" and "NETLINK_ROUTE" in line and "socket.socket(family," in line, f"{p.name}: {line.strip()}"
+    assert "family = getattr(socket, \"AF_NETLINK\", None)" in (PKG / "ndp.py").read_text()
 
 
 def test_runtime_identifiers_marked():
