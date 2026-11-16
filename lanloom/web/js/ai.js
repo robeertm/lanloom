@@ -9,7 +9,7 @@
 
   function card(title, kids, id) { return h('section', { class: 'card settings-card ai-card', id: id || null }, h('h2', {}, title), kids); }
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-  function secs(ms) { return (Math.max(0, ms || 0) / 1000).toFixed(ms < 10000 ? 1 : 0); }
+  function secs(ms) { return LL.fmtNum(Math.max(0, ms || 0) / 1000, ms < 10000 ? 1 : 0); }
 
   // ------------------------------------------------------------------ jobs: acknowledged at once, answer by polling
   async function waitJob(id, onState, path) {

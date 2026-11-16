@@ -209,9 +209,10 @@ def _connections(ctx: Ctx) -> dict:
     return section("connections", "report.sec.connections", "report.conn.summary", items, n=len(items), pct=_pct(worst))
 
 
-def _pct(share: float) -> str:
+def _pct(share: float):
+    """Percent as a number (the reader writes it in its own language): one decimal just below 100, otherwise whole."""
     v = share * 100
-    return ("%.1f" % v if 99 < v < 100 else "%d" % round(v)).rstrip("0").rstrip(".") if v != 100 else "100"
+    return round(v, 1) if 99 < v < 100 else int(round(v))
 
 
 # ---------------------------------------------------------------------- integrations refusing the sign-in

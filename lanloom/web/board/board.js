@@ -30,10 +30,8 @@
     "board.empty": "Nothing to show yet. Run a scan to fill the map.",
     "board.legend.label": "Map legend",
     "board.legend.dot": "1 dot ≈ {size}",
-    "board.legend.dotLarge": "larger dots 8× and 64×",
     "board.legend.unmeasured": "Not measured",
     "board.legend.waiting": "Waiting for live data",
-    "board.legend.live": "Live",
     "board.grade.realtime": "Real-time",
     "board.grade.near": "Near real-time",
     "board.grade.periodic": "Periodic",
@@ -71,11 +69,27 @@
     "board.kind.unknown": "Unknown device",
     "board.tile.aria": "{title}, {kind}, {status}, live data: {grade}",
     "board.zone.other": "Other",
-    "board.zone.count": "{count} components"
+    "board.zone.count": "{count, plural, one {# component} other {# components}}"
   };
   /* strings:end */
   function defaultT(key, vars) { return fill(STRINGS[key] || key, vars); }
-  function fill(s, vars) { return vars ? String(s).replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : m)) : String(s); }
+  // plain {name} replacement plus the plural form of the English built-in texts ({n, plural, one {# tile} other {# tiles}});
+  // the app passes its own translator, which knows every language (js/textfmt.js)
+  function fill(s, v) {
+    s = String(s).replace(/\{(\w+), plural, one \{([^{}]*)\} other \{([^{}]*)\}\}/g, (m, k, one, other) => {
+      const n = v ? Number(v[k]) : NaN;
+      return (n === 1 ? one : other).replace(/#/g, v && v[k] != null ? String(n) : '{' + k + '}');
+    });
+    return v ? s.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : m)) : s;
+  }
+
+  // The server writes rates like "1.2 MB/s"; the decimal separator follows the page language
+  function localiseMetric(s, locale) {
+    if (!/\d\.\d/.test(s)) return s;
+    let dec = '.';
+    try { const p = new Intl.NumberFormat(locale || undefined).formatToParts(1.1).find(x => x.type === 'decimal'); if (p) dec = p.value; } catch (e) { /* keep the point */ }
+    return dec === '.' ? s : s.replace(/(\d)\.(\d)/g, '$1' + dec + '$2');
+  }
 
   // ------------------------------------------------------------------ binary byte units ("64 KiB")
   function formatBytes(n, locale) {
@@ -358,7 +372,7 @@
       });
       if (c.subtitle) s += ', ' + c.subtitle;
       if (e.metricFull) s += ', ' + e.metricFull;
-      else if (c.metric) s += ', ' + c.metric;
+      else if (c.metric) s += ', ' + localiseMetric(String(c.metric), this.locale);
       e.el.setAttribute('aria-label', s);
     }
 
@@ -415,7 +429,7 @@
       const c = e.data;
       e.title.textContent = fitText(f.title, c.title || '', f.wTitle - SAFETY);
       e.sub.textContent = fitText(f.sub, c.subtitle || '', f.wSub - SAFETY);
-      e.metricFull = c.metric == null ? '' : String(c.metric);
+      e.metricFull = c.metric == null ? '' : localiseMetric(String(c.metric), this.locale);
       this.fitMeta(e, f);
     }
     fitMeta(e, f) {
@@ -579,7 +593,7 @@
       }
       if (frame.metrics && this._f) for (const id in frame.metrics) {
         const e = this.tiles.get(id); if (!e) continue;
-        const m = frame.metrics[id] == null ? '' : String(frame.metrics[id]);
+        const m = frame.metrics[id] == null ? '' : localiseMetric(String(frame.metrics[id]), this.locale);
         if (m === e.metricFull) continue;
         e.metricFull = m;
         // no layout reads: the metric's room was measured when the tile was fitted; a longer text asks for room again

@@ -138,7 +138,7 @@
   const sec = (title, body) => h('section', { class: 'detail__sec' }, h('h3', {}, title), body);
   const dot = st => h('span', { class: 'hv-dot hv-dot--' + (st === 'running' ? 'on' : st === 'paused' ? 'warn' : 'off'), title: t('hv.status.' + st) === 'hv.status.' + st ? st : t('hv.status.' + st) });
   // sizes from one terabyte on in TB (storage of a hypervisor is often larger than the app's usual byte formatter goes)
-  const size = b => (Number(b) >= 1e12 ? (Number(b) / 1e12).toFixed(Number(b) >= 1e13 ? 0 : 1) + '\u00a0TB' : LL.fmtBytes(b));
+  const size = b => (Number(b) >= 1e12 ? LL.fmtNum(Number(b) / 1e12, Number(b) >= 1e13 ? 0 : 1) + '\u00a0TB' : LL.fmtBytes(b));
   const memText = (u, tot) => size(u) + ' / ' + size(tot);
   const upText = s => s == null ? null : LL.fmtAge(s);
   const factsOf = rows => h('dl', { class: 'facts' }, rows.filter(r => r && r[1] != null && r[1] !== '').map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]).flat());
@@ -151,7 +151,7 @@
     const x = d.host || {};
     const kids = [factsOf([
       [t('hv.f.version'), d.version || x.version], [t('hv.f.cluster'), d.cluster], [t('hv.f.cpu'), x.cpu != null ? pct(x.cpu) + (x.cores ? ' · ' + t('hv.cores', { n: x.cores }) : '') : null],
-      [t('hv.f.ram'), x.mem_total ? memText(x.mem_used, x.mem_total) : null], [t('hv.f.load'), x.load && x.load.length ? x.load.map(v => Number(v).toFixed(2)).join(' · ') : null],
+      [t('hv.f.ram'), x.mem_total ? memText(x.mem_used, x.mem_total) : null], [t('hv.f.load'), x.load && x.load.length ? x.load.map(v => LL.fmtNum(Number(v), 2)).join(' · ') : null],
       [t('hv.f.uptime'), upText(x.uptime_s)], [t('hv.f.guests'), t('hv.guests_of', { r: x.guests_running != null ? x.guests_running : 0, n: x.guests_total != null ? x.guests_total : (d.guests || []).length })],
       [t('detail.age'), d.age_s != null ? LL.fmtAge(d.age_s) : null]])];
     if (d.findings && d.findings.length) kids.push(h('div', { class: 'hv-sub' }, findingList(d.findings)));

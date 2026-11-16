@@ -4,6 +4,8 @@ import json
 import os
 import re
 
+from lanloom import textfmt
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 I18N = os.path.join(ROOT, "lanloom", "i18n")
 BOARD = os.path.join(ROOT, "lanloom", "web", "board")
@@ -34,7 +36,7 @@ def test_same_keys_and_prefix():
     assert all(isinstance(v, str) and v.strip() for v in list(en.values()) + list(de.values()))
     # placeholders must survive translation
     for k in en:
-        assert set(re.findall(r"\{(\w+)\}", en[k])) == set(re.findall(r"\{(\w+)\}", de[k])), k
+        assert textfmt.placeholders(en[k]) == textfmt.placeholders(de[k]), k
 
 
 def test_builtin_defaults_match_english():
@@ -66,8 +68,8 @@ def test_every_used_key_exists():
 
 
 def test_german_uses_real_umlauts():
-    de = load("de")
-    text = " ".join(de.values())
+    with open(os.path.join(I18N, "de.json"), encoding="utf-8") as f:
+        text = " ".join(list(load("de").values()) + list(json.load(f).values()))
     assert "ä" in text and "ö" in text and "ü" in text
     for wrong in ("Traege", "Geraet", "groesse", "fuellen", "Groesse"):
         assert wrong not in text

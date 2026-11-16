@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 
-from . import __version__, auth, config as config_mod, mapmodel
+from . import __version__, auth, config as config_mod, mapmodel, textfmt
 from .core import Core
 from .crypto import Vault, load_or_create_key
 from .store import Store
@@ -31,6 +31,11 @@ PUBLIC_API = {"/api/health", "/api/state", "/api/login", "/api/setup/account", "
 PUBLIC_PREFIX = ("/api/i18n/", "/api/ai/installer/")
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; "
        "connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+
+
+def i18n_languages() -> list:
+    """Languages with a translation file (one ``<lang>.json`` plus ``board.<lang>.json`` each)."""
+    return sorted(p.stem for p in I18N.glob("*.json") if not p.name.startswith("board."))
 
 
 def load_i18n(lang: str) -> dict:
@@ -824,10 +829,16 @@ def selftest() -> int:
         sent = ps.out(probe_text)
         if ai_privacy.leaks(sent) or "sample-host" in sent or ps.back(sent) != probe_text or not ai_providers.public_list():
             problems.append("ai privacy layer")
-        en, de = load_i18n("en"), load_i18n("de")
-        if not en or set(en) != set(de):
-            problems.append("i18n keys differ (%d en / %d de)" % (len(en), len(de)))
-        for rel in ("index.html", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        en = load_i18n("en")
+        if not en:
+            problems.append("i18n: no English texts")
+        for lang in i18n_languages():
+            other = load_i18n(lang)
+            if set(other) != set(en):
+                problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
+            elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
+                problems.append("i18n placeholders differ (%s)" % lang)
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

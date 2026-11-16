@@ -150,16 +150,6 @@ def test_deep_scan_needs_consent_outside_demo(tmp_path, monkeypatch):
         assert r.status_code == 400 and r.json()["error"] == "scan.unsafe.public"
 
 
-def test_i18n_complete_and_same_keys():
-    en, de = load_i18n("en"), load_i18n("de")
-    assert en and set(en) == set(de)
-    assert all(v.strip() for v in en.values()) and all(v.strip() for v in de.values())
-    # placeholders match
-    ph = re.compile(r"\{(\w+)\}")
-    for k in en:
-        assert set(ph.findall(en[k])) == set(ph.findall(de[k])), k
-
-
 def test_ui_uses_only_known_keys():
     en = load_i18n("en")
     web = Path(__file__).resolve().parent.parent / "lanloom" / "web" / "js"

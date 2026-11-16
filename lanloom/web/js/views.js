@@ -83,7 +83,7 @@
       }
       let selected = null;
       const board = LL.Board.mount(host, {
-        view: localise(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.lang === 'de' ? 'de-DE' : 'en-GB',
+        view: localise(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(),
         onSelect: id => { selected = id; board.highlight(id); openDetail(panel, id, () => { selected = null; board.highlight(null); }); }
       });
       const onTheme = ev => board.setTheme(ev.detail);

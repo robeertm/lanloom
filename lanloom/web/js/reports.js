@@ -26,7 +26,7 @@
   LL.NAV_REPORTS_ICON = svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/><path d="M15 3.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/>');
 
   // ------------------------------------------------------------------ formatting in the report's time zone
-  const locale = () => (LL.lang === 'de' ? 'de-DE' : 'en-GB');
+  const locale = () => LL.locale();
   function parts(ts, tz, opt) {
     const out = {};
     try { new Intl.DateTimeFormat(locale(), Object.assign({ timeZone: tz }, opt)).formatToParts(new Date(ts * 1000)).forEach(p => { out[p.type] = p.value; }); }
@@ -61,7 +61,7 @@
     const out = {};
     Object.entries(vars || {}).forEach(([k, v]) => {
       const m = SUFFIX.exec(k), base = m ? k.slice(0, -m[0].length) : k;
-      if (!m) out[base] = v;
+      if (!m) out[base] = typeof v === 'number' && !Number.isInteger(v) ? LL.fmtNum(v) : v;
       else if (m[1] === 'at') out[base] = fmtTime(v, rep.tz, rep.day);
       else if (m[1] === 'dur') out[base] = fmtDur(v);
       else if (m[1] === 'bytes') out[base] = LL.fmtBytes(v);
@@ -77,7 +77,7 @@
   }
   function headline(rep) {
     const n = rep.points || 0;
-    return !n ? t('report.head.calm') : (n === 1 ? t('report.head.one') : t('report.head.many', { n }));
+    return !n ? t('report.head.calm') : t('report.head', { n });
   }
   LL.reportHeadline = headline;
 

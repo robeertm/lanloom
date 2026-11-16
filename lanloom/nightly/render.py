@@ -1,8 +1,9 @@
 """Plain-text rendering of a report for deliveries (the web app renders the same keys itself)."""
 import json
-import re
 from datetime import date, datetime
 from pathlib import Path
+
+from ..textfmt import fill, num
 
 I18N = Path(__file__).resolve().parent.parent / "i18n"
 SUFFIXES = ("_at", "_dur", "_bytes", "_cc", "_key")
@@ -21,13 +22,13 @@ def strings(lang: str) -> dict:
     return _cache[lang]
 
 
-def fmt_bytes(n) -> str:
+def fmt_bytes(n, lang: str = "en") -> str:
     n = float(n or 0)
     for unit, f in (("GB", 1e9), ("MB", 1e6), ("kB", 1e3)):
         if n >= f:
             v = n / f
-            return ("%.0f" % v if v >= 10 else "%.1f" % v) + " " + unit
-    return "%d B" % round(n)
+            return num(lang, v, 0 if v >= 10 else 1) + " " + unit
+    return num(lang, round(n), 0) + " B"
 
 
 def fmt_dur(s, tr) -> str:
@@ -62,8 +63,7 @@ class Renderer:
         self.tz, self.day = tz, day
 
     def tr(self, key: str, **vars_) -> str:
-        text = self.s.get(key, key)
-        return re.sub(r"\{(\w+)\}", lambda m: str(vars_[m.group(1)]) if m.group(1) in vars_ else m.group(0), text)
+        return fill(self.s.get(key, key), vars_, self.lang)
 
     def values(self, vars_: dict) -> dict:
         out = {}
@@ -74,9 +74,11 @@ class Renderer:
             elif k.endswith("_dur"):
                 out[base] = fmt_dur(v, self.tr)
             elif k.endswith("_bytes"):
-                out[base] = fmt_bytes(v)
+                out[base] = fmt_bytes(v, self.lang)
             elif k.endswith("_key"):
                 out[base] = self.tr(str(v))
+            elif isinstance(v, float) and v != int(v):
+                out[base] = num(self.lang, v)
             else:
                 out[base] = v
         return out
@@ -91,7 +93,7 @@ def headline(report: dict, r: Renderer) -> str:
     n = report.get("points", 0)
     if not n:
         return r.tr("report.head.calm")
-    return r.tr("report.head.one") if n == 1 else r.tr("report.head.many", n=n)
+    return r.tr("report.head", n=n)
 
 
 def short_text(report: dict, lang: str, tz, link: str) -> dict:

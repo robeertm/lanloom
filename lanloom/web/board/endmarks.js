@@ -67,28 +67,36 @@
   /* strings:begin */
   const STRINGS = {
     "endmarks.outside": "outside",
-    "endmarks.targets": "{n} targets",
-    "endmarks.sources": "{n} sources",
-    "endmarks.peers": "{n} peers",
+    "endmarks.targets": "{n, plural, one {# target} other {# targets}}",
+    "endmarks.sources": "{n, plural, one {# source} other {# sources}}",
+    "endmarks.peers": "{n, plural, one {# peer} other {# peers}}",
     "endmarks.self": "{name} itself",
     "endmarks.hostItself": "{name} (the host itself)",
-    "endmarks.bundleTitle": "{n} tiles → {name}",
-    "endmarks.edgeTraces": "{n} traces at the edge",
+    "endmarks.bundleTitle": "{n, plural, one {# tile} other {# tiles}} → {name}",
+    "endmarks.edgeTraces": "{n, plural, one {# trace} other {# traces}} at the edge",
     "endmarks.ariaEnd": "Trace leads outside: {target}",
     "endmarks.ariaEdge": "Trace leads out of view: {target}",
     "endmarks.trace": "Trace",
     "endmarks.leadsOut": "leads outside",
-    "endmarks.leadsOutPeers": "leads outside · {n} peers",
+    "endmarks.leadsOutPeers": "leads outside · {n, plural, one {# peer} other {# peers}}",
     "endmarks.traceAtEdge": "Trace at the view edge",
     "endmarks.targetOutside": "Target outside the view",
-    "endmarks.targetsOutside": "{n} targets outside the view",
+    "endmarks.targetsOutside": "{n, plural, one {# target} other {# targets}} outside the view",
     "endmarks.goTo": "Go there",
     "endmarks.toTarget": "To the target",
     "endmarks.more": "… and {n} more",
-    "endmarks.fromTiles": "From {n} tiles"
+    "endmarks.fromTiles": "From {n, plural, one {# tile} other {# tiles}}"
   };
   /* strings:end */
-  const fill = (s, v) => (v ? String(s).replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : m)) : String(s));
+  // plain {name} replacement plus the plural form of the English built-in texts ({n, plural, one {# tile} other {# tiles}});
+  // the app passes its own translator, which knows every language (js/textfmt.js)
+  const fill = (s, v) => {
+    s = String(s).replace(/\{(\w+), plural, one \{([^{}]*)\} other \{([^{}]*)\}\}/g, (m, k, one, other) => {
+      const n = v ? Number(v[k]) : NaN;
+      return (n === 1 ? one : other).replace(/#/g, v && v[k] != null ? String(n) : '{' + k + '}');
+    });
+    return v ? s.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : m)) : s;
+  };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   /* Keep the bundled label's name stable. The shape keeps a hysteresis; the name used to follow the largest weight tick by tick

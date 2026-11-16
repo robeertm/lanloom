@@ -40,7 +40,7 @@
   }
   const pct = x => {
     const v = x * 100;
-    return (v > 0 && v < 1 ? v.toFixed(1) : String(Math.round(v))) + ' %';
+    return (v > 0 && v < 1 ? LL.fmtNum(v, 1) : LL.fmtNum(Math.round(v), 0)) + ' %';
   };
   const reduced = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -267,9 +267,9 @@
     const share = tt.outside_eu_share == null ? t('paths.no_data') : pct(tt.outside_eu_share);
     return h('div', { class: 'pw-kpis' },
       tile(total ? LL.fmtBytes(total) : '–', t('paths.kpi.exchanged')),
-      tile(String(tt.countries), t(tt.countries === 1 ? 'paths.kpi.country' : 'paths.kpi.countries')),
+      tile(String(tt.countries), t('paths.kpi.countries', { n: tt.countries })),
       tile(share, t('paths.kpi.outside_eu'), tt.outside_eu_share > 0 ? 'pw-kpi--out' : (tt.outside_eu_share == null ? 'pw-kpi--none' : '')),
-      tile(String(tt.devices), t(tt.devices === 1 ? 'paths.kpi.device' : 'paths.kpi.devices')),
+      tile(String(tt.devices), t('paths.kpi.devices', { n: tt.devices })),
       tile(String(d.unusual.length), t('paths.kpi.unusual'), d.unusual.length ? 'pw-kpi--warn' : ''));
   }
   function note(d) {
@@ -315,7 +315,7 @@
         onclick: () => select({ type: 'country', id: r.cc }) },
       h('span', { class: 'pw-row__cc mono' }, r.cc.startsWith('~') ? '–' : r.cc),
       h('span', { class: 'pw-row__name' }, countryName(r.cc)),
-      h('span', { class: 'pw-row__meta muted' }, r.devices != null ? t(r.devices === 1 ? 'paths.n_device' : 'paths.n_devices', { n: r.devices }) : ''),
+      h('span', { class: 'pw-row__meta muted' }, r.devices != null ? t('paths.n_devices', { n: r.devices }) : ''),
       h('span', { class: 'pw-row__value' }, LL.fmtBytes(r.b)),
       bar(r.b / max, !r.eu && !r.cc.startsWith('~')))))) : h('p', { class: 'muted pw-empty' }, t('paths.empty.list')));
   }
@@ -332,7 +332,7 @@
       rows.length ? h('ul', { class: 'pw-list' }, rows.slice(0, 40).map(r => h('li', {}, h('button', { type: 'button',
         class: 'pw-row pw-row--device' + (selDev === r.id ? ' is-selected' : ''), onclick: () => select({ type: 'device', id: r.id }) },
       h('span', { class: 'pw-row__name' }, devTitle(r.dev) || r.id),
-      h('span', { class: 'pw-row__meta muted' }, r.n != null ? t(r.n === 1 ? 'paths.n_country' : 'paths.n_countries', { n: r.n }) : (r.dev && r.dev.ip) || ''),
+      h('span', { class: 'pw-row__meta muted' }, r.n != null ? t('paths.n_countries', { n: r.n }) : (r.dev && r.dev.ip) || ''),
       h('span', { class: 'pw-row__value' }, LL.fmtBytes(r.b)),
       bar(r.b / max, false))))) : h('p', { class: 'muted pw-empty' }, t('paths.empty.list')));
   }

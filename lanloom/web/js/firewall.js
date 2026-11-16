@@ -215,7 +215,7 @@
           return h('button', { type: 'button', class: 'fw-chip', title: t('fw.draft.undo_one', { name: d.name }), onclick: () => unstage(id) }, d.name + ' → ' + n.name, h('span', { 'aria-hidden': 'true' }, ' ✕'));
         });
         bar.replaceChildren(
-          h('div', { class: 'fw-draftbar__info' }, h('strong', {}, t(ids.length === 1 ? 'fw.draft.one' : 'fw.draft.many', { n: ids.length })),
+          h('div', { class: 'fw-draftbar__info' }, h('strong', {}, t('fw.draft', { n: ids.length })),
             v.draft.undo_of ? h('span', { class: 'chip chip--muted' }, t('fw.draft.is_undo')) : null, h('div', { class: 'fw-draftbar__chips' }, chips)),
           h('div', { class: 'fw-draftbar__actions' },
             h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => { await api('/api/firewall/draft', { method: 'DELETE' }); load(); } }, t('fw.draft.discard')),
@@ -360,7 +360,7 @@
   'use strict';
   const LL = window.Lanloom;
   const { h, t } = LL;
-  const fmtCount = n => (n == null ? '' : n >= 1e9 ? (n / 1e9).toFixed(1) + ' G' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' M' : n >= 1e4 ? Math.round(n / 1e3) + ' k' : String(n));
+  const fmtCount = n => (n == null ? '' : n >= 1e9 ? LL.fmtNum(n / 1e9, 1) + '\u00a0G' : n >= 1e6 ? LL.fmtNum(n / 1e6, 1) + '\u00a0M' : n >= 1e4 ? LL.fmtNum(Math.round(n / 1e3), 0) + '\u00a0k' : LL.fmtNum(n, 0));
 
   function zoneName(s, id) { const z = s.zones.find(x => x.id === id); return z ? z.name : '—'; }
   function netName(s, id) { const n = s.networks.find(x => x.id === id); return n ? n.name : '?'; }
@@ -471,7 +471,7 @@
               title: [p.name, p.link ? (p.speed ? p.speed + ' Mbit/s' : t('fw.eq.link')) : t('fw.eq.nolink'), p.native_vlan != null ? 'VLAN ' + p.native_vlan : null,
                 p.poe && p.poe.on ? t('fw.eq.poe') : null, p.is_uplink ? t('fw.eq.is_uplink') : null, p.profile].filter(Boolean).join(' · ') },
               h('span', { class: 'fw-port__n' }, String(p.idx)),
-              h('span', { class: 'fw-port__s' }, p.link ? (p.speed >= 1000 ? (p.speed / 1000) + 'G' : p.speed ? String(p.speed) : '•') : '–')))) : null);
+              h('span', { class: 'fw-port__s' }, p.link ? (p.speed >= 1000 ? LL.fmtNum(p.speed / 1000) + 'G' : p.speed ? String(p.speed) : '•') : '–')))) : null);
         }))));
     }
     const ss = s.ssids || [];

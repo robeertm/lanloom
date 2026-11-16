@@ -52,7 +52,6 @@
     "portmarks.wlan": "Wireless",
     "portmarks.seen": "seen",
     "portmarks.listed": "listed {ports}",
-    "portmarks.connection": "Connection",
     "portmarks.band.2.4ghz": "2.4 GHz",
     "portmarks.band.5ghz": "5 GHz",
     "portmarks.band.6ghz": "6 GHz",

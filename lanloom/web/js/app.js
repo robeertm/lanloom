@@ -48,8 +48,7 @@
   function t(key, vars) {
     let s = LL.strings[key];
     if (s == null) s = key;
-    if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? String(vars[k]) : m));
-    return s;
+    return LL.Text.fill(s, vars, LL.lang);
   }
   LL.t = t;
   LL.errText = function (e) {
@@ -123,18 +122,25 @@
   }
 
   // ------------------------------------------------------------------ formatting
+  // BCP 47 tag of the page language: numbers, dates and times follow it (24-hour clock, decimal comma, ...)
+  const LOCALES = { en: 'en-GB', de: 'de-DE' };
+  LL.locale = () => LOCALES[LL.lang] || LL.lang;
+  // a number the way the language writes it; digits fixes the fraction digits, otherwise up to two
+  LL.fmtNum = (n, digits) => LL.Text.num(LL.locale(), n, digits);
+  // one decimal below 10, none above: 1.2 MB, 12 MB (decimal comma in German)
+  const sized = (v, u) => LL.fmtNum(v, v >= 10 ? 0 : 1) + '\u00a0' + u;
   LL.fmtBytes = function (n) {
     n = Number(n) || 0;
     const units = [['GB', 1e9], ['MB', 1e6], ['kB', 1e3]];
-    for (const [u, f] of units) if (n >= f) { const v = n / f; return (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + ' ' + u; }
-    return Math.round(n) + ' B';
+    for (const [u, f] of units) if (n >= f) return sized(n / f, u);
+    return LL.fmtNum(Math.round(n), 0) + '\u00a0B';
   };
   LL.rateUnit = 'bytes';                                   // 'bytes' | 'bits' (server setting rate_unit)
   LL.fmtBits = function (n) {
     n = (Number(n) || 0) * 8;
     const units = [['Gbit', 1e9], ['Mbit', 1e6], ['kbit', 1e3]];
-    for (const [u, f] of units) if (n >= f) { const v = n / f; return (v >= 10 ? v.toFixed(0) : v.toFixed(1)) + ' ' + u; }
-    return Math.round(n) + ' bit';
+    for (const [u, f] of units) if (n >= f) return sized(n / f, u);
+    return LL.fmtNum(Math.round(n), 0) + '\u00a0bit';
   };
   LL.fmtRate = n => (LL.rateUnit === 'bits' ? LL.fmtBits(n) : LL.fmtBytes(n)) + '/s';
   LL.fmtAge = function (s) {
@@ -147,7 +153,7 @@
   };
   LL.fmtDate = function (ts) {
     if (!ts) return '—';
-    try { return new Date(ts * 1000).toLocaleString(LL.lang === 'de' ? 'de-DE' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }); }
+    try { return new Date(ts * 1000).toLocaleString(LL.locale(), { dateStyle: 'medium', timeStyle: 'short', hour12: false }); }
     catch (e) { return new Date(ts * 1000).toISOString(); }
   };
 
