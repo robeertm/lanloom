@@ -18,7 +18,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Five texts nothing used any more.
 
 ### Fixed
-- The German text of one scan refusal (IPv6 ranges) was missing; it now has both languages.
+- The text of one scan refusal (IPv6 ranges) was missing in both languages; it is there now.
 - Two tests of the night report depended on the time of day and failed after a while on the day they were written; they no longer do.
 
 ## [1.10.1] – 2026-11-16
