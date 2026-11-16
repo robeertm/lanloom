@@ -24,7 +24,8 @@ def answer(system: str, user: str) -> str:
     if "opening paragraph of a network's nightly report" in system:
         m = re.search(r"^Points that need a look: (\d+)$", user, re.M)
         n = int(m.group(1)) if m else 0
-        return _text(lang, "ai.demo.answer.report_calm" if not n else "ai.demo.answer.report").replace("{n}", str(n))
+        from ..textfmt import fill
+        return fill(_text(lang, "ai.demo.answer.report_calm" if not n else "ai.demo.answer.report"), {"n": n}, lang)
     if "help identify one device" in system:
         return _identify(lang, user)
     if "suggest which devices could move" in system:
@@ -64,7 +65,7 @@ def _identify(lang: str, user: str) -> str:
             kind = k
             break
     reason = _text(lang, "ai.demo.answer.identify").replace("{kind}", _text(lang, "kind." + kind))
-    return json.dumps({"kind": kind, "label": _text(lang, "ai.demo.answer.identify_label." + kind), "reason": reason})
+    return json.dumps({"kind": kind, "label": _text(lang, "ai.demo.answer.identify_label.%s" % kind), "reason": reason})
 
 
 def _firewall(lang: str, user: str) -> str:

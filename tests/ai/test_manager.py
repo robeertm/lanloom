@@ -19,7 +19,7 @@ def sent_user(call):
 
 # ---------------------------------------------------------------------- defaults and settings
 def test_everything_is_off_by_default(env):
-    assert env.ai.ready() == {"device": False, "finding": False, "rule": False}
+    assert env.ai.ready() == {"device": False, "finding": False, "rule": False, "ask": False, "report": False, "identify": False, "firewall": False}
     for fn in manager_mod.FUNCTIONS:
         assert env.ai.routes(fn) == []
     s = env.ai.settings()
@@ -123,7 +123,7 @@ def test_function_without_allow_does_not_use_the_cloud(env):
         env.ai.explain("device", {"id": "dev1"}, "en")
     env.ai.update_settings({"allow": {"explain_device": True}})
     assert env.ai.routes("explain_device") == ["public"]
-    assert env.ai.routes("explain_rule") == [] and env.ai.ready() == {"device": True, "finding": False, "rule": False}
+    assert env.ai.routes("explain_rule") == [] and env.ai.ready() == {"device": True, "finding": False, "rule": False, "ask": False, "report": False, "identify": False, "firewall": False}
     assert env.fake.calls == []
 
 

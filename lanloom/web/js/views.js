@@ -35,7 +35,7 @@
     const header = h('header', { class: 'topbar' },
       h('a', { class: 'topbar__brand', href: '#/map' }, LL.logo(26), h('span', { class: 'brand-name' }, 'Lanloom'),
         LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
-      nav, h('div', { class: 'topbar__right' }, updateBtn, gradePill, themeBtn));
+      nav, h('div', { class: 'topbar__right' }, LL.aiAskButton ? LL.aiAskButton() : null, updateBtn, gradePill, themeBtn));
     const main = h('main', { class: 'main main--' + active }, content);
     const notes = LL.noticeBar ? LL.noticeBar() : null;              // security notices (new device, lock-out ...)
     const demoBar = LL.state && LL.state.demo_view ? h('div', { class: 'demo-bar', role: 'status' },
@@ -236,7 +236,7 @@
     (dev.mdns || []).forEach(m => ann.push(h('li', {}, h('span', { class: 'mono' }, m.type), ' — ', m.name || '')));
     (dev.ssdp || []).forEach(s => ann.push(h('li', {}, h('span', { class: 'mono' }, (s.device_type || s.st || '').replace(/^urn:/, '')), ' — ', [s.friendly_name, s.model].filter(Boolean).join(' · '))));
     const hide = !may ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
-    return h('div', {}, section(t('detail.device'), facts(rows)), identitySection(dev, may), ports ? section(t('device.ports'), ports) : null,
+    return h('div', {}, section(t('detail.device'), facts(rows)), LL.aiHintSection ? LL.aiHintSection(dev) : null, identitySection(dev, may), ports ? section(t('device.ports'), ports) : null,
       ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, hide ? h('div', { class: 'detail__foot' }, hide) : null);
   }
 
@@ -420,7 +420,7 @@
   }
 
   // ------------------------------------------------------------------ devices list
-  async function devicesView(app) {
+  async function devicesView(app, rest) {
     const fr = frame(app, 'devices');
     const data = await api('/api/devices');
     const q = h('input', { type: 'search', class: 'input', placeholder: t('devices.search'), 'aria-label': t('devices.search') });
@@ -442,6 +442,9 @@
     fr.main.append(h('div', { class: 'page' }, h('div', { class: 'page__head' }, h('h1', {}, t('nav.devices')), count),
       h('div', { class: 'toolbar' }, q, h('label', { class: 'check' }, showHidden, h('span', {}, t('devices.show_hidden')))), list), panel);
     render();
+    // deep link #/devices/<id> (answers of "Ask your network" link here): open that device's card
+    const want = rest && rest[0] ? decodeURIComponent(rest[0]) : '';
+    if (want && data.devices.some(d => d.id === want)) openDetail(panel, want);
     return fr;
   }
 

@@ -39,6 +39,11 @@
         await load();
       }
       function stage(devId, netId) { const m = Object.assign({}, st.view.draft.moves); m[devId] = netId; return setMoves(m); }
+      async function takeSuggestion(moves) {           // AI suggestions become a draft only by the user's click
+        await api('/api/firewall/draft', { method: 'PUT', body: { moves } });
+        st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ }
+        await load();
+      }
       function unstage(devId) { const m = Object.assign({}, st.view.draft.moves); delete m[devId]; return setMoves(m); }
 
       // ---------------------------------------------------------------- rendering
@@ -87,7 +92,7 @@
         })) : null;
         return h('div', { class: 'page__head fw-head' },
           h('div', { class: 'fw-head__title' }, h('h1', {}, t('nav.firewall')), h('div', { class: 'fw-head__meta' }, chip, meta ? h('span', { class: 'muted' }, meta) : null)),
-          h('div', { class: 'fw-head__tools' }, pick, canMove(v) ? seg : null, v.mode === 'live' || !LL.can('admin') ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
+          h('div', { class: 'fw-head__tools' }, pick, canMove(v) && LL.aiFirewallButton ? LL.aiFirewallButton(v, v.draft.moves, takeSuggestion) : null, canMove(v) ? seg : null, v.mode === 'live' || !LL.can('admin') ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
       }
 
       function board(v) {

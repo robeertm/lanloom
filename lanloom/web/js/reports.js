@@ -189,7 +189,8 @@
           h('p', { class: 'rp-cover muted' }, cover + ' · ' + t('reports.made', { at: fmtTime(rep.created, rep.tz, rep.day) }))),
         nav),
       notes,
-      h('div', { class: 'rp-headline rp-headline--' + level }, headIcon, h('b', { class: 'rp-headline__text' }, headline(rep)), progress));
+      h('div', { class: 'rp-headline rp-headline--' + level }, headIcon, h('b', { class: 'rp-headline__text' }, headline(rep)), progress),
+      LL.aiPlainBlock ? LL.aiPlainBlock(rep) : null);     // AI paragraph "In plain words" (optional; the report below stays the truth)
     const sections = h('div', { class: 'rp-sections' }, rep.sections.map(s => sectionEl(s, rep, page)));
     const foot = deliveryNote(rep);
     return h('article', { class: 'card rp-report', 'aria-label': rep.preview ? t('reports.preview.title') : fmtDay(rep.day, true) }, header, sections, foot);

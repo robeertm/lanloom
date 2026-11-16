@@ -279,7 +279,7 @@
           h('summary', {}, t('ai.local.manual')), providerForm('local', data, onSaved))], 'ai-local');
       const pub = card(t('ai.public.title'), [h('p', { class: 'muted' }, t('ai.public.text')), providerForm('public', data, onSaved), h('hr'), privacyCard(data, onSaved),
         h('p', { class: 'muted ai-notice' }, data.notice ? t('ai.notice') : '')], 'ai-public');
-      holder.replaceChildren(intro, local, pub);
+      holder.replaceChildren(intro, local, pub, LL.aiFeaturesCard ? LL.aiFeaturesCard(data, onSaved) : '');
     }
     async function refresh(note) { data = await api('/api/ai'); await LL.refreshAiState(); draw(note); }
     function onSaved(d, note) { data = d; LL.refreshAiState(); draw(note); }
@@ -328,6 +328,7 @@
     } catch (e) { status.className = 'msg msg--error'; status.textContent = LL.errText(e); }
   }
 
+  LL.aiDrawPreview = (box, p) => drawPreview(box, p);
   function drawPreview(box, p) {
     if (!p.routes.length) { box.replaceChildren(h('p', { class: 'muted' }, t('ai.preview.none'))); return; }
     box.replaceChildren(...p.routes.map(r => h('div', { class: 'ai-preview__route' },

@@ -95,12 +95,12 @@ def test_demo_lists_only_sample_services_without_product_names(demo):
     for name in PRODUCTS:
         assert name not in low, name
     assert data["settings"]["local"]["enabled"] is True and data["settings"]["public"]["enabled"] is False
-    assert data["ready"] == {"device": True, "finding": True, "rule": True}
+    assert data["ready"] == {"device": True, "finding": True, "rule": True, "ask": True, "report": True, "identify": True, "firewall": True}
 
 
 def test_state_carries_the_readiness(demo):
     ai = demo.get("/api/state").json()["ai"]
-    assert set(ai) == {"device", "finding", "rule"} and all(isinstance(v, bool) for v in ai.values())
+    assert set(ai) == {"device", "finding", "rule", "ask", "report", "identify", "firewall"} and all(isinstance(v, bool) for v in ai.values())
 
 
 def test_demo_explain_device(demo):
@@ -347,10 +347,10 @@ def test_the_real_address_never_reaches_a_public_service_through_the_api(live):
 
 
 def test_ready_flags_follow_the_permissions(live):
-    assert live.get("/api/state").json()["ai"] == {"device": False, "finding": False, "rule": False}
+    assert live.get("/api/state").json()["ai"] == {"device": False, "finding": False, "rule": False, "ask": False, "report": False, "identify": False, "firewall": False}
     live.put("/api/ai", json={"settings": {"public": {"kind": "openai", "model": "m", "enabled": True}, "allow": {"explain_rule": True}},
                               "secrets": {"public_key": KEY}}, headers=HDR)
-    assert live.get("/api/state").json()["ai"] == {"device": False, "finding": False, "rule": True}
+    assert live.get("/api/state").json()["ai"] == {"device": False, "finding": False, "rule": True, "ask": False, "report": False, "identify": False, "firewall": False}
 
 
 # ---------------------------------------------------------------------- texts
