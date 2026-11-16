@@ -1191,7 +1191,7 @@ class Updater:
     def moving_tag_of(self, container: dict, repo: str, tag: str | None) -> str | None:
         """The tag a later "compose up" resolves for this container, or None when the version is pinned.
 
-        A non-version tag in the container's image reference is it (the compose file names it). Sidecars before 1.16
+        A non-version tag in the container's image reference is it (the compose file names it). Sidecars before 1.17
         created the new container with the version tag, so an installation updated twice by them shows a version tag
         although its compose file names "latest": a compose-managed container with a local "latest" of the same
         repository counts as such an installation.

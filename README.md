@@ -130,7 +130,7 @@ All screenshots show the built-in demo network with invented names and addresses
 <td width="50%"><img src="docs/screenshots/paths-lists-light.png" width="100%" alt="Unusual behaviour, countries and devices"><br><sub>Calm hints, countries and devices; a click selects</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/paths-zoom-dark.png" width="100%" alt="Zoomed world map around the home country"><br><sub>Zoom with the mouse wheel or a pinch: nearby countries get their own labels</sub></td>
+<td width="50%"><img src="docs/screenshots/paths-zoom-dark.png" width="100%" alt="Zoomed world map around the home country"><br><sub>Zooming with the mouse wheel or a pinch: nearby countries get their own labels</sub></td>
 <td width="50%"><img src="docs/screenshots/netflow-settings-light.png" width="100%" alt="NetFlow / IPFIX receiver settings"><br><sub>NetFlow / IPFIX from the router: allowed exporters, port and receiver state</sub></td>
 </tr>
 </table>

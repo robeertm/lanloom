@@ -133,7 +133,7 @@ Without the sidecar:
 docker compose pull && docker compose up -d
 ```
 
-An updater sidecar from before 1.16 created the new container with the version tag and, after a second one-click update, left `:latest` on an older version, so `docker compose up -d` could start that older version again. The settings page shows a note while such a sidecar runs. Renew it once; from then on it keeps the tag itself (and repairs a lagging `:latest` when it starts):
+An updater sidecar from before 1.17 created the new container with the version tag and, after a second one-click update, left `:latest` on an older version, so `docker compose up -d` could start that older version again. The settings page shows a note while such a sidecar runs. Renew it once; from then on it keeps the tag itself (and repairs a lagging `:latest` when it starts):
 
 ```sh
 docker compose pull && docker compose --profile updater up -d

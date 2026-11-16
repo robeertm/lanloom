@@ -24,7 +24,7 @@ from . import __version__
 
 CHECK_EVERY = 6 * 3600
 RETRY_AFTER_ERROR = 15 * 60
-UPDATER_KEEPS_TAG = "1.16.0"      # first sidecar that keeps the compose tag ("latest") on the running version
+UPDATER_KEEPS_TAG = "1.17.0"      # first sidecar that keeps the compose tag ("latest") on the running version
 # A run that is not terminal blocks new requests; one older than this is treated as stuck (the sidecar cleans up).
 BUSY_FOR = 30 * 60
 # Same as updater.engine.TERMINAL (a test keeps them equal; the app does not import the sidecar code).

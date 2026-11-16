@@ -1341,7 +1341,7 @@
  "paths.window.7d": "7 Tage",
  "paths.window.label": "Zeitraum",
  "paths.zoom.hint": "Zum Zoomen scrollen oder zwei Finger spreizen",
- "paths.zoom.reset": "Zoom zurücksetzen",
+ "paths.zoom.reset": "Ansicht zurücksetzen",
  "reason.mdns": "kündigt {v} an",
  "reason.netbios.name": "hat einen NetBIOS-Rechnernamen",
  "reason.port": "Port {v}",

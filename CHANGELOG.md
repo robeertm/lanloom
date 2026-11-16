@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.17.0] – 2026-11-16
+
+### Added
+- **NetFlow / IPFIX receiver for data paths**: the world map can show every device of the network, not only the Lanloom host. Your firewall or router sends NetFlow v5, NetFlow v9 or IPFIX (v9 and IPFIX with IPv6) to Lanloom, which books each flow per device and country into the same tables; only country, device id and bytes are kept, no addresses. Off by default, in *Settings › NetFlow / IPFIX from your router*: UDP port (standard 2055) and the **allowed exporter addresses**, which are required – without one the receiver cannot be switched on, and packets from any other address are dropped and counted (logged once per sender, then at most every 10 minutes). Templates are kept per exporter; records whose template has not arrived yet wait. Runs inside the app, no second container; with host networking no port mapping is needed. The settings card shows the receiver state (port, last packet, flows, booked, dropped, waiting for a template). See [docs/DATA-PATHS.md](docs/DATA-PATHS.md#setting-up-netflow--ipfix).
+- The footer of the data paths view names the actual source ("connections of this host", "NetFlow from" the exporter, or both), and a note under the map explains that routers usually report a connection when it ends, so long streams appear late, and that an active timeout of about 60 s helps.
+- Addresses without a known device are booked as **Unknown device**; the IPv6 addresses of known devices are recognised; extra own networks (for example an IPv6 prefix) can be added. The Lanloom host's own flows are skipped in NetFlow, because the host source counts them exactly.
+- **Zooming and panning on the data paths map**: mouse wheel at the pointer (up to 16×), drag to move, pinch on a phone, double click or the reset button to see the whole world. Outside the map, or fully zoomed out, the page scrolls as usual; one finger moves the map only while it is zoomed. Lines, dots and labels keep their size on screen, labels are laid out again for every zoom level, and the zoom works in the full screen and survives the live refresh every minute. Based on a contribution from a tester.
+- Label points for the territories the country data knows but the base map had no shape for (Bonaire, Bouvet Island, Christmas Island, Cocos Islands, Gibraltar, Guadeloupe, Martinique, Mayotte, Réunion, Svalbard, Tokelau, the minor outlying islands of the United States), so their traffic is shown; a test checks every country code of the country data.
+
+### Fixed
+- **A country lights up only with its main area**: France no longer lights up French Guiana in South America. French Guiana is now a shape of its own (its own country code); far-away parts of a country without an own code are drawn but never lit with it (the map builder measures the distance on the globe, so the two sides of the date line stay one country).
+- **`latest` after a one-click update**: the updater created the new container with the version tag, so from the second one-click update on the moving tag of the compose file (`latest`) stayed on the version of the first update, and a later `docker compose up -d` or a host restart with a recreated container could start that old version again. The new container now keeps the image reference of the compose file, the tag is moved to the new version before the swap and back on a rollback, and the compose image label follows the new image. At start the updater moves a `latest` that lags behind the running version forward (never backwards, for example after a manual pull). An updater container from before this version is shown in Settings › Updates with the one-time command to renew it: `docker compose pull && docker compose --profile updater up -d`.
+
 ## [1.16.0] – 2026-11-16
 
 ### Added
