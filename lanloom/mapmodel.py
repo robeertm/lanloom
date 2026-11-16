@@ -463,6 +463,9 @@ def component_detail(core, comp_id: str) -> dict:
         if comp_id == bid:
             out["broker"] = {"topics": sorted(([r, round(t["msgs"], 2), round(t["bytes"])] for r, t in entry["topics"].items()),
                                               key=lambda x: -x[2])[:30], "stats": entry.get("broker")}
+    for integ_id, hub_comp in _special_components(core, _visible_devices(core))["hub"].items():
+        if comp_id == hub_comp:               # the bridge card: what is read, what stays out, how the hub is spared
+            out["hub_bridge"] = core.hub_bridge(integ_id)
     if comp_id == core.ip_to_device.get(core.self_ip or ""):
         out["ifaces"] = core.self_iface
     out.update(hypervisor_detail(core, comp_id, dev))

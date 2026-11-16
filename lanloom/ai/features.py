@@ -366,6 +366,9 @@ def _report(f: Facts, core) -> None:
     f.add("")
 
 
+PRIVATE_SECTIONS = ("hub",)    # report sections the AI sees only as their summary line (counts, no names)
+
+
 def report_lines(rep: dict, reports, limit: int = 30, points_first: bool = True) -> list:
     from ..nightly.render import Renderer
     try:
@@ -376,6 +379,9 @@ def report_lines(rep: dict, reports, limit: int = 30, points_first: bool = True)
     items = []
     for sec in rep.get("sections") or []:
         title = r.tr(sec.get("title") or "")
+        if sec.get("id") in PRIVATE_SECTIONS:      # names of automations may name people: counts only (hub_privacy)
+            items.append((2, "%s: %s" % (title, r.line(sec.get("summary") or {}))))
+            continue
         for it in sec.get("items") or []:
             items.append((0 if it.get("point") else 1, "%s: %s%s" % (title, r.line(it), " (needs a look)" if it.get("point") else "")))
         if not sec.get("items"):

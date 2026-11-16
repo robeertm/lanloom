@@ -258,7 +258,9 @@
     hub: [
       { k: 'url', type: 'url', ph: 'http://192.168.1.20:8123', req: true },
       { k: 'token', secret: true, type: 'password', req: true },
-      { k: 'allow_self_signed', type: 'checkbox' }],
+      { k: 'allow_self_signed', type: 'checkbox' }, { k: 'admin_mode', type: 'checkbox' },
+      { k: 'privacy_presence', type: 'checkbox' }, { k: 'privacy_cameras', type: 'checkbox' },
+      { k: 'privacy_calendars', type: 'checkbox' }, { k: 'privacy_notifications', type: 'checkbox' }],
     mqtt: [
       { k: 'host', ph: '192.168.1.20', req: true }, { k: 'port', type: 'number', ph: '1883' },
       { k: 'username' }, { k: 'password', secret: true, type: 'password' },

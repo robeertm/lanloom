@@ -238,7 +238,7 @@ def test_run_emits_snapshot_states_and_status(caplog):
     assert snap["areas"] == [{"id": "office", "name": "Office"}]
     assert [d["id"] for d in snap["devices"]] == ["dev1", "dev2"]                 # disabled device skipped
     assert snap["devices"][1] == {"id": "dev2", "name": "Lamp", "model": "L2", "manufacturer": "Acme",
-                                  "area": "office", "via": "dev1", "service": False}
+                                  "area": "office", "via": "dev1", "service": False, "macs": [], "sw": None, "domains": []}
     ents = {e["entity_id"]: e for e in snap["entities"]}
     assert ents["sensor.power"] == {"entity_id": "sensor.power", "device_id": "dev1", "name": "Power",
                                     "state": "120", "unit": "W", "domain": "sensor", "area": "office"}
@@ -370,20 +370,69 @@ def test_forbidden_messages_are_refused_and_nothing_is_sent(type_, fields):
     assert conn.ws.sent == [] and h.refused == 1 and conn.pending == {}
 
 
+VALID_FIELDS = {
+    "automation/config": {"entity_id": "automation.hall"}, "script/config": {"entity_id": "script.night"},
+    "trace/list": {"domain": "automation", "item_id": "1700000000001"},
+    "trace/get": {"domain": "script", "item_id": "night", "run_id": "0f3a9c"},
+    "search/related": {"item_type": "automation", "item_id": "automation.hall"},
+}
+
+
 def test_allowed_messages_go_out_with_fixed_fields():
-    h = m.Hub("http://127.0.0.1:1", TOKEN)
+    h = m.Hub("http://127.0.0.1:1", TOKEN, admin_mode=True)
     conn = m._Conn(RecordingWs())
 
     async def go():
         await h._send(conn, "auth", access_token="abc")
         for t in sorted(m.ALLOWED_TYPES - {"auth", "subscribe_events"}):
-            await h._send(conn, t)
-        await h._send(conn, "subscribe_events", event_type="state_changed")
+            await h._send(conn, t, **VALID_FIELDS.get(t, {}))
+        for ev in sorted(m.ALLOWED_EVENTS):
+            await h._send(conn, "subscribe_events", event_type=ev)
     asyncio.run(go())
     msgs = [json.loads(s) for s in conn.ws.sent]
     assert msgs[0] == {"access_token": "abc", "type": "auth"}
-    assert [x["type"] for x in msgs[1:]] == sorted(m.ALLOWED_TYPES - {"auth", "subscribe_events"}) + ["subscribe_events"]
+    types = sorted(m.ALLOWED_TYPES - {"auth", "subscribe_events"})
+    assert [x["type"] for x in msgs[1:]] == types + ["subscribe_events"] * len(m.ALLOWED_EVENTS)
     assert [x["id"] for x in msgs[1:]] == list(range(1, len(msgs)))
+    for x in msgs[1:len(types) + 1]:
+        assert {k: v for k, v in x.items() if k not in ("type", "id")} == VALID_FIELDS.get(x["type"], {})
+
+
+def test_admin_types_refused_without_admin_mode():
+    h = m.Hub("http://127.0.0.1:1", TOKEN)
+    conn = m._Conn(RecordingWs())
+
+    async def go():
+        for t in sorted(m.ADMIN_TYPES):
+            with pytest.raises(m.ForbiddenMessage):
+                await h._send(conn, t, **VALID_FIELDS[t])
+    asyncio.run(go())
+    assert conn.ws.sent == [] and h.refused == len(m.ADMIN_TYPES)
+
+
+@pytest.mark.parametrize("type_,fields", [
+    ("automation/config", {"entity_id": "script.night"}), ("automation/config", {"entity_id": "light.x"}),
+    ("script/config", {"entity_id": "automation.hall"}), ("script/config", {"entity_id": "script.Night!"}),
+    ("trace/list", {"domain": "light", "item_id": "x"}), ("trace/list", {"domain": "automation", "item_id": ""}),
+    ("trace/list", {"domain": "automation", "item_id": "a\nb"}), ("trace/list", {"domain": "automation", "item_id": 5}),
+    ("trace/get", {"domain": "automation", "item_id": "1", "run_id": "../x"}),
+    ("trace/get", {"domain": "automation", "item_id": "1"}),
+    ("search/related", {"item_type": "entity", "item_id": "light.x"}),
+    ("search/related", {"item_type": "automation", "item_id": "light.x"}),
+    ("search/related", {"item_type": "area", "item_id": "kitchen"}),
+    ("automation/config", {"entity_id": "automation.hall", "extra": 1}),
+    ("subscribe_events", {"event_type": "automation_reloaded"}),
+    ("config_entries/get", {"domain": "x"}),
+])
+def test_values_outside_the_contract_are_refused(type_, fields):
+    h = m.Hub("http://127.0.0.1:1", TOKEN, admin_mode=True)
+    conn = m._Conn(RecordingWs())
+
+    async def go():
+        with pytest.raises(m.ForbiddenMessage):
+            await h._send(conn, type_, **fields)
+    asyncio.run(go())
+    assert conn.ws.sent == [] and h.refused == 1
 
 
 # ================================================================== allow-list: statically
@@ -400,8 +449,15 @@ def test_source_has_no_service_call_text():
 def test_allow_list_is_exactly_the_contract():
     assert m.ALLOWED_TYPES == frozenset({"auth", "get_states", "get_config", "config/device_registry/list",
                                          "config/entity_registry/list", "config/area_registry/list",
-                                         "subscribe_events"})
-    assert m.ALLOWED_EVENTS == frozenset({"state_changed"})
+                                         "config_entries/get", "subscribe_events", "automation/config", "script/config",
+                                         "trace/list", "trace/get", "search/related"})
+    assert m.ALLOWED_EVENTS == frozenset({"state_changed", "automation_triggered", "script_started"})
+    assert m.ADMIN_TYPES == frozenset({"automation/config", "script/config", "trace/list", "trace/get", "search/related"})
+    assert m.ALLOWED_FIELDS == {
+        "auth": frozenset({"access_token"}), "subscribe_events": frozenset({"event_type"}),
+        "automation/config": frozenset({"entity_id"}), "script/config": frozenset({"entity_id"}),
+        "trace/list": frozenset({"domain", "item_id"}), "trace/get": frozenset({"domain", "item_id", "run_id"}),
+        "search/related": frozenset({"item_type", "item_id"})}
 
 
 def test_send_text_only_inside_the_single_send_function():
@@ -426,11 +482,13 @@ def test_every_send_site_uses_an_allowed_literal_type():
             arg = node.args[1]
             if isinstance(arg, ast.Name) and arg.id == "type_":
                 continue                     # pass-through inside _request/_registry, checked by _send
-            assert isinstance(arg, ast.Constant) and arg.value in m.ALLOWED_TYPES, ast.dump(node)
-            for kw in node.keywords:
-                assert kw.arg in m.ALLOWED_FIELDS.get(arg.value, ()), ast.dump(node)
-                if kw.arg == "event_type":
-                    assert isinstance(kw.value, ast.Constant) and kw.value.value in m.ALLOWED_EVENTS
+            options = [arg.body, arg.orelse] if isinstance(arg, ast.IfExp) else [arg]   # "a/config" if … else "b/config"
+            for opt in options:
+                assert isinstance(opt, ast.Constant) and opt.value in m.ALLOWED_TYPES, ast.dump(node)
+                for kw in node.keywords:
+                    assert kw.arg in m.ALLOWED_FIELDS.get(opt.value, ()), ast.dump(node)
+                    if kw.arg == "event_type":
+                        assert isinstance(kw.value, ast.Constant) and kw.value.value in m.ALLOWED_EVENTS
     assert sites >= 8
 
 

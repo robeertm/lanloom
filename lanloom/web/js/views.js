@@ -156,6 +156,7 @@
     if (d.broker) sections.push(brokerSection(d.broker));
     if (d.topic) sections.push(section(t('detail.topic'), facts([[t('detail.rate'), d.topic.msgs_s + ' ' + t('unit.msg_s')], [t(LL.rateUnit === 'bits' ? 'detail.bits' : 'detail.bytes'), LL.fmtRate(d.topic.bytes_s)],
       [t('detail.cadence'), d.topic.cadence_s ? LL.fmtAge(d.topic.cadence_s) : '—'], [t('detail.last'), LL.fmtAge(d.topic.last_s)]])));
+    if (d.hub_bridge) sections.push(LL.hubBridgeSection(d.hub_bridge));
     if (d.entities) sections.push(entitiesSection(d.entities));
     if (d.ifaces && Object.keys(d.ifaces).length) sections.push(section(t('detail.ifaces'), facts(Object.entries(d.ifaces).map(([n, v]) => [n, '↑ ' + LL.fmtRate(v[0]) + '  ↓ ' + LL.fmtRate(v[1])]))));
     sections.push(section(t('detail.links'), h('ul', { class: 'link-list' }, d.traces.length ? d.traces.map(tr => h('li', {},

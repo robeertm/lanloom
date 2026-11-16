@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import classify, datapaths, geo as geo_mod, identity, live, netflow, oui as oui_mod, textfmt, topology
+from . import classify, datapaths, geo as geo_mod, hub_privacy, hubbridge, identity, live, netflow, oui as oui_mod, textfmt, topology
 from .crypto import Vault
 from .store import Store
 
@@ -41,7 +41,7 @@ NETFLOW_LAN_REFRESH = 300.0
 
 INTEGRATION_FIELDS = {
     # kind -> (plain config fields, secret fields)
-    "hub": (("url", "allow_self_signed"), ("token",)),
+    "hub": (("url", "allow_self_signed", "admin_mode") + tuple(hub_privacy.GROUP_FIELDS), ("token",)),
     "mqtt": (("host", "port", "username", "tls", "allow_self_signed"), ("password",)),
     "snmp": (("host", "version", "user", "auth_proto", "priv_proto", "uplink"), ("community", "auth_key", "priv_key")),
     "controller": (("url", "username", "site", "style", "allow_self_signed"), ("password",)),
@@ -94,6 +94,7 @@ class Core:
         self._scan_task: Optional[asyncio.Task] = None
         self._tasks: list = []
         self._source_tasks: dict = {}      # integration id or "host" -> task
+        self._hub_sources: dict = {}       # integration id -> running hub source (traces on request)
         self.source_status: dict = {}      # key -> {"ok","key","t"}
         self.cadence: dict = {}            # source key -> live.Cadence
         self.quant = live.Quantizer()
@@ -769,15 +770,16 @@ class Core:
             cfg["tls"] = bool(cfg.get("tls"))
         if kind == "snmp":
             cfg["version"] = "3" if str(cfg.get("version") or "2c") == "3" else "2c"
-        for k in ("allow_self_signed", "tls"):
+        for k in ("allow_self_signed", "tls", "admin_mode") + tuple(hub_privacy.GROUP_FIELDS):
             if k in cfg:
-                cfg[k] = bool(cfg[k])
+                cfg[k] = cfg[k] is True
         return cfg, sec
 
     def _build_source(self, kind: str, cfg: dict, sec: dict):
         from . import sources
         if kind == "hub":
-            return sources.Hub(cfg["url"], sec.get("token", ""), allow_self_signed=bool(cfg.get("allow_self_signed")))
+            return sources.Hub(cfg["url"], sec.get("token", ""), allow_self_signed=bool(cfg.get("allow_self_signed")),
+                               admin_mode=bool(cfg.get("admin_mode")), show=hub_privacy.shown_domains(cfg))
         if kind == "mqtt":
             return sources.Mqtt(cfg["host"], port=cfg.get("port", 1883), username=cfg.get("username"),
                                 password=sec.get("password"), tls=bool(cfg.get("tls")),
@@ -865,6 +867,46 @@ class Core:
         self.structure_version += 1
         return ok
 
+    # ------------------------------------------------------------------ hub bridge (read only)
+    def hub_ids(self) -> list:
+        return [i["id"] for i in self.integrations() if i["kind"] == "hub"]
+
+    def hub_bridge(self, integ_id: int) -> Optional[dict]:
+        if integ_id not in self.hub_ids():
+            return None
+        return hubbridge.bridge_view(self, integ_id, self.hub.get(integ_id) or hubbridge.new_entry(live.Cadence()))
+
+    def hub_automations(self, integ_id: int) -> Optional[list]:
+        if integ_id not in self.hub_ids():
+            return None
+        return hubbridge.automations_view(self.hub.get(integ_id) or hubbridge.new_entry(live.Cadence()))
+
+    def hub_traces(self, integ_id: int, entity_id: str) -> Optional[dict]:
+        return hubbridge.traces_view(self.hub.get(integ_id) or {}, entity_id)
+
+    def hub_want_traces(self, integ_id: int, entity_id: str) -> dict:
+        """Ask the bridge for the last runs of one automation/script (admin mode only, within the trace budget)."""
+        integ = next((i for i in self.integrations() if i["id"] == integ_id and i["kind"] == "hub"), None)
+        if not integ:
+            raise ValueError("hub.err.missing")
+        if not integ["config"].get("admin_mode") and not self.demo:
+            raise ValueError("hub.err.admin_off")
+        if not hub_privacy.valid_entity_id(entity_id) or hub_privacy.domain_of(entity_id) not in ("automation", "script"):
+            raise ValueError("hub.err.item")
+        if self.demo:
+            frame = self.demo.hub_traces(entity_id)
+            if frame:
+                self.on_event("int:%d" % integ_id, integ_id, frame)
+                return {"queued": 1}
+            raise ValueError("hub.err.item")
+        src = self._hub_sources.get(integ_id)
+        if src is None:
+            raise ValueError("hub.err.offline")
+        place = src.want_traces(entity_id)
+        if not place:
+            raise ValueError("hub.err.item")
+        return {"queued": place}
+
     def reload_after_restore(self) -> None:
         """A backup was restored into the database: drop what was read from the old configuration and start the
         restored connections (lanloom/backup.py)."""
@@ -910,7 +952,13 @@ class Core:
             if kind not in INTEGRATION_FIELDS and kind != "host" and await self._scope_refused(src):
                 self.source_status[key] = {"ok": False, "key": "integration.err.can_write", "t": time.time()}
                 return
-            await src.run(lambda ev: self.on_event(key, integ_id, ev))
+            if kind == "hub":
+                self._hub_sources[integ_id] = src       # for traces on request (admin mode)
+            try:
+                await src.run(lambda ev: self.on_event(key, integ_id, ev))
+            finally:
+                if self._hub_sources.get(integ_id) is src:
+                    self._hub_sources.pop(integ_id, None)
 
         self._stop_source(key)
         self._source_tasks[key] = asyncio.create_task(runner())
@@ -934,16 +982,16 @@ class Core:
         elif etype == "iface":
             for itf in ev.get("ifaces") or []:
                 self.self_iface[itf.get("name")] = [itf.get("tx") or 0, itf.get("rx") or 0]
-        elif etype == "hub_snapshot":
+        elif etype in ("hub_snapshot", "hub_state", "hub_triggers", "hub_deps", "hub_traces", "hub_bridge"):
             cad.tick(now)
-            entry = self.hub.setdefault(integ_id, {"states": {}, "events": live.Cadence()})
-            entry.update({"snapshot": ev, "t": now})
-            self.structure_version += 1
-        elif etype == "hub_state":
-            cad.tick(now)
-            entry = self.hub.setdefault(integ_id, {"states": {}, "events": live.Cadence()})
-            entry["states"][ev.get("entity_id")] = (ev.get("state"), ev.get("t") or now)
-            entry["events"].tick(now)
+            entry = self.hub.get(integ_id)
+            if entry is None:
+                entry = self.hub[integ_id] = hubbridge.new_entry(live.Cadence())
+            hubbridge.book(entry, ev, now)
+            if etype == "hub_snapshot":
+                self.structure_version += 1
+            elif etype == "hub_state":
+                entry["events"].tick(now)
         elif etype == "mqtt":
             cad.tick(now)
             self._book_mqtt(integ_id, ev, now)

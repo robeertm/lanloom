@@ -366,7 +366,7 @@ class Demo:
         if core.store.one("SELECT id FROM integrations LIMIT 1"):
             return
         import json as _json
-        for kind, name, cfg in (("hub", "Automation hub", {"url": "http://192.168.50.14:8123"}),
+        for kind, name, cfg in (("hub", "Automation hub", {"url": "http://192.168.50.14:8123", "admin_mode": True}),
                                 ("mqtt", "Message broker", {"host": "192.168.50.13", "port": 1883, "tls": False}),
                                 ("snmp", "Router counters", {"host": "192.168.50.1", "version": "2c"}),
                                 ("controller", "Network controller", {"url": "https://192.168.50.11:8443", "username": "map-viewer",
@@ -610,14 +610,35 @@ class Demo:
                 core.on_event("int:%d" % ids["mqtt"], ids["mqtt"], {"type": "mqtt", "t": now, "dt": 1.0, "topics": topics,
                                                                    "broker": {"clients": 14}})
             if "hub" in ids:
+                from . import demo_hub
                 hid = ids["hub"]
+                key = "int:%d" % hid
                 if hub_sent == 0 or now - hub_sent > 600:
-                    core.on_event("int:%d" % hid, hid, self._snapshot(now))
+                    core.on_event(key, hid, self._snapshot(now))
+                    if hub_sent == 0:
+                        for frame in demo_hub.history_frames(now, rng):
+                            core.on_event(key, hid, frame)
+                    core.on_event(key, hid, demo_hub.deps_frame(now))
                     hub_sent = now
+                if now - getattr(self, "_hub_bridge_t", 0) >= 60:
+                    self._hub_bridge_t = now
+                    core.on_event(key, hid, demo_hub.bridge_frame(now))
+                if now - getattr(self, "_hub_trig_t", 0) >= 10:
+                    self._hub_trig_t = now
+                    frame = demo_hub.triggers_frame(now, rng)
+                    if frame:
+                        core.on_event(key, hid, frame)
                 for _ in range(rng.randint(1, 4)):
                     area = rng.choice(AREAS)
-                    core.on_event("int:%d" % hid, hid, {"type": "hub_state", "entity_id": "sensor.%s_%d" % (area[0], rng.randint(1, area[3])),
-                                                       "state": "%.1f" % rng.uniform(18, 24), "t": now})
+                    core.on_event(key, hid, {"type": "hub_state", "entity_id": "sensor.%s_%d" % (area[0], rng.randint(1, area[3])),
+                                             "state": "%.1f" % rng.uniform(18, 24), "t": now})
+                if rng.random() < 0.3:
+                    eid = rng.choice(["light.living_room_2", "light.hallway_2", "switch.kitchen_3", "switch.office_3"])
+                    ev = {"type": "hub_state", "entity_id": eid, "state": rng.choice(["on", "off"]), "t": now}
+                    by = demo_hub.by_for(eid, rng)
+                    if by:
+                        ev["by"] = by
+                    core.on_event(key, hid, ev)
 
     def _snapshot(self, now: float) -> dict:
         devices, entities = [], []
@@ -634,8 +655,13 @@ class Demo:
                 entities.append({"entity_id": "%s.%s_%d" % (domain, area_id, i + 1), "device_id": "%s-dev-%d" % (area_id, i % n_dev),
                                  "name": "%s %s %d" % (name, label, i // 4 + 1), "state": state, "unit": unit, "domain": domain,
                                  "area": area_id})
-        return {"type": "hub_snapshot", "t": now, "devices": devices, "entities": entities,
-                "areas": [{"id": a[0], "name": a[1]} for a in AREAS]}
+        from . import demo_hub
+        return demo_hub.extend_snapshot({"type": "hub_snapshot", "t": now, "devices": devices, "entities": entities,
+                                         "areas": [{"id": a[0], "name": a[1]} for a in AREAS]}, now)
+
+    def hub_traces(self, entity_id: str):
+        from . import demo_hub
+        return demo_hub.traces(entity_id, time.time())
 
 
 def _demo_family(area: str = "zones"):

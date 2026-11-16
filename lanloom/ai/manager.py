@@ -472,6 +472,9 @@ class AI:
             for sec in rep.get("sections") or []:
                 for it in sec.get("items") or []:
                     if it.get("id") == item_id:
+                        if sec.get("id") in features.PRIVATE_SECTIONS:     # names of automations may name people
+                            it = dict(it, vars={k: ("(name hidden)" if k in ("name", "names") else v)
+                                                for k, v in (it.get("vars") or {}).items()})
                         return "\n".join(["Subject: finding", "Section: " + r.tr(sec.get("title") or ""),
                                           "Note: " + r.line(it), "Level: " + str(it.get("level") or "info"),
                                           "Report day: " + day])

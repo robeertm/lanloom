@@ -128,6 +128,12 @@ RULES = {
     ("POST", "/api/integrations"): R(A, "integration.save", stepup=True),
     ("DELETE", "/api/integrations/{integ_id}"): R(A, "integration.delete", stepup=True),
 
+    # ---------------------------------------------------------------- hub bridge (read only; traces cost the hub work: operator)
+    ("GET", "/api/hub/{integ_id}/bridge"): R(V),
+    ("GET", "/api/hub/{integ_id}/automations"): R(V),
+    ("GET", "/api/hub/{integ_id}/traces/{entity_id}"): R(V),
+    ("POST", "/api/hub/{integ_id}/traces/{entity_id}"): R(O, "hub.traces"),
+
     # ---------------------------------------------------------------- nightly reports
     ("GET", "/api/reports"): R(V),
     ("GET", "/api/reports/preview"): R(V),

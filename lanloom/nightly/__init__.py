@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .. import __version__
 from . import contrib
 from .contrib import REGISTRY, Contribution, Ctx, register  # noqa: F401 - public register for later features
+from . import hubsection  # noqa: F401,E402 - registers the hub bridge section
 from .journal import Journal, Watch
 
 log = logging.getLogger("lanloom")

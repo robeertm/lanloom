@@ -91,18 +91,28 @@ def test_snmp_builds_only_read_pdus():
             assert isinstance(arg, ast.Name) and arg.id in {"PDU_GET", "PDU_GETNEXT", "PDU_GETBULK", "tag"}, where
 
 
+# Message types of the hub that only read: lists, getters, configuration readers, traces, related-item lookups.
+HUB_READS = {"get_states", "get_config", "config_entries/get", "automation/config", "script/config", "trace/list",
+             "trace/get", "search/related"}
+
+
 def test_hub_allow_list_only_reads_and_subscribes():
     for t in hub.ALLOWED_TYPES:
-        assert t in ("auth", "subscribe_events") or t.startswith("get_") or t.endswith("/list"), t
-    assert hub.ALLOWED_EVENTS == frozenset({"state_changed"})
+        assert t in ("auth", "subscribe_events") or t in HUB_READS or t.endswith("/list"), t
+    assert not any(w in t for t in hub.ALLOWED_TYPES for w in ("update", "create", "delete", "remove", "call", "fire",
+                                                               "execute", "reload", "render", "set", "toggle", "turn"))
+    assert hub.ALLOWED_EVENTS == frozenset({"state_changed", "automation_triggered", "script_started"})
+    assert hub.ADMIN_TYPES <= hub.ALLOWED_TYPES
     seen = set()
     for where, call in calls(tree("hub.py")):
         if callee(call) in ("_send", "_request", "_registry") and len(call.args) >= 2:
             arg = call.args[1]                      # (conn, message type, **fields)
             if where in ("Hub._request", "Hub._registry") and isinstance(arg, ast.Name) and arg.id == "type_":
                 continue                            # pass-through; its callers are checked here
-            assert isinstance(arg, ast.Constant) and arg.value in hub.ALLOWED_TYPES, (where, ast.unparse(arg))
-            seen.add(arg.value)
+            options = [arg.body, arg.orelse] if isinstance(arg, ast.IfExp) else [arg]   # "a/config" if … else "b/config"
+            for opt in options:
+                assert isinstance(opt, ast.Constant) and opt.value in hub.ALLOWED_TYPES, (where, ast.unparse(arg))
+                seen.add(opt.value)
     assert "auth" in seen and "get_states" in seen
 
 

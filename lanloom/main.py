@@ -508,6 +508,29 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def integration_delete(integ_id: int):
         return {"ok": state.core.delete_integration(integ_id)}
 
+    # ------------------------------------------------------------------ hub bridge (read only)
+    @app.get("/api/hub/{integ_id}/bridge")
+    async def hub_bridge(integ_id: int):
+        view = state.core.hub_bridge(integ_id)
+        return view if view is not None else err("hub.err.missing", 404)
+
+    @app.get("/api/hub/{integ_id}/automations")
+    async def hub_automations(integ_id: int):
+        items = state.core.hub_automations(integ_id)
+        return {"automations": items} if items is not None else err("hub.err.missing", 404)
+
+    @app.get("/api/hub/{integ_id}/traces/{entity_id}")
+    async def hub_traces(integ_id: int, entity_id: str):
+        return {"traces": state.core.hub_traces(integ_id, entity_id)}
+
+    @app.post("/api/hub/{integ_id}/traces/{entity_id}")
+    async def hub_traces_request(integ_id: int, entity_id: str, request: Request):
+        note(request, target=entity_id[:120])
+        try:
+            return state.core.hub_want_traces(integ_id, entity_id)
+        except ValueError as exc:
+            return err(str(exc), 404 if str(exc) == "hub.err.missing" else 409)
+
     # ------------------------------------------------------------------ nightly reports
     reports = state.core.reports
 
@@ -1005,7 +1028,7 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

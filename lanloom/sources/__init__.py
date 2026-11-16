@@ -25,7 +25,7 @@ REASON_KEYS = (
     "source.hostnet.error",
     "source.hub.ok", "source.hub.config", "source.hub.auth_failed", "source.hub.forbidden",
     "source.hub.request_failed", "source.hub.protocol", "source.hub.closed", "source.hub.timeout",
-    "source.hub.refused", "source.hub.unreachable", "source.hub.tls", "source.hub.error",
+    "source.hub.refused", "source.hub.unreachable", "source.hub.tls", "source.hub.error", "source.hub.unknown_command",
     "source.mqtt.ok", "source.mqtt.config", "source.mqtt.auth_failed", "source.mqtt.refused",
     "source.mqtt.subscribe_denied", "source.mqtt.protocol", "source.mqtt.closed", "source.mqtt.timeout",
     "source.mqtt.unreachable", "source.mqtt.tls", "source.mqtt.forbidden", "source.mqtt.error",
