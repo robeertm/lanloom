@@ -5,6 +5,9 @@ Translated texts may carry plural forms in a small ICU subset: ``{n, plural, one
 ``=0`` style exact matches win over the category, ``#`` is the number written the way the language writes it.
 """
 import re
+from pathlib import Path
+
+I18N = Path(__file__).resolve().parent / "i18n"
 
 # CLDR plural rule per language (cardinals, integers): the category for the number n
 def _one_other(n: int) -> str:
@@ -21,8 +24,13 @@ _HEAD = re.compile(r"\{(\w+),\s*plural,\s*")
 _CASE = re.compile(r"(=\d+|[a-z]+)\s*\{")
 
 
+def languages() -> list:
+    """Languages with a translation file: ``<lang>.json`` plus ``board.<lang>.json`` in lanloom/i18n (a new language is just two files)."""
+    return sorted(p.stem for p in I18N.glob("*.json") if not p.name.startswith("board."))
+
+
 def category(lang: str, n: int) -> str:
-    return PLURAL_RULES.get(lang, _one_other)(int(n))
+    return PLURAL_RULES.get(lang, _one_other)(n)
 
 
 def num(lang: str, n, digits=None) -> str:

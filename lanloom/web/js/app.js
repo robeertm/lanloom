@@ -58,8 +58,13 @@
     if (e.name === 'NotAllowedError') return t('passkey.err.cancelled');
     return t('error.generic');
   };
+  // The languages of the app: code and the name in that language (a reader finds theirs in any language). Keep in step with
+  // lanloom/i18n/<code>.json (tests/test_i18n_complete.py checks it).
+  LL.LANGUAGES = [['en', 'English'], ['de', 'Deutsch']];
+  LL.langOptions = () => LL.LANGUAGES.map(([code, name]) => h('option', { value: code }, name));
+  const knownLang = code => (LL.LANGUAGES.some(l => l[0] === code) ? code : null);
   async function loadLang(lang) {
-    lang = lang === 'de' ? 'de' : 'en';
+    lang = knownLang(lang) || 'en';
     LL.strings = await api('/api/i18n/' + lang);
     LL.lang = lang;
     document.documentElement.lang = lang;
@@ -69,9 +74,13 @@
   LL.pickLang = function (serverLang) {
     let stored = null;
     try { stored = localStorage.getItem('ll-lang'); } catch (e) { /* ignore */ }
-    if (serverLang) return serverLang;
-    if (stored) return stored;
-    return (navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en';
+    if (knownLang(serverLang)) return serverLang;
+    if (knownLang(stored)) return stored;
+    for (const tag of (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'en'])) {
+      const code = knownLang(String(tag).toLowerCase().split('-')[0]);
+      if (code) return code;
+    }
+    return 'en';
   };
 
   // ------------------------------------------------------------------ theme
@@ -123,7 +132,7 @@
 
   // ------------------------------------------------------------------ formatting
   // BCP 47 tag of the page language: numbers, dates and times follow it (24-hour clock, decimal comma, ...)
-  const LOCALES = { en: 'en-GB', de: 'de-DE' };
+  const LOCALES = { en: 'en-GB', de: 'de-DE' };   // regional variant per language (24-hour clock, day.month order, ...)
   LL.locale = () => LOCALES[LL.lang] || LL.lang;
   // a number the way the language writes it; digits fixes the fraction digits, otherwise up to two
   LL.fmtNum = (n, digits) => LL.Text.num(LL.locale(), n, digits);

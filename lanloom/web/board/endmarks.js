@@ -881,7 +881,7 @@
     lastTarget: null,
     clearMeasure: () => measured.clear(),
     // pure helpers (tests)
-    _internals: { bundleLead, exitPoint, arrowFor, fontFor, makePlacer, steps, fitting, setMeasure: f => { measureHook = f; measured.clear(); }, height: () => HEIGHT, setFont: s => { fs = s; HEIGHT = s + 7; } }
+    _internals: { fill, bundleLead, exitPoint, arrowFor, fontFor, makePlacer, steps, fitting, setMeasure: f => { measureHook = f; measured.clear(); }, height: () => HEIGHT, setFont: s => { fs = s; HEIGHT = s + 7; } }
   };
   // lastTarget lives on the class (set from instances) and is mirrored on the namespace
   Object.defineProperty(Endmarks, 'lastTarget', { get: () => api.lastTarget, set: v => { api.lastTarget = v; } });

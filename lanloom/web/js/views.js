@@ -452,7 +452,7 @@
     renderInteg();
     // appearance
     const lang = h('select', { class: 'select', onchange: async () => { await api('/api/settings', { method: 'PUT', body: { language: lang.value } }); await LL.loadLang(lang.value); LL.route(); } },
-      h('option', { value: 'en' }, 'English'), h('option', { value: 'de' }, 'Deutsch'));
+      LL.langOptions());
     lang.value = LL.lang;
     const theme = h('select', { class: 'select', onchange: () => LL.setTheme(theme.value) }, ['auto', 'light', 'dark'].map(v => h('option', { value: v }, t('theme.' + v))));
     theme.value = LL.theme();

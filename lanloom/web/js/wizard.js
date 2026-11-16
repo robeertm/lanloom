@@ -24,7 +24,7 @@
 
   function langSwitch() {
     const sel = h('select', { class: 'select select--sm', 'aria-label': t('settings.language'), onchange: async () => { await LL.loadLang(sel.value); LL.route(); } },
-      h('option', { value: 'en' }, 'English'), h('option', { value: 'de' }, 'Deutsch'));
+      LL.langOptions());
     sel.value = LL.lang;
     return sel;
   }

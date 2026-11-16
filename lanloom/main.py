@@ -22,7 +22,7 @@ from .updates import Updates
 log = logging.getLogger("lanloom")
 WEB = Path(__file__).resolve().parent / "web"
 I18N = Path(__file__).resolve().parent / "i18n"
-LANGS = ("en", "de")
+LANGS = tuple(textfmt.languages())
 STATE_CHANGING = ("POST", "PUT", "PATCH", "DELETE")
 PUBLIC_API = {"/api/health", "/api/state", "/api/login", "/api/setup/account", "/api/passkey/login/options",
               "/api/passkey/login/verify",
@@ -35,7 +35,7 @@ CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
 
 def i18n_languages() -> list:
     """Languages with a translation file (one ``<lang>.json`` plus ``board.<lang>.json`` each)."""
-    return sorted(p.stem for p in I18N.glob("*.json") if not p.name.startswith("board."))
+    return textfmt.languages()
 
 
 def load_i18n(lang: str) -> dict:

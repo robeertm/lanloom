@@ -887,7 +887,7 @@
  "report.err.topic": "A topic uses letters, digits, - and _ (up to 64).",
  "report.err.tz": "Unknown time zone. Use a name like Europe/Amsterdam.",
  "report.err.url": "Enter an address starting with http:// or https://.",
- "report.head": "{n, plural, one {# thing needs} other {# things need}} need a look",
+ "report.head": "{n, plural, one {# thing needs} other {# things need}} a look",
  "report.head.calm": "All quiet",
  "report.internet.down_now": "Down since {from} ({dur} so far).",
  "report.internet.none": "No outage.",

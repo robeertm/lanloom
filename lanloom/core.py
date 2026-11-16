@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import classify, datapaths, geo as geo_mod, live, topology
+from . import classify, datapaths, geo as geo_mod, live, textfmt, topology
 from .crypto import Vault
 from .store import Store
 
@@ -151,7 +151,7 @@ class Core:
                         continue
                 if key == "rescan_hours" and value not in (0, 1, 3, 6, 12, 24):
                     continue
-                if key == "language" and value not in (None, "en", "de"):
+                if key == "language" and value not in (None, *textfmt.languages()):
                     continue
                 if key == "rate_unit" and value not in live.RATE_UNITS:
                     continue

@@ -3,7 +3,7 @@ import json
 from datetime import date, datetime
 from pathlib import Path
 
-from ..textfmt import fill, num
+from ..textfmt import fill, languages, num
 
 I18N = Path(__file__).resolve().parent.parent / "i18n"
 SUFFIXES = ("_at", "_dur", "_bytes", "_cc", "_key")
@@ -13,7 +13,7 @@ _cache: dict = {}
 
 
 def strings(lang: str) -> dict:
-    lang = lang if lang in ("en", "de") else "en"
+    lang = lang if lang in languages() else "en"
     if lang not in _cache:
         try:
             _cache[lang] = json.loads((I18N / ("%s.json" % lang)).read_text(encoding="utf-8"))
@@ -58,7 +58,7 @@ def fmt_time(t: float, tz, day: str, lang: str) -> str:
 
 class Renderer:
     def __init__(self, lang: str, tz, day: str):
-        self.lang = lang if lang in ("en", "de") else "en"
+        self.lang = lang if lang in languages() else "en"
         self.s = strings(self.lang)
         self.tz, self.day = tz, day
 

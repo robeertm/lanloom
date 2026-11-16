@@ -235,3 +235,20 @@ def test_server_selftest_checks_all_languages():
     """`python -m lanloom selftest` compares the key sets of every language (the container runs it before an update swaps in)."""
     from lanloom import main
     assert main.i18n_languages() == languages()
+
+
+def test_every_place_that_lists_languages_agrees_with_the_files():
+    """Adding a language file must not need a hunt through the code: the lists in the code are checked against the files."""
+    langs = languages()
+    with open(os.path.join(WEB, "js", "app.js"), encoding="utf-8") as f:
+        app = f.read()
+    listed = re.search(r"LL\.LANGUAGES = \[(.*?)\];", app, re.S).group(1)
+    assert sorted(re.findall(r"\['(\w+)', '[^']+'\]", listed)) == langs, "LL.LANGUAGES in js/app.js"
+    locales = re.search(r"const LOCALES = \{(.*?)\};", app, re.S).group(1)
+    assert sorted(re.findall(r"(\w+): '[\w-]+'", locales)) == langs, "LOCALES in js/app.js"
+    from lanloom import main
+    from lanloom.ai import manager
+    assert list(main.LANGS) == langs
+    assert sorted(manager.LANG_NAMES) == langs, "LANG_NAMES in ai/manager.py (the language the AI answers in)"
+    from lanloom.nightly import render
+    assert all(render.WEEKDAYS.get(l) for l in langs), "weekday names for the delivered report (nightly/render.py)"

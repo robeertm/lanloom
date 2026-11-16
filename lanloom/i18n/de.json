@@ -1205,7 +1205,7 @@
  "topo.source.lldp": "LLDP-Nachbarn (SNMP)",
  "topo.source.manual": "Manuelle Angabe",
  "topo.title": "Anschluss",
- "topo.unknown": "Port {port}: {n, plural, one {# weitere Adresse, die} other {# weitere Adressen, die}} nicht in der Geräteliste stehen",
+ "topo.unknown": "Port {port}: {n, plural, one {# weitere Adresse steht} other {# weitere Adressen stehen}} nicht in der Geräteliste",
  "topo.via": "Angeschlossen an",
  "topo.why": "Weil",
  "unit.msg_s": "Nachr./s",
