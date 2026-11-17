@@ -749,6 +749,8 @@ class AI:
         for d in self.core.devices():
             if d.get("is_self") or d.get("is_gateway") or d.get("hidden") or self.hints.peek(d["id"]):
                 continue
+            if not d.get("ip") or d.get("merged_into"):     # a device known only by its hardware address, or an interface of another
+                continue
             if d.get("kind") == "unknown" or d.get("certainty") == "unknown":
                 try:
                     job = self.identify(d["id"], "en")
