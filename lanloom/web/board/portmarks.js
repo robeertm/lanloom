@@ -50,6 +50,12 @@
     "portmarks.uplink": "Uplink",
     "portmarks.radioUplink": "Radio uplink to {parent}",
     "portmarks.wlan": "Wireless",
+    "portmarks.mesh.mesh154": "15.4",
+    "portmarks.mesh.thread": "Thread",
+    "portmarks.mesh.subghz": "Sub-GHz",
+    "portmarks.mesh.ble": "BLE",
+    "portmarks.mesh.ipstd": "IP standard",
+    "portmarks.meshLong": "{kind} radio lane from {parent}",
     "portmarks.seen": "seen",
     "portmarks.listed": "listed {ports}",
     "portmarks.band.2.4ghz": "2.4 GHz",
@@ -194,7 +200,12 @@
         pair: pG ? `${portText(f.port, f.portMedium, t)} ⇄ ${pG}` : '', group: 'n:' + b.id + ':' + f.end, data: f.data };
     }
     if (f.link === 'radio') {
-      const r = f.radio || {}, band = bandText(r.band, t), ssid = String(r.ssid || '');   // band (2.4/5/6 GHz) before the standard (802.11ax)
+      const r = f.radio || {};
+      if (r.mesh) {
+        const kind = t('portmarks.mesh.' + r.mesh);
+        return { b, end: f.end, kind: 'radio', short: kind, long: t('portmarks.meshLong', { kind, parent: f.parentName || t('portmarks.parent') }), group: 'n:' + b.id + ':' + f.end, data: f.data };
+      }
+      const band = bandText(r.band, t), ssid = String(r.ssid || '');   // band (2.4/5/6 GHz) before the standard (802.11ax)
       return { b, end: f.end, kind: 'radio', short: band || ssid, long: [t('portmarks.wlan'), band, ssid, f.parentName].filter(Boolean).join(' · '), group: 'n:' + b.id + ':' + f.end, data: f.data };
     }
     if (f.link === 'service') {
@@ -514,7 +525,7 @@
     } else {
       kind = 'radio';
       const r = f.radio || {};
-      text = [bandText(r.band, t), r.ssid].filter(Boolean).join(' · ');
+      text = r.mesh ? t('portmarks.mesh.' + r.mesh) : [bandText(r.band, t), r.ssid].filter(Boolean).join(' · ');
       if (!text) return '';
     }
     return `<span class="ll-pm-chip${alias ? ' ' + alias : ''}" data-kind="${kind}">${symbolSvg(kind)}<span>${esc(text)}</span></span>`;

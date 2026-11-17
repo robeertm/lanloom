@@ -12,12 +12,15 @@ from __future__ import annotations
 import time
 
 from . import hub_privacy as privacy
+from . import hubsensors
 
 HOUR = 3600
 KEEP_HOURS = 26
 BUSY_PER_HOUR = 60            # an automation/script running this often within one hour is a "runaway"
 MAX_BY = 20000
 MAX_TRACES = 50
+EVENT_MINUTES = 10            # state changes per integration, one-minute buckets
+MAX_RING_PENDING = 2000
 TOP = 10
 
 
@@ -30,9 +33,23 @@ def book(entry: dict, ev: dict, now: float | None = None) -> None:
     etype = ev.get("type")
     if etype == "hub_snapshot":
         entry.update({"snapshot": ev, "t": now})
+        entry["eidx"] = {e["entity_id"]: (e.get("platform"), e.get("device_id"), e.get("area"))
+                         for e in ev.get("entities") or [] if isinstance(e, dict) and e.get("entity_id")}
     elif etype == "hub_state":
         eid = ev.get("entity_id")
-        entry["states"][eid] = (ev.get("state"), ev.get("t") or now)
+        t = ev.get("t") or now
+        entry["states"][eid] = (ev.get("state"), t)
+        hubsensors.ring_push(entry, eid, ev.get("state"), t)
+        plat = ((entry.get("eidx") or {}).get(eid) or (None,))[0] or "-"
+        minute = int(now // 60)
+        buckets = entry.setdefault("plat", {})
+        bucket = buckets.setdefault(minute, {})
+        bucket[plat] = bucket.get(plat, 0) + 1
+        for m in [m for m in buckets if m <= minute - EVENT_MINUTES]:
+            buckets.pop(m, None)
+        pend = entry.setdefault("ring_pending", {})
+        if eid in pend or len(pend) < MAX_RING_PENDING:
+            pend[eid] = pend.get(eid, 0) + 1
         by = ev.get("by")
         if by and (eid in entry["by"] or len(entry["by"]) < MAX_BY):
             entry["by"][eid] = (by, ev.get("t") or now)
@@ -57,6 +74,17 @@ def book(entry: dict, ev: dict, now: float | None = None) -> None:
                 entry["traces"].pop(next(iter(entry["traces"])))
     elif etype == "hub_bridge":
         entry["bridge"] = ev
+
+
+def events_per_integration(entry: dict, now: float) -> list:
+    """[(integration domain, state changes per minute over the last ``EVENT_MINUTES`` minutes)], busiest first."""
+    minute = int(now // 60)
+    total = {}
+    for m, bucket in (entry.get("plat") or {}).items():
+        if m > minute - EVENT_MINUTES:
+            for plat, n in bucket.items():
+                total[plat] = total.get(plat, 0) + n
+    return sorted(((p, round(n / EVENT_MINUTES, 2)) for p, n in total.items()), key=lambda x: (-x[1], x[0]))
 
 
 def runs_between(entry: dict, since: float, until: float) -> dict:

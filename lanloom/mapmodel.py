@@ -7,7 +7,7 @@ import re
 import time
 from urllib.parse import urlparse
 
-from . import live, topology
+from . import hubmerge, live, topology
 from .core import FLOW_KEEP, PRESENCE_INTERVAL, flow_trace, lan_trace, topic_trace, uplink_trace
 
 ZONE_OF_KIND = {
@@ -68,9 +68,114 @@ def _device_component(core, dev: dict, special_kind: str = None) -> dict:
     return comp
 
 
+MAX_RADIO_ON_MAP = 36           # radio devices drawn per network; the rest share one "+N more" tile
+
+
+def _mesh_fact(kind: str) -> dict:
+    """Physical fact of a radio lane: dashed like a wireless link, with the radio mark of its network kind."""
+    return {"port": None, "own_port": None, "medium": "radio", "band": None, "ssid": None, "source": "hub", "uplink": False,
+            "mesh": kind}
+
+
+def _lane_fact() -> dict:
+    """A radio device behind its coordinator: dashed like a wireless link; the radio mark sits on the network's own lane."""
+    return {"port": None, "own_port": None, "medium": "radio", "band": None, "ssid": None, "source": "hub", "uplink": False}
+
+
+def _hub_badge(comp: dict) -> None:
+    comp["hub"] = True
+    comp["badges"] = (["HUB"] + [b for b in comp.get("badges") or [] if b != "HUB"])[:3]
+
+
+def _radio_overview(core, special: dict, comps: list, zone, add_trace) -> None:
+    """Overview: one tile per radio network of each hub, on a dashed lane from the hub."""
+    for integ_id, hub_comp in special["hub"].items():
+        radio = core.hub_radio(integ_id)
+        if not radio["networks"]:
+            continue
+        zid = "radios:%d" % integ_id
+        zone(zid, "zone.radios", order=2.2 + integ_id / 1000)
+        for net in radio["networks"]:
+            cid = "rn:%d:%s" % (integ_id, net["key"])
+            comps.append({"id": cid, "zone": zid, "kind": "ap", "title": "", "title_key": "radio.kind." + net["kind"],
+                          "subtitle": "", "subtitle_key": "comp.radio.sub", "vars": {"devices": net["devices"] + net["anchors"], "silent": net["silent"]},
+                          "status": "down" if net["health"] == "bad" else "up", "grade": "unknown", "metric": None, "badges": [],
+                          "radio": net["kind"]})
+            add_trace("m:%d:%s" % (integ_id, net["key"]), hub_comp, cid, "radio", False, phys=_mesh_fact(net["kind"]))
+
+
+def _radio_network(core, special: dict, merge: dict, comps: list, zone, add_trace) -> None:
+    """Network view: per radio network its coordinator (or the network itself) with the radio devices behind it."""
+    ids = {c["id"] for c in comps}
+    for integ_id, hub_comp in special["hub"].items():
+        radio = core.hub_radio(integ_id)
+        if not radio["networks"]:
+            continue
+        snap = (core.hub.get(integ_id) or {}).get("snapshot") or {}
+        devs = {d["id"]: d for d in snap.get("devices") or []}
+        areas = {a["id"]: a.get("name") for a in snap.get("areas") or []}
+        if hub_comp not in ids:
+            zone("radios:%d" % integ_id, "zone.radios", order=79 + integ_id / 1000)
+            comps.append({"id": hub_comp, "zone": "radios:%d" % integ_id, "kind": "hub", "title": _integ_name(core, integ_id),
+                          "subtitle": _integ_host(core, integ_id), "status": "unknown", "grade": "unknown", "metric": None,
+                          "badges": []})
+            ids.add(hub_comp)
+        for n, net in enumerate(radio["networks"]):
+            zid = "radio:%d:%s" % (integ_id, net["key"])
+            zone(zid, "zone.radio." + net["kind"], order=80 + integ_id / 1000 + n / 100)
+            coord = net["coordinator"]
+            if coord:
+                parent = merge["by_hub"].get(hubmerge.hub_key(integ_id, coord))
+                if parent not in ids:
+                    parent = "rd:%d:%s" % (integ_id, coord)
+                    d = devs.get(coord) or {}
+                    comps.append({"id": parent, "zone": zid, "kind": "ap", "title": d.get("name") or "", "title_key": "radio.role.coordinator",
+                                  "subtitle": d.get("model") or "", "status": "up", "grade": "unknown", "metric": None,
+                                  "badges": [], "radio": net["kind"]})
+                    ids.add(parent)
+                    add_trace("r:%d:%s" % (integ_id, coord), hub_comp, parent, "radio", False, phys=_mesh_fact(net["kind"]))
+                    marked = True
+                else:
+                    marked = False             # a coordinator on the network: the mark goes on its first radio lane
+            else:
+                marked = True
+                parent = "rn:%d:%s" % (integ_id, net["key"])
+                comps.append({"id": parent, "zone": zid, "kind": "ap", "title": "", "title_key": "radio.kind." + net["kind"],
+                              "subtitle": "", "subtitle_key": "comp.radio.sub", "vars": {"devices": net["devices"] + net["anchors"], "silent": net["silent"]},
+                              "status": "down" if net["health"] == "bad" else "up", "grade": "unknown", "metric": None,
+                              "badges": [], "radio": net["kind"]})
+                ids.add(parent)
+                add_trace("m:%d:%s" % (integ_id, net["key"]), hub_comp, parent, "radio", False, phys=_mesh_fact(net["kind"]))
+            st = radio["state"]
+            members = sorted(net["members"], key=lambda m: (devs[m].get("role") not in ("receiver", "border_router"),
+                                                           (st.get(m) or {}).get("fresh") != "silent",
+                                                           str(devs[m].get("name") or "").lower(), m))
+            for m in members[:MAX_RADIO_ON_MAP]:
+                d = devs[m]
+                cid = merge["by_hub"].get(hubmerge.hub_key(integ_id, m))
+                if cid not in ids:
+                    cid = "rd:%d:%s" % (integ_id, m)
+                    fresh = (st.get(m) or {}).get("fresh")
+                    comps.append({"id": cid, "zone": zid, "kind": "ap" if d.get("role") in ("receiver", "border_router") else "iot",
+                                  "title": d.get("name") or "", "title_key": "kind.iot", "subtitle": areas.get(d.get("area")) or d.get("model") or "",
+                                  "status": {"silent": "down", "ok": "up"}.get(fresh, "unknown"), "grade": "unknown",
+                                  "metric": None, "badges": [], "radio": net["kind"]})
+                    ids.add(cid)
+                add_trace("r:%d:%s" % (integ_id, m), parent, cid, "radio", False, phys=_lane_fact() if marked else _mesh_fact(net["kind"]))
+                marked = True
+            rest = len(members) - MAX_RADIO_ON_MAP
+            if rest > 0:
+                cid = "rm:%d:%s" % (integ_id, net["key"])
+                comps.append({"id": cid, "zone": zid, "kind": "iot", "title": "", "title_key": "comp.radio.more",
+                              "subtitle": "", "vars": {"n": rest}, "status": "unknown", "grade": "unknown", "metric": None,
+                              "badges": [], "radio": net["kind"]})
+                add_trace("r:%d:more:%s" % (integ_id, net["key"]), parent, cid, "radio", False, phys=_lane_fact())
+
+
 def build(core, view: str = "overview") -> dict:
     devices = _visible_devices(core)
     special = _special_components(core, devices)
+    merge = core.hub_merge() if core.hub else {"by_net": {}, "by_hub": {}, "suggest": {}}
     special_kind = {}
     for dev_id in special["hub"].values():
         special_kind[dev_id] = "hub"
@@ -124,6 +229,8 @@ def build(core, view: str = "overview") -> dict:
                                                   KIND_ORDER.index(d["kind"]) if d["kind"] in KIND_ORDER else 99,
                                                   _ip_key(d["ip"]))):
             comp = _device_component(core, dev, special_kind.get(dev["id"]))
+            if dev["id"] in merge["by_net"]:
+                _hub_badge(comp)
             link = phys["links"].get(dev["id"])
             if dev["is_gateway"]:
                 comp["zone"] = "edge"
@@ -166,6 +273,7 @@ def build(core, view: str = "overview") -> dict:
                 add_trace(tid, link["parent"], vid, _phys_kind(link), tid in carried, phys=_phys_fact(link, phys))
             elif router:
                 add_trace(lan_trace(router["id"], vid), router["id"], vid, "lan", False)
+        _radio_network(core, special, merge, comps, zone, add_trace)
         # guests sit right after the zone of their host
         for zid, z in zones.items():
             if zid.startswith("guests:"):
@@ -174,6 +282,8 @@ def build(core, view: str = "overview") -> dict:
     else:
         for dev in devices:
             comp = _device_component(core, dev, special_kind.get(dev["id"]))
+            if dev["id"] in merge["by_net"]:
+                _hub_badge(comp)
             zid = ZONE_OF_KIND.get(comp["kind"], "other")
             zone(zid, "zone." + zid, span="full" if zid == "edge" else None, order=ZONE_ORDER.index(zid))
             comp["zone"] = zid
@@ -204,6 +314,8 @@ def build(core, view: str = "overview") -> dict:
                               "subtitle": "", "subtitle_key": "comp.area.sub", "vars": {"devices": n_dev, "entities": n_ent},
                               "status": "up", "grade": "unknown", "metric": None, "badges": []})
                 add_trace("h:%d:%s" % (integ_id, area["id"]), hub_comp, cid, "integration", False)
+
+        _radio_overview(core, special, comps, zone, add_trace)
 
         # MQTT topic roots
         for integ_id, broker_comp in special["broker"].items():
@@ -398,6 +510,17 @@ def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
         for area in snap.get("areas") or []:
             grades["area:%d:%s" % (integ_id, area["id"])] = g
         grades["hub:%d" % integ_id] = g
+    for integ_id, entry in core.hub.items():
+        if not entry.get("snapshot"):
+            continue
+        radio = core.hub_radio(integ_id, now)
+        for did, st in radio["state"].items():
+            grades["rd:%d:%s" % (integ_id, did)] = st["grade"]
+        for net in radio["networks"]:
+            member = [radio["state"][m]["grade"] for m in net["members"] if m in radio["state"]]
+            g = live.typical(member) if member else "unknown"
+            grades["rn:%d:%s" % (integ_id, net["key"])] = "interrupted" if net["health"] == "bad" else g
+            grades["rm:%d:%s" % (integ_id, net["key"])] = g
     for integ_id, entry in core.mqtt.items():
         g = core._source_grade("int:%d" % integ_id)
         grades["broker:%d" % integ_id] = g
@@ -482,6 +605,7 @@ def component_detail(core, comp_id: str) -> dict:
         if comp_id == bid:
             out["broker"] = {"topics": sorted(([r, round(t["msgs"], 2), round(t["bytes"])] for r, t in entry["topics"].items()),
                                               key=lambda x: -x[2])[:30], "stats": entry.get("broker")}
+    out.update(hub_detail(core, comp_id, bool(dev)))
     for integ_id, hub_comp in _special_components(core, _visible_devices(core))["hub"].items():
         if comp_id == hub_comp:               # the bridge card: what is read, what stays out, how the hub is spared
             out["hub_bridge"] = core.hub_bridge(integ_id)
@@ -489,6 +613,92 @@ def component_detail(core, comp_id: str) -> dict:
         out["ifaces"] = core.self_iface
     out.update(hypervisor_detail(core, comp_id, dev))
     out["physical"] = physical_detail(core, comp_id, bool(dev))
+    return out
+
+
+def hub_device_view(core, integ_id: int, did: str, match: dict | None = None, now: float | None = None) -> dict | None:
+    """The hub side of a component: what the hub's registry says about the device, its entities and its freshness."""
+    now = time.time() if now is None else now
+    entry = core.hub.get(integ_id) or {}
+    snap = entry.get("snapshot") or {}
+    d = next((x for x in snap.get("devices") or [] if x.get("id") == did), None)
+    if d is None:
+        return None
+    states = entry.get("states") or {}
+    areas = {a["id"]: a.get("name") for a in snap.get("areas") or []}
+    radio = core.hub_radio(integ_id, now)
+    ents = []
+    for e in snap.get("entities") or []:
+        if e.get("device_id") != did or e.get("domain") in ("automation", "script"):
+            continue
+        st = states.get(e["entity_id"])
+        ents.append({"id": e["entity_id"], "name": e.get("name") or e["entity_id"], "state": st[0] if st else e.get("state"),
+                     "unit": e.get("unit"), "dc": e.get("dc"), "domain": e.get("domain"), "cat": e.get("cat"),
+                     "changed_s": round(now - st[1], 1) if st else None})
+    ents.sort(key=lambda e: (e["cat"] is not None, str(e["name"]).lower()))
+    net_key = radio["dev_net"].get(did)
+    net = next((n for n in radio["networks"] if n["key"] == net_key), None)
+    fresh = radio["state"].get(did) or hubmerge.device_state([e for e in snap.get("entities") or [] if e.get("device_id") == did], states, now)
+    return {"integ": integ_id, "integ_name": _integ_name(core, integ_id), "device_id": did, "name": d.get("name"),
+            "manufacturer": d.get("manufacturer"), "model": d.get("model"), "sw": d.get("sw"), "area": areas.get(d.get("area")),
+            "domains": d.get("domains") or [], "radio": d.get("radio"), "role": d.get("role"),
+            "network": {"key": net["key"], "kind": net["kind"], "coordinator": net["coordinator_name"]} if net else None,
+            "fresh": fresh, "match": match, "entities": ents[:80], "entities_total": len(ents)}
+
+
+def radio_net_view(core, integ_id: int, key: str, now: float | None = None) -> dict | None:
+    now = time.time() if now is None else now
+    radio = core.hub_radio(integ_id, now)
+    net = next((n for n in radio["networks"] if n["key"] == key), None)
+    if net is None:
+        return None
+    snap = (core.hub.get(integ_id) or {}).get("snapshot") or {}
+    devs = {d["id"]: d for d in snap.get("devices") or []}
+    areas = {a["id"]: a.get("name") for a in snap.get("areas") or []}
+    members = []
+    for m in net["members"]:
+        st = radio["state"].get(m) or {}
+        d = devs.get(m) or {}
+        members.append({"device_id": m, "name": d.get("name") or m, "area": areas.get(d.get("area")), "role": d.get("role"),
+                        "fresh": st.get("fresh"), "battery": st.get("battery"), "battery_low": st.get("battery_low"),
+                        "last_seen_s": st.get("last_seen_s")})
+    members.sort(key=lambda x: ({"silent": 0, "unknown": 1}.get(x["fresh"], 2), str(x["name"]).lower()))
+    return dict({k: v for k, v in net.items() if k != "members"}, integ=integ_id, integ_name=_integ_name(core, integ_id),
+                members=members[:300])
+
+
+def hub_detail(core, comp_id: str, is_device: bool) -> dict:
+    """Hub sections of a component card: the hub side of a merged network device (with the evidence of the match),
+    a radio device, a radio network."""
+    if not core.hub:
+        return {}
+    out = {}
+    if is_device:
+        merge = core.hub_merge()
+        sides = [v for v in (hub_device_view(core, m["integ"], m["device_id"], m) for m in merge["by_net"].get(comp_id) or []) if v]
+        if sides:
+            out["hub_side"] = sides
+        sugg = [v for v in (hub_device_view(core, m["integ"], m["device_id"], m) for m in merge["suggest"].get(comp_id) or []) if v]
+        if sugg:
+            out["hub_suggest"] = sugg
+        for side in sides:
+            if side.get("role") == "coordinator" and side.get("network"):
+                out["radio_net"] = radio_net_view(core, side["integ"], side["network"]["key"])
+                break
+    elif comp_id.startswith("rd:"):
+        _, integ, did = comp_id.split(":", 2)
+        if integ.isdigit():
+            view = hub_device_view(core, int(integ), did)
+            if view:
+                out["hub_device"] = view
+                if view.get("role") == "coordinator" and view.get("network"):
+                    out["radio_net"] = radio_net_view(core, int(integ), view["network"]["key"])
+    elif comp_id.startswith(("rn:", "rm:")):
+        _, integ, key = comp_id.split(":", 2)
+        if integ.isdigit():
+            net = radio_net_view(core, int(integ), key)
+            if net:
+                out["radio_net"] = net
     return out
 
 

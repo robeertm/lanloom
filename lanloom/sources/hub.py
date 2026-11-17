@@ -43,6 +43,7 @@ from collections import OrderedDict
 
 from .. import hub_privacy as privacy
 from . import hub_deps as deps
+from . import hub_radio
 from ._common import SourceError, StatusTracker, clip, emit_event, now, run_with_backoff, short_test
 from ._ws import WebSocket, WsClosed, WsError, make_ssl_context
 
@@ -65,6 +66,8 @@ ALLOWED_TYPES = frozenset({
     "trace/list",
     "trace/get",
     "search/related",
+    "history/history_during_period",
+    "recorder/statistics_during_period",
 })
 ALLOWED_FIELDS = {
     "auth": frozenset({"access_token"}),
@@ -74,6 +77,9 @@ ALLOWED_FIELDS = {
     "trace/list": frozenset({"domain", "item_id"}),
     "trace/get": frozenset({"domain", "item_id", "run_id"}),
     "search/related": frozenset({"item_type", "item_id"}),
+    "history/history_during_period": frozenset({"start_time", "end_time", "entity_ids", "minimal_response",
+                                                "no_attributes", "significant_changes_only"}),
+    "recorder/statistics_during_period": frozenset({"start_time", "end_time", "statistic_ids", "period", "types"}),
 }
 ALLOWED_EVENTS = frozenset({"state_changed", "automation_triggered", "script_started"})
 # Only with admin mode switched on for the connection (they need an administrator token on the hub anyway).
@@ -81,6 +87,10 @@ ADMIN_TYPES = frozenset({"automation/config", "script/config", "trace/list", "tr
 ITEM_DOMAINS = ("automation", "script")
 ITEM_ID_RX = re.compile(r"\A[^\x00-\x1f\x7f]{1,255}\Z")
 RUN_ID_RX = re.compile(r"\A[0-9A-Za-z_-]{1,64}\Z")
+DC_RX = re.compile(r"\A[a-z0-9_]{1,32}\Z")
+TIME_RX = re.compile(r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})\Z")
+STAT_PERIODS = ("5minute", "hour", "day")
+STAT_TYPES = ("mean", "min", "max", "state")
 STEP_RX = re.compile(r"\A[a-z_]{1,24}(?:/[0-9a-z_]{1,24}){0,12}\Z")
 
 SNAPSHOT_INTERVAL_S = 600.0
@@ -107,6 +117,12 @@ TRACE_PER_MIN = 6
 CONFIG_FRESH_S = 3600.0
 RELATED_FRESH_S = 7200.0
 DEPS_FRAME_S = 60.0
+# history of one entity, on request only (the sensor page)
+HISTORY_PER_MIN = 12
+HISTORY_FRESH_S = {"24h": 300.0, "7d": 1800.0, "30d": 3600.0}
+HISTORY_SPAN_S = {"24h": 86400.0, "7d": 7 * 86400.0, "30d": 30 * 86400.0}
+MAX_HISTORY_POINTS = 50000
+MAX_HISTORY_CACHE = 64
 IDLE_S = 5.0                     # nothing due: look again after this long
 
 
@@ -151,7 +167,26 @@ def _value_ok(type_: str, key: str, value) -> bool:
         return isinstance(value, str) and bool(ITEM_ID_RX.match(value))
     if key == "run_id":
         return isinstance(value, str) and bool(RUN_ID_RX.match(value))
+    if key in ("start_time", "end_time"):
+        return isinstance(value, str) and bool(TIME_RX.match(value))
+    if key in ("entity_ids", "statistic_ids"):            # exactly one entity, never a private one
+        return (isinstance(value, list) and len(value) == 1 and privacy.valid_entity_id(value[0])
+                and privacy.domain_of(value[0]) not in privacy.PRIVATE_DOMAINS)
+    if key in ("minimal_response", "no_attributes", "significant_changes_only"):
+        return value is True
+    if key == "period":
+        return value in STAT_PERIODS
+    if key == "types":
+        return (isinstance(value, list) and 0 < len(value) <= len(STAT_TYPES) and len(set(value)) == len(value)
+                and all(v in STAT_TYPES for v in value))
     return False
+
+
+def _state_row(state, attrs: dict) -> list:
+    """What the bridge keeps of one entity: state, unit, name and device class (battery, timestamp, ...)."""
+    dc = attrs.get("device_class")
+    return [state, clip(attrs.get("unit_of_measurement"), 32), clip(attrs.get("friendly_name")),
+            clip(dc, 32) if isinstance(dc, str) and DC_RX.match(dc) else None]
 
 
 def _ts(value):
@@ -237,7 +272,7 @@ class Hub:
         self.sent: dict[str, int] = {}       # counters per sent type (diagnostics, no content)
         self.refused = 0
         self.private_dropped = 0             # private entities and events dropped by the privacy filter
-        self._states: dict[str, list] = {}   # entity_id -> [state, unit, friendly_name]
+        self._states: dict[str, list] = {}   # entity_id -> [state, unit, friendly_name, device_class]
         self._pending: dict[str, tuple] = {}  # entity_id -> (state, t, by) waiting for the rate limit
         self._tokens = float(self.state_rate)
         self._tokens_t = clock()
@@ -255,7 +290,10 @@ class Hub:
         self._dead_types: set = set()         # message types the hub answered with "unknown command"
         self._budgets = {"config": deps.Budget(CONFIG_PER_MIN, mono=clock()),
                          "related": deps.Budget(RELATED_PER_MIN, mono=clock()),
-                         "trace": deps.Budget(TRACE_PER_MIN, burst=2, mono=clock())}
+                         "trace": deps.Budget(TRACE_PER_MIN, burst=2, mono=clock()),
+                         "history": deps.Budget(HISTORY_PER_MIN, burst=4, mono=clock())}
+        self._conn: _Conn | None = None       # the live connection (history on request goes over it)
+        self._history: OrderedDict = OrderedDict()   # (entity, span) -> (monotonic time, result)
         self._trace_wanted: OrderedDict = OrderedDict()
         self._deps_dirty = False
         self._idle_until = 0.0
@@ -412,7 +450,7 @@ class Hub:
         else:
             state = clip(new.get("state"), 255)
             if eid in self._states or len(self._states) < MAX_ENTITIES:
-                self._states[eid] = [state, clip(attrs.get("unit_of_measurement"), 32), clip(attrs.get("friendly_name"))]
+                self._states[eid] = _state_row(state, attrs)
             if privacy.domain_of(eid) in ITEM_DOMAINS:
                 self._note_item(eid, state, attrs)
         if old is not None and new is not None and old.get("state") == new.get("state"):
@@ -482,7 +520,7 @@ class Hub:
                 continue
             if len(states) >= MAX_ENTITIES:
                 continue
-            states[eid] = [clip(s.get("state")), clip(attrs.get("unit_of_measurement"), 32), clip(attrs.get("friendly_name"))]
+            states[eid] = _state_row(clip(s.get("state")), attrs)
             if privacy.domain_of(eid) in ITEM_DOMAINS:
                 items[eid] = attrs
         self._states, self._trackers = states, trackers
@@ -709,6 +747,7 @@ class Hub:
         worker = None
         try:
             conn.start(self._on_event)
+            self._conn = conn
             await self._request(conn, "subscribe_events", event_type="state_changed")
             await self._request(conn, "subscribe_events", event_type="automation_triggered")
             await self._request(conn, "subscribe_events", event_type="script_started")
@@ -752,6 +791,7 @@ class Hub:
                 if time.monotonic() - conn.ws.last_rx > SILENCE_S:
                     raise SourceError("source.hub.timeout", "hub silent")
         finally:
+            self._conn = None
             if worker is not None:
                 worker.cancel()
                 try:
@@ -759,6 +799,48 @@ class Hub:
                 except (asyncio.CancelledError, Exception):
                     pass
             await conn.close()
+
+    # ------------------------------------------------------------ history on request (sensor page)
+    async def history(self, entity_id: str, span: str, numeric: bool, wall: float | None = None) -> dict:
+        """The recorded course of one entity over ``span`` (24h, 7d, 30d): long-term statistics (min/mean/max per
+        hour) for numeric entities that have them, otherwise the state changes of the recorder. One entity per
+        request, within ``HISTORY_PER_MIN``; an answer stays fresh for a while (``HISTORY_FRESH_S``)."""
+        if span not in HISTORY_SPAN_S or not privacy.valid_entity_id(entity_id) or privacy.is_private(entity_id):
+            raise SourceError("source.hub.history_item", "entity not allowed")
+        if entity_id not in self._states:
+            raise SourceError("source.hub.history_item", "unknown entity")
+        mono = self._clock()
+        key = (entity_id, span, bool(numeric))
+        hit = self._history.get(key)
+        if hit and mono - hit[0] < HISTORY_FRESH_S[span]:
+            return hit[1]
+        conn = self._conn
+        if conn is None:
+            raise SourceError("source.hub.offline", "not connected")
+        if not self._budgets["history"].take(mono):
+            raise SourceError("source.hub.busy", "history budget used up")
+        import datetime
+        wall = time.time() if wall is None else wall
+        start = datetime.datetime.fromtimestamp(wall - HISTORY_SPAN_S[span], datetime.timezone.utc).isoformat(timespec="seconds")
+        end = datetime.datetime.fromtimestamp(wall, datetime.timezone.utc).isoformat(timespec="seconds")
+        out = {"entity_id": entity_id, "span": span, "start": wall - HISTORY_SPAN_S[span], "end": wall, "stats": [], "states": []}
+        if numeric and span != "24h" and "recorder/statistics_during_period" not in self._dead_types:
+            try:
+                res = await self._request(conn, "recorder/statistics_during_period", start_time=start, end_time=end,
+                                          statistic_ids=[entity_id], period="hour", types=["mean", "min", "max"])
+                out["stats"] = _stat_rows((res or {}).get(entity_id) if isinstance(res, dict) else None)
+            except SourceError as exc:
+                if exc.key not in ("source.hub.unknown_command", "source.hub.request_failed", "source.hub.forbidden"):
+                    raise
+        if not out["stats"]:
+            res = await self._request(conn, "history/history_during_period", start_time=start, end_time=end,
+                                      entity_ids=[entity_id], minimal_response=True, no_attributes=True,
+                                      significant_changes_only=True)
+            out["states"] = _state_changes((res or {}).get(entity_id) if isinstance(res, dict) else None)
+        self._history[key] = (mono, out)
+        while len(self._history) > MAX_HISTORY_CACHE:
+            self._history.popitem(last=False)
+        return out
 
     async def run(self, emit) -> None:
         await run_with_backoff(SOURCE, MODULE, emit, self._session)
@@ -778,6 +860,74 @@ class Hub:
                     "entities": len(states) if isinstance(states, list) else 0,
                     "devices": len(devices) if isinstance(devices, list) else None}
         return await short_test(MODULE, probe(), self.timeout * 3 + REQUEST_TIMEOUT_S)
+
+
+def _num_time(value):
+    """A time of the hub's history/statistics answer: Unix seconds (float), milliseconds (int) or ISO 8601."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        v = float(value)
+        return v / 1000.0 if v > 1e11 else v
+    return _ts(value)
+
+
+def _stat_rows(rows) -> list:
+    """Statistics rows -> [[t, min, mean, max]] (hourly), values as numbers only."""
+    out = []
+    for r in rows if isinstance(rows, list) else []:
+        if not isinstance(r, dict) or len(out) >= MAX_HISTORY_POINTS:
+            continue
+        t = _num_time(r.get("start"))
+        vals = [r.get(k) for k in ("min", "mean", "max")]
+        if t is None or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in vals):
+            continue
+        out.append([round(t, 3)] + [float(v) for v in vals])
+    out.sort(key=lambda x: x[0])
+    return out
+
+
+def _state_changes(rows) -> list:
+    """History rows (compressed ``{"s", "lu"/"lc"}`` or full ``{"state", "last_changed"}``) -> [[t, state]]."""
+    out = []
+    for r in rows if isinstance(rows, list) else []:
+        if not isinstance(r, dict) or len(out) >= MAX_HISTORY_POINTS:
+            continue
+        state = r.get("s", r.get("state"))
+        t = _num_time(r.get("lc", r.get("lu", r.get("last_changed", r.get("last_updated")))))
+        if t is None or not isinstance(state, str):
+            continue
+        out.append([round(t, 3), state[:64]])
+    out.sort(key=lambda x: x[0])
+    return out
+
+
+def _url_hints(url) -> tuple:
+    """(IP address, host name) of a device's configuration page - weak hints for matching it with a network device."""
+    if not isinstance(url, str) or not url or len(url) > 512:
+        return None, None
+    try:
+        u = urllib.parse.urlsplit(url if "://" in url else "http://" + url)
+        if u.scheme.lower() not in ("http", "https"):
+            return None, None
+        u.port                                   # raises on a port that is not a number ("javascript:alert(1)")
+        host = u.hostname
+    except ValueError:
+        return None, None
+    if not host:
+        return None, None
+    ip = privacy.norm_ip(host)
+    if ip:
+        return ip, None
+    host = host.lower().rstrip(".")
+    return None, host[:253] if re.fullmatch(r"[a-z0-9.-]{1,253}", host) else None
+
+
+def _last_seen_entity(eid: str, translation_key, device_class, name) -> bool:
+    """A timestamp sensor that says when the radio last heard the device (the freshness of a radio device)."""
+    if translation_key == "last_seen" or eid.endswith("_last_seen"):
+        return True
+    return device_class == "timestamp" and "last seen" in str(name or "").lower()
 
 
 def build_snapshot(states: dict, devices_raw, entities_raw, areas_raw, entries_raw=None, trackers=None, items=None,
@@ -804,11 +954,14 @@ def build_snapshot(states: dict, devices_raw, entities_raw, areas_raw, entries_r
             dom = entry_domain.get(entry) if isinstance(entry, str) else None
             if dom and dom not in doms:
                 doms.append(dom)
+        radio, role = hub_radio.classify(d, doms)
+        ip_hint, host_hint = _url_hints(d.get("configuration_url"))
         devices.append({"id": did, "name": clip(d.get("name_by_user") or d.get("name")),
                         "model": clip(d.get("model")), "manufacturer": clip(d.get("manufacturer")),
                         "area": device_area[did], "via": clip(d.get("via_device_id"), 64),
                         "service": d.get("entry_type") == "service", "macs": privacy.device_macs(d.get("connections")),
-                        "sw": clip(d.get("sw_version"), 64), "domains": doms[:8]})
+                        "sw": clip(d.get("sw_version"), 64), "domains": doms[:8], "radio": radio, "role": role,
+                        "ip_hint": ip_hint, "host_hint": host_hint})
     entities, seen = [], set()
     for e in entities_raw or []:
         if len(entities) >= MAX_ENTITIES:
@@ -819,19 +972,25 @@ def build_snapshot(states: dict, devices_raw, entities_raw, areas_raw, entries_r
         seen.add(eid)
         if privacy.is_private(eid, show):
             continue
-        st = states.get(eid) or [None, None, None]
+        st = (states.get(eid) or []) + [None] * 4
         did = clip(e.get("device_id"), 64)
-        entities.append({"entity_id": eid, "device_id": did,
-                         "name": clip(e.get("name") or e.get("original_name") or st[2]),
+        name = clip(e.get("name") or e.get("original_name") or st[2])
+        cat = e.get("entity_category")
+        entities.append({"entity_id": eid, "device_id": did, "name": name,
                          "state": st[0], "unit": st[1], "domain": eid.split(".", 1)[0],
-                         "area": clip(e.get("area_id"), 64) or device_area.get(did)})
+                         "area": clip(e.get("area_id"), 64) or device_area.get(did), "dc": st[3],
+                         "cat": cat if cat in ("diagnostic", "config") else None,
+                         "platform": clip(e.get("platform"), 64) if isinstance(e.get("platform"), str) else None,
+                         "ls": _last_seen_entity(eid, e.get("translation_key"), st[3], name)})
     for eid, st in states.items():          # entities without registry entry (or registry not readable)
         if len(entities) >= MAX_ENTITIES:
             break
         if eid in seen or privacy.is_private(eid, show):
             continue
+        st = list(st) + [None] * (4 - len(st))
         entities.append({"entity_id": eid, "device_id": None, "name": st[2], "state": st[0], "unit": st[1],
-                         "domain": eid.split(".", 1)[0], "area": None})
+                         "domain": eid.split(".", 1)[0], "area": None, "dc": st[3], "cat": None, "platform": None,
+                         "ls": _last_seen_entity(eid, None, st[3], st[2])})
     snap = {"type": "hub_snapshot", "source": SOURCE, "t": now(), "devices": devices, "entities": entities,
             "areas": areas,
             # hardware/IP addresses of trackers for matching devices; the tracker's entity id may name a person: left out

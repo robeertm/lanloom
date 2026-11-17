@@ -710,7 +710,7 @@
           // physical link: at the device end the port of the switch it is plugged into, or the radio with band / network name
           const data = { parent: v.a, device: v.b, port: ph.port || null, medium: ph.medium || null };
           if (ph.uplink) out.push({ trace: v, end: 'b', link: 'uplink', parentName: name(v.a), deviceName: name(v.b), uplinkPort: ph.port || '', ownPort: ph.own_port || '', radio: ph.medium === 'radio', data });
-          else if (ph.medium === 'radio') { if (ph.band || ph.ssid) out.push({ trace: v, end: 'b', link: 'radio', parentName: name(v.a), radio: { band: ph.band || '', ssid: ph.ssid || '' }, data }); }
+          else if (ph.medium === 'radio') { if (ph.band || ph.ssid || ph.mesh) out.push({ trace: v, end: 'b', link: 'radio', parentName: name(v.a), radio: { band: ph.band || '', ssid: ph.ssid || '', mesh: ph.mesh || '' }, data }); }
           else if (ph.medium !== 'virtual' && ph.port) out.push({ trace: v, end: 'b', link: 'wired', parentName: name(v.a), port: ph.port, ownPort: ph.own_port || '', data });
           return;
         }

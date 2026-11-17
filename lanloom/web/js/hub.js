@@ -102,4 +102,72 @@
     }
     return h('section', { class: 'detail__sec hub-bridge' }, h('h3', {}, t('hub.title')), ...kids);
   };
+  // ------------------------------------------------------------------ one component: hub side + network side (H2)
+  const FRESH = { ok: 'ok', silent: 'danger', unknown: 'muted' };
+  function freshFacts(f) {
+    if (!f) return [];
+    return [[t('radio.freshness'), h('span', { class: 'chip chip--' + (FRESH[f.fresh] || 'muted') }, t('radio.fresh.' + (f.fresh || 'unknown')))],
+      [t('radio.last_seen'), f.last_seen_s != null ? t('onsite.seen', { age: LL.fmtAge(f.last_seen_s) }) : null],
+      [t('onsite.battery'), f.battery != null ? LL.fmtNum(f.battery, 0) + ' %' : (f.battery_low ? t('onsite.low') : null)]];
+  }
+  function entityList(v) {
+    if (!v.entities || !v.entities.length) return h('p', { class: 'muted' }, t('hub.side.no_entities'));
+    return h('ul', { class: 'hub-ents' }, v.entities.slice(0, 12).map(e => h('li', {},
+      h('a', { href: '#/sensors/' + v.integ + '/' + encodeURIComponent(e.id), class: 'hub-ents__name' }, e.name),
+      h('span', { class: 'hub-ents__val' + (e.state === 'unavailable' ? ' is-down' : '') }, LL.hubValue ? LL.hubValue(e.state, e.unit) : String(e.state)))),
+      v.entities_total > 12 ? h('li', { class: 'muted' }, h('a', { href: '#/sensors/' + v.integ }, t('hub.side.more', { n: v.entities_total - 12 }))) : null);
+  }
+  function deviceBlock(v, extra) {
+    return [factsOf([
+      [t('hub.side.name'), v.name],
+      [t('hub.side.model'), [v.manufacturer, v.model].filter(Boolean).join(' ') || null],
+      [t('hub.side.firmware'), v.sw],
+      [t('hub.side.area'), v.area],
+      [t('hub.side.radio'), v.radio ? (LL.radioKindText ? LL.radioKindText(v.radio) : v.radio) + (v.role && v.role !== 'device' ? ' · ' + t('radio.role.' + v.role) : '') : null],
+      [t('hub.side.network'), v.network && v.network.coordinator ? t('radio.coordinator', { name: v.network.coordinator }) : null],
+      [t('hub.side.integration'), (v.domains || []).length ? h('span', { class: 'mono' }, v.domains.join(', ')) : null],
+      ...freshFacts(v.radio ? v.fresh : null),
+      ...(extra || [])]), entityList(v)];
+  }
+  async function setMatch(compId, v, action) {
+    try {
+      await api('/api/hub/' + v.integ + '/match', { method: 'POST', body: { device: compId, hub_device: v.device_id, action } });
+      LL.toast(t('hub.match.done.' + action), 'ok');
+      setTimeout(() => LL.route(), 400);
+    } catch (e) { LL.toast(LL.errText(e), 'error'); }
+  }
+  LL.hubSideSection = function (sides, suggest, compId) {
+    const may = LL.can('operate');
+    const kids = [];
+    (sides || []).forEach(v => {
+      const m = v.match || {};
+      const why = h('p', { class: 'muted hub-why' }, t('hub.match.why.' + (m.how || 'manual'), { value: m.value || '', pct: Math.round((m.confidence || 0) * 100), hub: v.integ_name }));
+      kids.push(sub(v.integ_name || t('hub.title'), why, ...deviceBlock(v),
+        may ? h('div', { class: 'hub-actions' }, h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => setMatch(compId, v, m.manual ? 'reset' : 'split') },
+          t(m.manual ? 'hub.match.undo' : 'hub.match.split'))) : null));
+    });
+    (suggest || []).forEach(v => {
+      const m = v.match || {};
+      kids.push(sub(t('hub.match.suggest_title'), h('p', { class: 'muted hub-why' }, t('hub.match.why.' + m.how, { value: m.value || '', pct: Math.round((m.confidence || 0) * 100), hub: v.integ_name })),
+        factsOf([[t('hub.side.name'), v.name], [t('hub.side.area'), v.area]]),
+        may ? h('div', { class: 'hub-actions' },
+          h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => setMatch(compId, v, 'join') }, t('hub.match.join')),
+          h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => setMatch(compId, v, 'split') }, t('hub.match.not_same'))) : null));
+    });
+    return h('section', { class: 'detail__sec hub-side' }, h('h3', {}, t('hub.side.title')), h('p', { class: 'muted hub-lead' }, t('hub.side.lead')), ...kids);
+  };
+  LL.hubDeviceSection = function (v) {
+    return h('section', { class: 'detail__sec hub-side' }, h('h3', {}, t('hub.device.title')), sub(v.integ_name || t('hub.title'), ...deviceBlock(v)));
+  };
+  LL.radioNetSection = function (n) {
+    const HEALTH = { ok: 'ok', warn: 'warn', bad: 'danger' };
+    return h('section', { class: 'detail__sec hub-radio' }, h('h3', {}, LL.radioKindText ? LL.radioKindText(n.kind) : n.kind),
+      factsOf([[t('radio.health'), h('span', { class: 'chip chip--' + HEALTH[n.health] }, t('radio.health.' + n.health))],
+        [t('radio.coordinator_label'), n.coordinator_name || t('radio.no_coordinator.' + n.kind)],
+        [t('radio.devices'), String(n.devices)], [t('radio.silent'), String(n.silent)], [t('radio.batteries'), String(n.battery)]]),
+      h('ul', { class: 'hub-ents' }, (n.members || []).slice(0, 40).map(m => h('li', {},
+        h('span', { class: 'hub-ents__name' }, m.name, m.area ? h('span', { class: 'muted' }, ' · ' + m.area) : null),
+        h('span', { class: 'chip chip--' + (FRESH[m.fresh] || 'muted') }, m.battery != null ? LL.fmtNum(m.battery, 0) + ' %' : t('radio.fresh.' + (m.fresh || 'unknown')))))),
+      h('a', { class: 'btn btn--ghost btn--sm', href: '#/sensors/' + n.integ }, t('radio.to_sensors')));
+  };
 })();

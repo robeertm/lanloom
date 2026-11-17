@@ -60,8 +60,10 @@
   // ------------------------------------------------------------------ app frame (header + nav)
   function frame(app, active, content) {
     const tabs = [['overview', 'nav.overview'], ['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports'], ['settings', 'nav.settings']];
+    if (LL.state && (LL.state.hubs || []).length) tabs.splice(5, 0, ['sensors', 'nav.sensors']);   // the hub's sensors, only with a hub connection
     const nav = h('nav', { class: 'tabs', 'aria-label': t('nav.label') }, tabs.map(([k, label]) =>
-      h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null, title: t(label) },
+      h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null,
+        title: t(label), 'aria-label': t(label) },   // narrow screens show only the icon
         h('span', { class: 'tab__icon', 'aria-hidden': 'true' }), h('span', { class: 'tab__label' }, t(label)),
         LL.strings['nav.short.' + k] ? h('span', { class: 'tab__short', 'aria-hidden': 'true' }, t('nav.short.' + k)) : null)));
     const navIcon = k => NAV_ICONS[k] || ({ paths: LL.NAV_PATHS_ICON, reports: LL.NAV_REPORTS_ICON }[k]) || LL.FW_ICON || '';
@@ -121,6 +123,7 @@
     map: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h4.5v7.5M6.5 10v7.5H14"/></svg>',
     network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1"/><rect x="2.5" y="16.5" width="6" height="5" rx="1"/><rect x="15.5" y="16.5" width="6" height="5" rx="1"/><path d="M12 7.5v4.5M5.5 16.5V12h13v4.5"/></svg>',
     devices: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/></svg>',
+    sensors: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l2.5-6 4 12 2.5-6H21"/></svg>',
     settings: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>'
   };
 
@@ -253,6 +256,8 @@
     }
     if (d.hypervisor) sections.push(LL.hvHostSection(d.hypervisor));
     if (d.guest) sections.push(LL.hvGuestSection(d.guest));
+    // the hub side of a merged device comes first: one component, network side and hub side
+    if (d.hub_side || d.hub_suggest) sections.push(LL.hubSideSection(d.hub_side, d.hub_suggest, id));
     const devSec = d.device ? deviceSection(d.device, d) : null;
     const foot = devSec && devSec.querySelector(':scope > .detail__foot');   // "Hide from the map" stays the last button of the card
     if (foot) foot.remove();
@@ -274,6 +279,8 @@
     if (d.broker) sections.push(brokerSection(d.broker));
     if (d.topic) sections.push(section(t('detail.topic'), facts([[t('detail.rate'), d.topic.msgs_s + ' ' + t('unit.msg_s')], [t(LL.rateUnit === 'bits' ? 'detail.bits' : 'detail.bytes'), LL.fmtRate(d.topic.bytes_s)],
       [t('detail.cadence'), d.topic.cadence_s ? LL.fmtAge(d.topic.cadence_s) : '—'], [t('detail.last'), LL.fmtAge(d.topic.last_s)]])));
+    if (d.hub_device) sections.push(LL.hubDeviceSection(d.hub_device));
+    if (d.radio_net) sections.push(LL.radioNetSection(d.radio_net));
     if (d.hub_bridge) sections.push(LL.hubBridgeSection(d.hub_bridge));
     if (d.entities) sections.push(entitiesSection(d.entities));
     if (d.ifaces && Object.keys(d.ifaces).length) sections.push(section(t('detail.ifaces'), facts(Object.entries(d.ifaces).map(([n, v]) => [n, '↑ ' + LL.fmtRate(v[0]) + '  ↓ ' + LL.fmtRate(v[1])]))));

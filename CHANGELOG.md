@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.21.0] – 2026-11-17
+
+### Added
+- **One component, two sides**: a device the home-automation hub knows and the scan finds is drawn as one component. Matching uses the hardware address from the hub's device registry (95 %), the IP address of the device's configuration page together with a tracker of the hub (85 %) or alone (70 %); the same name on both sides is only a suggestion (45 %). Merged devices carry a **HUB** badge; their card starts with the *Automation hub side* – which evidence decided, name, model, firmware and room at the hub, integration and entities. *Show separately*, *Same device* and *Different devices* need the operator role and go into the audit log (`hub.match`). See [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md#one-component-network-side-and-hub-side).
+- **Radio networks as lanes**: the hub's radio networks (802.15.4 mesh, Thread mesh, sub-GHz mesh, BLE, IP smart-home standard; recognised from the device registry, shown with neutral names) are dashed lanes – on the map one tile per network from the hub, on the network view a zone per network with the coordinator (or the network) and its radio devices behind it, one radio mark per network, up to 36 devices drawn and a "+N more" tile.
+- **Radio freshness**: a radio device is fresh while one of its entities is not `unavailable` and, when the integration reports "last seen", while that is younger than 24 hours – never by the age of the last update. Silent devices are red; a network with a silent coordinator or half of its devices silent is *disturbed*.
+- **Event rings**: each state change of the hub travels as a small hollow ring along the lane of its radio network or the trace of its room – a dot shape of its own, separate from the byte dots (none with reduced motion).
+- **Sensors tab** (appears with a hub connection, also in the phone's bottom bar): every sensor grouped by room with search and room filter; *On site* – batteries to change now (≤ 10 % or reported low) or soon (≤ 25 %) and silent radio devices, with battery bars; *Radio networks* – health, coordinator, devices, silent devices, low batteries, BLE receivers (radio proxies), Thread border routers, devices of the IP standard and state changes per integration.
+- **Sensor page** for every entity: 1 hour from Lanloom's own live memory, 24 hours from the hub's recorder, 7 and 30 days from the hub's long-term statistics (or the recorder), thinned out at the server – numbers as a minimum-to-maximum band with the mean as a line, states as a state bar with the share of each state; hover shows the values.
+- The hub bridge may ask for the history of **one entity on request** (`history/history_during_period`, `recorder/statistics_during_period`; never a private entity, at most 12 per minute, answers kept for 5 to 60 minutes) and keeps the device class of an entity (battery, timestamp, ...). Static tests check the extended allow-list.
+- Search and commands (`Ctrl K`): *Go to Sensors* and, when typed, its parts *On site* and *Radio networks*; *Open the sensor page* is the first action of an entity hit.
+- Nightly report section *Radio and batteries*: silent radio devices, batteries to change now, silent receivers and border routers and disturbed networks as points, batteries getting low as notes; the AI features see it only as its summary.
+- API: `GET /api/hub/{id}/sensors`, `GET /api/hub/{id}/entity/{entity_id}?range=1h|24h|7d|30d` (viewer), `POST /api/hub/{id}/match` (operator); `/api/state` names the hub connections (`hubs`).
+- Demo mode: matched devices (by hardware address, configuration page plus tracker, configuration page, and a name suggestion), five radio networks with a coordinator, a controller, a border router, two BLE receivers, batteries at 7 %, 18 % and 22 %, a silent contact and a silent blind, and recorded courses for every sensor.
+
+### Fixed
+- The demo's runaway automation also shows at night (the sample data quieted every automation between 1 and 6 o'clock).
+
 ## [1.20.0] – 2026-11-17
 
 ### Added

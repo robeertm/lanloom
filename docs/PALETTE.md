@@ -50,7 +50,8 @@ Operators: `>` `>=` `<` `<=` `=` (also `≥` and `≤`). A unit is compared when
 | Hit | Actions |
 | --- | --- |
 | Device, virtual machine, service | Open (the card of the device), Copy address |
-| Automation, entity | Show the hub card, Copy ID |
+| Entity | Open the sensor page, Show the hub card, Copy ID |
+| Automation | Show the hub card, Copy ID |
 
 An action exists only when something registered it, so an action for a view Lanloom does not have yet is never shown. Later features add theirs (for example a chain-of-outage view adds its own action to devices).
 

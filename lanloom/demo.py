@@ -703,6 +703,8 @@ class Demo:
                     area = rng.choice(AREAS)
                     core.on_event(key, hid, {"type": "hub_state", "entity_id": "sensor.%s_%d" % (area[0], rng.randint(1, area[3])),
                                              "state": "%.1f" % rng.uniform(18, 24), "t": now})
+                for frame in demo_hub.radio_tick(now, rng):
+                    core.on_event(key, hid, frame)
                 if rng.random() < 0.3:
                     eid = rng.choice(["light.living_room_2", "light.hallway_2", "switch.kitchen_3", "switch.office_3"])
                     ev = {"type": "hub_state", "entity_id": eid, "state": rng.choice(["on", "off"]), "t": now}
@@ -733,6 +735,10 @@ class Demo:
     def hub_traces(self, entity_id: str):
         from . import demo_hub
         return demo_hub.traces(entity_id, time.time())
+
+    def hub_history(self, entity: dict, rng: str, numeric: bool, now: float) -> dict:
+        from . import demo_hub
+        return demo_hub.history(entity, rng, numeric, now)
 
 
 def _demo_family(area: str = "zones"):

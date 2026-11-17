@@ -32,7 +32,7 @@ GROUPS = {
 }
 PRIVATE_DOMAINS = frozenset(d for doms in GROUPS.values() for d in doms)
 GROUP_FIELDS = {"privacy_" + g: g for g in GROUPS}          # integration settings (booleans, all off by default)
-KEEP_ATTRIBUTES = ("unit_of_measurement", "friendly_name")
+KEEP_ATTRIBUTES = ("unit_of_measurement", "friendly_name", "device_class")
 EVENT_FIELDS = ("entity_id", "state", "t")                   # the only fields of a state event that leave the bridge
 MAC_RX = re.compile(r"\A[0-9a-f]{2}(?::[0-9a-f]{2}){5}\Z")
 ENTITY_RX = re.compile(r"\A[a-z0-9_]{1,64}\.[a-z0-9_]{1,190}\Z")

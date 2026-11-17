@@ -309,7 +309,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                "ai": state.ai.ready() if full and access.allows(user.get("role"), "operator") else {},
                "can": access.capabilities(user.get("role")) if user else {}, "enroll": bool(user) and not full,
                "proxy": bool(user) and user.get("source") == "proxy",
-               "notices": len(state.notices.unseen(user["id"])) if full else 0}
+               "notices": len(state.notices.unseen(user["id"])) if full else 0,
+               "hubs": [{"id": i["id"], "name": i["name"]} for i in state.core.integrations() if i["kind"] == "hub"]
+               if full and state.core else []}
         return out
 
     @app.get("/api/i18n/{lang}")
@@ -549,6 +551,32 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             return state.core.hub_want_traces(integ_id, entity_id)
         except ValueError as exc:
             return err(str(exc), 404 if str(exc) == "hub.err.missing" else 409)
+
+    @app.get("/api/hub/{integ_id}/sensors")
+    async def hub_sensors(integ_id: int):
+        view = state.core.hub_sensors(integ_id)
+        return view if view is not None else err("hub.err.missing", 404)
+
+    @app.get("/api/hub/{integ_id}/entity/{entity_id}")
+    async def hub_entity(integ_id: int, entity_id: str, range: str = "1h"):
+        try:
+            return await state.core.hub_history(integ_id, entity_id, range)
+        except ValueError as exc:
+            key = str(exc)
+            return err(key, {"hub.err.missing": 404, "hub.err.entity": 404, "hub.err.busy": 429}.get(key, 409))
+
+    @app.post("/api/hub/{integ_id}/match")
+    async def hub_match(integ_id: int, request: Request):
+        data = await body(request)
+        net_id, hub_dev, action = data.get("device"), data.get("hub_device"), data.get("action")
+        if not isinstance(hub_dev, str) or not isinstance(net_id, str):
+            return err("hub.match.invalid")
+        key = "%d:%s" % (integ_id, hub_dev[:64])
+        note(request, target=("%s %s" % (net_id[:64], key))[:160], detail={"action": action if action in ("split", "join", "reset") else "?"})
+        try:
+            return state.core.set_hub_match(net_id, key, action)
+        except ValueError as exc:
+            return err(str(exc), 404 if str(exc) == "device.err.missing" else 400)
 
     # ------------------------------------------------------------------ nightly reports
     reports = state.core.reports

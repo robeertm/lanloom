@@ -91,9 +91,10 @@ def test_snmp_builds_only_read_pdus():
             assert isinstance(arg, ast.Name) and arg.id in {"PDU_GET", "PDU_GETNEXT", "PDU_GETBULK", "tag"}, where
 
 
-# Message types of the hub that only read: lists, getters, configuration readers, traces, related-item lookups.
+# Message types of the hub that only read: lists, getters, configuration readers, traces, related-item lookups, the
+# recorded history and long-term statistics of one entity (sensor page).
 HUB_READS = {"get_states", "get_config", "config_entries/get", "automation/config", "script/config", "trace/list",
-             "trace/get", "search/related"}
+             "trace/get", "search/related", "history/history_during_period", "recorder/statistics_during_period"}
 
 
 def test_hub_allow_list_only_reads_and_subscribes():

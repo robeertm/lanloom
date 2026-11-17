@@ -140,6 +140,9 @@ RULES = {
     ("GET", "/api/hub/{integ_id}/automations"): R(V),
     ("GET", "/api/hub/{integ_id}/traces/{entity_id}"): R(V),
     ("POST", "/api/hub/{integ_id}/traces/{entity_id}"): R(O, "hub.traces"),
+    ("GET", "/api/hub/{integ_id}/sensors"): R(V),
+    ("GET", "/api/hub/{integ_id}/entity/{entity_id}"): R(V),       # history: within the bridge's own budget
+    ("POST", "/api/hub/{integ_id}/match"): R(O, "hub.match"),
 
     # ---------------------------------------------------------------- nightly reports
     ("GET", "/api/reports"): R(V),

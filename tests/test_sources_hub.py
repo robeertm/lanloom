@@ -238,10 +238,12 @@ def test_run_emits_snapshot_states_and_status(caplog):
     assert snap["areas"] == [{"id": "office", "name": "Office"}]
     assert [d["id"] for d in snap["devices"]] == ["dev1", "dev2"]                 # disabled device skipped
     assert snap["devices"][1] == {"id": "dev2", "name": "Lamp", "model": "L2", "manufacturer": "Acme",
-                                  "area": "office", "via": "dev1", "service": False, "macs": [], "sw": None, "domains": []}
+                                  "area": "office", "via": "dev1", "service": False, "macs": [], "sw": None, "domains": [],
+                                  "radio": None, "role": None, "ip_hint": None, "host_hint": None}
     ents = {e["entity_id"]: e for e in snap["entities"]}
     assert ents["sensor.power"] == {"entity_id": "sensor.power", "device_id": "dev1", "name": "Power",
-                                    "state": "120", "unit": "W", "domain": "sensor", "area": "office"}
+                                    "state": "120", "unit": "W", "domain": "sensor", "area": "office", "dc": None,
+                                    "cat": None, "platform": None, "ls": False}
     assert ents["light.desk"]["name"] == "Desk"
     assert ents["sun.sun"]["device_id"] is None                                   # state without registry entry
     states = [(e["entity_id"], e["state"]) for e in events if e["type"] == "hub_state"]
@@ -375,6 +377,11 @@ VALID_FIELDS = {
     "trace/list": {"domain": "automation", "item_id": "1700000000001"},
     "trace/get": {"domain": "script", "item_id": "night", "run_id": "0f3a9c"},
     "search/related": {"item_type": "automation", "item_id": "automation.hall"},
+    "history/history_during_period": {"start_time": "2026-11-16T10:00:00+00:00", "end_time": "2026-11-17T10:00:00+00:00",
+                                      "entity_ids": ["sensor.power"], "minimal_response": True, "no_attributes": True,
+                                      "significant_changes_only": True},
+    "recorder/statistics_during_period": {"start_time": "2026-11-10T10:00:00+00:00", "end_time": "2026-11-17T10:00:00+00:00",
+                                          "statistic_ids": ["sensor.power"], "period": "hour", "types": ["mean", "min", "max"]},
 }
 
 
@@ -423,6 +430,16 @@ def test_admin_types_refused_without_admin_mode():
     ("automation/config", {"entity_id": "automation.hall", "extra": 1}),
     ("subscribe_events", {"event_type": "automation_reloaded"}),
     ("config_entries/get", {"domain": "x"}),
+    ("history/history_during_period", dict(VALID_FIELDS["history/history_during_period"], entity_ids=["person.alice"])),
+    ("history/history_during_period", dict(VALID_FIELDS["history/history_during_period"], entity_ids=["sensor.a", "sensor.b"])),
+    ("history/history_during_period", dict(VALID_FIELDS["history/history_during_period"], entity_ids=[])),
+    ("history/history_during_period", dict(VALID_FIELDS["history/history_during_period"], start_time="yesterday")),
+    ("history/history_during_period", dict(VALID_FIELDS["history/history_during_period"], minimal_response=False)),
+    ("history/history_during_period", dict(VALID_FIELDS["history/history_during_period"], no_attributes="yes")),
+    ("recorder/statistics_during_period", dict(VALID_FIELDS["recorder/statistics_during_period"], period="week")),
+    ("recorder/statistics_during_period", dict(VALID_FIELDS["recorder/statistics_during_period"], types=["sum"])),
+    ("recorder/statistics_during_period", dict(VALID_FIELDS["recorder/statistics_during_period"], types=["mean", "mean"])),
+    ("recorder/statistics_during_period", dict(VALID_FIELDS["recorder/statistics_during_period"], statistic_ids=["camera.door"])),
 ])
 def test_values_outside_the_contract_are_refused(type_, fields):
     h = m.Hub("http://127.0.0.1:1", TOKEN, admin_mode=True)
@@ -450,14 +467,18 @@ def test_allow_list_is_exactly_the_contract():
     assert m.ALLOWED_TYPES == frozenset({"auth", "get_states", "get_config", "config/device_registry/list",
                                          "config/entity_registry/list", "config/area_registry/list",
                                          "config_entries/get", "subscribe_events", "automation/config", "script/config",
-                                         "trace/list", "trace/get", "search/related"})
+                                         "trace/list", "trace/get", "search/related", "history/history_during_period",
+                                         "recorder/statistics_during_period"})
     assert m.ALLOWED_EVENTS == frozenset({"state_changed", "automation_triggered", "script_started"})
     assert m.ADMIN_TYPES == frozenset({"automation/config", "script/config", "trace/list", "trace/get", "search/related"})
     assert m.ALLOWED_FIELDS == {
         "auth": frozenset({"access_token"}), "subscribe_events": frozenset({"event_type"}),
         "automation/config": frozenset({"entity_id"}), "script/config": frozenset({"entity_id"}),
         "trace/list": frozenset({"domain", "item_id"}), "trace/get": frozenset({"domain", "item_id", "run_id"}),
-        "search/related": frozenset({"item_type", "item_id"})}
+        "search/related": frozenset({"item_type", "item_id"}),
+        "history/history_during_period": frozenset({"start_time", "end_time", "entity_ids", "minimal_response",
+                                                    "no_attributes", "significant_changes_only"}),
+        "recorder/statistics_during_period": frozenset({"start_time", "end_time", "statistic_ids", "period", "types"})}
 
 
 def test_send_text_only_inside_the_single_send_function():

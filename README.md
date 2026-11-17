@@ -199,6 +199,19 @@ Press `Ctrl K`, `⌘ K` or `/` anywhere, or use the Search button. Views and com
 <tr>
 <td width="50%"><img src="docs/screenshots/palette-actions-light.png" width="100%" alt="The actions of a device hit: open and copy address"><br><sub>The actions of a hit; only what exists is offered</sub></td>
 <td width="50%"></td>
+
+### One component, radio networks, sensors
+
+Devices the hub also knows are drawn as one component with a network side and a hub side (matched by hardware address, by the address of their configuration page, or suggested by name); the hub's radio networks become dashed lanes with their coordinator, and every radio device is red when its radio has not heard it. The Sensors tab lists every sensor with search, shows what needs a visit (batteries now or soon, silent radio devices) and opens a large chart per sensor for 1 hour up to 30 days. See [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md#one-component-network-side-and-hub-side).
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/radio-networks-dark.png" width="100%" alt="The map with one tile per radio network on dashed lanes from the hub"><br><sub>Radio networks as lanes from the hub</sub></td>
+<td width="50%"><img src="docs/screenshots/hub-merged-light.png" width="100%" alt="Card of a device with the hub side: evidence of the match, room, firmware, entities"><br><sub>One component: the hub side on the card</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/onsite-light.png" width="100%" alt="On site: batteries to change now or soon and silent radio devices"><br><sub>On site: batteries and silent radio devices</sub></td>
+<td width="50%"><img src="docs/screenshots/sensor-page-dark.png" width="100%" alt="Sensor page with a minimum-to-maximum band and the mean over 7 days"><br><sub>Sensor page: 7 days from the hub's statistics</sub></td>
 </tr>
 </table>
 
@@ -284,6 +297,8 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 <td><img src="docs/screenshots/phone-paths.png" width="200" alt="Phone: data paths"></td>
 <td><img src="docs/screenshots/phone-paths-full.png" width="200" alt="Phone: world map in full screen"></td>
 <td><img src="docs/screenshots/phone-netflow-settings.png" width="200" alt="Phone: NetFlow / IPFIX receiver settings"></td>
+<td><img src="docs/screenshots/phone-onsite.png" width="200" alt="Phone: sensors on site, batteries and silent radio devices"></td>
+<td><img src="docs/screenshots/phone-sensor-page.png" width="200" alt="Phone: sensor page with the course of one sensor"></td>
 <td><img src="docs/screenshots/phone-reports.png" width="200" alt="Phone: nightly report"></td>
 <td><img src="docs/screenshots/phone-storage.png" width="200" alt="Phone: storage settings"></td>
 <td><img src="docs/screenshots/phone-ai-explain.png" width="200" alt="Phone: AI explanation of a device"></td>

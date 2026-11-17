@@ -13,6 +13,11 @@
   const LL = root.Lanloom = root.Lanloom || {};
 
   const KINDS = ['uplink', 'lan', 'service', 'flow', 'integration', 'cable', 'radio', 'virtual'];
+  /* Event rings: one ring = one state change of a home-automation entity on the lane of its radio network or area.
+     Drawn as a small hollow ring (not a filled dot) so events are never mistaken for byte traffic; they travel from
+     end a to end b at ~0.6x the dot speed, at most RING_PER_TRACE per trace and second (extra events are merged),
+     in their own small pool of RING_CAP so the byte dot budget is untouched. */
+  const RING_CAP = 300, RING_PER_TRACE = 3, RING_SPEED = 0.6, RING_R = 3.5, RING_W = 1.6;
   const SIZES = [1, 8, 64];             // dot size classes in quanta (larger dots carry 8× / 64× q)
   const STEPS = [60, 30, 20, 15, 10];   // frame rate steps of the budget
   const MOTION = { auto: 30, full: 60, saver: 15, off: 0 };
@@ -67,6 +72,7 @@
       // dots as struct of arrays
       this.tr = new Int32Array(this.cap); this.t0 = new Float64Array(this.cap); this.du = new Float32Array(this.cap);
       this.rev = new Uint8Array(this.cap); this.sz = new Uint8Array(this.cap); this.n = 0;
+      this.rtr = new Int32Array(RING_CAP); this.rt0 = new Float64Array(RING_CAP); this.rdu = new Float32Array(RING_CAP); this.rn = 0;   // event rings
       this.geo = []; this.idx = new Map();         // trace id → index into geo
       this.rest = new Map();                       // carried quanta per trace+direction
       this.glowTarget = new Float32Array(0); this.glowNow = new Float32Array(0); this.glowSeen = new Float64Array(0);
@@ -96,7 +102,7 @@
       try {
         this._mq = root.matchMedia('(prefers-reduced-motion: reduce)');
         this.reduced = !!this._mq.matches;
-        this._onMq = () => { this.reduced = !!this._mq.matches; if (this.reduced) this.n = 0; this.wake(); };
+        this._onMq = () => { this.reduced = !!this._mq.matches; if (this.reduced) { this.n = 0; this.rn = 0; } this.wake(); };
         if (this._mq.addEventListener) this._mq.addEventListener('change', this._onMq);
       } catch (e) { /* no matchMedia */ }
       this._onVis = () => { if (!document.hidden) { this.prune(performance.now()); this.wake(); } };
@@ -130,7 +136,7 @@
         if (o != null && o < oldTarget.length) { this.glowTarget[i] = oldTarget[o]; this.glowNow[i] = oldNow[o]; this.glowSeen[i] = oldSeen[o]; }
       });
       // dots of traces that changed geometry are dropped (structure changed → new routes)
-      this.n = 0;
+      this.n = 0; this.rn = 0;
       this.wake();
     }
 
@@ -173,6 +179,7 @@
       if (this.reduced || !this.fpsCap) { this.glowNow.set(this.glowTarget); if (this.inView) this.drawGlow(); }
       // dots
       if (!this.reduced && this.fpsCap && this.inView && !document.hidden && f.dots) this.spawn(f.dots, now);
+      if (!this.reduced && this.fpsCap && this.inView && !document.hidden && f.rings) this.spawnRings(f.rings, now);
       this.wake();
     }
 
@@ -210,7 +217,27 @@
       }
     }
 
+    spawnRings(list, now) {
+      for (const r of list) {
+        const gi = this.idx.get(r[0]); if (gi == null) continue;
+        const k = Math.min(RING_PER_TRACE, Math.max(0, Math.floor(+r[1] || 0)));
+        const g = this.geo[gi], dur = Math.max(900, Math.min(6500, g.L / (this.speed * RING_SPEED) * 1000));
+        for (let i = 0; i < k && this.rn < RING_CAP; i++) {
+          const j = this.rn++;
+          this.rtr[j] = gi; this.rdu[j] = dur;
+          this.rt0[j] = now + (i + 0.15 + Math.random() * 0.7) / k * 1000;
+        }
+      }
+    }
+
     prune(now) {
+      let rw = 0;
+      for (let k = 0; k < this.rn; k++) {
+        if (now >= this.rt0[k] + this.rdu[k]) continue;
+        if (rw !== k) { this.rtr[rw] = this.rtr[k]; this.rt0[rw] = this.rt0[k]; this.rdu[rw] = this.rdu[k]; }
+        rw++;
+      }
+      this.rn = rw;
       let w = 0;
       for (let k = 0; k < this.n; k++) {
         if (now >= this.t0[k] + this.du[k]) continue;
@@ -224,7 +251,7 @@
     setMotion(m) {
       this.motion = MOTION[m] != null ? m : 'auto';
       this.fpsCap = capFor(this.motion); this.fpsNow = this.fpsCap; this.capScale = this.motion === 'saver' ? 0.4 : 1;
-      if (!this.fpsCap) this.n = 0;
+      if (!this.fpsCap) { this.n = 0; this.rn = 0; }
       this.wake();
     }
     budget(now, ms) {
@@ -263,14 +290,14 @@
         }
         if (moving || !this._glowDrawn) { this.drawGlow(); busy = true; }
       }
-      if (this.n) { this.drawDots(now); busy = true; }
+      if (this.n || this.rn) { this.drawDots(now); busy = true; }
       else if (this._dotsDrawn) { this.dctx.setTransform(1, 0, 0, 1, 0, 0); this.dctx.clearRect(0, 0, this.dotC.width, this.dotC.height); this._dotsDrawn = false; }
       const ms = performance.now() - t0;
       this.stats.drawMs = this.stats.drawMs * 0.9 + ms * 0.1;
       if (busy) this.budget(now, this.stats.drawMs);
       this._fpsN++;
       if (now - this._fpsT >= 1000) { this.stats.fps = Math.round(this._fpsN * 1000 / (now - this._fpsT)); this._fpsT = now; this._fpsN = 0; }
-      this.stats.active = this.n; this.stats.frames++;
+      this.stats.active = this.n + this.rn; this.stats.frames++;
       if (busy || (this.fpsCap && now - this._glowAnim < 900)) this._raf = root.requestAnimationFrame(t => this.loop(t));
       else this.stats.fps = 0;
     }
@@ -356,10 +383,37 @@
         ctx.drawImage(sp.c, X - sp.gr, Y - sp.gr);
       }
       this.n = w;
+      this.drawRings(now);
       ctx.globalAlpha = 1;
     }
 
-    clear() { this.n = 0; this.rest.clear(); this.glowTarget.fill(0); this.glowNow.fill(0); this.drawGlow(); this.wake(); }
+    drawRings(now) {
+      const ctx = this.dctx, dpr = this.dpr, W = this.dotC.width, H = this.dotC.height, sy = this.scrollY;
+      let w = 0;
+      ctx.lineWidth = RING_W * dpr;
+      for (let k = 0; k < this.rn; k++) {
+        const t0 = this.rt0[k], du = this.rdu[k];
+        if (now >= t0 + du) continue;
+        if (w !== k) { this.rtr[w] = this.rtr[k]; this.rt0[w] = t0; this.rdu[w] = du; }
+        w++;
+        if (now < t0) continue;
+        const g = this.geo[this.rtr[k]]; if (!g) continue;
+        if (g.box[3] < sy - 10 || g.box[1] > sy + this.vh + 10) continue;
+        const p = (now - t0) / du, s = p * g.L;
+        let lo = 0, hi = g.n - 1;
+        while (hi - lo > 1) { const m = (lo + hi) >> 1; if (g.c[m] < s) lo = m; else hi = m; }
+        const sl = (g.c[hi] - g.c[lo]) || 1, f = (s - g.c[lo]) / sl;
+        const X = (g.a[lo * 2] + (g.a[hi * 2] - g.a[lo * 2]) * f) * dpr, Y = (g.a[lo * 2 + 1] + (g.a[hi * 2 + 1] - g.a[lo * 2 + 1]) * f - sy) * dpr;
+        if (X < -20 || Y < -20 || X > W + 20 || Y > H + 20) continue;
+        let a = 0.9 * Math.min(1, p / 0.06, (1 - p) / 0.06);
+        if (this.focus && !this.focus.has(g.id)) a *= 0.12;
+        ctx.globalAlpha = a; ctx.strokeStyle = this.color(g.kind);
+        ctx.beginPath(); ctx.arc(X, Y, RING_R * dpr, 0, 6.2832); ctx.stroke();
+      }
+      this.rn = w;
+    }
+
+    clear() { this.n = 0; this.rn = 0; this.rest.clear(); this.glowTarget.fill(0); this.glowNow.fill(0); this.drawGlow(); this.wake(); }
 
     destroy() {
       this._dead = true;
@@ -368,7 +422,7 @@
       try { if (this._io) this._io.disconnect(); } catch (e) { /* */ }
       document.removeEventListener('ll-motion', this._onMotion);
       try { if (this._mq && this._mq.removeEventListener) this._mq.removeEventListener('change', this._onMq); } catch (e) { /* */ }
-      this.n = 0; this.sprites.clear();
+      this.n = 0; this.rn = 0; this.sprites.clear();
     }
   }
 

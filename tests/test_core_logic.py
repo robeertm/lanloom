@@ -103,7 +103,8 @@ def test_hub_allow_list_is_read_only():
     for t in hub.ALLOWED_TYPES:
         assert t in ("auth", "get_states", "get_config", "config/device_registry/list", "config/entity_registry/list",
                      "config/area_registry/list", "config_entries/get", "subscribe_events", "automation/config",
-                     "script/config", "trace/list", "trace/get", "search/related"), t
+                     "script/config", "trace/list", "trace/get", "search/related", "history/history_during_period",
+                     "recorder/statistics_during_period"), t
     assert hub.ADMIN_TYPES == {"automation/config", "script/config", "trace/list", "trace/get", "search/related"}
 
 

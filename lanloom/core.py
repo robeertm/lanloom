@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubbridge, identity, live, netflow, oui as oui_mod, textfmt, topology
+from . import classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology
 from .crypto import Vault
 from .store import Store
 
@@ -125,6 +125,8 @@ class Core:
         data_dir = getattr(cfg, "data_dir", None)
         self.oui = oui_mod.Oui(extra=(data_dir / "oui" / "oui.bin.gz") if data_dir else None)
         self._ident_cache = None           # (key, identity.groups result)
+        self._merge_cache = None           # (key, hubmerge.match result)
+        self._radio_cache: dict = {}       # integration id -> (key, monotonic time, radio view)
         self.paths = datapaths.DataPaths(store, self.geo, self.settings)
         self.ip6_to_device: dict = {}
         self._nf_lan = (0.0, [])           # (ts, detected local networks) for the NetFlow direction check
@@ -983,6 +985,155 @@ class Core:
             raise ValueError("hub.err.item")
         return {"queued": place}
 
+    # ------------------------------------------------------------------ hub devices and network devices as one component
+    def hub_match_rules(self) -> dict:
+        rules = self.store.get_setting("hub_match", {}) or {}
+        return {"split": [list(p) for p in rules.get("split") or [] if isinstance(p, list) and len(p) == 2],
+                "join": [list(p) for p in rules.get("join") or [] if isinstance(p, list) and len(p) == 2]}
+
+    def hub_merge(self, devices: Optional[list] = None) -> dict:
+        """Which hub device belongs to which network device (see hubmerge.match); cached until something changes."""
+        rules = self.hub_match_rules()
+        snaps = {i: (e.get("snapshot") or {}) for i, e in self.hub.items() if e.get("snapshot")}
+        key = (self.structure_version, tuple(sorted((i, s.get("t")) for i, s in snaps.items())), json.dumps(rules, sort_keys=True))
+        if self._merge_cache and self._merge_cache[0] == key:
+            return self._merge_cache[1]
+        res = hubmerge.match(devices if devices is not None else self.devices(), snaps, rules)
+        self._merge_cache = (key, res)
+        return res
+
+    def hub_radio(self, integ_id: int, now: Optional[float] = None) -> dict:
+        """Radio networks, freshness per radio device (see hubmerge.radio_view); recomputed at most every 5 s."""
+        entry = self.hub.get(integ_id) or {}
+        snap = entry.get("snapshot")
+        if not snap:
+            return {"networks": [], "dev_net": {}, "state": {}}
+        now = time.time() if now is None else now
+        hit = self._radio_cache.get(integ_id)
+        if hit and hit[0] == snap.get("t") and now - hit[1] < 5.0:
+            return hit[2]
+        res = hubmerge.radio_view(snap, entry.get("states") or {}, now)
+        self._radio_cache[integ_id] = (snap.get("t"), now, res)
+        return res
+
+    def set_hub_match(self, net_id: str, hub_key: str, action: str) -> dict:
+        """split: never draw these two as one; join: they are one (a confirmed suggestion); reset: forget both."""
+        if action not in ("split", "join", "reset") or not isinstance(hub_key, str) or not isinstance(net_id, str):
+            raise ValueError("hub.match.invalid")
+        integ, _, did = hub_key.partition(":")
+        if not integ.isdigit() or not did or len(did) > 64 or int(integ) not in self.hub_ids():
+            raise ValueError("hub.match.invalid")
+        if not self.store.device(net_id):
+            raise ValueError("device.err.missing")
+        snap = (self.hub.get(int(integ)) or {}).get("snapshot") or {}
+        if not any(d.get("id") == did for d in snap.get("devices") or []):
+            raise ValueError("hub.match.invalid")
+        pair = [net_id, hub_key]
+        rules = self.hub_match_rules()
+        rules["split"] = [p for p in rules["split"] if p != pair]
+        rules["join"] = [p for p in rules["join"] if p[1] != hub_key] if action == "join" else [p for p in rules["join"] if p != pair]
+        if action != "reset":
+            rules[action].append(pair)
+        rules["split"], rules["join"] = rules["split"][-500:], rules["join"][-500:]
+        self.store.set_setting("hub_match", rules)
+        self._merge_cache = None
+        self.structure_version += 1
+        return {"ok": True, "action": action}
+
+    def hub_sensors(self, integ_id: int) -> Optional[dict]:
+        """The Sensors tab: every entity, areas, devices, "on site" (batteries and radio), radio networks and health."""
+        if integ_id not in self.hub_ids():
+            return None
+        now = time.time()
+        entry = self.hub.get(integ_id) or {}
+        snap = entry.get("snapshot") or {}
+        states = entry.get("states") or {}
+        radio = self.hub_radio(integ_id, now)
+        merge = self.hub_merge()
+        net_of = {k.split(":", 1)[1]: v for k, v in merge["by_hub"].items() if k.startswith("%d:" % integ_id)}
+        devs = []
+        for d in snap.get("devices") or []:
+            if d.get("service"):
+                continue
+            st = radio["state"].get(d["id"])
+            devs.append({"id": d["id"], "name": d.get("name"), "area": d.get("area"), "model": d.get("model"),
+                         "manufacturer": d.get("manufacturer"), "sw": d.get("sw"), "radio": d.get("radio"), "role": d.get("role"),
+                         "net": radio["dev_net"].get(d["id"]), "fresh": st["fresh"] if st else None,
+                         "network_device": net_of.get(d["id"])})
+        return {"integration": integ_id, "name": next((i["name"] for i in self.integrations() if i["id"] == integ_id), ""),
+                "connected": bool(snap), "t": snap.get("t"), "limited": bool(snap.get("limited")),
+                "areas": snap.get("areas") or [], "devices": devs, "entities": hubsensors.entity_rows(snap, states, now),
+                "onsite": hubmerge.onsite(snap, states, radio, now), "radio": radio["networks"],
+                "health": hubmerge.health(snap, radio),
+                "events": [{"platform": p, "per_min": n} for p, n in hubbridge.events_per_integration(entry, now)[:20]]}
+
+    async def hub_history(self, integ_id: int, entity_id: str, rng: str) -> dict:
+        """One entity's course for the sensor page: 1 h from the live ring, longer ranges from the hub on request."""
+        if integ_id not in self.hub_ids():
+            raise ValueError("hub.err.missing")
+        if rng not in hubsensors.RANGES:
+            raise ValueError("hub.err.range")
+        entry = self.hub.get(integ_id) or {}
+        snap = entry.get("snapshot") or {}
+        if not hub_privacy.valid_entity_id(entity_id) or hub_privacy.is_private(entity_id):
+            raise ValueError("hub.err.entity")
+        ent = next((e for e in snap.get("entities") or [] if e.get("entity_id") == entity_id), None)
+        if ent is None:
+            raise ValueError("hub.err.entity")
+        now = time.time()
+        live_state = (entry.get("states") or {}).get(entity_id)
+        state = live_state[0] if live_state else ent.get("state")
+        devs = {d["id"]: d for d in snap.get("devices") or []}
+        areas = {a["id"]: a.get("name") for a in snap.get("areas") or []}
+        dev = devs.get(ent.get("device_id")) or {}
+        info = {"id": entity_id, "name": ent.get("name") or entity_id, "unit": ent.get("unit"), "domain": ent.get("domain"),
+                "dc": ent.get("dc"), "platform": ent.get("platform"), "area": areas.get(ent.get("area") or dev.get("area")),
+                "device": dev.get("name"), "device_id": dev.get("id"), "radio": dev.get("radio"),
+                "fresh": (self.hub_radio(integ_id, now)["state"].get(dev.get("id")) or {}).get("fresh"),
+                "state": state, "changed_s": round(now - live_state[1], 1) if live_state else None}
+        recorded = None
+        if rng != "1h":
+            numeric = hubsensors.is_numeric(ent, state)
+            if self.demo is not None and hasattr(self.demo, "hub_history"):
+                recorded = self.demo.hub_history(ent, rng, numeric, now)
+            else:
+                src = self._hub_sources.get(integ_id)
+                if src is None:
+                    raise ValueError("hub.err.offline")
+                from .sources._common import SourceError
+                try:
+                    recorded = await src.history(entity_id, "24h" if rng == "24h" else rng, numeric, wall=now)
+                except SourceError as exc:
+                    raise ValueError({"source.hub.busy": "hub.err.busy", "source.hub.offline": "hub.err.offline",
+                                      "source.hub.history_item": "hub.err.entity"}.get(exc.key, "hub.err.history")) from None
+        return hubsensors.series(info, rng, state, hubsensors.ring_of(entry, entity_id, now), recorded, now)
+
+    def _hub_rings(self) -> list:
+        """Event rings of the live frame: state changes of the last second, on the lane of their integration (the
+        radio network of the device) or on the trace of their area."""
+        out = {}
+        for integ_id, entry in self.hub.items():
+            pend = entry.get("ring_pending")
+            if not pend:
+                continue
+            entry["ring_pending"] = {}
+            idx = entry.get("eidx") or {}
+            radio = self.hub_radio(integ_id)
+            snap = entry.get("snapshot") or {}
+            dev_area = {d["id"]: d.get("area") for d in snap.get("devices") or []}
+            for eid, n in pend.items():
+                plat, did, area = idx.get(eid) or (None, None, None)
+                net = radio["dev_net"].get(did) if did else None
+                if net:
+                    for tid in ("m:%d:%s" % (integ_id, net), "r:%d:%s" % (integ_id, did)):
+                        out[tid] = out.get(tid, 0) + n
+                else:
+                    area = area or dev_area.get(did)
+                    if area:
+                        tid = "h:%d:%s" % (integ_id, area)
+                        out[tid] = out.get(tid, 0) + n
+        return sorted(([t, min(n, 20)] for t, n in out.items()), key=lambda x: -x[1])[:200]
+
     def reload_after_restore(self) -> None:
         """A backup was restored into the database: drop what was read from the old configuration and start the
         restored connections (lanloom/backup.py)."""
@@ -1388,6 +1539,9 @@ class Core:
         ports = self.seen_ports(now)
         if ports:
             frame["ports"] = {flow_trace(self_id or "self", dev_id): p for dev_id, p in ports.items()}
+        rings = self._hub_rings()
+        if rings:
+            frame["rings"] = rings
         self.last_frame = frame
         self.overview.maybe_sample(now)
         return frame
