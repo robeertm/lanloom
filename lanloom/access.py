@@ -101,6 +101,10 @@ RULES = {
 
     # ---------------------------------------------------------------- settings, networks, scans
     ("GET", "/api/settings"): R(V),
+    ("GET", "/api/storage"): R(A),
+    ("PUT", "/api/storage/retention"): R(A, "storage.retention"),
+    ("POST", "/api/storage/cleanup"): R(A, "storage.cleanup"),
+    ("GET", "/api/selfcheck/counters"): R(V),
     ("PUT", "/api/settings"): R(A, "settings.change"),
     ("GET", "/api/paths"): R(V),
     ("GET", "/api/netflow"): R(A),

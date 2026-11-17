@@ -423,6 +423,34 @@ class Demo:
         finally:
             app.audit.clock = clock
 
+    @staticmethod
+    def seed_storage(core, planned: list) -> None:
+        """Counter check results (one hour this night counted twice) and a database growth history for Settings >
+        Storage and the nightly report."""
+        import datetime as _dt
+        end = int(planned[-1] // 3600)
+        results = []
+        for hour in range(end - 47, end):
+            wan = int((180 + 140 * math.sin(hour / 3.8)) * 1e6) + 60_000_000
+            factor = 1.46 if hour == end - 4 else 0.93 + 0.05 * math.sin(hour)
+            state = "double" if factor > 1.25 else "ok"
+            results.append({"hour": hour, "pair": "uplink_flows", "ref": wan, "val": int(wan * factor),
+                            "factor": round(factor, 3), "state": state})
+            host = int(60e6 + 30e6 * math.cos(hour / 5))
+            results.append({"hour": hour, "pair": "host_flows", "ref": host, "val": int(host * 0.71), "factor": 0.71, "state": "ok"})
+        core.store.set_setting("counter_check", results[-48:])
+        tz = core.reports.tz()
+        day0 = _dt.datetime.fromtimestamp(planned[-1], tz).date()
+        size = 3_100_000
+        hist = []
+        for k in range(14, -1, -1):
+            hist.append([(day0 - _dt.timedelta(days=k)).isoformat(), size])
+            size += 86_000 + (k % 3) * 9_000
+        core.store.set_setting("storage_history", hist)
+        core.store.set_setting("storage_state", {"t": planned[-1] - 3.2 * 3600, "dur_s": 0.41,
+                                                 "removed": {"paths": 412, "scans": 3, "availability": 57, "reports": 1, "audit": 0},
+                                                 "before": size + 1_400_000, "after": size, "freed": 1_400_000, "vacuum": True, "skipped": None})
+
     def seed_reports(self, core, now: float = None) -> None:
         """Three mornings of nightly reports from a synthetic event journal (sample names, documentation addresses)."""
         rep = core.reports
@@ -501,6 +529,7 @@ class Demo:
             if stopped:
                 next(g for g in hv_before["guests"] if g["id"] == stopped[0]["id"])["status"] = "running"
             hv_states = [hv_before, hv_before, hv_now]
+        self.seed_storage(core, planned)
         prev = None
         for i, day in enumerate(days):
             if fam and fam in ids:

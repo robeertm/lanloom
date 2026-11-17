@@ -14,6 +14,7 @@ Live grade of a source from its cadence c (typical gap between updates) and the 
 import math
 import statistics
 import time
+from array import array
 from collections import deque
 
 STEPS = [1024 * 4 ** i for i in range(9)]   # 1 KiB ... 64 MiB
@@ -177,18 +178,72 @@ def typical(grades) -> str:
     return grades[len(grades) // 2] if grades else "unknown"
 
 
+class _Buf:
+    """Samples of one key in one flat array of doubles (t, a, b, t, a, b, ...): 24 bytes a sample instead of a tuple of
+    three Python numbers (~150 bytes). Grows until it holds `cap` samples, then overwrites the oldest."""
+    __slots__ = ("buf", "head", "cap", "last")
+
+    def __init__(self, cap: int):
+        self.buf = array("d")
+        self.head = 0                  # index (in samples) of the oldest sample once the buffer is full
+        self.cap = cap
+        self.last = 0.0
+
+    def __len__(self) -> int:
+        return len(self.buf) // 3
+
+    def add(self, t: float, a: float, b: float) -> None:
+        self.last = t
+        if len(self.buf) < self.cap * 3:
+            self.buf.extend((t, a, b))
+            return
+        i = self.head * 3
+        self.buf[i], self.buf[i + 1], self.buf[i + 2] = t, a, b
+        self.head = (self.head + 1) % self.cap
+
+    def items(self) -> list:
+        n = len(self)
+        out = []
+        for k in range(n):
+            i = ((self.head + k) % n) * 3 if n == self.cap else k * 3
+            out.append((round(self.buf[i], 1), round(self.buf[i + 1]), round(self.buf[i + 2])))
+        return out
+
+
 class Ring:
-    """Per-key ring of the last N one-second samples (pair of numbers)."""
+    """Per-key ring of the last N one-second samples (pair of numbers). Keys silent for longer than the ring are dropped
+    by ``prune`` (the live loop calls it once a minute), so traces that come and go do not pile up in memory."""
 
     def __init__(self, size: int = 600):
         self.size = size
         self.data = {}
 
     def push(self, key: str, t: float, a: float, b: float) -> None:
-        ring = self.data.get(key)
-        if ring is None:
-            ring = self.data[key] = deque(maxlen=self.size)
-        ring.append((round(t, 1), round(a), round(b)))
+        buf = self.data.get(key)
+        if buf is None:
+            buf = self.data[key] = _Buf(self.size)
+        buf.add(round(t, 1), round(a), round(b))
 
     def series(self, key: str) -> list:
-        return list(self.data.get(key, ()))
+        buf = self.data.get(key)
+        return buf.items() if buf is not None else []
+
+    def resize(self, size: int) -> None:
+        """New length in samples; the newest samples are kept."""
+        if size == self.size:
+            return
+        self.size = size
+        for key, old in list(self.data.items()):
+            buf = _Buf(size)
+            for t, a, b in old.items()[-size:]:
+                buf.add(t, a, b)
+            self.data[key] = buf
+
+    def prune(self, now: float) -> int:
+        stale = [k for k, b in self.data.items() if now - b.last > self.size]
+        for k in stale:
+            del self.data[k]
+        return len(stale)
+
+    def samples(self) -> int:
+        return sum(len(b) for b in self.data.values())

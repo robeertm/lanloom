@@ -647,13 +647,23 @@
     const onKey = ev => { if (ev.key === 'Escape' && S.sel && !S.full) select(null); };
     document.addEventListener('keydown', onKey);
     clearInterval(S.timer);
-    S.timer = setInterval(() => { if (!document.hidden && !S.full) load(); else if (!document.hidden && S.full) load(); }, 60000);
+    // change channel: the live frame carries a version that rises when new hourly data was written; reload then
+    // (at most every 20 s, never for a hidden tab - it catches up when it becomes visible)
+    let pv = null, lastLoad = Date.now(), owed = false;
+    const unsubLive = LL.liveSubscribe ? LL.liveSubscribe(f => {
+      if (f.pathsver == null) return;
+      if (pv != null && f.pathsver !== pv) owed = true;
+      pv = f.pathsver;
+      if (owed && !document.hidden && Date.now() - lastLoad > 20000) { owed = false; lastLoad = Date.now(); load(); }
+    }) : null;
+    S.timer = setInterval(() => { if (owed && !document.hidden) { owed = false; lastLoad = Date.now(); load(); } }, 20000);
     let lastW = window.innerWidth;
     const onResize = () => { if ((lastW >= 700) !== (window.innerWidth >= 700)) { lastW = window.innerWidth; render(); } };
     window.addEventListener('resize', onResize);
     return { destroy() {
       fr.destroy && fr.destroy();
       clearInterval(S.timer); S.timer = 0;
+      if (unsubLive) unsubLive();
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
       teardownFull();

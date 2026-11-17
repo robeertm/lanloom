@@ -240,6 +240,11 @@ class Store:
             row = self._db.execute(sql, args).fetchone()
             return dict(row) if row else None
 
+    def changes(self) -> int:
+        """Rows changed through this connection so far (a cheap "did anything get written" marker for caches)."""
+        with self._lock:
+            return self._db.total_changes
+
     def transaction(self):
         return _Tx(self)
 

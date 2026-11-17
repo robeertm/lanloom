@@ -181,6 +181,17 @@ Settings › Backup saves the whole configuration into one file encrypted with y
 </tr>
 </table>
 
+### Storage, counter check and a light map
+
+Settings › Storage shows how much space each kind of data takes and how long it is kept – live history, data paths per hour and per day, availability and events, reports, audit log, scan history – each adjustable. A nightly clean-up removes what is past its retention and compacts the database; the nightly report warns before the disk runs full. Every hour a counter check compares meters that see the same traffic (the router's uplink with NetFlow, this host's interfaces with its connections) and reports traffic counted twice or not at all. The map draws at most 30 frames per second, slows down by itself on a weak device, stops when nobody looks, and is fetched only when something changed. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/storage-light.png" width="100%" alt="Settings, Storage: space per area, retention per kind of data, nightly clean-up, memory"><br><sub>Space per area, retention, nightly clean-up</sub></td>
+<td width="50%"><img src="docs/screenshots/counter-check-dark.png" width="100%" alt="Source view with the counter check and one hour counted twice"><br><sub>Counter check in the source view</sub></td>
+</tr>
+</table>
+
 ### Colour themes
 
 Settings > Appearance > Colour theme switches the accent palette of the whole app: the map, the traces, the data paths arcs, the firewall views, the charts and the live grades. **Circuit green** is the default and looks as before; **Aurora** uses turquoise, blue and violet on a cool ground. Every theme works in light, dark and automatic mode, and the choice is remembered per device. Warning and error colours keep their meaning in every theme, and the text and graphic contrast of each theme and mode is checked against WCAG AA in the test suite.
@@ -240,6 +251,7 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 <td><img src="docs/screenshots/phone-paths-full.png" width="200" alt="Phone: world map in full screen"></td>
 <td><img src="docs/screenshots/phone-netflow-settings.png" width="200" alt="Phone: NetFlow / IPFIX receiver settings"></td>
 <td><img src="docs/screenshots/phone-reports.png" width="200" alt="Phone: nightly report"></td>
+<td><img src="docs/screenshots/phone-storage.png" width="200" alt="Phone: storage settings"></td>
 <td><img src="docs/screenshots/phone-ai-explain.png" width="200" alt="Phone: AI explanation of a device"></td>
 <td><img src="docs/screenshots/phone-ask.png" width="200" alt="Phone: Ask your network"></td>
 <td><img src="docs/screenshots/phone-report-plain.png" width="200" alt="Phone: nightly report in plain words"></td>
@@ -360,7 +372,16 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 
 - A container runtime with compose v2 (details in [docs/INSTALL.md](docs/INSTALL.md))
 - amd64 or arm64
-- About 300 MB for the image and about 60 MB RAM
+- About 300 MB for the image
+
+### Hardware requirements
+
+| Network size | Host | Memory for Lanloom | CPU (one core) | Map request | Database |
+|---|---|---|---|---|---|
+| up to 250 devices | a 4-core arm64 single-board computer with 2 GB (1.5 GHz class) or any small amd64/arm64 machine | about 80 MB | about 3 % at rest | 0.06 s overview, 0.09 s network view | about 2 MB |
+| up to 1000 devices | a 4-core arm64 single-board computer with 4 GB, or better | about 100–150 MB | about 3 % at rest, up to 16 % with live traffic on every device | 0.24 s overview, 0.4 s network view | about 7 MB |
+
+Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz class; a 1.5 GHz board is roughly two to three times slower per core); the container starts in about 5 seconds. The viewing device needs no graphics acceleration. All values, the method and the retention settings: [docs/PERFORMANCE.md](docs/PERFORMANCE.md); measure your own host with `python3 scripts/benchmark.py`.
 
 ## Documentation
 
@@ -371,6 +392,7 @@ Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move
 - [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md): the home-automation bridge: what is read, admin mode, sparing the hub, privacy filter
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
+- [docs/PERFORMANCE.md](docs/PERFORMANCE.md): hardware requirements with measured values, storage and retention, the nightly clean-up, the counter check, the frame budget of the map
 - [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md): the nightly report, its sections, the archive, optional delivery, adding a section
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): supported integrations and AI services, what each can read and write
 - [docs/integrations/ai.md](docs/integrations/ai.md): AI, local or cloud: setup in three ways, privacy layer, hardware, troubleshooting

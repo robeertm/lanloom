@@ -104,6 +104,9 @@ class DataPaths:
         self._own_nets: list = []
         self._offline_nets: list = []
         self.unbooked = 0                  # bytes dropped because the geo data was not loaded yet
+        self.keep_hours = KEEP_HOURS       # retention (Settings > Storage, see storage.py)
+        self.keep_days = KEEP_DAYS
+        self.version = 0                   # change channel: rises with every flush that wrote data
         with store.transaction() as tx:
             for stmt in SCHEMA.strip().split(";"):
                 if stmt.strip():
@@ -189,9 +192,10 @@ class DataPaths:
                 elif ts > row["last"]:
                     db.execute("UPDATE paths_seen SET last=? WHERE device=? AND cc=?", (ts, device, cc))
             hour = int(now // 3600)
-            db.execute("DELETE FROM paths_hour WHERE hour < ?", (hour - KEEP_HOURS,))
-            db.execute("DELETE FROM paths_day WHERE day < ?", (hour // 24 - KEEP_DAYS,))
+            db.execute("DELETE FROM paths_hour WHERE hour < ?", (hour - self.keep_hours,))
+            db.execute("DELETE FROM paths_day WHERE day < ?", (hour // 24 - self.keep_days,))
         self._cache.clear()
+        self.version += 1
 
     def forget_device(self, device: str) -> None:
         with self._lock:

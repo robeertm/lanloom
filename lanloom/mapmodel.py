@@ -411,10 +411,29 @@ def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
 
 
 # ---------------------------------------------------------------------- detail card
+BUILD_TTL = 5.0
+
+
+def cached_build(core, view: str) -> dict:
+    """The map of a view, reused for up to 5 s while structure, map version and stored rows are unchanged. The open
+    detail card asks every 5 s and needs both views; rebuilding them each time costs most at 1000 devices."""
+    store = getattr(core, "_build_cache", None)
+    if store is None:
+        store = core._build_cache = {}
+    key = (core.structure_version, getattr(core, "map_version", 0), core.store.changes())
+    now = time.time()
+    hit = store.get(view)
+    if hit and hit[0] == key and 0 <= now - hit[1] < BUILD_TTL:
+        return hit[2]
+    result = build(core, view)
+    store[view] = (key, now, result)
+    return result
+
+
 def component_detail(core, comp_id: str) -> dict:
     now = time.time()
-    view = build(core, "overview")
-    net_view = build(core, "network")
+    view = cached_build(core, "overview")
+    net_view = cached_build(core, "network")
     comp = next((c for c in view["components"] + net_view["components"] if c["id"] == comp_id), None)
     if not comp:
         return None

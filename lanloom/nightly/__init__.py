@@ -344,7 +344,8 @@ class Reports:
         for row in self.store.query("SELECT day FROM reports WHERE day <= ?", (cutoff,)):
             self.store.execute("DELETE FROM report_marks WHERE day=?", (row["day"],))
             self.store.execute("DELETE FROM reports WHERE day=?", (row["day"],))
-        self.journal.prune(keep)
+        availability = (self.store.get_setting("retention", {}) or {}).get("availability_days", 35)
+        self.journal.prune(max(keep, int(availability) if isinstance(availability, int) else 35))
 
     def latest(self) -> Optional[dict]:
         row = self.store.one("SELECT data FROM reports ORDER BY day DESC LIMIT 1")

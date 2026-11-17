@@ -1,0 +1,36 @@
+/* Lanloom — Settings > Storage. */
+.st-page { display: flex; flex-direction: column; gap: var(--ll-space-4); min-width: 0; }
+.st-bar { display: flex; gap: 2px; height: 12px; margin: 4px 0 var(--ll-space-3); border-radius: 6px; overflow: hidden; background: var(--ll-surface-2); }
+.st-bar__seg { display: block; flex-basis: 0; min-width: 3px; height: 100%; }
+.st-sw { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 3px; vertical-align: -1px; }
+.st-c--inventory { background: var(--ll-pcb-trace-lan); }
+.st-c--paths { background: var(--ll-pcb-trace-flow); }
+.st-c--availability { background: var(--ll-pcb-trace-uplink); }
+.st-c--reports { background: var(--ll-pcb-trace-service); }
+.st-c--audit { background: var(--ll-pcb-trace-integration); }
+.st-c--scans { background: var(--ll-pcb-trace-radio); }
+.st-c--accounts { background: var(--ll-text-3); }
+.st-table-wrap { min-width: 0; overflow-x: auto; margin-bottom: var(--ll-space-3); }
+.st-table th[scope="row"] { font-size: var(--ll-fs-sm); color: var(--ll-text); font-weight: var(--ll-fw-medium); border-bottom: 1px solid var(--ll-border); padding: 6px; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.st-table th[scope="row"] .st-sw { margin-right: 6px; }
+.st-table th:nth-child(2), .st-table th:nth-child(3) { width: 16%; }
+.st-table th:last-child { width: 38%; }
+.st-table td.st-keep { white-space: normal; color: var(--ll-text-2); }
+.st-grid { align-items: start; }
+@media (max-width: 560px) {
+  .st-table th:nth-child(3), .st-table td:nth-child(3) { display: none; }
+  .st-table th:nth-child(2) { width: 24%; }
+  .st-table th:last-child { width: 36%; }
+}
+
+/* counter check in the source view */
+.cc-box { margin-top: var(--ll-space-4); padding-top: var(--ll-space-3); border-top: 1px solid var(--ll-border); }
+.cc-box:empty { display: none; }
+.cc-box h3 { margin: 0 0 4px; font-size: var(--ll-fs-md, 15px); }
+.cc-box > p { margin: 0 0 var(--ll-space-2); }
+.cc-table th:first-child { width: 38%; }
+.cc-table th:nth-child(2) { width: 13%; }
+.cc-table th:nth-child(3) { width: 21%; }
+.cc-table td:first-child, .cc-table td:last-child { white-space: normal; }
+.cc-box .callout { margin-top: var(--ll-space-3); }
+.cc-list { margin: 6px 0 0; padding-left: 18px; }

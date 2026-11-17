@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.18.0] – 2026-11-17
+
+### Added
+- **Settings › Storage** (administrators): how much space each kind of data takes (inventory, data paths, availability and events, nightly reports, audit log, scan history, accounts) with a bar and a table, the database file, free space inside it, stored backups, free disk space, the growth per day, and what Lanloom holds in memory.
+- **Retention per kind of data**: live history in memory (5–60 minutes), data paths per hour (1–7 days) and per day (31 days – 1 year), availability and events (35 days – 1 year), nightly reports and the audit log (the same settings as under Reports and Security), scan history (last 50–1000). Changes are written to the audit log.
+- **Nightly clean-up** after 03:00 (or at the next start after a missed night): removes what is past its retention, refreshes the query statistics and compacts the database when a sixth of it is free; skipped with a note when the disk has no room for the copy. "Clean up now" runs it by hand.
+- Nightly report section **Storage**: the clean-up of the night, the database size and its growth, and a point when the data volume would be full within 30 days at the current growth.
+- **Counter check**: every hour two meters that see the same traffic are compared – the router's internet uplink counter with the bytes from NetFlow/IPFIX, and this host's interface counters with its connections. A ratio outside 80–125 % (only "too much" for the host) is a finding: counted twice or not counted. Shown in the source view (the live grade button) and as a nightly report section.
+- **Map animation setting** (Settings › Appearance, per browser): automatic (up to 30 frames per second), smooth (60), saver (15, fewer dots) or off (glow only).
+- `scripts/benchmark.py`: server time of the main APIs, the live loop and memory for 50, 250 and 1000 generated devices; a budget test keeps them within limits relative to the machine. Measured values in [docs/PERFORMANCE.md](docs/PERFORMANCE.md) and the hardware table in the README.
+- API: `GET /api/storage`, `PUT /api/storage/retention`, `POST /api/storage/cleanup` (administrators), `GET /api/selfcheck/counters`.
+- Demo mode: storage history, a nightly clean-up and a counter check with one hour counted twice.
+
+### Changed
+- **Frame budget of the map**: the dot animation draws at most 30 frames per second by default (20 without graphics acceleration) and steps down on its own (to 20, 15, 10) when drawing gets slow, back up when there is room; it stops while the tab is hidden or the board is out of view, and nothing moves without a live change.
+- **No polling of the map and the data paths**: the live connection carries a change number; the map is fetched only when statuses, flow traces or sources really changed, the data paths only after new hourly data (at most every 20 seconds), never for a hidden tab. An open component card stops refreshing while the tab is hidden.
+- The legend over the map no longer blurs what lies behind it (a blur over the animated layers made some browsers redraw it every frame).
+- Live history in memory takes 24 bytes per sample instead of about 150, and traces that went quiet are forgotten after the retention.
+- Device views are built once and reused until the device changes; the network detection is read at most every 30 seconds; the open component card reuses the map for up to 5 seconds. At 250 devices the device card answers about 15 times faster on a small host.
+
 ## [1.17.2] – 2026-11-16
 
 ### Added

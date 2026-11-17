@@ -2,13 +2,44 @@
    (one dot ≈ q bytes travelling along the routed trace). Canvas2D, devicePixelRatio-correct, viewport-sized
    (the board scrolls underneath; only visible dots are drawn). Handles several thousand dots at 60 fps,
    degrades by merging dots into larger size classes and by a global cap. With prefers-reduced-motion only the
-   soft glow is shown. */
+   soft glow is shown.
+   Frame budget (small hosts, browsers without graphics acceleration): the frame rate is capped by the motion setting
+   (auto 30, full 60, saver 15 frames per second, off = glow only) and steps down on its own (30 → 20 → 15 → 10) when
+   drawing takes more than half of a frame, and back up when there is room again. Nothing is drawn while the tab is
+   hidden or the board is scrolled out of view, and nothing moves without a live frame (no idle animation).
+   Canvas2D only; without real acceleration (software renderer) "auto" starts at 20 frames per second. */
 (function (root) {
   'use strict';
   const LL = root.Lanloom = root.Lanloom || {};
 
   const KINDS = ['uplink', 'lan', 'service', 'flow', 'integration', 'cable', 'radio', 'virtual'];
   const SIZES = [1, 8, 64];             // dot size classes in quanta (larger dots carry 8× / 64× q)
+  const STEPS = [60, 30, 20, 15, 10];   // frame rate steps of the budget
+  const MOTION = { auto: 30, full: 60, saver: 15, off: 0 };
+
+  function motion() {
+    try { const m = root.localStorage.getItem('ll-motion'); return MOTION[m] != null ? m : 'auto'; } catch (e) { return 'auto'; }
+  }
+  // real graphics acceleration? (a software renderer draws every canvas pixel on the CPU) - asked once per page
+  let gpuCache = null;
+  function hasGpu() {
+    if (gpuCache != null) return gpuCache;
+    gpuCache = true;
+    try {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl', { failIfMajorPerformanceCaveat: true });
+      if (!gl) { gpuCache = false; return gpuCache; }
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      const name = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) || '');
+      if (/swiftshader|llvmpipe|softpipe|software|basic render/i.test(name)) gpuCache = false;
+      const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext();
+    } catch (e) { gpuCache = false; }
+    return gpuCache;
+  }
+  function capFor(m) {
+    if (m === 'auto' && !hasGpu()) return 20;
+    return MOTION[m];
+  }
 
   function decompose(n, cap) {
     // n quanta → counts per size class with at most `cap` dots; returns {counts:[c1,c8,c64], rest}
@@ -43,7 +74,24 @@
       this.scrollY = 0; this.vw = 1; this.vh = 1; this.dpr = 1;
       this.colors = null; this.sprites = new Map();
       this.reduced = false; this._mq = null;
-      this.stats = { active: 0, spawned: 0, dropped: 0, fps: 0, drawMs: 0, frames: 0 };
+      this.stats = { active: 0, spawned: 0, dropped: 0, fps: 0, drawMs: 0, frames: 0, cap: 0, steps: 0 };
+      this.motion = motion();
+      this.fpsCap = capFor(this.motion);           // highest frame rate allowed by the setting
+      this.fpsNow = this.fpsCap;                   // current step of the budget (≤ fpsCap)
+      this.capScale = this.motion === 'saver' ? 0.4 : 1;
+      this._slowT = 0; this._fastT = 0;
+      this.inView = true;
+      try {
+        if (root.IntersectionObserver) {
+          this._io = new root.IntersectionObserver(es => {
+            const v = es.some(e => e.isIntersecting);
+            if (v === this.inView) return;
+            this.inView = v;
+            if (v) { this.prune(performance.now()); this.drawGlow(); this.wake(); }
+          });
+          this._io.observe(dots);
+        }
+      } catch (e) { /* no observer: always drawn while the tab is visible */ }
       this._raf = 0; this._last = 0; this._fpsT = 0; this._fpsN = 0; this._glowAnim = 0; this._dead = false;
       try {
         this._mq = root.matchMedia('(prefers-reduced-motion: reduce)');
@@ -53,6 +101,8 @@
       } catch (e) { /* no matchMedia */ }
       this._onVis = () => { if (!document.hidden) { this.prune(performance.now()); this.wake(); } };
       document.addEventListener('visibilitychange', this._onVis);
+      this._onMotion = ev => this.setMotion(ev.detail);
+      document.addEventListener('ll-motion', this._onMotion);
     }
 
     // ------------------------------------------------------------ geometry
@@ -120,14 +170,14 @@
       }
       for (let i = 0; i < this.glowTarget.length; i++) if (now - this.glowSeen[i] > 2500) this.glowTarget[i] *= 0.6;   // fades without reports
       this._glowAnim = now;
-      if (this.reduced) { this.glowNow.set(this.glowTarget); this.drawGlow(); }
+      if (this.reduced || !this.fpsCap) { this.glowNow.set(this.glowTarget); if (this.inView) this.drawGlow(); }
       // dots
-      if (!this.reduced && !document.hidden && f.dots) this.spawn(f.dots, now);
+      if (!this.reduced && this.fpsCap && this.inView && !document.hidden && f.dots) this.spawn(f.dots, now);
       this.wake();
     }
 
     spawn(list, now) {
-      let free = this.cap - this.n;
+      let free = Math.max(0, Math.round(this.cap * this.capScale) - this.n);
       for (const d of list) {
         const gi = this.idx.get(d[0]); if (gi == null) continue;
         const g = this.geo[gi], dir = d[1] ? 1 : 0;
@@ -171,16 +221,41 @@
     }
 
     // ------------------------------------------------------------ drawing
-    wake() { if (!this._raf && !this._dead && !document.hidden) this._raf = root.requestAnimationFrame(t => this.loop(t)); }
+    setMotion(m) {
+      this.motion = MOTION[m] != null ? m : 'auto';
+      this.fpsCap = capFor(this.motion); this.fpsNow = this.fpsCap; this.capScale = this.motion === 'saver' ? 0.4 : 1;
+      if (!this.fpsCap) this.n = 0;
+      this.wake();
+    }
+    budget(now, ms) {
+      // step the frame rate down when drawing eats more than half a frame for 2 s, up again after 10 s with room
+      const frame = 1000 / Math.max(1, this.fpsNow);
+      if (ms > frame * 0.5) { this._fastT = 0; if (!this._slowT) this._slowT = now; }
+      else if (ms < frame * 0.2) { this._slowT = 0; if (!this._fastT) this._fastT = now; }
+      else { this._slowT = 0; this._fastT = 0; }
+      const i = STEPS.indexOf(this.fpsNow);
+      if (this._slowT && now - this._slowT > 2000) {
+        this._slowT = 0;
+        if (i >= 0 && i < STEPS.length - 1) { this.fpsNow = STEPS[i + 1]; this.stats.steps++; }
+        else this.capScale = Math.max(0.25, this.capScale * 0.7);      // already at the lowest rate: fewer dots
+      } else if (this._fastT && now - this._fastT > 10000) {
+        this._fastT = 0;
+        if (this.capScale < (this.motion === 'saver' ? 0.4 : 1)) this.capScale = Math.min(this.motion === 'saver' ? 0.4 : 1, this.capScale / 0.7);
+        else if (i > 0 && STEPS[i - 1] <= this.fpsCap) this.fpsNow = STEPS[i - 1];
+      }
+      this.stats.cap = this.fpsNow;
+    }
+    wake() { if (!this._raf && !this._dead && !document.hidden && this.inView) this._raf = root.requestAnimationFrame(t => this.loop(t)); }
     loop(now) {
       this._raf = 0;
-      if (this._dead || document.hidden) return;
-      // at most ~60 frames per second (120 Hz screens do not need every frame drawn twice)
-      if (now - this._last < 14) { this._raf = root.requestAnimationFrame(t => this.loop(t)); return; }
+      if (this._dead || document.hidden || !this.inView) return;
+      // frame budget: at most fpsNow frames per second (a 120 Hz screen never draws every frame)
+      const minGap = this.fpsNow ? 1000 / this.fpsNow - 2 : 1000;
+      if (now - this._last < minGap) { this._raf = root.requestAnimationFrame(t => this.loop(t)); return; }
       this._last = now;
       const t0 = performance.now();
       let busy = false;
-      if (!this.reduced && now - this._glowAnim < 900) {
+      if (!this.reduced && this.fpsCap && now - this._glowAnim < 900) {
         let moving = false;
         for (let i = 0; i < this.glowNow.length; i++) {
           const d = this.glowTarget[i] - this.glowNow[i];
@@ -192,10 +267,11 @@
       else if (this._dotsDrawn) { this.dctx.setTransform(1, 0, 0, 1, 0, 0); this.dctx.clearRect(0, 0, this.dotC.width, this.dotC.height); this._dotsDrawn = false; }
       const ms = performance.now() - t0;
       this.stats.drawMs = this.stats.drawMs * 0.9 + ms * 0.1;
+      if (busy) this.budget(now, this.stats.drawMs);
       this._fpsN++;
       if (now - this._fpsT >= 1000) { this.stats.fps = Math.round(this._fpsN * 1000 / (now - this._fpsT)); this._fpsT = now; this._fpsN = 0; }
       this.stats.active = this.n; this.stats.frames++;
-      if (busy || now - this._glowAnim < 900) this._raf = root.requestAnimationFrame(t => this.loop(t));
+      if (busy || (this.fpsCap && now - this._glowAnim < 900)) this._raf = root.requestAnimationFrame(t => this.loop(t));
       else this.stats.fps = 0;
     }
 
@@ -289,6 +365,8 @@
       this._dead = true;
       if (this._raf) root.cancelAnimationFrame(this._raf);
       document.removeEventListener('visibilitychange', this._onVis);
+      try { if (this._io) this._io.disconnect(); } catch (e) { /* */ }
+      document.removeEventListener('ll-motion', this._onMotion);
       try { if (this._mq && this._mq.removeEventListener) this._mq.removeEventListener('change', this._onMq); } catch (e) { /* */ }
       this.n = 0; this.sprites.clear();
     }
@@ -298,4 +376,11 @@
   LL.Dots.decompose = decompose;
   LL.Dots.SIZES = SIZES;
   LL.Dots.KINDS = KINDS;
+  LL.Dots.STEPS = STEPS;
+  LL.Dots.MOTION = MOTION;
+  LL.motion = motion;
+  LL.setMotion = function (m) {
+    try { if (MOTION[m] != null) root.localStorage.setItem('ll-motion', m); } catch (e) { /* private mode */ }
+    try { document.dispatchEvent(new CustomEvent('ll-motion', { detail: m })); } catch (e) { /* */ }
+  };
 })(typeof self !== 'undefined' ? self : this);

@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import classify, datapaths, geo as geo_mod, hub_privacy, hubbridge, identity, live, netflow, oui as oui_mod, textfmt, topology
+from . import classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubbridge, identity, live, netflow, oui as oui_mod, textfmt, topology
 from .crypto import Vault
 from .store import Store
 
@@ -131,6 +131,13 @@ class Core:
         self.netflow = netflow.Collector(self.paths, self._netflow_device, self._netflow_lan, self._netflow_skip)
         from .nightly import Reports
         self.reports = Reports(self, getattr(cfg, "data_dir", None))
+        from .storage import Storage
+        self.storage = Storage(self)                    # retention, nightly clean-up, sizes per area
+        self.counters = counters_mod.CounterCheck(self)  # hourly reconciliation of meters that see the same bytes
+        self.map_version = 0                            # change channel: rises when what the map shows changed
+        self._map_sig = None
+        self._map_sig_t = 0.0
+        self._view_cache: dict = {}                     # device id -> (row signature, view without status)
         self._refresh_index()
 
     # ------------------------------------------------------------------ settings
@@ -271,6 +278,7 @@ class Core:
             self._tasks.append(asyncio.create_task(self._presence_loop()))
             self._tasks.append(asyncio.create_task(self._rescan_loop()))
             await self.netflow_apply()
+            self._tasks.append(asyncio.create_task(self.storage.loop()))
         self._tasks.append(asyncio.create_task(self._tick_loop()))
         self._tasks.append(asyncio.create_task(self.reports.loop()))
 
@@ -306,9 +314,28 @@ class Core:
         self.structure_version += 1
 
     def devices(self) -> list:
-        out = []
-        for dev in self.store.devices():
-            out.append(self.device_view(dev))
+        """Views of all devices. The part of a view that only depends on the stored row (identity, services, ...) is
+        kept per device and rebuilt only when the row or the device structure changed; status and AI hints are always
+        fresh. Callers get their own dicts."""
+        last = self._last_scan_id()
+        groups_key = (self.structure_version, id(self.registry()), id(getattr(self.registry(), "db", None)))
+        cache, out = self._view_cache, []
+        for r in self.store.query("SELECT * FROM devices ORDER BY ip"):
+            sig = (r["last_seen"], r["last_scan"], r["user_title"], r["user_kind"], r["hidden"], r["kind"], r["title"],
+                   r["confidence"], r["mac"], r["ip"], r["data"], groups_key)
+            hit = cache.get(r["id"])
+            if hit and hit[0] == sig:
+                view = dict(hit[1])
+            else:
+                r["data"] = json.loads(r["data"])
+                static = self._static_view(r)
+                cache[r["id"]] = (sig, static)
+                view = dict(static)
+            view["status"] = self.device_status(r, last)
+            out.append(self._with_hint(view))
+        if len(cache) > len(out) + 64:
+            keep = {v["id"] for v in out}
+            self._view_cache = {k: v for k, v in cache.items() if k in keep}
         return out
 
     # ------------------------------------------------------------------ identity (manufacturer, interfaces)
@@ -392,7 +419,19 @@ class Core:
                                                "confidence": sg["confidence"], "reasons": sg["reasons"]})
         return out
 
-    def device_view(self, dev: dict) -> dict:
+    def device_view(self, dev: dict, last_scan=False) -> dict:
+        view = self._static_view(dev)
+        view["status"] = self.device_status(dev, last_scan)
+        return self._with_hint(view)
+
+    def _with_hint(self, view: dict) -> dict:
+        ai = getattr(self, "ai", None)
+        if ai is not None and getattr(ai, "hints", None) is not None:
+            from .ai.features import apply_hint
+            view = apply_hint(view, ai.hints.peek(view["id"]))     # a confirmed AI hint: weak evidence only
+        return view
+
+    def _static_view(self, dev: dict) -> dict:
         data = dev["data"]
         kind = dev.get("user_kind") or dev["kind"]
         title = dev.get("user_title") or dev["title"] or ""
@@ -404,25 +443,51 @@ class Core:
             "ports": data.get("ports", []), "mdns": data.get("mdns", []), "ssdp": data.get("ssdp", []),
             "sources": data.get("sources", []), "is_gateway": bool(data.get("is_gateway")), "is_self": bool(data.get("is_self")),
             "hidden": bool(dev["hidden"]), "first_seen": dev["first_seen"], "last_seen": dev["last_seen"],
-            "status": self.device_status(dev),
+            "status": "unknown",
         }
         view.update(self._identity_view(dev))
-        ai = getattr(self, "ai", None)
-        if ai is not None and getattr(ai, "hints", None) is not None:
-            from .ai.features import apply_hint
-            view = apply_hint(view, ai.hints.peek(dev["id"]))      # a confirmed AI hint: weak evidence only
         return view
 
-    def device_status(self, dev: dict) -> str:
+    def device_status(self, dev: dict, last_scan=False) -> str:
         now = time.time()
-        alive = max(self.presence.get(dev["id"], 0), dev["last_seen"] if dev.get("last_scan") == self._last_scan_id() else 0)
+        last = self._last_scan_id() if last_scan is False else last_scan
+        alive = max(self.presence.get(dev["id"], 0), dev["last_seen"] if dev.get("last_scan") == last else 0)
         if self.flow_seen.get(dev["id"], 0) > now - 30:
             return "up"
         if alive and now - alive < PRESENCE_INTERVAL * 3:
             return "up"
-        if dev.get("last_scan") is not None and dev.get("last_scan") != self._last_scan_id():
+        if dev.get("last_scan") is not None and dev.get("last_scan") != last:
             return "down"
         return "unknown" if not alive else "down"
+
+    def map_change(self, now: float) -> int:
+        """Change channel for the map: a number that rises when device statuses, flow traces or source states change.
+
+        Checked at most every 5 s from rows the database already has (no map build); the browser fetches the map only
+        when this number or the structure version moves, instead of polling it."""
+        if now - self._map_sig_t < 5.0:
+            return self.map_version
+        self._map_sig_t = now
+        last = self._last_scan_id()
+        parts = []
+        for r in self.store.query("SELECT id, last_seen, last_scan, hidden FROM devices ORDER BY id"):
+            dev_id = r["id"]
+            alive = max(self.presence.get(dev_id, 0), r["last_seen"] if r["last_scan"] == last else 0)
+            if self.flow_seen.get(dev_id, 0) > now - 30 or (alive and now - alive < PRESENCE_INTERVAL * 3):
+                st = "u"
+            elif r["last_scan"] is not None and r["last_scan"] != last:
+                st = "d"
+            else:
+                st = "n" if not alive else "d"
+            flow = "f" if now - self.flow_seen.get(dev_id, 0) < FLOW_KEEP else ""
+            parts.append("%s%s%s%d" % (dev_id, st, flow, r["hidden"]))
+        parts.extend("%s%d" % (k, 1 if v.get("ok") else 0) for k, v in sorted(self.source_status.items()))
+        sig = hash((self.structure_version, last, tuple(parts)))
+        if sig != self._map_sig:
+            if self._map_sig is not None:
+                self.map_version += 1
+            self._map_sig = sig
+        return self.map_version
 
     def _last_scan_id(self):
         row = self.store.one("SELECT id FROM scans WHERE status='done' ORDER BY id DESC LIMIT 1")
@@ -517,15 +582,24 @@ class Core:
         self.structure_version += 1
 
     # ------------------------------------------------------------------ scanning
+    NETWORKS_TTL = 30.0
+
     def networks(self) -> list:
+        """Local networks of this host; read again at most every 30 s (the network view asks on every build)."""
         if self.demo:
             return self.demo.networks()
+        now = time.time()
+        cached = getattr(self, "_nets_cache", None)
+        if cached and 0 <= now - cached[0] < self.NETWORKS_TTL:
+            return [dict(n) for n in cached[1]]
         from . import scan
         try:
-            return scan.detect_networks()
+            nets = scan.detect_networks()
         except Exception:     # never let interface detection break the page
             log.exception("network detection failed")
             return []
+        self._nets_cache = (now, nets)
+        return [dict(n) for n in nets]
 
     def start_scan(self, cidrs: list, deep: bool = False, consent: bool = False, automatic: bool = False,
                    snmp_public: Optional[bool] = None) -> dict:
@@ -982,6 +1056,8 @@ class Core:
         elif etype == "iface":
             for itf in ev.get("ifaces") or []:
                 self.self_iface[itf.get("name")] = [itf.get("tx") or 0, itf.get("rx") or 0]
+                if key == "host":
+                    self.counters.feed("host_if", (itf.get("tx") or 0) + (itf.get("rx") or 0), now)
         elif etype in ("hub_snapshot", "hub_state", "hub_triggers", "hub_deps", "hub_traces", "hub_bridge"):
             cad.tick(now)
             entry = self.hub.get(integ_id)
@@ -1081,6 +1157,8 @@ class Core:
                 continue
             peer = fl.get("peer_ip") or ""
             dev_id = self.ip_to_device.get(peer)
+            if dev_id and dev_id != self_id or (not dev_id and _is_outside(peer)):
+                self.counters.feed("host_flow", (tx or 0) + (rx or 0), now)   # bytes that cross a counted interface
             if dev_id and dev_id != self_id:
                 self._add_bytes(flow_trace(self_id, dev_id), tx, rx)
                 self._book_path(self_id, dev_id, tx, rx)
@@ -1215,6 +1293,7 @@ class Core:
         if host_dev == self.ip_to_device.get(self.gateway_ip or ""):
             itf = pick_uplink(ev.get("ifaces") or [], cfg.get("uplink") or self.store.get_setting("uplink_iface", ""))
             if itf and itf.get("in") is not None:
+                self.counters.feed("wan", (itf.get("in") or 0) + (itf.get("out") or 0), now)
                 # a poll covers ~10 s: spread the delta over the coming seconds instead of one burst (a = internet, b = router)
                 left = self.spread.get(uplink_trace(host_dev))
                 carry0, carry1 = (left[0], left[1]) if left else (0, 0)
@@ -1264,6 +1343,12 @@ class Core:
     def tick(self, now: float, dt: float = 1.0) -> dict:
         self.quant.check_q(now)
         try:
+            self.counters.tick(now)
+        except Exception:
+            log.exception("counter check failed")
+        if int(now) % 60 == 0:
+            self.ring.prune(now)
+        try:
             self.paths.maybe_flush(now)
         except Exception:
             log.exception("data paths flush failed")
@@ -1291,7 +1376,7 @@ class Core:
         sources = self.source_list()
         frame = {"t": round(now, 3), "q": self.quant.q, "dots": dots, "rates": rates, "grades": grades, "metrics": metrics,
                  "overall": {"grade": live.typical([s["grade"] for s in sources]), "sources": sources},
-                 "structure": self.structure_version}
+                 "structure": self.structure_version, "mapver": self.map_change(now), "pathsver": self.paths.version}
         # what the end and port marks of the board show: peers beyond the LAN (at the internet tile) and target ports of host flows
         router_id = self.ip_to_device.get(self.gateway_ip) if self.gateway_ip else None
         peers = self.outside_list(now)

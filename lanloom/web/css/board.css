@@ -268,8 +268,7 @@
   border-radius: var(--ll-radius-md);
   background: var(--ll-pcb-legend-bg);
   box-shadow: var(--ll-shadow-1);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  /* no blur/glass: a backdrop filter over the animated dot layers makes the browser re-blur every frame (GPU load) */
   font-size: var(--ll-fs-sm);
   line-height: 18px;
   color: var(--ll-text-2);
@@ -299,8 +298,6 @@
   margin: 0 12px 16px;
   max-width: none;
   box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
 }
 
 /* ---------------------------------------------------------------- empty state */

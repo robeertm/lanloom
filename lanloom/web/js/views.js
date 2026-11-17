@@ -92,21 +92,28 @@
       });
       const onTheme = ev => board.setTheme(ev.detail);
       document.addEventListener('ll-theme', onTheme);
-      let structure = data.structure;
+      // change channel instead of polling: the live frame carries the structure version and a map version that rises
+      // when statuses, flow traces or source states change; the map is fetched only then (and once after a hidden tab)
+      let structure = data.structure, mapver = null, stale = false;
       let refreshing = false;
-      const unsub = liveSubscribe(async f => {
+      async function refresh() {
+        if (refreshing) { stale = true; return; }
+        refreshing = true;
+        try { data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); structure = data.structure; board.update(localise(data)); if (selected) board.highlight(selected); }
+        catch (e) { /* keep the old board */ }
+        refreshing = false;
+        if (stale) { stale = false; refresh(); }
+      }
+      const unsub = liveSubscribe(f => {
+        if (document.hidden) { if (f.structure !== structure || (mapver != null && f.mapver !== mapver)) stale = true; mapver = f.mapver; return; }
         board.live(f);
-        if (f.structure !== structure && !refreshing) {
-          refreshing = true;
-          try { data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); structure = data.structure; board.update(localise(data)); if (selected) board.highlight(selected); }
-          catch (e) { /* keep the old board */ }
-          refreshing = false;
-        }
+        const changed = f.structure !== structure || (mapver != null && f.mapver != null && f.mapver !== mapver);
+        mapver = f.mapver;
+        if (changed || stale) { stale = false; refresh(); }
       });
-      const poll = setInterval(async () => {   // statuses and new flow traces without a structural change
-        try { const d = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); data = d; structure = d.structure; board.update(localise(d)); if (selected) board.highlight(selected); } catch (e) { /* ignore */ }
-      }, 60000);
-      return { destroy: () => { unsub(); clearInterval(poll); document.removeEventListener('ll-theme', onTheme); board.destroy(); fr.destroy(); } };
+      const onVis = () => { if (!document.hidden && stale) { stale = false; refresh(); } };
+      document.addEventListener('visibilitychange', onVis);
+      return { destroy: () => { unsub(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); board.destroy(); fr.destroy(); } };
     };
   }
 
@@ -194,6 +201,7 @@
     });
     const refresher = setInterval(async () => {
       if (panel.hidden) { clearInterval(refresher); return; }
+      if (document.hidden) return;                 // no requests for a tab nobody looks at
       try { const nd = await api('/api/component/' + encodeURIComponent(id)); d.series = nd.series; drawChart(); } catch (e) { /* ignore */ }
     }, 5000);
   }
@@ -377,6 +385,24 @@
     return { el: dlg, close };
   }
 
+  function counterSection() {
+    const box = h('div', { class: 'cc-box' });
+    api('/api/selfcheck/counters').then(c => {
+      const pairs = Object.values(c.latest || {});
+      if (!pairs.length) { box.replaceChildren(h('h3', {}, t('counters.title')), h('p', { class: 'muted' }, t(c.netflow ? 'counters.none_yet' : 'counters.none'))); return; }
+      const row = r => h('tr', {}, h('td', {}, t('counters.pair.' + r.pair)),
+        h('td', { class: 'num' }, r.factor != null ? LL.fmtNum(r.factor * 100, 0) + '\u00a0%' : '—'),
+        h('td', {}, h('span', { class: 'chip chip--' + (r.state === 'ok' ? 'ok' : 'warn') }, t('counters.state.' + r.state))),
+        h('td', { class: 'num' }, LL.fmtDate((r.hour + 1) * 3600)));
+      const bad = (c.findings || []).slice(-6).reverse();
+      box.replaceChildren(h('h3', {}, t('counters.title')), h('p', { class: 'muted' }, t('counters.explain', { low: Math.round(c.low * 100), high: Math.round(c.high * 100) })),
+        h('table', { class: 'mini-table cc-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('counters.col.pair')), h('th', { class: 'num' }, t('counters.col.factor')), h('th', {}, t('counters.col.state')), h('th', { class: 'num' }, t('counters.col.hour')))),
+          h('tbody', {}, pairs.map(row))),
+        bad.length ? h('div', { class: 'callout callout--warn' }, h('strong', {}, t('counters.findings', { n: bad.length })),
+          h('ul', { class: 'cc-list' }, bad.map(r => h('li', {}, t('counters.finding.' + r.state, { pair: t('counters.pair.' + r.pair), pct: Math.round((r.factor || 0) * 100), at: LL.fmtDate((r.hour + 1) * 3600) }))))) : null);
+    }).catch(() => box.replaceChildren());
+    return box;
+  }
   function openSources() {
     const f = live.last || { overall: { sources: [] } };
     const rows = (f.overall.sources || []).map(s => h('tr', {}, h('td', {}, s.kind ? s.name : t(s.name)), h('td', {}, h('span', { class: 'grade-chip', dataset: { grade: s.grade } }, h('i'), t('board.grade.' + s.grade))),
@@ -384,7 +410,8 @@
     dialog(t('live.title'), h('div', {}, h('p', { class: 'muted' }, t('live.explain')),
       h('table', { class: 'mini-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('live.source')), h('th', {}, t('live.grade')), h('th', { class: 'num' }, t('live.cadence')), h('th', { class: 'num' }, t('live.age')))),
         h('tbody', {}, rows.length ? rows : [h('tr', {}, h('td', { colspan: '4', class: 'muted' }, t('live.none')))])),
-      h('ul', { class: 'grade-legend' }, GRADES.map(g => h('li', {}, h('span', { class: 'grade-chip', dataset: { grade: g } }, h('i'), t('board.grade.' + g)), ' ', t('live.def.' + g))))));
+      h('ul', { class: 'grade-legend' }, GRADES.map(g => h('li', {}, h('span', { class: 'grade-chip', dataset: { grade: g } }, h('i'), t('board.grade.' + g)), ' ', t('live.def.' + g)))),
+      counterSection()));
   }
 
   // ------------------------------------------------------------------ update notice
@@ -453,7 +480,8 @@
   // ------------------------------------------------------------------ settings
   // sub-pages of the settings; each names the lowest role that sees it (the server enforces the same per route)
   const SETTINGS_PAGES = [['general', '', 'settings.general', 'viewer'], ['account', 'account', 'settings.tab.account', 'viewer'],
-    ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['backup', 'backup', 'backup.tab', 'admin'], ['ai', 'ai', 'ai.tab', 'admin']];
+    ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['backup', 'backup', 'backup.tab', 'admin'],
+    ['storage', 'storage', 'storage.tab', 'admin'], ['ai', 'ai', 'ai.tab', 'admin']];
   function settingsSubnav(active) {
     const allowed = p => p[3] === 'viewer' || LL.can(p[3] === 'admin' ? 'admin' : 'operate');
     return h('nav', { class: 'seg settings-subnav', 'aria-label': t('settings.sections') }, SETTINGS_PAGES.filter(allowed).map(([k, sub, label]) =>
@@ -463,7 +491,7 @@
   async function settingsView(app, rest) {
     const fr = frame(app, 'settings');
     const sub = rest && rest[0];
-    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage }[sub];
+    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage }[sub];
     if (subPage) {
       const pg = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav(sub)));
       fr.main.append(pg);
@@ -523,7 +551,7 @@
       ['bytes', 'bits'].map(v => h('option', { value: v }, t('settings.rate_unit.' + v))));
     unit.value = s.rate_unit === 'bits' ? 'bits' : 'bytes';
     page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)),
-      paletteField(), LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint'))]));
+      paletteField(), h('div', { class: 'grid-2' }, LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint')), motionField())]));
     if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
     if (LL.netflowSettingsCard) page.append(LL.netflowSettingsCard(s));
     // updates + about
@@ -548,6 +576,12 @@
   function card(title, kids) { return h('section', { class: 'card settings-card' }, h('h2', {}, title), kids); }
   LL.settingsCard = card;
   LL.facts = facts;
+  function motionField() {
+    const sel = h('select', { class: 'select', onchange: () => { LL.setMotion(sel.value); LL.toast(t('settings.saved'), 'ok'); } },
+      ['auto', 'full', 'saver', 'off'].map(v => h('option', { value: v }, t('settings.motion.' + v))));
+    sel.value = LL.motion ? LL.motion() : 'auto';
+    return LL.field(t('settings.motion'), sel, t('settings.motion.hint'));
+  }
   function langThemeSelects() {
     // the language is a personal choice (stored with the account); the first account's choice is the default for everyone
     const lang = h('select', { class: 'select', onchange: async () => { await api('/api/account/prefs', { method: 'PUT', body: { language: lang.value } }); await LL.loadLang(lang.value); LL.route(); } },
@@ -561,7 +595,7 @@
   function generalForEveryone(fr) {
     const page = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav('general')));
     const [lang, theme] = langThemeSelects();
-    page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)), paletteField()]),
+    page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)), paletteField(), motionField()]),
       card(t('settings.role.title'), [h('p', {}, t('settings.role.' + ((LL.state.can && LL.state.can.role) || 'viewer'))), h('p', { class: 'muted' }, t('settings.role.ask'))]),
       card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy'))]));
     fr.main.append(page);
@@ -602,6 +636,7 @@
   }
 
   LL.frame = frame;
+  LL.liveSubscribe = liveSubscribe;
   LL.dialog = dialog;
   LL.view('map', mapView('overview'));
   LL.view('network', mapView('network'));

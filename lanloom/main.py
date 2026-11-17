@@ -98,6 +98,7 @@ class App:
         from . import access_report as _access_report  # noqa: F401 - registers the nightly report section
         from .backup import Backups
         from . import backup_report as _backup_report  # noqa: F401 - registers the nightly report section
+        from . import storage_report as _storage_report  # noqa: F401 - registers the storage + counter check sections
         self.backups = Backups(self)
         self.core.backups = self.backups
         if cfg.demo:
@@ -326,6 +327,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     web_backup.register(app, web_backup.Ctx(
         state=state, body=body, err=err, note=note, client_of=client_of, requester_ip=requester_ip, audit_from=audit_from))
 
+    from . import web_storage
+    web_storage.register(app, web_storage.Ctx(state=state, body=body, err=err, note=note))
+
     # ------------------------------------------------------------------ settings, networks, scans
     @app.get("/api/settings")
     async def get_settings():
@@ -456,7 +460,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def get_map(view: str = "overview"):
         if view not in ("overview", "network"):
             view = "overview"
-        return mapmodel.build(state.core, view)
+        return mapmodel.cached_build(state.core, view)      # fresh after every change; a detail card right after reuses it
 
     @app.get("/api/component/{comp_id:path}")
     async def component(comp_id: str):
@@ -1028,7 +1032,7 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/storage.js", "css/storage.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()
