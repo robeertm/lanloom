@@ -419,6 +419,14 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def get_paths(window: str = "24h"):
         return await asyncio.to_thread(state.core.paths_summary, window)
 
+    @app.get("/api/paths/lan")
+    async def get_paths_lan(window: str = "24h"):
+        return await asyncio.to_thread(state.core.paths_lan, window)
+
+    @app.get("/api/paths/device/{device_id}")
+    async def get_paths_device(device_id: str, window: str = "24h"):
+        return await asyncio.to_thread(state.core.paths_device, device_id[:80], window)
+
     @app.get("/api/netflow")
     async def get_netflow():
         return state.core.netflow_status()

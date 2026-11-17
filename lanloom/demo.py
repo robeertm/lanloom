@@ -190,6 +190,19 @@ PATHS = {
     65: [("CN", 2, 1), ("SG", 1, 0.5)],
     66: [("NL", 1, 0.3), ("DE", 0.5, 0.2)],
 }
+# Conversations between two devices of the LAN (as a gateway would report them across networks): host number, host number,
+# MB per day from the first to the second, MB per day back. The map's "Who talks to whom" draws them as dashed lines.
+PATH_PAIRS = [
+    (20, 10, 900, 60),     # laptop <-> storage: backup and file sharing
+    (22, 10, 400, 30),     # desktop <-> storage
+    (30, 10, 30, 1800),    # TV <- storage: media streaming
+    (50, 10, 700, 2),      # camera -> storage (recordings)
+    (51, 10, 650, 2),      # second camera -> storage
+    (11, 14, 6, 4),        # hub <-> smart plug
+    (11, 12, 3, 2),        # hub <-> printer status
+    (20, 12, 8, 1),        # laptop -> printer
+    (23, 11, 5, 3),        # phone <-> hub
+]
 PATHS_NO_INTERNET = ["192.168.50.50/31"]      # the two cameras should not reach the internet
 PATHS_NEW = (30, "KR", 45)                    # the TV talks to a new country since a few hours (MB)
 PATHS_HEAVY = (10, "NL", 1900)                # the storage uploads far more than usual today (MB in 24 h)
@@ -255,6 +268,36 @@ def seed_paths(core, now: float = None, seed: int = 11) -> None:
         core.store.set_setting("netflow_enabled", True)
 
 
+def seed_pairs(core, now: float = None, seed: int = 13) -> None:
+    """Thirty days of synthetic conversations between devices (only if there are none yet)."""
+    if core.store.one("SELECT hour FROM paths_pair_hour LIMIT 1") or core.store.one("SELECT day FROM paths_pair_day LIMIT 1"):
+        return
+    rng = random.Random(seed)
+    now = now or time.time()
+    now_h = int(now // 3600)
+    norm = sum(_diurnal(h) for h in range(24)) / 24.0
+    ids = {int(ip.rsplit(".", 1)[1]): dev for ip, dev in core.ip_to_device.items() if ip.startswith("192.168.50.")}
+    hours, days = {}, {}
+    for n1, n2, ab_mb, ba_mb in PATH_PAIRS:
+        d1, d2 = ids.get(n1), ids.get(n2)
+        if not d1 or not d2:
+            continue
+        a, b = (d1, d2) if d1 < d2 else (d2, d1)
+        mb_ab, mb_ba = (ab_mb, ba_mb) if d1 == a else (ba_mb, ab_mb)
+        for h in range(now_h - 30 * 24, now_h + 1):
+            f = _diurnal(h) / norm / 24.0 * (0.6 + 0.8 * rng.random())
+            ab, ba = int(mb_ab * 1e6 * f), int(mb_ba * 1e6 * f)
+            if h > now_h - 49:
+                hours[(h, a, b)] = [ab, ba]
+            d = days.setdefault((h // 24, a, b), [0, 0])
+            d[0] += ab; d[1] += ba
+    with core.store.transaction() as st:
+        st._db.executemany("INSERT INTO paths_pair_hour(hour, a, b, ab, ba) VALUES(?,?,?,?,?)",
+                           [(k[0], k[1], k[2], v[0], v[1]) for k, v in hours.items()])
+        st._db.executemany("INSERT INTO paths_pair_day(day, a, b, ab, ba) VALUES(?,?,?,?,?)",
+                           [(k[0], k[1], k[2], v[0], v[1]) for k, v in days.items()])
+
+
 def book_paths_minute(core, now: float, rng) -> None:
     """One minute of synthetic data paths (the demo keeps growing while it runs)."""
     ids = {int(ip.rsplit(".", 1)[1]): dev for ip, dev in core.ip_to_device.items() if ip.startswith("192.168.50.")}
@@ -266,6 +309,12 @@ def book_paths_minute(core, now: float, rng) -> None:
             for cc, tx_mb, rx_mb in entries:
                 k = f * (0.6 + 0.8 * rng.random())
                 core.paths.book_bucket(dev, cc, int(tx_mb * 1e6 * k), int(rx_mb * 1e6 * k), now)
+    for n1, n2, ab_mb, ba_mb in PATH_PAIRS:
+        d1, d2 = ids.get(n1), ids.get(n2)
+        if d1 and d2:
+            k = f * (0.6 + 0.8 * rng.random())
+            core.paths.book_pair(d1, d2, int(ab_mb * 1e6 * k), now)
+            core.paths.book_pair(d2, d1, int(ba_mb * 1e6 * k), now)
 
 
 def controller_event(now: float) -> dict:
@@ -421,7 +470,7 @@ class Demo:
             core.store.execute("UPDATE devices SET first_seen = ? WHERE id = ?", (now - ago, "d-" + _hmac(n).replace(":", "")))
         core.store.set_setting("rescan_cidrs", [NET])
         self.seed_manual(core)
-        seed_paths(core)
+        seed_paths(core); seed_pairs(core)
 
     def seed_manual(self, core) -> None:
         for n, (parent, port) in MANUAL.items():
@@ -703,7 +752,7 @@ class Demo:
                                {"index": 4, "name": "wlan", "oper": "up", "speed": 600_000_000, "in": up // 3, "out": down // 3}]})
             if now - paths_sent >= 60:
                 paths_sent = now
-                seed_paths(core, now)              # a demo set up through the wizard gets its history on the first minute
+                seed_paths(core, now); seed_pairs(core, now)              # a demo set up through the wizard gets its history on the first minute
                 book_paths_minute(core, now, rng)
             fam, hv, fw = _demo_family(), _demo_family("guests"), _demo_firewall()
             if now - live_sent >= 60:

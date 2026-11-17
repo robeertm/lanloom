@@ -83,6 +83,9 @@
   LL.registerCommand({ id: 'go-report-settings', group: 'views', order: 30, typedOnly: true, available: () => LL.can('operate'), label: () => t('cmdk.go', { name: t('reports.settings') }),
     keywords: () => t('cmdk.kw.report_settings'), run: () => LL.go('#/settings/reports') });
 
+  LL.registerCommand({ id: 'go.talk', group: 'views', order: 31, typedOnly: true, label: () => t('cmdk.go', { name: t('talk.chip') }),
+    keywords: () => t('cmdk.kw.talk'), run: () => LL.go('#/map?talk=1') });
+
   const cmdTheme = (id, mode, order) => LL.registerCommand({ id, group: 'commands', order, label: () => t('theme.' + mode), keywords: () => t('cmdk.kw.theme'),
     available: () => LL.theme() !== mode, run: () => { LL.setTheme(mode); LL.toast(t('theme.' + mode)); } });
   LL.registerCommand({ id: 'theme-toggle', group: 'commands', order: 0, label: 'theme.toggle', keywords: () => t('cmdk.kw.theme'),

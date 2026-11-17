@@ -427,7 +427,7 @@ class Collector:
         self._transport = None
         self._error: Optional[str] = None
         self._c = {"packets": 0, "flows": 0, "booked": 0, "bytes": 0, "dropped_foreign": 0, "skipped_local": 0,
-                   "skipped_self": 0, **new_counters()}
+                   "skipped_self": 0, "lan_pairs": 0, **new_counters()}
         self._last_packet = self._last_flow = None
         self._drop_seen: set = set()
         self._drop_pending = 0
@@ -561,7 +561,7 @@ class Collector:
         except Exception:
             skip = set()
         memo: dict = {}
-        booked = nbytes = local = own = 0
+        booked = nbytes = local = own = pairs = 0
         for src, dst, size in flows:
             if str(src) in skip or str(dst) in skip:
                 own += 1
@@ -569,6 +569,15 @@ class Collector:
             ks, kd = self._kind(src, nets, memo), self._kind(dst, nets, memo)
             size = min(size, MAX_FLOW_BYTES)
             if size <= 0 or ks[0] == kd[0] or ks[0] is None or kd[0] is None:
+                if size > 0 and ks[0] == "lan" and kd[0] == "lan":
+                    # LAN <-> LAN: not a data path, but a conversation between two devices (the map's "Who talks to whom");
+                    # only when both are known devices, so an unknown address never becomes a line on the map
+                    if ks[1] != UNKNOWN_DEVICE and kd[1] != UNKNOWN_DEVICE and ks[1] != kd[1]:
+                        try:
+                            if self._paths.book_pair(ks[1], kd[1], min(size, MAX_FLOW_BYTES), now):
+                                pairs += 1
+                        except Exception:
+                            log.debug("netflow pair error", exc_info=True)
                 local += 1                  # LAN <-> LAN, transit, special addresses, empty records
                 continue
             lan, peer = (ks, dst) if ks[0] == "lan" else (kd, src)
@@ -586,6 +595,7 @@ class Collector:
             self._c["bytes"] += nbytes
             self._c["skipped_local"] += local
             self._c["skipped_self"] += own
+            self._c["lan_pairs"] += pairs
         return booked
 
     def _kind(self, ip, nets: list, memo: dict):
@@ -626,6 +636,7 @@ class Collector:
                 "packets": c["packets"], "flows": c["flows"], "booked": c["booked"], "bytes": c["bytes"],
                 "dropped_foreign": c["dropped_foreign"], "malformed": c["malformed"], "waiting": c["waiting"],
                 "refused": c["refused"], "skipped_local": c["skipped_local"], "skipped_self": c["skipped_self"],
+                "lan_pairs": c["lan_pairs"],
                 "last_packet": self._last_packet, "last_flow": self._last_flow,
                 "exporters": {ip: dict(v) for ip, v in self._ex.items()},
                 "listening": self._transport is not None, "port": self._port, "error": self._error,

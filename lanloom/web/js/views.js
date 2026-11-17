@@ -173,6 +173,22 @@
         return Object.assign({}, view, { components: comps, zones: view.zones.filter(z => zs.has(z.id)), traces: view.traces.filter(tr => ids.has(tr.a) && ids.has(tr.b)) });
       };
       const show = d => localise(filtered(d));
+      // "Who talks to whom": dashed lines in the air between devices that talk to each other (gateway flows, last 24 hours)
+      let talkOn = LL.query.get('talk') === '1', talkInfo = null, talkVer = null, talkBusy = false;
+      async function loadTalk() {
+        if (!talkOn) { talkInfo = null; board.setTalk([]); return; }
+        if (talkBusy) return;
+        talkBusy = true;
+        try { talkInfo = await api('/api/paths/lan?window=24h'); talkVer = talkInfo.version; board.setTalk(talkInfo.pairs); if (selected) board.highlight(selected); drawFilter(); }
+        catch (e) { /* keep the lines that are there */ }
+        talkBusy = false;
+      }
+      function toggleTalk() {
+        talkOn = !talkOn;
+        if (talkOn) LL.query.set('talk', '1'); else LL.query.delete('talk');
+        LL.deepLink(here(selected));
+        loadTalk(); drawFilter();
+      }
       function drawFilter() {
         const zones = localise(data).zones.filter(z => z.id !== 'edge');
         const zone = LL.query.get('zone'), only = LL.query.get('only');
@@ -187,7 +203,10 @@
           zones.length > 1 ? chip(t('mapfilter.all'), !zone, () => set('zone', null)) : null,
           ...(zones.length > 1 ? zones.map(z => chip(z.title || '—', zone === z.id, () => set('zone', zone === z.id ? null : z.id))) : []),
           h('span', { class: 'mf-sep', 'aria-hidden': 'true' }),
-          chip(t('mapfilter.problems'), only === 'problems', () => set('only', only === 'problems' ? null : 'problems'), ' mf-chip--problems')].filter(Boolean));
+          chip(t('mapfilter.problems'), only === 'problems', () => set('only', only === 'problems' ? null : 'problems'), ' mf-chip--problems'),
+          chip(t('talk.chip'), talkOn, toggleTalk, ' mf-chip--talk')].filter(Boolean));
+        if (talkOn && talkInfo) filterBar.append(h('span', { class: 'mf-talk muted' }, talkInfo.pairs.length
+          ? t('talk.legend', { n: talkInfo.pairs.length }) : t('talk.none')));
         const n = filtered(data).components.filter(c => c.zone !== 'edge').length;
         if ((zone || only) && !n) filterBar.append(h('span', { class: 'mf-empty muted' }, t(only ? 'mapfilter.none_problems' : 'mapfilter.none')));
       }
@@ -195,6 +214,7 @@
         view: show(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: id => onSelectId(id)
       });
       drawFilter();
+      if (talkOn) loadTalk();
       const onTheme = ev => board.setTheme(ev.detail);
       document.addEventListener('ll-theme', onTheme);
       // deep link #/map/<id> or #/network/<id> (command palette, answers of "Ask your network"): open that component's card;
@@ -222,6 +242,7 @@
       const unsub = liveSubscribe(f => {
         if (document.hidden) { if (f.structure !== structure || (mapver != null && f.mapver !== mapver)) stale = true; mapver = f.mapver; return; }
         board.live(f);
+        if (talkOn && f.pathsver != null && f.pathsver !== talkVer) loadTalk();
         const changed = f.structure !== structure || (mapver != null && f.mapver != null && f.mapver !== mapver);
         mapver = f.mapver;
         if (changed || stale) { stale = false; refresh(); }
@@ -289,6 +310,7 @@
     if (d.hub_bridge) sections.push(LL.hubBridgeSection(d.hub_bridge));
     if (d.entities) sections.push(entitiesSection(d.entities));
     if (d.ifaces && Object.keys(d.ifaces).length) sections.push(section(t('detail.ifaces'), facts(Object.entries(d.ifaces).map(([n, v]) => [n, '↑ ' + LL.fmtRate(v[0]) + '  ↓ ' + LL.fmtRate(v[1])]))));
+    if ((d.device || id === 'internet') && LL.talkSection) sections.push(LL.talkSection(id));
     const links = LL.connectionsSection ? LL.connectionsSection(d, id) : section(t('detail.links'), h('ul', { class: 'link-list' }, d.traces.length ? d.traces.map(tr => h('li', {},
       h('span', { class: 'trace-sw trace-sw--' + tr.kind }), t('board.trace.' + tr.kind), h('span', { class: 'muted' }, ' · ' + (tr.measured ? t('detail.measured') : t('detail.unmeasured'))))) : [h('li', { class: 'muted' }, t('detail.no_links'))]));
     sections.push(links);

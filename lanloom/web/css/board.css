@@ -114,6 +114,9 @@
 .ll-trace.ll-k-virtual, .ll-trace.ll-k-virtual.is-unmeasured { stroke: var(--ll-pcb-trace-virtual); stroke-width: 2.2; stroke-dasharray: .5 3.5; opacity: var(--ll-pcb-trace-rest); }
 .ll-board.is-compact .ll-trace { stroke-width: 1.4; }
 .ll-board.is-compact .ll-trace.ll-k-uplink { stroke-width: 1.9; }
+.ll-talkline { stroke: var(--ll-pcb-trace-flow); stroke-dasharray: 7 6; stroke-linecap: round; opacity: .5; fill: none; transition: opacity var(--ll-dur) var(--ll-ease); }
+.ll-board.is-focus .ll-talkline:not(.is-on) { opacity: .08; }
+.ll-board.is-focus .ll-talkline.is-on { opacity: .95; }
 .ll-pad { fill: var(--ll-pcb-copper); transition: opacity var(--ll-dur) var(--ll-ease); }
 .ll-via { fill: var(--ll-pcb-board); stroke: var(--ll-pcb-via); stroke-width: 1; opacity: .8; transition: opacity var(--ll-dur) var(--ll-ease); }
 
@@ -314,9 +317,9 @@
 .ll-empty[hidden] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ll-tile, .ll-trace, .ll-pad, .ll-via { transition: none; }
+  .ll-tile, .ll-trace, .ll-talkline, .ll-pad, .ll-via { transition: none; }
 }
 @media (forced-colors: active) {
   .ll-tile { border: 1px solid CanvasText; }
-  .ll-trace { stroke: CanvasText; }
+  .ll-trace, .ll-talkline { stroke: CanvasText; }
 }

@@ -627,15 +627,32 @@ class Core:
     # ------------------------------------------------------------------ physical topology
     def paths_summary(self, window: str) -> dict:
         """Data paths of one window (24h, 7d, 30d) with device titles, for the data paths view."""
+        devices = self._paths_devices()
+        out = dict(self.paths.summary(window, devices))
+        out["source"] = self.paths_source()
+        return out
+
+    def _paths_devices(self) -> dict:
         devices = {}
         for dev in self.store.devices():
             data = dev["data"]
-            title = "" if data.get("is_self") else (dev.get("user_title") or dev["title"] or "")     # like the map: "This host"
-            devices[dev["id"]] = {"title": title, "ip": dev["ip"],
-                                  "kind": dev.get("user_kind") or dev["kind"], "self": bool(data.get("is_self"))}
+            title = "" if data.get("is_self") else (dev.get("user_title") or dev["title"] or "")
+            devices[dev["id"]] = {"title": title, "ip": dev["ip"], "kind": dev.get("user_kind") or dev["kind"],
+                                  "self": bool(data.get("is_self"))}
         devices.setdefault("self", {"title": "", "ip": self.self_ip, "kind": "server", "self": True})
         devices.setdefault(netflow.UNKNOWN_DEVICE, {"title": "", "ip": None, "kind": "", "self": False})
-        out = dict(self.paths.summary(window, devices))
+        return devices
+
+    def paths_lan(self, window: str) -> dict:
+        """Conversations between two devices of the LAN (from gateway flows), for the map's "Who talks to whom"."""
+        devices = self._paths_devices()
+        rows = [r for r in self.paths.pairs(window) if r["a"] in devices and r["b"] in devices][:datapaths.MAX_PAIRS]
+        return {"window": window if window in datapaths.PERIODS else "24h", "version": self.paths.version, "pairs": rows,
+                "source": self.paths_source()}
+
+    def paths_device(self, device: str, window: str) -> dict:
+        """Where one device (or the internet tile) talks to: countries and LAN partners, with titles."""
+        out = self.paths.device_view(device, window, self._paths_devices())
         out["source"] = self.paths_source()
         return out
 

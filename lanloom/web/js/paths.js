@@ -756,4 +756,52 @@
       status, msg, h('div', { class: 'btn-row' }, save));
   };
   LL.view('paths', pathsView);
+
+  // ------------------------------------------------------------------ "Where does it talk to?" on a card (device) and on the Internet tile
+  /* GET /api/paths/device/<id>?window=: for a device its countries (the internet) and the devices of the network it talks to; for the
+     Internet tile (id "internet") the devices that talk to the internet with their sums. Only countries, device names and bytes. */
+  LL.talkSection = function (id) {
+    const isNet = id === 'internet';
+    let win = '24h';
+    try { const w = localStorage.getItem('lanloom-paths-window'); if (PERIODS.includes(w)) win = w; } catch (e) { /* private mode */ }
+    const body = h('div', { class: 'talk__body' }, h('div', { class: 'skeleton' }));
+    const sw = h('div', { class: 'talk__period', role: 'group', 'aria-label': t('talk.period') });
+    const sec = h('section', { class: 'detail__sec talk', 'data-sec': 'talk' }, h('h3', {}, t(isNet ? 'talk.title_net' : 'talk.title')), sw, body);
+    const bytes = (tx, rx) => h('span', { class: 'talk__bytes mono' }, h('span', {}, '↑ ' + LL.fmtBytes(tx)), h('span', {}, '↓ ' + LL.fmtBytes(rx)));
+    const row = (label, tx, rx, extra) => h('li', { class: 'talk__row' + (extra ? ' ' + extra : '') }, label, bytes(tx, rx));
+    const who = (r, link) => link ? h('a', { class: 'talk__name', href: '#/devices/' + encodeURIComponent(r.id) }, r.title || (r.self ? t('paths.this_host') : t('kind.' + (r.kind || 'unknown')))) :
+      h('span', { class: 'talk__name' }, r.title || (r.self ? t('paths.this_host') : t('kind.' + (r.kind || 'unknown'))));
+    function drawSwitch() {
+      sw.replaceChildren(...PERIODS.map(p => h('button', { class: 'mf-chip' + (p === win ? ' is-on' : ''), type: 'button', 'aria-pressed': p === win ? 'true' : 'false',
+        onclick: () => { win = p; try { localStorage.setItem('lanloom-paths-window', p); } catch (e) { /* private mode */ } drawSwitch(); load(); } }, t('paths.window.' + p))));
+    }
+    async function load() {
+      let d;
+      try { d = await api('/api/paths/device/' + encodeURIComponent(id) + '?window=' + win); }
+      catch (e) { body.replaceChildren(h('p', { class: 'msg msg--error' }, LL.errText(e))); return; }
+      const kids = [];
+      if (isNet) {
+        kids.push(d.devices.length ? h('ul', { class: 'talk__list' }, d.devices.map(r => row(h('span', { class: 'talk__lead' }, who(r, !r.self && r.id !== '~unknown'),
+          h('span', { class: 'muted talk__sub' }, t('talk.countries', { n: r.countries }))), r.tx, r.rx))) : h('p', { class: 'muted' }, t('talk.none_net')));
+        if (d.devices.length) kids.push(h('p', { class: 'muted talk__sum' }, t('talk.sum_net', { n: d.totals.devices, up: LL.fmtBytes(d.totals.tx), down: LL.fmtBytes(d.totals.rx) })));
+      } else {
+        const net = [];
+        (d.countries || []).forEach(c => net.push(row(h('span', { class: 'talk__lead' }, h('span', { class: 'talk__name' }, countryName(c.cc)),
+          h('span', { class: 'chip ' + (c.eu ? 'chip--muted' : 'chip--warn') + ' talk__eu' }, t(c.eu ? 'talk.eu' : 'talk.outside_eu'))), c.tx, c.rx)));
+        if (d.own) net.push(row(h('span', { class: 'talk__name' }, t('settings.paths.own')), d.own.tx, d.own.rx));
+        if (d.unassigned) net.push(row(h('span', { class: 'talk__name' }, t('paths.unassigned')), d.unassigned.tx, d.unassigned.rx));
+        kids.push(h('h4', { class: 'talk__sub-h' }, t('talk.internet')));
+        kids.push(net.length ? h('ul', { class: 'talk__list' }, net) : h('p', { class: 'muted' }, t('talk.none_internet')));
+        kids.push(h('h4', { class: 'talk__sub-h' }, t('talk.lan')));
+        kids.push((d.lan || []).length ? h('ul', { class: 'talk__list' }, d.lan.map(r => row(who(r, !r.self && r.id !== '~unknown'), r.tx, r.rx)))
+          : h('p', { class: 'muted' }, t(d.source && d.source.netflow ? 'talk.none_lan' : 'talk.none_lan_hint')));
+        kids.push(h('p', { class: 'muted talk__sum' }, t('talk.note')));
+      }
+      kids.push(h('a', { class: 'talk__more', href: '#/paths' }, t('talk.open_map')));
+      body.replaceChildren(...kids);
+    }
+    drawSwitch();
+    load();
+    return sec;
+  };
 })();

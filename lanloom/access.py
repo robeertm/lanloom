@@ -108,6 +108,8 @@ RULES = {
     ("GET", "/api/selfcheck/counters"): R(V),
     ("PUT", "/api/settings"): R(A, "settings.change"),
     ("GET", "/api/paths"): R(V),
+    ("GET", "/api/paths/lan"): R(V),
+    ("GET", "/api/paths/device/{device_id}"): R(V),
     ("GET", "/api/netflow"): R(A),
     ("GET", "/api/networks"): R(V),
     ("GET", "/api/setup/discover"): R(V),

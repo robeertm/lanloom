@@ -180,7 +180,7 @@
       this.traceInfo = new Map();  // trace id → view trace
       this.key = null; this.layout = null; this.view = null; this.frameQ = null;
       this.highlighted = null; this.gradeOf = new Map();
-      this.peers = {}; this.seenPorts = {}; this.exits = []; this.marks = null; this.routed = false;
+      this.talk = []; this.peers = {}; this.seenPorts = {}; this.exits = []; this.marks = null; this.routed = false;
       this.ready = new Promise(res => { this._resolveReady = res; });
       this.stats = { routeMs: null, routed: 0, failed: 0, fallback: 0, bundled: 0, fromCache: false, layouts: 0, worker: null };
       this.build();
@@ -194,11 +194,11 @@
       r.className = 'll-board';
       r.setAttribute('role', 'region');
       r.setAttribute('aria-label', this.t('board.region'));
-      r.innerHTML = `<div class="ll-scroll"><div class="ll-stage"><div class="ll-live" aria-hidden="true"><canvas class="ll-layer ll-glow"></canvas><canvas class="ll-layer ll-dots"></canvas></div><div class="ll-zones" aria-hidden="true"></div><svg class="ll-traces" xmlns="${NS}" aria-hidden="true"><g class="ll-tr"></g><g class="ll-pads"></g></svg><div class="ll-ztitles"></div><div class="ll-tiles"></div></div></div>
+      r.innerHTML = `<div class="ll-scroll"><div class="ll-stage"><div class="ll-live" aria-hidden="true"><canvas class="ll-layer ll-glow"></canvas><canvas class="ll-layer ll-dots"></canvas></div><div class="ll-zones" aria-hidden="true"></div><svg class="ll-traces" xmlns="${NS}" aria-hidden="true"><g class="ll-talk"></g><g class="ll-tr"></g><g class="ll-pads"></g></svg><div class="ll-ztitles"></div><div class="ll-tiles"></div></div></div>
         <div class="ll-legend" role="note"></div><div class="ll-empty" hidden></div>`;
       this.host.appendChild(r);
       this.scroll = r.querySelector('.ll-scroll'); this.stage = r.querySelector('.ll-stage');
-      this.svg = r.querySelector('.ll-traces'); this.gTr = r.querySelector('.ll-tr'); this.gPads = r.querySelector('.ll-pads');
+      this.svg = r.querySelector('.ll-traces'); this.gTr = r.querySelector('.ll-tr'); this.gTalk = r.querySelector('.ll-talk'); this.gPads = r.querySelector('.ll-pads');
       this.zonesEl = r.querySelector('.ll-zones'); this.ztitlesEl = r.querySelector('.ll-ztitles'); this.tilesEl = r.querySelector('.ll-tiles');
       this.liveEl = r.querySelector('.ll-live'); this.legendEl = r.querySelector('.ll-legend'); this.emptyEl = r.querySelector('.ll-empty');
       this.legendEl.setAttribute('aria-label', this.t('board.legend.label'));
@@ -572,10 +572,33 @@
         const p = x.padA, across = p.s === 't' || p.s === 'b', w = across ? pw : ph, h = across ? ph : pw;
         pads.push(`<rect class="ll-pad" data-t="${esc(x.id)}" x="${num(p.x - w / 2)}" y="${num(p.y - h / 2)}" width="${w}" height="${h}" rx="1"/>`);
       });
+      this.renderTalk();
       this.gTr.innerHTML = paths.join('');
       this.gPads.innerHTML = pads.join('') + viaEls.join('');
       if (this.highlighted) this.applyHighlight();
       if (this.marks) { if (this.marks.em) this.marks.em.content(); if (this.marks.pm) this.marks.pm.content(); }
+    }
+
+    // ---------------------------------------------------------------- conversations between devices ("Who talks to whom")
+    /* Straight dashed lines in the air between the tiles of two devices that talk to each other (not wires: nothing is claimed about
+       the cable). The width follows the bytes (square root, 1.2 to 4 px); the tiles sit above the lines, so a line ends at the tile edge. */
+    setTalk(pairs) {
+      this.talk = Array.isArray(pairs) ? pairs : [];
+      this.renderTalk();
+      if (this.highlighted) this.applyHighlight();
+    }
+    renderTalk() {
+      const lay = this.layout, rows = [];
+      if (lay && this.talk.length) {
+        const top = Math.max(1, ...this.talk.map(p => (+p.ab || 0) + (+p.ba || 0)));
+        this.talk.forEach(p => {
+          const a = lay.tiles[p.a], b = lay.tiles[p.b]; if (!a || !b) return;
+          const bytes = (+p.ab || 0) + (+p.ba || 0), w = 1.2 + 2.8 * Math.sqrt(bytes / top);
+          rows.push(`<line class="ll-talkline" data-a="${esc(p.a)}" data-b="${esc(p.b)}" x1="${num(a.x + a.w / 2)}" y1="${num(a.y + a.h / 2)}" x2="${num(b.x + b.w / 2)}" y2="${num(b.y + b.h / 2)}" stroke-width="${num(w)}"/>`);
+        });
+      }
+      this.gTalk.innerHTML = rows.join('');
+      this.root.classList.toggle('has-talk', rows.length > 0);
     }
 
     // ---------------------------------------------------------------- live
@@ -650,6 +673,7 @@
       const id = this.highlighted;
       this.root.classList.toggle('is-focus', !!id);
       this.root.querySelectorAll('.is-on, .is-selected').forEach(e => e.classList.remove('is-on', 'is-selected'));
+      this.gTalk.querySelectorAll('.ll-talkline').forEach(e => e.classList.toggle('is-on', !!id && (e.dataset.a === id || e.dataset.b === id)));
       if (!id) { this.dots.setFocus(null); return; }
       const on = new Set([id]), traces = new Set();
       this.routes.forEach(r => { if (r.a === id || r.b === id) { traces.add(r.id); on.add(r.a); on.add(r.b); } });

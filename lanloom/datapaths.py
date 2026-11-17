@@ -45,6 +45,8 @@ HEAVY_MIN_BYTES = 200_000_000
 HEAVY_MIN_DAYS = 3
 HEAVY_LOOKBACK = 14
 MAX_MATRIX = 4000
+MAX_PAIRS = 300                 # conversations between two devices the map draws
+MAX_PAIR_KEYS = 20000           # pending pair sums held in memory between two flushes
 MAX_NETS = 64
 _TUNNEL_NETS = [ipaddress.ip_network("100.64.0.0/10")]       # carrier-grade NAT space, used by overlay VPNs
 
@@ -55,6 +57,10 @@ CREATE TABLE IF NOT EXISTS paths_day (day INTEGER NOT NULL, device TEXT NOT NULL
     tx INTEGER NOT NULL DEFAULT 0, rx INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device, cc));
 CREATE TABLE IF NOT EXISTS paths_seen (device TEXT NOT NULL, cc TEXT NOT NULL, first REAL NOT NULL, last REAL NOT NULL,
     PRIMARY KEY (device, cc));
+CREATE TABLE IF NOT EXISTS paths_pair_hour (hour INTEGER NOT NULL, a TEXT NOT NULL, b TEXT NOT NULL,
+    ab INTEGER NOT NULL DEFAULT 0, ba INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (hour, a, b));
+CREATE TABLE IF NOT EXISTS paths_pair_day (day INTEGER NOT NULL, a TEXT NOT NULL, b TEXT NOT NULL,
+    ab INTEGER NOT NULL DEFAULT 0, ba INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, a, b));
 """
 
 
@@ -96,6 +102,8 @@ class DataPaths:
         self.settings = settings
         self.clock = clock
         self.pending: dict = {}            # (hour, device, cc) -> [tx, rx]
+        self.pair_pending: dict = {}       # (hour, a, b) with a < b -> [bytes a to b, bytes b to a]
+        self._pair_cache: dict = {}        # window -> (ts, rows)
         self.seen_pending: dict = {}       # (device, cc) -> last ts
         self.last_flush = clock()
         self._lock = threading.Lock()
@@ -163,6 +171,25 @@ class DataPaths:
                 sk = (device, cat)
                 self.seen_pending[sk] = max(self.seen_pending.get(sk, 0.0), now)
 
+    def book_pair(self, src: str, dst: str, size, now: Optional[float] = None) -> bool:
+        """A conversation between two known devices of the LAN (a gateway flow whose both ends are local).
+
+        Only the two device ids and the bytes per direction are kept; the addresses, ports and protocols are not."""
+        size = max(0, int(size or 0))
+        if not size or not src or not dst or src == dst:
+            return False
+        a, b = (src, dst) if src < dst else (dst, src)
+        now = self.clock() if now is None else now
+        key = (int(now // 3600), a, b)
+        with self._lock:
+            acc = self.pair_pending.get(key)
+            if acc is None:
+                if len(self.pair_pending) >= MAX_PAIR_KEYS:
+                    return False
+                acc = self.pair_pending[key] = [0, 0]
+            acc[0 if src == a else 1] += size
+        return True
+
     def maybe_flush(self, now: Optional[float] = None) -> None:
         now = self.clock() if now is None else now
         if now - self.last_flush >= FLUSH_EVERY:
@@ -173,8 +200,9 @@ class DataPaths:
         with self._lock:
             pending, self.pending = self.pending, {}
             seen, self.seen_pending = self.seen_pending, {}
+            pairs, self.pair_pending = self.pair_pending, {}
             self.last_flush = now
-        if not pending and not seen:
+        if not pending and not seen and not pairs:
             return
         with self.store.transaction() as st:
             db = st._db
@@ -183,6 +211,11 @@ class DataPaths:
                            " DO UPDATE SET tx=tx+excluded.tx, rx=rx+excluded.rx", (hour, device, cat, tx, rx))
                 db.execute("INSERT INTO paths_day(day, device, cc, tx, rx) VALUES(?,?,?,?,?) ON CONFLICT(day, device, cc)"
                            " DO UPDATE SET tx=tx+excluded.tx, rx=rx+excluded.rx", (hour // 24, device, cat, tx, rx))
+            for (hour, a, b), (ab, ba) in pairs.items():
+                db.execute("INSERT INTO paths_pair_hour(hour, a, b, ab, ba) VALUES(?,?,?,?,?) ON CONFLICT(hour, a, b)"
+                           " DO UPDATE SET ab=ab+excluded.ab, ba=ba+excluded.ba", (hour, a, b, ab, ba))
+                db.execute("INSERT INTO paths_pair_day(day, a, b, ab, ba) VALUES(?,?,?,?,?) ON CONFLICT(day, a, b)"
+                           " DO UPDATE SET ab=ab+excluded.ab, ba=ba+excluded.ba", (hour // 24, a, b, ab, ba))
             for (device, cc), ts in seen.items():
                 row = db.execute("SELECT first, last FROM paths_seen WHERE device=? AND cc=?", (device, cc)).fetchone()
                 if row is None:
@@ -194,16 +227,23 @@ class DataPaths:
             hour = int(now // 3600)
             db.execute("DELETE FROM paths_hour WHERE hour < ?", (hour - self.keep_hours,))
             db.execute("DELETE FROM paths_day WHERE day < ?", (hour // 24 - self.keep_days,))
+            db.execute("DELETE FROM paths_pair_hour WHERE hour < ?", (hour - self.keep_hours,))
+            db.execute("DELETE FROM paths_pair_day WHERE day < ?", (hour // 24 - self.keep_days,))
         self._cache.clear()
+        self._pair_cache.clear()
         self.version += 1
 
     def forget_device(self, device: str) -> None:
         with self._lock:
             self.pending = {k: v for k, v in self.pending.items() if k[1] != device}
             self.seen_pending = {k: v for k, v in self.seen_pending.items() if k[0] != device}
+            self.pair_pending = {k: v for k, v in self.pair_pending.items() if device not in k[1:]}
         for table in ("paths_hour", "paths_day", "paths_seen"):
             self.store.execute("DELETE FROM %s WHERE device=?" % table, (device,))
+        for table in ("paths_pair_hour", "paths_pair_day"):
+            self.store.execute("DELETE FROM %s WHERE a=? OR b=?" % table, (device, device))
         self._cache.clear()
+        self._pair_cache.clear()
 
     # ------------------------------------------------------------------ reading
     def _rows(self, window: str, now: float) -> list:
@@ -272,6 +312,70 @@ class DataPaths:
             "unusual": self.unusual(now, devices, rows if window == "24h" else self._rows("24h", now)),
         }
         self._cache[window] = (now, out, dev_key)
+        return out
+
+    def _pair_rows(self, window: str, now: float) -> list:
+        unit, n = PERIODS[window]
+        hour = int(now // 3600)
+        if unit == "hour":
+            sql, since = "SELECT a, b, SUM(ab) AS ab, SUM(ba) AS ba FROM paths_pair_hour WHERE hour > ? GROUP BY a, b", hour - n
+        else:
+            sql, since = "SELECT a, b, SUM(ab) AS ab, SUM(ba) AS ba FROM paths_pair_day WHERE day > ? GROUP BY a, b", hour // 24 - n
+        return self.store.query(sql, (since,))
+
+    def pairs(self, window: str, now: Optional[float] = None) -> list:
+        """Conversations between two devices of the LAN in one window: [{a, b, ab, ba}] by bytes, most first."""
+        if window not in PERIODS:
+            window = "24h"
+        now = self.clock() if now is None else now
+        self.flush(now)
+        hit = self._pair_cache.get(window)
+        if hit and now - hit[0] < CACHE_S:
+            return hit[1]
+        rows = [{"a": r["a"], "b": r["b"], "ab": int(r["ab"] or 0), "ba": int(r["ba"] or 0)} for r in self._pair_rows(window, now)]
+        rows = [r for r in rows if r["ab"] + r["ba"] > 0]
+        rows.sort(key=lambda r: -(r["ab"] + r["ba"]))
+        self._pair_cache[window] = (now, rows)
+        return rows
+
+    def device_view(self, device: str, window: str, devices: dict, now: Optional[float] = None) -> dict:
+        """Where one device talks to: the internet by country plus the devices of the LAN it talks to.
+
+        ``device`` may be ``internet``: then the answer lists the devices that talk to the internet, with their sums.
+        ``devices``: id -> {"title", "ip", "kind"} for the titles."""
+        if window not in PERIODS:
+            window = "24h"
+        now = self.clock() if now is None else now
+        s = self.summary(window, devices, now)
+        meta = lambda i: {"title": (devices.get(i) or {}).get("title") or "", "kind": (devices.get(i) or {}).get("kind") or "",
+                          "self": bool((devices.get(i) or {}).get("self"))}
+        out = {"window": window, "t": round(now, 1), "device": device, "geo": s["geo"], "home": s["home"]}
+        if device == "internet":
+            devs = [{"id": d["id"], "tx": d["tx"], "rx": d["rx"], "countries": d["countries"], **meta(d["id"])} for d in s["devices"]]
+            out["devices"] = devs[:MAX_PAIRS]
+            out["totals"] = {"tx": sum(d["tx"] for d in devs), "rx": sum(d["rx"] for d in devs), "devices": len(devs)}
+            return out
+        own = unassigned = None
+        countries = []
+        for r in self._rows(window, now):
+            dev, cc, tx, rx = r["device"], r["cc"], int(r["tx"] or 0), int(r["rx"] or 0)
+            if dev != device:
+                continue
+            if cc == OWN:
+                own = {"tx": tx, "rx": rx}
+            elif cc == UNASSIGNED:
+                unassigned = {"tx": tx, "rx": rx}
+            else:
+                countries.append({"cc": cc, "eu": cc in EU, "tx": tx, "rx": rx})
+        countries.sort(key=lambda c: -(c["tx"] + c["rx"]))
+        lan = []
+        for p in self.pairs(window, now):
+            if device not in (p["a"], p["b"]):
+                continue
+            other = p["b"] if p["a"] == device else p["a"]
+            sent, got = (p["ab"], p["ba"]) if p["a"] == device else (p["ba"], p["ab"])
+            lan.append({"id": other, "tx": sent, "rx": got, **meta(other)})
+        out.update({"countries": countries[:40], "own": own, "unassigned": unassigned, "lan": lan[:40]})
         return out
 
     def unusual(self, now: float, devices: dict, rows24: list) -> list:

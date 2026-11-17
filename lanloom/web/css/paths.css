@@ -166,3 +166,20 @@
   .pw-card__head h2 { max-width: 100%; }
   .pw-card__hint { text-align: left; }
 }
+
+/* map: "Who talks to whom" chip and note */
+.mf-talk { flex: none; font-size: var(--ll-fs-xs); white-space: nowrap; margin-left: 6px; align-self: center; }
+
+/* card: "Where does it talk to?" */
+.talk__period { display: flex; gap: 6px; margin: 2px 0 8px; flex-wrap: wrap; }
+.talk__sub-h { margin: 10px 0 4px; font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); color: var(--ll-text-2); }
+.talk__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.talk__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--ll-border); min-width: 0; }
+.talk__row:last-child { border-bottom: 0; }
+.talk__lead { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.talk__name { min-width: 0; overflow-wrap: anywhere; }
+.talk__sub { font-size: var(--ll-fs-xs); }
+.talk__eu { font-size: var(--ll-fs-xs); }
+.talk__bytes { display: flex; gap: 10px; flex: none; font-size: var(--ll-fs-sm); font-variant-numeric: tabular-nums; color: var(--ll-text-2); white-space: nowrap; }
+.talk__sum { font-size: var(--ll-fs-xs); margin: 8px 0 0; }
+.talk__more { display: inline-block; margin-top: 8px; font-size: var(--ll-fs-sm); }
