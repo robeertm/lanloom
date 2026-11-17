@@ -1,4 +1,4 @@
-"""UniFi Network family (local API): read half (stage A) and the executor's write half for clients (stage B).
+"""UniFi Network family (local API): read half (stage A) and the executor's write half (stage B).
 
 Product names are used only to identify compatible products. No affiliation or endorsement: Lanloom is not
 affiliated with, endorsed or sponsored by their owners; all trademarks belong to their owners.
@@ -14,7 +14,8 @@ Two local APIs of the same controller are read by the web app, never written:
 At least one of the two credentials is needed; both together give the full picture.
 
 The write half (``write.py``) runs only in the executor service, with a local account of its own that the app never
-sees, and changes clients only: network (move), fixed address, name. See docs/integrations/unifi.md.
+sees, and changes clients (network, fixed address, name), internal networks (create, rename, address range, delete own
+ones), fixed addresses and port forwards. See docs/integrations/unifi.md.
 """
 from .. import IntegrationManifest
 
@@ -30,9 +31,17 @@ CAPABILITIES = {
     "limits": {"objects_per_plan": 10, "logins_per_hour": 4},
     "lockout": ["mgmt_network", "gateway_uplink", "self_path", "uplink_ports"],
 }
-# What the executor's write half can do (stage B, clients only); client settings exist only in the classic API.
+# What the executor's write half can do (stage B: clients, networks, fixed addresses, port forwards); written over the
+# classic API (client settings and port forwards exist only there; network writes of the official API are recent).
+NETWORK_WRITE = {"network.create": "B", "network.update.name": "B", "network.update.dhcp": "B", "network.delete": "B",
+                 "dhcp.reserve": "B", "dhcp.release": "B",
+                 "forward.create": "B*", "forward.update.name": "B", "forward.update.enabled": "B*",
+                 "forward.update.wan_port": "B*", "forward.update.dst_ip": "B*", "forward.update.dst_port": "B*",
+                 "forward.update.proto": "B*", "forward.delete": "B"}
 WRITE_CAPABILITIES = dict(CAPABILITIES, api={"kind": "classic-local", "version": ""},
-                          read=["inventory", "clients", "topology", "networks", "zones", "policies", "dhcp_reservations"])
+                          read=["inventory", "clients", "topology", "networks", "zones", "policies", "dhcp_reservations",
+                                "port_forwards", "ssids", "port_profiles"],
+                          write=dict(CAPABILITIES["write"], **NETWORK_WRITE))
 # The read half itself never writes: what it publishes carries no write keys (the editor takes them from the executor).
 READ_ONLY_WRITE_KEYS = ("move", "client.set")
 

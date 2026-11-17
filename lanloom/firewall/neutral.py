@@ -6,7 +6,8 @@ executor that has not been updated yet keep working) and adds optional lists::
 
     v1  zones         [{id, name, internet, discovery, builtin?}]
     v1  allow         [[from_zone, to_zone], ...]          derived from policies when an adapter has them
-    v1  networks      [{id, name, zone, cidr, vlan, management, dhcp?, internet?, purpose?, own?}]
+    v1  networks      [{id, name, zone, cidr, vlan, management, dhcp?, internet?, purpose?, own?, gateway_ip?}]
+                        dhcp = {on: bool, range: [first, last] | None}
     v1  devices       [{id, name, kind, network, ip, fixed, wired, alone_on_port, private_address, protected,
                         fixed_ip?, parent?, band?, blocked?, online?, network_by_port?}]   end devices ("clients")
                         network_by_port: the device's network follows its switch port (a client setting cannot move it)
@@ -28,7 +29,8 @@ executor that has not been updated yet keep working) and adds optional lists::
     v2  storage       [{id, host?, name, type, shared, active, used, total, fraction, content[]}]
     v2  backup_jobs   [{id, enabled, schedule, storage, mode, selection, guests[], excluded[], next_t}]
     v2  findings      [{id, kind, level (alert|warn|info), subject, params}]   plain checks of the adapter
-    v2  dhcp_reservations [{id, client, ip}]   port_forwards [{id, name, proto, wan_port, dst_ip, dst_port, enabled}]
+    v2  dhcp_reservations [{id, client, ip, name?, network?}]   (fixed addresses handed out by the gateway)
+    v2  port_forwards [{id, name, proto, wan_port, dst_ip, dst_port, enabled, own?}]
     v2  raw           [{id, area, title, editable: false}]  vendor objects that do not map; shown, never written
 
 Rules for every list: ``id`` is an opaque, stable text (a hash, never a hardware address); ``own: true`` marks an

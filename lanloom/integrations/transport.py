@@ -38,10 +38,10 @@ class TransportError(Exception):
 
 
 class Rule:
-    __slots__ = ("method", "path", "fields", "values", "login", "nonempty", "query", "form")
+    __slots__ = ("method", "path", "fields", "values", "login", "nonempty", "query", "form", "exact")
 
     def __init__(self, method: str, path: str, *, fields=None, values=None, login: bool = False, nonempty: bool = False,
-                 query: bool = False, form: bool = False):
+                 query: bool = False, form: bool = False, exact: bool = False):
         self.method = method.upper()
         self.path = re.compile(r"\A(?:%s)\Z" % path)
         self.fields = None if fields is None else frozenset(fields)
@@ -50,6 +50,7 @@ class Rule:
         self.nonempty = nonempty                 # the body must carry at least one of the fields
         self.query = query                       # read query: every field present and checked (see read_allowlist)
         self.form = form                         # body sent as application/x-www-form-urlencoded instead of JSON
+        self.exact = exact                       # the body carries every field (a complete, checked object)
         if set(self.values) - set(self.fields or ()):
             raise ValueError("value checks for fields the rule does not allow")
         if query and (not self.fields or set(self.values) != set(self.fields) or not all(callable(c) for c in self.values.values())):
@@ -62,7 +63,7 @@ class Rule:
             return body is None
         if not isinstance(body, dict) or not set(body) <= self.fields:
             return False
-        if (self.login or self.query) and set(body) != self.fields:
+        if (self.login or self.query or self.exact) and set(body) != self.fields:
             return False
         if self.nonempty and not body:
             return False

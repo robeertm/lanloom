@@ -48,6 +48,10 @@ class WritableFake(FakeController):
         self.ignore_put = False
         self.stuck = False
         self.require_csrf = style == "console"
+        self.next_id = 0
+        self.config_writes = []          # (method, area, id) of every network / port forward write
+        self.fail_config = 0             # the n-th network / port forward write answers 500
+        self.drop_config = 0             # ... is applied and then the connection is cut
 
     # ------------------------------------------------------------------ data
     def users(self) -> list:
@@ -63,11 +67,42 @@ class WritableFake(FakeController):
         return next((n for n in self.classic["networkconf"]["data"] if n.get("_id") == cid), None)
 
     def classic_reply(self, path):
-        m = re.fullmatch(re.escape(self.prefix) + r"/api/s/default/rest/user/([0-9a-f]{24})", path)
+        m = re.fullmatch(re.escape(self.prefix) + r"/api/s/default/rest/(user|networkconf|portforward)/([0-9a-f]{24})", path)
         if m:
-            u = self.user(m.group(1))
+            area, oid = m.groups()
+            u = self.user(oid) if area == "user" else self.obj(area, oid)
             return fx.classic_wrap([copy.deepcopy(u)]) if u else {"meta": {"rc": "error", "msg": "api.err.IdInvalid"}, "data": []}
         return super().classic_reply(path)
+
+    def obj(self, area, oid):
+        return next((o for o in self.classic.setdefault(area, fx.classic_wrap([]))["data"] if o.get("_id") == oid), None)
+
+    def write_obj(self, method, area, oid, body):
+        """networkconf / portforward like the controller: a new id on POST, a merge on PUT, gone on DELETE; a VLAN or
+        a subnet another network has is refused (``api.err.VlanUsed`` / ``api.err.IpSubnetConflict``)."""
+        rows = self.classic.setdefault(area, fx.classic_wrap([]))["data"]
+        if method == "POST":
+            if area == "networkconf":
+                for n in rows:
+                    if body.get("vlan_enabled") and str(n.get("vlan")) == str(body.get("vlan")) and n.get("vlan_enabled", True):
+                        return 400, {"meta": {"rc": "error", "msg": "api.err.VlanUsed"}, "data": []}
+                    if n.get("ip_subnet") and ipaddress.ip_interface(n["ip_subnet"]).network.overlaps(ipaddress.ip_interface(body["ip_subnet"]).network):
+                        return 400, {"meta": {"rc": "error", "msg": "api.err.IpSubnetConflict"}, "data": []}
+            self.next_id += 1
+            new = dict(body, _id="5f00000000000000000009%02x" % self.next_id, site_id="site")
+            if not self.ignore_put:
+                rows.append(new)
+            return 200, {"meta": {"rc": "ok"}, "data": [copy.deepcopy(new)]}
+        o = self.obj(area, oid)
+        if o is None:
+            return 400, {"meta": {"rc": "error", "msg": "api.err.IdInvalid"}, "data": []}
+        if method == "DELETE":
+            if not self.ignore_put:
+                rows.remove(o)
+            return 200, {"meta": {"rc": "ok"}, "data": []}
+        if not self.ignore_put:
+            o.update(body)
+        return 200, {"meta": {"rc": "ok"}, "data": [copy.deepcopy(o)]}
 
     def put_user(self, uid, body):
         """Returns (status, reply) like the controller."""
@@ -108,7 +143,45 @@ class WritableFake(FakeController):
         fake = self
 
         class H(base):
+            def _config(self, method):
+                n = int(self.headers.get("Content-Length") or 0)
+                try:
+                    body = json.loads(self.rfile.read(n) or b"{}") if n else None
+                except ValueError:
+                    body = None
+                self.record(body)
+                m = re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)(?:/([0-9a-f]{24}))?", self.path)
+                cookie = self.headers.get("Cookie") or ""
+                sid = next((c.split("=", 1)[1] for c in cookie.split("; ") if c.split("=", 1)[0] in ("TOKEN", "unifises")), None)
+                if sid not in fake.sessions:
+                    return self.reply(401, {"meta": {"rc": "error", "msg": "api.err.LoginRequired"}})
+                if fake.require_csrf and self.headers.get("X-CSRF-Token") != CSRF:
+                    return self.reply(403, {"meta": {"rc": "error", "msg": "api.err.Csrf"}})
+                if not m or (method == "POST") == bool(m.group(2)):
+                    return self.reply(404, {"meta": {"rc": "error"}})
+                fake.config_writes.append((method, m.group(1), m.group(2)))
+                count = len(fake.config_writes)
+                if fake.fail_config and count == fake.fail_config:
+                    return self.reply(500, {"meta": {"rc": "error", "msg": "api.err.Internal"}})
+                status, reply = fake.write_obj(method, m.group(1), m.group(2), body or {})
+                if fake.drop_config and count == fake.drop_config:
+                    self.close_connection = True
+                    self.wfile.flush()
+                    self.connection.close()
+                    return None
+                return self.reply(status, reply)
+
+            def do_POST(self):
+                if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)", self.path):
+                    return self._config("POST")
+                return base.do_POST(self)
+
+            def do_DELETE(self):
+                return self._config("DELETE")
+
             def do_PUT(self):
+                if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)/[0-9a-f]{24}", self.path):
+                    return self._config("PUT")
                 n = int(self.headers.get("Content-Length") or 0)
                 try:
                     body = json.loads(self.rfile.read(n) or b"{}")

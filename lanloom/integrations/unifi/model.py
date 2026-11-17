@@ -593,17 +593,35 @@ USER_FIELDS = ("name", "use_fixedip", "fixed_ip", "network_id", "virtual_network
                "virtual_network_override_id")
 
 
+NET_FIELDS = ("name", "purpose", "networkgroup", "ip_subnet", "vlan_enabled", "vlan", "dhcpd_enabled", "dhcpd_start",
+              "dhcpd_stop", "enabled", "setting_preference", "internet_access_enabled", "ipv6_interface_type")
+FORWARD_FIELDS = ("name", "enabled", "src", "dst_port", "fwd", "fwd_port", "proto", "log", "pfwd_interface")
+
+
 def network_refs(raw) -> dict:
-    """Neutral network id -> {"id": classic object id, "cidr", "purpose", "gateway_ip"} for every network of the
-    classic API (the write half needs the classic id in a client's settings)."""
+    """Neutral network id -> {"id": classic object id, "cidr", "purpose", "gateway_ip", "vlan", "record": {the network
+    settings the write half may change or must put back, as stored now}} for every network of the classic API (the
+    write half needs the classic id in a client's settings and for its own network changes)."""
     ids = _Ids(raw)
     out = {}
     for n in items(raw, "networkconf"):
         if not n.get("_id"):
             continue
         cidr = cidr_of(n.get("ip_subnet"))
+        vlan = num(n.get("vlan")) if n.get("vlan_enabled", True) is not False else None
         out[ids.net_id(n["_id"])] = {"id": str(n["_id"]), "cidr": cidr, "purpose": str(n.get("purpose") or ""),
-                                     "gateway_ip": str(ipaddress.ip_interface(n["ip_subnet"]).ip) if cidr else None}
+                                     "gateway_ip": str(ipaddress.ip_interface(n["ip_subnet"]).ip) if cidr else None,
+                                     "vlan": vlan if isinstance(vlan, int) and vlan > 0 else None,
+                                     "record": {f: n.get(f) for f in NET_FIELDS if f in n}}
+    return out
+
+
+def forward_refs(raw) -> dict:
+    """Neutral port forward id -> {"id": classic object id, "record": {the settings as stored now}}."""
+    out = {}
+    for p in items(raw, "portforward"):
+        if p.get("_id"):
+            out[oid("f", p["_id"])] = {"id": str(p["_id"]), "record": {f: p.get(f) for f in FORWARD_FIELDS if f in p}}
     return out
 
 
@@ -616,7 +634,7 @@ def client_refs(raw) -> dict:
         mac = norm_mac(u.get("mac"))
         if mac and u.get("_id"):
             out[oid("c", mac)] = {"user": str(u["_id"]), "online": False, "wired": bool(u.get("is_wired")),
-                                  "record": {f: u.get(f) for f in USER_FIELDS if f in u}}
+                                  "record": {f: u.get(f) for f in USER_FIELDS if f in u}, "reservation": oid("d", mac)}
     for c in items(raw, "sta"):
         mac = norm_mac(c.get("mac"))
         if not mac:
@@ -629,7 +647,7 @@ def client_refs(raw) -> dict:
         uid = c.get("user_id") or c.get("_id")
         if uid:
             out[cid] = {"user": str(uid), "online": True, "wired": bool(c.get("is_wired")),
-                        "record": {f: c.get(f) for f in USER_FIELDS if f in c}}
+                        "record": {f: c.get(f) for f in USER_FIELDS if f in c}, "reservation": oid("d", mac)}
     return out
 
 

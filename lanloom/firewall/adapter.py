@@ -23,6 +23,7 @@ Contract of an adapter (all methods synchronous, called from the executor thread
                                 allows nothing else (see ``lanloom.connguard``)
 """
 import copy
+import ipaddress
 import json
 import threading
 import time
@@ -154,6 +155,43 @@ def with_sample_hypervisor(state: dict, now: float = None) -> dict:
     return out
 
 
+# the sample gateway: address service per network and two port forwards (rehearsal target for gateway changes)
+SAMPLE_DHCP = {"n_mgmt": (200, 249), "n_main": (100, 199), "n_media": (100, 199), "n_work": (100, 199),
+               "n_smart": (100, 199), "n_cams": (100, 199), "n_guest": (100, 249)}
+SAMPLE_FORWARDS = [
+    {"id": "f_photos", "name": "Photo sharing", "proto": "tcp", "wan_port": "8443", "dst_ip": "192.168.50.10", "dst_port": "443",
+     "enabled": True},
+    {"id": "f_game", "name": "Game server", "proto": "udp", "wan_port": "27015", "dst_ip": "192.168.50.21", "dst_port": "27015",
+     "enabled": False},
+]
+
+
+def with_sample_gateway(state: dict) -> dict:
+    """The sample network plus the sample gateway's settings: an address range per network and two port forwards.
+    Fixed addresses are not stored separately: the sample derives them from its devices (as a gateway does from its
+    client list). A state that already has port forwards is returned unchanged."""
+    if "port_forwards" in state:
+        return state
+    out = dict(state)
+    nets = []
+    for n in state.get("networks") or []:
+        n = dict(n)
+        rng = SAMPLE_DHCP.get(n.get("id"))
+        if rng and "dhcp" not in n and n.get("cidr"):
+            base = ipaddress.ip_network(n["cidr"], strict=False).network_address
+            n["dhcp"] = {"on": True, "range": [str(base + rng[0]), str(base + rng[1])]}
+        nets.append(n)
+    out["networks"] = nets
+    out["port_forwards"] = copy.deepcopy(SAMPLE_FORWARDS)
+    return out
+
+
+def sample_reservations(state: dict) -> list:
+    """Fixed addresses of the sample: one per device with a fixed address (id ``r_<device>``)."""
+    return [{"id": "r_" + d["id"], "client": d["id"], "ip": d["fixed_ip"], "name": d.get("name"), "network": d.get("network")}
+            for d in state.get("devices") or [] if d.get("fixed_ip")]
+
+
 def sample_state() -> dict:
     nets = {n["id"]: n for n in _NETS}
     devices = []
@@ -194,7 +232,7 @@ class SimulatedController(ControllerAdapter):
         self.writes = []
 
     def _initial(self) -> dict:
-        return with_sample_hypervisor(sample_state()) if self.hypervisor else sample_state()
+        return with_sample_gateway(with_sample_hypervisor(sample_state())) if self.hypervisor else sample_state()
 
     def capabilities(self) -> dict:
         if self._caps:
@@ -202,14 +240,22 @@ class SimulatedController(ControllerAdapter):
         from ..integrations.simulation import CAPABILITIES
         return copy.deepcopy(CAPABILITIES)
 
+    def _gateway(self) -> bool:
+        return "port_forwards" in self._state
+
     def read(self) -> dict:
         with self._lock:
-            return copy.deepcopy(self._state)
+            out = copy.deepcopy(self._state)
+            if self._gateway():
+                out["dhcp_reservations"] = sample_reservations(out)
+            return out
 
     def snapshot(self, ids) -> dict:
         ids = set(ids)
         with self._lock:
-            out = {"devices": [copy.deepcopy(d) for d in self._state["devices"] if d["id"] in ids]}
+            # a fixed address of the sample is its device: releasing it saves the device
+            res = {"r_" + d["id"] for d in self._state["devices"]} & ids
+            out = {"devices": [copy.deepcopy(d) for d in self._state["devices"] if d["id"] in ids or "r_" + d["id"] in res]}
             for area, items in self._state.items():
                 if area != "devices" and isinstance(items, list):
                     hit = [copy.deepcopy(o) for o in items if isinstance(o, dict) and o.get("id") in ids]
@@ -230,12 +276,18 @@ class SimulatedController(ControllerAdapter):
                 self._save()
                 return None
             kind = stepkinds.KINDS[step["kind"]]
+            if kind.area == "dhcp_reservations":
+                return self._apply_reservation(step)
             items = self._state.setdefault(kind.area, [])
             oid = step["object"]
             if kind.verb == "create":
                 self._next += 1
                 new_id = "sim%04d" % self._next
                 item = dict(step["after"], id=new_id, own=True)
+                if kind.area == "networks":            # a new sample network: in the default zone, never management
+                    from . import netconf
+                    item.setdefault("zone", netconf.default_zone(self._state))
+                    item.update(management=False, vlan=item.get("vlan"))
                 if kind.area == "guest_rules":          # a sample guest rule, appended like on a real host
                     mine = [r for r in items if r.get("owner") == item.get("guest")]
                     item.update(scope="guest", owner=item.get("guest"), plain=True, direction=item.get("direction", "in"),
@@ -261,6 +313,22 @@ class SimulatedController(ControllerAdapter):
             self._save()
             return None
 
+    def _apply_reservation(self, step: dict):
+        """A fixed address of the sample lives on its device (``r_<device>``)."""
+        if step["kind"] == "dhcp.reserve":
+            dev = next(d for d in self._state["devices"] if d["id"] == step["after"]["client"])
+            if dev.get("fixed_ip") != step["after"]["ip"]:
+                dev.update(fixed_ip=step["after"]["ip"], fixed=True)     # taken at the next lease
+                self.writes.append(dev["id"])
+                self._save()
+            return {"id": "r_" + dev["id"]}
+        dev = next((d for d in self._state["devices"] if "r_" + d["id"] == step["object"]), None)
+        if dev is not None and dev.get("fixed_ip"):
+            dev.update(fixed_ip="", fixed=False)
+            self.writes.append(dev["id"])
+            self._save()
+        return None
+
     def _sync_hv(self) -> None:
         """Keep the display fields of the sample hypervisor in line with what a step wrote (the guest firewall switch
         in the options list, port and comment of a guest rule)."""
@@ -275,7 +343,10 @@ class SimulatedController(ControllerAdapter):
                 r["comment"] = ("lanloom: %s" % r["name"]).strip() if r.get("own") else (r.get("name") or None)
 
     def lockout(self, state: dict, step: dict):
-        """The guest rules of a hypervisor family, with the sample's own critical addresses."""
+        """The guest rules of a hypervisor family, with the sample's own critical addresses; the gateway rules."""
+        from . import netconf
+        if step.get("kind") in netconf.NET_KINDS:
+            return netconf.step_lockout(state, step)
         if not str(step.get("kind", "")).startswith("guest."):
             return None
         from . import guests
@@ -283,14 +354,17 @@ class SimulatedController(ControllerAdapter):
         return guests.step_lockout(state, step, crit)
 
     def plan_lockout(self, state: dict, steps: list):
-        from . import guests
-        return guests.plan_lockout(state, steps)
+        from . import guests, netconf
+        return guests.plan_lockout(state, steps) or netconf.plan_lockout(state, steps)
 
     def restore(self, snapshot: dict) -> None:
         with self._lock:
             if self.fail_restore:
                 raise RuntimeError("simulated restore failure")
             created = set(snapshot.get("created") or [])
+            for d in self._state["devices"]:           # a fixed address the plan reserved goes away again
+                if "r_" + d["id"] in created:
+                    d.update(fixed_ip="", fixed=False)
             by_id = {d["id"]: d for d in snapshot.get("devices") or []}
             self._state["devices"] = [copy.deepcopy(by_id.get(d["id"], d)) for d in self._state["devices"]]
             for area, saved in snapshot.items():

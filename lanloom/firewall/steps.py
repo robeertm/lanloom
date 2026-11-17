@@ -128,11 +128,19 @@ def _bands(v):
 
 
 def _dhcp(v):
-    if not isinstance(v, dict) or set(v) - {"on", "start", "stop"} or not isinstance(v.get("on"), bool):
+    """A network's address service in the shape of the neutral model: {"on": bool, "range": [first, last] | None}."""
+    if not isinstance(v, dict) or set(v) - {"on", "range"} or not isinstance(v.get("on"), bool):
         raise FieldError("dhcp")
-    for k in ("start", "stop"):
-        if k in v:
-            _ip(v[k])
+    rng = v.get("range")
+    if rng is None:
+        return
+    if not isinstance(rng, list) or len(rng) != 2:
+        raise FieldError("dhcp")
+    for x in rng:
+        _ip(x)
+    if ipaddress.ip_address(rng[0]).version != ipaddress.ip_address(rng[1]).version or \
+            ipaddress.ip_address(rng[0]) > ipaddress.ip_address(rng[1]):
+        raise FieldError("dhcp")
 
 
 NETWORK_FIELDS = {"name": _text(), "cidr": _cidr, "vlan": _vlan_or_none, "dhcp": _dhcp, "zone": _ident,
@@ -205,7 +213,8 @@ KINDS = dict([
     _k("move", "devices", {"network": _ident, "ip": _ip_or_empty}),
     _k("client.set", "devices", {"name": _text(), "fixed_ip": _ip_or_empty, "network": _ident}),
     _k("client.block", "devices", {"blocked": _bool}, confirm=True),
-    _k("network.create", "networks", NETWORK_FIELDS, verb="create", required=("name", "cidr", "zone"), inverse="network.delete"),
+    # a new network names its zone only where the family places it (a zone firewall); without zones it has none
+    _k("network.create", "networks", NETWORK_FIELDS, verb="create", required=("name", "cidr"), inverse="network.delete"),
     _k("network.update", "networks", NETWORK_FIELDS),
     _k("network.delete", "networks", NETWORK_FIELDS, verb="delete", inverse="network.create"),
     _k("zone.create", "zones", ZONE_FIELDS, verb="create", required=("name",), inverse="zone.delete"),
@@ -221,8 +230,10 @@ KINDS = dict([
     _k("ssid.delete", "ssids", SSID_FIELDS, verb="delete", inverse="ssid.create"),
     _k("dhcp.reserve", "dhcp_reservations", {"client": _ident, "ip": _ip}, verb="create", required=("client", "ip"), inverse="dhcp.release"),
     _k("dhcp.release", "dhcp_reservations", {"client": _ident, "ip": _ip}, verb="delete", inverse="dhcp.reserve"),
-    _k("forward.create", "port_forwards", FORWARD_FIELDS, verb="create", required=("name", "proto", "wan_port", "dst_ip"), inverse="forward.delete"),
-    _k("forward.update", "port_forwards", FORWARD_FIELDS),
+    # a port forward opens a device to the internet: every new one, and every change other than its name, is confirmed
+    _k("forward.create", "port_forwards", FORWARD_FIELDS, verb="create", required=("name", "proto", "wan_port", "dst_ip"),
+       inverse="forward.delete", confirm=True),
+    _k("forward.update", "port_forwards", FORWARD_FIELDS, confirm_fields=("enabled", "wan_port", "dst_ip", "dst_port", "proto")),
     _k("forward.delete", "port_forwards", FORWARD_FIELDS, verb="delete", inverse="forward.create"),
     _k("guest.power", "guests", {"status": _enum("running", "stopped")}, confirm=True),
     _k("guest.firewall", "guests", {"firewall": _bool}, confirm=True),

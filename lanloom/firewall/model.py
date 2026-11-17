@@ -8,7 +8,7 @@ State format (what an adapter publishes; device ids are opaque hashes, never har
      "networks": [{"id", "name", "zone", "cidr", "vlan": int, "management": bool}],
      "devices":  [{"id", "name", "kind", "network", "ip", "fixed": bool, "wired": bool,
                    "alone_on_port": bool | None, "private_address": bool, "protected": reason | None}],
-     "dependencies": [{"device": id, "by": str}],
+     "dependencies": [{"device": id, "by": str, "via"?: integration|tracker|automation|lanloom}],
      "side_effects": {"wireless_move": "reprovision_all" | None}}
 
 A plan step only names ids. The executor resolves them from its own fresh read of the controller.
@@ -17,7 +17,7 @@ import ipaddress
 import secrets
 import time
 
-from . import neutral, steps as stepkinds
+from . import neutral, netconf, steps as stepkinds
 from .canon import digest_hex, fingerprint
 
 from .steps import MAX_OBJECTS  # noqa: E402  (re-exported: model.MAX_OBJECTS)
@@ -215,8 +215,8 @@ def _edit_only(state, dev, edit, steps, changes, warnings, blocks, confirm, deps
             warnings.append(["fw.warn.fixed_ip_lease", {"name": dev["name"], "ip": edit["fixed_ip"]}])
         else:
             warnings.append(["fw.warn.fixed_ip_removed", {"name": dev["name"]}])
-            for by in deps.get(dev["id"], []):
-                warnings.append(["fw.warn.dependency", {"name": dev["name"], "by": by}])
+            for dep in deps.get(dev["id"], []):
+                warnings.append(netconf.dep_warning(dev["name"], dep))
         if requester and requester["id"] == dev["id"]:
             warnings.append(["fw.warn.self", {"name": dev["name"]}])
             confirm.append("self")
@@ -234,7 +234,8 @@ def preview(state: dict, moves: dict, *, requester_ip: str = None, quiet: bool =
     requester = next((d for d in devs.values() if requester_ip and d.get("ip") == requester_ip), None)
     deps = {}
     for dep in state.get("dependencies") or []:
-        deps.setdefault(dep.get("device"), []).append(dep.get("by"))
+        if isinstance(dep, dict):
+            deps.setdefault(dep.get("device"), []).append(dep)
     wireless_moved = False
     for dev_id in sorted(set(moves) | set(edits)):
         net_id = moves.get(dev_id)
@@ -296,8 +297,8 @@ def preview(state: dict, moves: dict, *, requester_ip: str = None, quiet: bool =
             warnings.append(["fw.warn.no_internet", {"name": dev["name"], "net": net["name"]}])
         if before["discovery"] and not after["discovery"] and dev.get("kind") in CLIENT_KINDS:
             warnings.append(["fw.warn.discovery", {"name": dev["name"], "net": net["name"]}])
-        for by in deps.get(dev_id, []):
-            warnings.append(["fw.warn.dependency", {"name": dev["name"], "by": by}])
+        for dep in deps.get(dev_id, []):
+            warnings.append(netconf.dep_warning(dev["name"], dep))
         if requester and requester["id"] == dev_id:
             warnings.append(["fw.warn.self", {"name": dev["name"]}])
             confirm.append("self")
@@ -468,8 +469,8 @@ def lockout_reason(state: dict, step: dict):
         return "fw.block.protected"
     if obj.get("editable") is False or obj.get("builtin"):
         return "fw.block.builtin"
-    if kind.verb == "delete" and not obj.get("own"):
-        return "fw.block.not_own"
+    if kind.verb == "delete" and not obj.get("own") and kind.area != "dhcp_reservations":
+        return "fw.block.not_own"                 # (a fixed address is released, not deleted: any may go)
     if kind.area == "networks" and obj.get("management"):
         return "fw.block.management"
     if kind.area == "ports" and obj.get("is_uplink"):

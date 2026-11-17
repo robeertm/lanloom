@@ -12,9 +12,9 @@ import threading
 import time
 from pathlib import Path
 
-from . import guests, model
+from . import guests, model, netconf, segplan
 from . import steps as stepkinds
-from .adapter import SimulatedController, with_sample_hypervisor
+from .adapter import SimulatedController, with_sample_gateway, with_sample_hypervisor
 from .canon import digest
 from ..updates import is_older as _older
 from .signature import Invalid, b64u, cose_to_xy, key_fingerprint, verify_assertion
@@ -63,12 +63,13 @@ class Editor:
         self.notify = None         # notification rules (set by the app)
         self.identity = None       # callable -> ({address: reason}, {mac hash: reason}): what the app knows about the
                                    # network (its own address, name servers, gateway, hub/controller); critical guests
+        self.address_users = None  # callable -> {address: [{"via", "by"}]}: what uses an address (hub, Lanloom itself)
 
     # ------------------------------------------------------------------ simulation
     def sim(self):
         if self._sim is None:
             saved = self.store.get_setting("fw_sim_state", None)
-            self._sim = SimulatedController(state=with_sample_hypervisor(saved) if isinstance(saved, dict) and saved.get("devices") else None,
+            self._sim = SimulatedController(state=with_sample_gateway(with_sample_hypervisor(saved)) if isinstance(saved, dict) and saved.get("devices") else None,
                                             hypervisor=True,
                                             persist=lambda s: self.store.set_setting("fw_sim_state", s),
                                             settle_s=float(_env_int("LANLOOM_FW_SIM_SETTLE_S", 3)))
@@ -132,7 +133,9 @@ class Editor:
                 clean[dev_id] = net_id
         prev = self.draft(user)
         ed = model.clean_edits(st, prev.get("edits") if edits is None else edits)
-        gops = guests.clean_ops(st, prev.get("ops") if ops is None else ops)
+        raw_ops = prev.get("ops") if ops is None else ops
+        gops = guests.clean_ops(st, raw_ops)
+        gops.update(netconf.clean_ops(st, raw_ops))
         n = len(set(clean) | set(ed)) + len(gops)
         if n > model.MAX_OBJECTS:
             raise model.Refused("fw.block.too_many", n=n, max=model.MAX_OBJECTS)
@@ -179,6 +182,7 @@ class Editor:
             from ..integrations import capabilities as capmod
             st = entry["state"]
             return {"mode": "live", "source": source, "sources": sources, "state": st, "targets": {},
+                    "segplan": segplan.status(st, segplan.load(self.store)), "uses": self.dependencies(st),
                     "draft": dict(self.EMPTY, moves={}, edits={}, ops={}), "quiet": self.is_quiet(), "quiet_hours": self.quiet_hours,
                     "executor": self.executor_status(), "running": None, "history": [], "max_objects": model.MAX_OBJECTS,
                     "requester": next((d["id"] for d in st.get("devices") or [] if d.get("ip") == client_ip), None),
@@ -193,12 +197,23 @@ class Editor:
         if st is not None:
             out["state"] = st
             out["targets"] = {d["id"]: model.drop_targets(st, d) for d in st.get("devices") or []}
+            out["segplan"] = segplan.status(st, segplan.load(self.store))
+            out["uses"] = self.dependencies(st)
+            if any(k.startswith(("network.", "dhcp.", "forward.")) for k in (self.capabilities().get("write") or {})):
+                out["netconf"] = {"templates": [netconf.suggest(st, t["id"]) for t in netconf.TEMPLATES],
+                                  "default_zone": netconf.default_zone(st),
+                                  "refs": {n["id"]: netconf.references(st, n["id"]) for n in st.get("networks") or []}}
             out["requester"] = next((d["id"] for d in st.get("devices") or [] if d.get("ip") == client_ip), None)
             if st.get("guests"):
                 crit = self.critical(st)
                 out["guests"] = {"critical": crit, "bridges": {g["id"]: sorted(guests.target_bridges(st, g)) for g in st["guests"]
                                                               if not g.get("template")}}
         return out
+
+    def set_segplan(self, items: dict) -> dict:
+        """Mark target networks (``{device id: {"net": id} | {"label": text} | None}``); Lanloom data, nothing written to
+        a controller."""
+        return segplan.set_targets(self.store, items)
 
     def critical(self, st: dict) -> dict:
         """{guest id: reason}: guests that keep the network or Lanloom running (see ``guests.critical_guests``), from
@@ -226,23 +241,73 @@ class Editor:
         if st is None:
             raise model.Refused("fw.err.no_state")
         d = self.draft(user)
-        pv = model.preview(st, d.get("moves") or {}, requester_ip=client_ip, quiet=self.is_quiet(),
+        pv = model.preview(self._with_deps(st), d.get("moves") or {}, requester_ip=client_ip, quiet=self.is_quiet(),
                            edits=model.clean_edits(st, d.get("edits")))
         gops = guests.clean_ops(st, d.get("ops"))
+        nops = netconf.clean_ops(st, d.get("ops"))
+        parts = []
         if gops:
-            g = guests.preview(st, gops, self.critical(st))
+            parts.append(guests.preview(st, gops, self.critical(st)))
+        if nops:
+            parts.append(netconf.preview(st, nops, deps=self.dependencies(st), critical=self.forward_critical(st)))
+        for g in parts:
             pv["steps"] = pv["steps"] + g["steps"]
             pv["changes"] = pv["changes"] + g["changes"]
             pv["warnings"] = pv["warnings"] + g["warnings"]
             pv["blocks"] = pv["blocks"] + g["blocks"]
             pv["confirm"] = pv["confirm"] + g["confirm"]
+        if parts:
             pv["costs"] = {"objects": len(pv["steps"])}
             if len(pv["steps"]) > model.MAX_OBJECTS and not any(b[0] == "fw.block.too_many" for b in pv["blocks"]):
                 pv["blocks"].append(["fw.block.too_many", {"n": len(pv["steps"]), "max": model.MAX_OBJECTS}])
-            if self.is_quiet() and g["steps"] and "quiet" not in pv["confirm"]:
+            if self.is_quiet() and any(g["steps"] for g in parts) and "quiet" not in pv["confirm"]:
                 pv["warnings"].append(["fw.warn.quiet", {}])
                 pv["confirm"].append("quiet")
         return pv
+
+    def _with_deps(self, st: dict) -> dict:
+        """The state plus what uses its devices by address (for the preview's warnings; not part of the fingerprint)."""
+        extra = []
+        for dev_id, items in self.dependencies(st, own=False).items():
+            extra.extend(dict(x, device=dev_id) for x in items)
+        if not extra:
+            return st
+        return dict(st, dependencies=list(st.get("dependencies") or []) + extra)
+
+    def dependencies(self, st: dict, own: bool = True) -> dict:
+        """{device id: [{"via", "by"}]} - what uses each device of the state by its address: the hub (integrations,
+        presence trackers, automations) and Lanloom's own sources. ``own``: include the state's own list."""
+        out = {}
+        if own:
+            for dep in st.get("dependencies") or []:
+                if isinstance(dep, dict) and dep.get("device"):
+                    out.setdefault(dep["device"], []).append({k: dep[k] for k in ("by", "via") if k in dep})
+        users = {}
+        if self.address_users:
+            try:
+                users = self.address_users() or {}
+            except Exception:
+                users = {}
+        if users:
+            for d in st.get("devices") or []:
+                seen = set()
+                for ip in {d.get("ip"), d.get("fixed_ip")} - {None, ""}:
+                    for u in users.get(ip, []):
+                        key = (u.get("via"), u.get("by"))
+                        if key not in seen:
+                            seen.add(key)
+                            out.setdefault(d["id"], []).append({"via": u.get("via"), "by": u.get("by")})
+        return out
+
+    def forward_critical(self, st: dict) -> list:
+        """Addresses a port forward must never reach: the gateway, the controller and hubs Lanloom reads."""
+        addrs = {}
+        if self.identity:
+            try:
+                addrs, _ = self.identity()
+            except Exception:
+                addrs = {}
+        return sorted(ip for ip, why in addrs.items() if why in ("hv.why.gateway", "hv.why.controller"))
 
     def make_plan(self, user, client_ip: str, confirmed: list, rp_id: str) -> dict:
         pv = self.preview(user, client_ip)
@@ -301,11 +366,11 @@ class Editor:
         job = next((j for j in self.history() if j["plan"] == plan_id), None)
         if not job or job.get("status") != "done" or not job.get("inverse") or not job.get("undo_until") or time.time() > job["undo_until"]:
             raise model.Refused("fw.err.undo_gone")
-        if any(s.get("kind") not in ("move", "client.set") + guests.GUEST_KINDS for s in job["inverse"]):
-            raise model.Refused("fw.err.undo_gone")      # only moves, client settings and guest changes are drafted here
+        if any(s.get("kind") not in ("move", "client.set") + guests.GUEST_KINDS + netconf.NET_KINDS for s in job["inverse"]):
+            raise model.Refused("fw.err.undo_gone")      # only kinds this editor drafts
         moves, edits, ops = {}, {}, {}
         for s in job["inverse"]:
-            if s["kind"] in guests.GUEST_KINDS:
+            if s["kind"] in guests.GUEST_KINDS or s["kind"] in netconf.NET_KINDS:
                 ops[guests.op_key(s["kind"], s["object"])] = {"kind": s["kind"], "object": s["object"], "after": s["after"]}
                 continue
             if s["kind"] == "move":
@@ -334,6 +399,12 @@ class Editor:
             if s["kind"] == "move":
                 summary.append({"name": (devs.get(s["device"]) or {}).get("name", "?"), "from": (nets.get(s["before"]["network"]) or {}).get("name", "?"),
                                 "to": (nets.get(s["after"]["network"]) or {}).get("name", "?")})
+            elif s["kind"] in netconf.NET_KINDS:
+                item = {"name": netconf.label(st, s), "kind": s["kind"],
+                        "fields": [f for f in stepkinds.changed_fields(s) if f not in ("client", "zone", "purpose")]}
+                if s["kind"] in ("dhcp.reserve", "dhcp.release"):
+                    item["ip"] = (s["after"] or s["before"]).get("ip")
+                summary.append(item)
             elif s["kind"] in guests.GUEST_KINDS:
                 _, label = guests._label(st, s)
                 fields = [f for f in stepkinds.changed_fields(s) if f != "guest"]

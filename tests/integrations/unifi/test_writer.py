@@ -54,7 +54,7 @@ def plan_for(w, moves=None, edits=None):
 
 
 # ---------------------------------------------------------------------------- the allow-list below the adapter
-def test_allow_list_holds_only_the_client_fields():
+def test_allow_list_holds_only_the_listed_fields():
     ok = wmod.ALLOW.check("PUT", "/proxy/network/api/s/default/rest/user/" + U_PHONE, {"name": "x"})
     assert ok.method == "PUT"
     for body in ({}, {"blocked": True}, {"name": "x", "usergroup_id": "a"}, {"fixed_ip": "not-an-ip"},
@@ -63,7 +63,11 @@ def test_allow_list_holds_only_the_client_fields():
             wmod.ALLOW.check("PUT", "/api/s/default/rest/user/" + U_PHONE, body)
     for method, path, body in (("POST", "/api/s/default/cmd/stamgr", {"cmd": "block-sta"}), ("POST", "/api/s/default/cmd/devmgr", {}),
                                ("DELETE", "/api/s/default/rest/user/" + U_PHONE, None),
-                               ("PUT", "/api/s/default/rest/networkconf/" + fx.C_NET_LAN, {"name": "x"}),
+                               ("PUT", "/api/s/default/rest/networkconf/" + fx.C_NET_LAN, {"purpose": "wan"}),
+                               ("PUT", "/api/s/default/rest/networkconf/" + fx.C_NET_LAN, {"vlan": 5}),
+                               ("POST", "/api/s/default/rest/networkconf", {"name": "x", "purpose": "wan"}),
+                               ("DELETE", "/api/s/default/rest/wlanconf/5f0000000000000000000601", None),
+                               ("POST", "/api/s/default/rest/portforward", {"name": "x"}),
                                ("PUT", "/api/s/default/rest/wlanconf/5f0000000000000000000601", {"name": "x"}),
                                ("PUT", "/api/s/default/rest/user/../setting", {"name": "x"}),
                                ("POST", "/api/login", {"username": "a"}),
@@ -104,7 +108,9 @@ def test_unknown_options_and_missing_credentials_are_refused(fake):
 def test_capabilities_and_endpoints(fake):
     w = writer(fake)
     caps = w.capabilities()
-    assert caps["write"] == {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "client.set.network": "B"}
+    assert {k: v for k, v in caps["write"].items() if k.startswith(("move", "client."))} == \
+        {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "client.set.network": "B"}
+    assert caps["write"]["network.create"] == "B" and caps["write"]["forward.create"] == "B*" and "network.update.vlan" not in caps["write"]
     assert caps["limits"]["logins_per_hour"] == 4 and w.endpoints() == ["127.0.0.1"]
 
 
