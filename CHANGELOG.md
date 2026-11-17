@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.25.0] – 2026-11-17
+
+### Added
+- Read adapter for Sophos Firewall (local XML API, see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) and the guide [docs/integrations/sophos.md](docs/integrations/sophos.md)). Product names are used only to identify compatible products; no affiliation or endorsement.
+- **Zone firewall, read only**: zones with the management services they allow, interfaces, VLANs and aliases as networks, firewall rules in their order (network and user rules, one row per source and destination zone, addresses and services in plain words, schedules), rule groups, port forwarding from NAT rules, source NAT, DHCP servers with fixed addresses, static routes, IPsec and SSL VPN. The Firewall tab shows the zone matrix (traffic no rule allows is dropped), the rules, port forwarding, a new **Checks** card and a table of internet connections, VPN connections and other objects; rules for every zone are grouped under *any zone*.
+- **Checks** in plain words: management open on the internet side, a rule that lets everything in from the internet side, an enabled any-to-any rule, rules that are switched off.
+- **Nightly report section** of the firewall (only with such a connection): rules added, removed, switched on or off or acting differently since the last report, port forwarding added or removed, and the checks. The report keeps one short fingerprint per rule instead of the rule list.
+- Command **Firewall checks** in the search (`Ctrl K`): opens the Firewall tab on the firewall source with the checks in view.
+- Setup assistant: suggests the family for a device whose admin console answers on its default port with a matching page title (never a sign-in).
+- Demo: a *Sample firewall* with zones, rules, forwarding, VPN and a rule that arrived overnight.
+- Transport: a read allow-list may hold one *query* rule for devices whose read API takes a query document by POST - form-encoded, one path, and a mandatory check per field that proves the document only reads; anything else is refused before a byte is sent. The adapter's check allows exactly an account and a `<Get>` of known objects.
+
+### Security
+- The adapter never asks for users, certificates or the administrator list; secrets that a reply may carry (pre-shared key of an IPsec connection, PPPoE password of an interface) are dropped in the same step and never stored, logged or shown; after a refused sign-in it waits 15 minutes so a wrong password cannot lock the account; reply documents with type or entity declarations are refused unread.
+
 ## [1.24.0] – 2026-11-17
 
 ### Added

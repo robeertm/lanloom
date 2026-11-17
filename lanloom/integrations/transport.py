@@ -5,7 +5,9 @@ An adapter never opens a connection itself. It builds a ``Transport`` with an al
 The adapter cannot widen the list at run time (lists are frozen when the transport is made).
 
 * ``read_allowlist(...)`` - for read halves: GET only, plus at most a login/logout POST whose body has exactly the
-  declared credential fields. Anything else in a read list is a programming error and raises at import time.
+  declared credential fields, plus (for devices whose read API is a query document sent by POST) a *query* POST
+  whose every body field has a mandatory value check that proves the document only reads. Anything else in a read
+  list is a programming error and raises at import time.
 * ``write_allowlist(...)`` - for write halves (executor only): every rule names the method, the path pattern, the
   exact body fields it may carry and a check for each value. A write rule without a body specification is invalid.
 
@@ -18,7 +20,7 @@ import http.client
 import json
 import re
 import ssl
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 MAX_BYTES = 8 * 1024 * 1024
 READ_METHODS = ("GET",)
@@ -36,17 +38,22 @@ class TransportError(Exception):
 
 
 class Rule:
-    __slots__ = ("method", "path", "fields", "values", "login", "nonempty")
+    __slots__ = ("method", "path", "fields", "values", "login", "nonempty", "query", "form")
 
-    def __init__(self, method: str, path: str, *, fields=None, values=None, login: bool = False, nonempty: bool = False):
+    def __init__(self, method: str, path: str, *, fields=None, values=None, login: bool = False, nonempty: bool = False,
+                 query: bool = False, form: bool = False):
         self.method = method.upper()
         self.path = re.compile(r"\A(?:%s)\Z" % path)
         self.fields = None if fields is None else frozenset(fields)
         self.values = dict(values or {})
         self.login = login
         self.nonempty = nonempty                 # the body must carry at least one of the fields
+        self.query = query                       # read query: every field present and checked (see read_allowlist)
+        self.form = form                         # body sent as application/x-www-form-urlencoded instead of JSON
         if set(self.values) - set(self.fields or ()):
             raise ValueError("value checks for fields the rule does not allow")
+        if query and (not self.fields or set(self.values) != set(self.fields) or not all(callable(c) for c in self.values.values())):
+            raise ValueError("a query rule needs a value check for every body field")
 
     def allows(self, method: str, path: str, body) -> bool:
         if method != self.method or not isinstance(path, str) or not self.path.match(path):
@@ -55,7 +62,7 @@ class Rule:
             return body is None
         if not isinstance(body, dict) or not set(body) <= self.fields:
             return False
-        if self.login and set(body) != self.fields:
+        if (self.login or self.query) and set(body) != self.fields:
             return False
         if self.nonempty and not body:
             return False
@@ -75,14 +82,14 @@ class AllowList:
         self.write = write
         for r in self.rules:
             if not write:
-                if r.method not in READ_METHODS and not (r.method == "POST" and (r.login or r.fields == frozenset())):
-                    raise ValueError("read allow-list may only hold GET and login/logout rules")
+                if r.method not in READ_METHODS and not (r.method == "POST" and (r.login or r.query or r.fields == frozenset())):
+                    raise ValueError("read allow-list may only hold GET, login/logout and checked query rules")
                 if r.method == "GET" and r.fields is not None:
                     raise ValueError("GET carries no body")
             elif r.method in WRITE_METHODS and r.method != "DELETE" and r.fields is None:
                 raise ValueError("write rule %s needs its exact body fields" % r.path.pattern)
 
-    def check(self, method: str, path: str, body=None) -> Rule:
+    def check(self, method: str, path: str, body=None) -> "Rule":
         method = (method or "").upper()
         for r in self.rules:
             if r.allows(method, path, body):
@@ -90,9 +97,24 @@ class AllowList:
         raise Forbidden("%s %s" % (method[:8], str(path)[:60]))
 
 
-def read_allowlist(get_paths, *, login=None, logout=None) -> AllowList:
-    """``get_paths``: regex patterns; ``login``: (path, credential fields); ``logout``: path (POST without body)."""
+def _strict(check):
+    """A query check that refuses on anything but a plain True (including every exception)."""
+    def run(value) -> bool:
+        try:
+            return check(value) is True
+        except Exception:
+            return False
+    return run
+
+
+def read_allowlist(get_paths, *, login=None, logout=None, query=None) -> AllowList:
+    """``get_paths``: regex patterns; ``login``: (path, credential fields); ``logout``: path (POST without body);
+    ``query``: (path, {field: check}) - a form-encoded POST for read APIs that take a query document; ``check(value)``
+    must return True only for a document that reads (anything else, or an exception, refuses the request)."""
     rules = [Rule("GET", p) for p in get_paths]
+    if query:
+        checks = {k: _strict(c) for k, c in dict(query[1]).items()}
+        rules.append(Rule("POST", query[0], fields=tuple(checks), values=checks, query=True, form=True))
     if login:
         rules.append(Rule("POST", login[0], fields=login[1], login=True))
     if logout:
@@ -148,7 +170,7 @@ class Transport:
     def request(self, method: str, path: str, body=None, *, headers=None):
         """One allowed request. Returns (status, headers list, bytes)."""
         try:
-            self._allow.check(method, path, body)
+            rule = self._allow.check(method, path, body)
         except Forbidden:
             self.refused += 1
             raise
@@ -159,7 +181,10 @@ class Transport:
         if self._auth:
             heads.update(self._auth())
         payload = None
-        if body is not None:
+        if body is not None and rule.form:
+            heads["Content-Type"] = "application/x-www-form-urlencoded"
+            payload = urlencode(body).encode("utf-8")
+        elif body is not None:
             heads["Content-Type"] = "application/json"
             payload = json.dumps(body).encode("utf-8")
         if self._tls:

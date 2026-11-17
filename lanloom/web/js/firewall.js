@@ -486,6 +486,21 @@
   LL.registerAction = LL.registerAction || function (act) { LL.actions = (LL.actions || []).filter(a => a.id !== act.id).concat([act]); };
   LL.registerCommand({ id: 'firewall-change-device', group: 'commands', order: 40, label: 'fw.cmd.change', keywords: 'fw.cmd.change_keywords',
     available: () => LL.can('operate'), run: () => LL.go('#/firewall/pick') });
+  // "Firewall checks": opens the first live source with checks of its own (a zone firewall read by an adapter)
+  LL.registerCommand({ id: 'firewall-checks', group: 'commands', order: 41, label: 'fw.cmd.checks', keywords: 'fw.cmd.checks_keywords',
+    run: async () => {
+      try {
+        const v = await LL.api('/api/firewall');
+        for (const s of (v.sources || []).filter(x => x.kind === 'live')) {
+          const x = s.key === v.source ? v : await LL.api('/api/firewall?source=' + encodeURIComponent(s.key));
+          if (x && x.state && (x.state.findings || []).length && !(x.state.hosts || []).length) {
+            try { localStorage.setItem('ll-fw-source', s.key); sessionStorage.setItem('ll-fw-focus', 'checks'); } catch (e) { /* ignore */ }
+            break;
+          }
+        }
+      } catch (e) { /* the tab opens anyway */ }
+      LL.go('#/firewall');
+    } });
   LL.registerAction({ id: 'firewall-move', kinds: ['device'], order: 20, label: 'fw.cmd.move_to', available: hit => LL.can('operate') && !!hit.ip,
     run: hit => LL.go('#/firewall/device/' + encodeURIComponent(hit.ip)) });
 })();
@@ -499,7 +514,7 @@
   const { h, t } = LL;
   const fmtCount = n => (n == null ? '' : n >= 1e9 ? LL.fmtNum(n / 1e9, 1) + '\u00a0G' : n >= 1e6 ? LL.fmtNum(n / 1e6, 1) + '\u00a0M' : n >= 1e4 ? LL.fmtNum(Math.round(n / 1e3), 0) + '\u00a0k' : LL.fmtNum(n, 0));
 
-  function zoneName(s, id) { const z = s.zones.find(x => x.id === id); return z ? z.name : '—'; }
+  function zoneName(s, id) { if (id === '*') return t('fw.zone.any'); const z = s.zones.find(x => x.id === id); return z ? z.name : '—'; }
   function netName(s, id) { const n = s.networks.find(x => x.id === id); return n ? n.name : '?'; }
   function wholeZone(p) { return Object.keys(p.src).every(k => k === 'zone') && Object.keys(p.dst).every(k => k === 'zone') && !p.ports && p.proto === 'any' && !(p.states || []).length && !p.scheduled; }
 
@@ -623,6 +638,35 @@
         fw.map(p => [h('strong', {}, p.name), h('span', { class: 'mono' }, p.wan_port || '—'), h('span', { class: 'mono' }, (p.dst_ip || '?') + (p.dst_port ? ':' + p.dst_port : '')),
           (p.proto || '').toUpperCase().replace('_', '/'), [p.enabled ? t('fw.state.on') : t('fw.state.off'), p.source_limited ? t('fw.fwd.limited') : null].filter(Boolean).join(' · ')]))
         : h('p', { class: 'muted' }, t('fw.fwd.none'))));
+    const checks = s.findings || [];
+    if (checks.length) {
+      const order = { alert: 0, warn: 1, info: 2 };
+      const card = h('section', { class: 'card fw-extra fw-checks', id: 'fw-checks' }, h('h2', {}, t('fw.checks.title')), h('p', { class: 'muted' }, t('fw.checks.lead')),
+        h('ul', { class: 'hv-findings' }, checks.slice().sort((a, b) => (order[a.level] ?? 3) - (order[b.level] ?? 3)).map(f =>
+          h('li', { class: 'hv-finding hv-finding--' + (f.level || 'info') },
+            h('span', { class: 'chip chip--' + ({ alert: 'danger', warn: 'warn', info: 'muted' }[f.level] || 'muted') }, t('hv.level.' + (f.level || 'info'))),
+            h('span', { class: 'hv-finding__text' }, t('fwr.finding.' + f.kind, f.params || {}))))));
+      out.unshift(card);
+      let focus = null;
+      try { focus = sessionStorage.getItem('ll-fw-focus'); sessionStorage.removeItem('ll-fw-focus'); } catch (e) { /* private mode */ }
+      if (focus === 'checks') {                     // the tab may draw twice while it loads: aim at whatever card is in the page
+        const aim = () => { const el = document.getElementById('fw-checks'); const r = el && el.getBoundingClientRect();
+          if (el && (r.top < 0 || r.top > innerHeight * 0.5)) el.scrollIntoView({ block: 'start' }); };
+        [150, 600, 1200].forEach(ms => setTimeout(aim, ms));
+      }
+    }
+    const more = [];
+    (s.wans || []).forEach(w => more.push([t('fw.more.wan'), h('strong', {}, w.name), w.type ? w.type.toUpperCase() : '—', w.enabled ? t('fw.state.on') : t('fw.state.off')]));
+    (s.vpn || []).forEach(v => more.push([t('fw.more.vpn'), h('strong', {}, v.name), [v.kind ? v.kind.toUpperCase() : null, v.type].filter(Boolean).join(' · ') || '—', v.enabled ? t('fw.state.on') : t('fw.state.off')]));
+    (s.dhcp_reservations || []).filter(r => r.name || r.server).forEach(r => more.push([t('fw.more.reservation'), h('strong', {}, r.name || '—'), h('span', {}, h('span', { class: 'mono' }, r.ip), r.server ? ' · ' + r.server : ''), '—']));
+    (s.raw || []).forEach(r => {
+      const kind = ['nat', 'route', 'rule_group'].includes(r.area) ? r.area : String(r.area || '').startsWith('rule_') ? 'rule_other' : null;
+      if (!kind) return;
+      more.push([t('fw.more.' + kind), h('strong', {}, r.title), r.count != null ? t('fw.more.rules_n', { n: r.count }) : r.source || '—',
+        r.enabled == null ? '—' : r.enabled ? t('fw.state.on') : t('fw.state.off')]);
+    });
+    if (more.length && (s.controller || {}).apis && s.controller.apis.includes('xml')) out.push(h('section', { class: 'card fw-extra' }, h('h2', {}, t('fw.more.title')),
+      h('p', { class: 'muted' }, t('fw.more.lead')), table([t('fw.col.kind'), t('fw.col.name'), t('fw.col.detail'), t('fw.col.state')], more)));
     return out;
   };
 })();

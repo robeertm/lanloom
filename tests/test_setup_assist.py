@@ -83,9 +83,11 @@ def _host(ip, mac, ports_=(), mdns=(), gateway=False, banners=None, sources=("ar
             "ports": [{"port": p, "proto": "tcp", "service": ports.service_name(p), "banner": (banners or {}).get(p)} for p in ports_]}
 
 
-def _family(caps_guests: bool):
-    """A built-in family by its kind of API (controller or hypervisor), never by name."""
-    return next(f for f in registry.families(selectable_only=True) if ("guests" in f.capabilities["read"]) == caps_guests and f.detect)
+def _family(caps_guests: bool, port_alone: bool = None):
+    """A built-in family by its kind of API (controller or hypervisor) and by its signs (``port_alone``: one sign is
+    an open port alone), never by name."""
+    return next(f for f in registry.families(selectable_only=True) if ("guests" in f.capabilities["read"]) == caps_guests and f.detect
+                and (port_alone is None or any(set(d) == {"port"} for d in f.detect) == port_alone))
 
 
 def _sign(fam, *keys):
@@ -96,9 +98,10 @@ HUB_TYPE = next(t for t, (k, w) in classify.MDNS_RULES.items() if k == "hub" and
 
 
 def test_suggestions_from_ports_titles_and_announcements():
-    ctl, hv = _family(False), _family(True)
+    ctl, hv, fw = _family(False, True), _family(True), _family(False, False)
     ctl_port, ctl_title = _sign(ctl, "port")["port"], _sign(ctl, "title")["title"]
     hv_sign = _sign(hv, "port", "title")
+    fw_sign = _sign(fw, "port", "title")
     c = _core()
     c.ingest({"hosts": [
         _host("192.168.9.1", "02:00:00:00:00:01", (53, 80), gateway=True),
@@ -107,7 +110,10 @@ def test_suggestions_from_ports_titles_and_announcements():
         _host("192.168.9.22", "02:00:00:00:00:22", (ctl_port,), banners={ctl_port: {"title": "Sample " + ctl_title.title(), "server": None}}),
         _host("192.168.9.23", "02:00:00:00:00:23", (22, hv_sign["port"]),
               banners={hv_sign["port"]: {"title": "node1 - " + hv_sign["title"].title(), "server": None}}),
+        _host("192.168.9.24", "02:00:00:00:00:24", (443, fw_sign["port"]),
+              banners={fw_sign["port"]: {"title": fw_sign["title"].title() + " - admin console", "server": None}}),
         _host("192.168.9.30", "02:00:00:00:00:30", (80, 443)),
+        _host("192.168.9.31", "02:00:00:00:00:31", (fw_sign["port"],)),   # the port alone is no sign of the firewall family
     ]}, None)
     sg = setup_assist.suggestions(c)
     got = {(s["kind"], s["ip"]): s for s in sg}
@@ -117,6 +123,9 @@ def test_suggestions_from_ports_titles_and_announcements():
     assert got[(ctl.family, "192.168.9.22")]["certainty"] == "sure" and got[(ctl.family, "192.168.9.22")]["guide"] == "family"
     assert got[(ctl.family, "192.168.9.22")]["prefill"]["url"] == "https://192.168.9.22:%d" % ctl_port
     assert got[(hv.family, "192.168.9.23")]["guide"] == "hv" and got[(hv.family, "192.168.9.23")]["certainty"] == "sure"
+    assert got[(fw.family, "192.168.9.24")]["guide"] == "family"
+    assert got[(fw.family, "192.168.9.24")]["prefill"]["url"] == "https://192.168.9.24:%d" % fw_sign["port"]
+    assert (fw.family, "192.168.9.31") not in got
     assert got[("snmp", "192.168.9.1")]["reasons"][0]["key"] == "setup.reason.gateway"
     assert not [s for s in sg if s["ip"] == "192.168.9.30"]           # a plain web server is no suggestion
     for s in sg:                                                        # never a credential in a prefill

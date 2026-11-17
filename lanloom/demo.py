@@ -449,6 +449,11 @@ class Demo:
         if hv:                             # a hypervisor family reading nodes, guests, firewall, storage and backups (read only)
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
                                (hv, "Sample hypervisor", _json.dumps({"url": "https://192.168.50.15:8006"}), time.time()))
+        fw = _demo_firewall()
+        if fw:                             # a zone firewall family reading zones, rules, forwarding and VPN (read only)
+            core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
+                               (fw, "Sample firewall", _json.dumps({"url": "https://192.168.50.1:4444", "username": "map-reader"}),
+                                time.time()))
 
     def report_certs(self) -> list:
         """Certificates of the demo connections (nightly report): one runs out soon."""
@@ -602,6 +607,12 @@ class Demo:
             if stopped:
                 next(g for g in hv_before["guests"] if g["id"] == stopped[0]["id"])["status"] = "running"
             hv_states = [hv_before, hv_before, hv_now]
+        fw = _demo_firewall()
+        fw_states = []
+        if fw and fw in ids:                   # the firewall: a rule and a forwarding from outside arrived during the last night
+            from .demo_live import firewall_capabilities, firewall_sample
+            fw_before, fw_now = firewall_sample(fw), firewall_sample(fw, extra_rule=True)
+            fw_states = [fw_before, fw_before, fw_now]
         self.seed_storage(core, planned)
         prev = None
         for i, day in enumerate(days):
@@ -610,6 +621,8 @@ class Demo:
                                            "t": time.time()}
             if hv_states:
                 core.live_cfg[ids[hv]] = {"state": hv_states[i], "caps": hypervisor_capabilities(hv), "family": hv, "t": time.time()}
+            if fw_states:
+                core.live_cfg[ids[fw]] = {"state": fw_states[i], "caps": firewall_capabilities(fw), "family": fw, "t": time.time()}
             since = prev["until"] if prev else planned[0] - 86400
             report = rep.assemble(since, planned[i] + 2, prev, day.isoformat(), self.report_certs())
             report["created"] = planned[i] + 2
@@ -626,6 +639,7 @@ class Demo:
             prev = report
         core.live_cfg.pop(ids.get(fam), None)
         core.live_cfg.pop(ids.get(hv), None)
+        core.live_cfg.pop(ids.get(fw), None)
         for day in days[:2]:
             core.store.execute("UPDATE reports SET read=? WHERE day=?", (now, day.isoformat()))
         first = rep.get(days[0].isoformat())
@@ -684,10 +698,15 @@ class Demo:
                 paths_sent = now
                 seed_paths(core, now)              # a demo set up through the wizard gets its history on the first minute
                 book_paths_minute(core, now, rng)
-            fam, hv = _demo_family(), _demo_family("guests")
+            fam, hv, fw = _demo_family(), _demo_family("guests"), _demo_firewall()
             if now - live_sent >= 60:
                 live_sent = now
-                from .demo_live import hypervisor_capabilities, hypervisor_sample, live_capabilities, live_sample
+                from .demo_live import (firewall_capabilities, firewall_sample, hypervisor_capabilities, hypervisor_sample,
+                                        live_capabilities, live_sample)
+                if fw and fw in ids:
+                    core.on_event("int:%d" % ids[fw], ids[fw], {"type": "config", "source": "family", "family": fw, "t": now,
+                                                               "state": firewall_sample(fw, extra_rule=True),
+                                                               "capabilities": firewall_capabilities(fw)})
                 if fam and fam in ids:
                     core.on_event("int:%d" % ids[fam], ids[fam], {"type": "config", "source": "family", "family": fam, "t": now,
                                                                  "state": live_sample(), "capabilities": live_capabilities(fam)})
@@ -772,12 +791,21 @@ class Demo:
         return demo_hub.history(entity, rng, numeric, now)
 
 
-def _demo_family(area: str = "zones"):
-    """The first device-family adapter offered in the integration dialog that reads ``area``: ``zones`` for the
-    controller (demo shows it as "Sample controller"), ``guests`` for the hypervisor ("Sample hypervisor")."""
+def _demo_family(area: str = "ssids", without: str = None):
+    """The first device-family adapter offered in the integration dialog that reads ``area`` (and not ``without``):
+    ``ssids`` for the controller (demo shows it as "Sample controller"), ``guests`` for the hypervisor ("Sample
+    hypervisor"), ``port_forwards`` without ``ssids`` for the zone firewall ("Sample firewall"), which must also
+    speak the query reply format the sample firewall is written in."""
     from . import integrations
-    fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read and area in (m.capabilities.get("read") or [])]
+    fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read and area in (m.capabilities.get("read") or [])
+            and not (without and without in (m.capabilities.get("read") or []))]
+    if area == "port_forwards":
+        fams = [f for f in fams if hasattr(integrations.load_model(f), "parse_reply")]
     return fams[0] if fams else None
+
+
+def _demo_firewall():
+    return _demo_family("port_forwards", without="ssids")
 
 
 

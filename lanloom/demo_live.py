@@ -215,3 +215,87 @@ def hypervisor_capabilities(family: str) -> dict:
             "read": ["inventory", "topology", "guests", "bridges", "networks", "firewall", "storage", "backups", "stats"],
             "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
             "lockout": ["own_guest", "node_bridge", "mgmt_network"]}
+
+
+# ---------------------------------------------------------------------------- sample firewall
+def _fw_reply(extra_rule: bool) -> bytes:
+    """One reply document of a sample zone firewall's query API (as the family's read half receives it), built from
+    the demo network: the router 192.168.50.1 with a home zone, a zone for smart devices, a DMZ for the web front end
+    and the internet side. ``extra_rule`` adds the rule and the forwarding that "arrived tonight" in the demo report."""
+    zones = "".join(
+        "<Zone><Name>%s</Name><Type>%s</Type><ApplianceAccess><AdminServices>%s</AdminServices></ApplianceAccess></Zone>" % z
+        for z in (("Home", "LAN", "<HTTPS>HTTPS</HTTPS><SSH>SSH</SSH>"), ("Internet", "WAN", "<HTTPS>HTTPS</HTTPS>"),
+                  ("Smart", "LAN", ""), ("Front", "DMZ", ""), ("Remote", "VPN", "")))
+    ifaces = ("<Interface><IPv4Configuration>Enable</IPv4Configuration><Name>lan</Name><Hardware>lan</Hardware><NetworkZone>Home</NetworkZone>"
+              "<IPv4Assignment>Static</IPv4Assignment><IPAddress>192.168.50.1</IPAddress><Netmask>255.255.255.0</Netmask></Interface>"
+              "<Interface><IPv4Configuration>Enable</IPv4Configuration><Name>wan</Name><Hardware>wan</Hardware><NetworkZone>Internet</NetworkZone>"
+              "<IPv4Assignment>PPPoE</IPv4Assignment></Interface>"
+              "<Interface><IPv4Configuration>Enable</IPv4Configuration><Name>dmz</Name><Hardware>dmz</Hardware><NetworkZone>Front</NetworkZone>"
+              "<IPv4Assignment>Static</IPv4Assignment><IPAddress>192.168.80.1</IPAddress><Netmask>255.255.255.0</Netmask></Interface>"
+              "<VLAN><Zone>Smart</Zone><Interface>lan</Interface><Hardware>lan.30</Hardware><Name>lan.30</Name><VLANID>30</VLANID>"
+              "<IPv4Configuration>Enable</IPv4Configuration><IPv4Assignment>Static</IPv4Assignment><IPAddress>192.168.30.1</IPAddress>"
+              "<Netmask>255.255.255.0</Netmask></VLAN>")
+    objects = ("<IPHost><Name>broker</Name><HostType>IP</HostType><IPAddress>192.168.50.13</IPAddress></IPHost>"
+               "<IPHost><Name>front-end</Name><HostType>IP</HostType><IPAddress>192.168.80.10</IPAddress></IPHost>"
+               "<IPHost><Name>camera-box</Name><HostType>IP</HostType><IPAddress>192.168.50.40</IPAddress></IPHost>"
+               "<Services><Name>MQTT-TLS</Name><Type>TCPorUDP</Type><ServiceDetails><ServiceDetail><DestinationPort>8883</DestinationPort>"
+               "<Protocol>TCP</Protocol></ServiceDetail></ServiceDetails></Services>"
+               "<Services><Name>HTTPS</Name><Type>TCPorUDP</Type><ServiceDetails><ServiceDetail><DestinationPort>443</DestinationPort>"
+               "<Protocol>TCP</Protocol></ServiceDetail></ServiceDetails></Services>"
+               "<Services><Name>HTTP</Name><Type>TCPorUDP</Type><ServiceDetails><ServiceDetail><DestinationPort>80</DestinationPort>"
+               "<Protocol>TCP</Protocol></ServiceDetail></ServiceDetails></Services>"
+               "<Services><Name>RTSP</Name><Type>TCPorUDP</Type><ServiceDetails><ServiceDetail><DestinationPort>554</DestinationPort>"
+               "<Protocol>TCP</Protocol></ServiceDetail></ServiceDetails></Services>"
+               "<ServiceGroup><Name>Web</Name><ServiceList><Service>HTTP</Service><Service>HTTPS</Service></ServiceList></ServiceGroup>")
+
+    def rule(name, src, dst, action="Accept", services=(), dst_net=(), status="Enable", schedule="All The Time"):
+        return ("<FirewallRule><Name>%s</Name><Status>%s</Status><PolicyType>Network</PolicyType><NetworkPolicy><Action>%s</Action>"
+                "<SourceZones>%s</SourceZones><DestinationZones>%s</DestinationZones><Schedule>%s</Schedule>"
+                "<DestinationNetworks>%s</DestinationNetworks><Services>%s</Services></NetworkPolicy></FirewallRule>") % (
+            name, status, action, "".join("<Zone>%s</Zone>" % z for z in src), "".join("<Zone>%s</Zone>" % z for z in dst), schedule,
+            "".join("<Network>%s</Network>" % n for n in dst_net), "".join("<Service>%s</Service>" % s for s in services))
+
+    rules = (rule("Home to internet", ["Home"], ["Internet"])
+             + rule("Smart devices may reach the broker", ["Smart"], ["Home"], services=["MQTT-TLS"], dst_net=["broker"])
+             + rule("Smart devices to internet (web)", ["Smart"], ["Internet"], services=["Web"])
+             + rule("Home and remote to front end", ["Home", "Remote"], ["Front"])
+             + rule("Front end updates", ["Front"], ["Internet"], services=["Web"], schedule="Nights")
+             + rule("Old test rule", [], [], status="Disable")
+             + rule("Block smart devices to front end", ["Smart"], ["Front"], action="Drop"))
+    nat = ("<NATRule><Name>Web front end</Name><Status>Enable</Status><TranslatedDestination>front-end</TranslatedDestination>"
+           "<TranslatedService>Original</TranslatedService><OriginalServices><Service>HTTPS</Service></OriginalServices>"
+           "<TranslatedSource>Original</TranslatedSource></NATRule>"
+           "<NATRule><Name>Default source NAT</Name><Status>Enable</Status><TranslatedDestination>Original</TranslatedDestination>"
+           "<TranslatedSource>MASQ</TranslatedSource></NATRule>")
+    if extra_rule:
+        rules += rule("Camera stream from outside", ["Internet"], ["Home"])
+        nat += ("<NATRule><Name>Camera stream</Name><Status>Enable</Status><TranslatedDestination>camera-box</TranslatedDestination>"
+                "<TranslatedService>Original</TranslatedService><OriginalServices><Service>RTSP</Service></OriginalServices></NATRule>")
+    other = ("<DHCPServer><Name>Home addresses</Name><Interface>lan - 192.168.50.1</Interface><Status>Enable</Status>"
+             "<StaticIPMapping><MACIPMapping><HostName>printer</HostName><MACAddress>02:4c:4c:00:00:31</MACAddress>"
+             "<IPAddress>192.168.50.31</IPAddress></MACIPMapping></StaticIPMapping></DHCPServer>"
+             "<DHCPServer><Name>Smart addresses</Name><Interface>lan.30 - 192.168.30.1</Interface><Status>Enable</Status></DHCPServer>"
+             "<UnicastRoute><DestinationIP>10.20.0.0</DestinationIP><Netmask>255.255.0.0</Netmask><Gateway>192.168.50.2</Gateway>"
+             "<Status>Enable</Status></UnicastRoute>"
+             "<VPNIPSecConnection><Name>Holiday flat</Name><ConnectionType>SiteToSite</ConnectionType><Status>Active</Status></VPNIPSecConnection>"
+             "<SSLVPNPolicy><Name>Phones on the road</Name></SSLVPNPolicy>")
+    return ('<?xml version="1.0" encoding="UTF-8"?><Response APIVersion="demo"><Login><status>Authentication Successful</status></Login>'
+            + zones + ifaces + objects + rules + nat + other + "</Response>").encode("utf-8")
+
+
+def firewall_sample(family: str, extra_rule: bool = False) -> dict:
+    """Neutral state of the sample firewall, made by the family's own translation module from a sample reply."""
+    from . import integrations
+    fw = integrations.load_model(family)
+    meta, ents = fw.parse_reply(_fw_reply(extra_rule))
+    st = fw.to_neutral({"api_version": meta["api_version"], "entities": ents})
+    st["controller"]["label"] = "Sample firewall"
+    neutral.validate(st)
+    return st
+
+
+def firewall_capabilities(family: str) -> dict:
+    return {"family": family, "api": {"kind": "official-local", "version": "demo"},
+            "read": ["zones", "networks", "policies", "port_forwards", "dhcp_reservations", "wans", "vpn", "firewall"],
+            "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
+            "lockout": ["mgmt_network", "gateway_uplink", "self_path", "admin_interface"]}
