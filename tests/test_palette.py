@@ -193,7 +193,7 @@ def test_typo_tolerant_search():
 
 
 def machine_factor() -> float:
-    """How much slower than the reference machine (a Raspberry Pi 5, about 44 ms for this loop) this one computes right now: shared test
+    """How much slower than the reference machine (a small single-board computer, about 44 ms for this loop) this one computes right now: shared test
     runners are several times slower, and the 50 ms budget is meant for ordinary hardware."""
     t0 = time.process_time()
     n = 0
