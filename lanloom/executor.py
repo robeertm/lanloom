@@ -20,6 +20,8 @@ Environment:
   LANLOOM_EXECUTOR_ADAPTER_OPTIONS  path of the adapter's JSON options file with the write credentials:
                                 mode 0600, owned by the executor's user, no symbolic link
   LANLOOM_EXECUTOR_ARM          must be exactly I-UNDERSTAND, and <state>/armed must exist, before real writes
+  LANLOOM_EXECUTOR_DENY_HOSTS   comma-separated host names or addresses this executor must never connect to, e.g.
+                                the real controller while it rehearses against a test twin (connection guard)
   LANLOOM_EXECUTOR_ORIGINS      comma-separated origins the app is opened from, e.g. https://lanloom.example
   LANLOOM_EXECUTOR_WATCH_S      watch time after a change (default 3600)
   LANLOOM_FW_QUIET_HOURS        e.g. 21-7: changes at night need an explicit confirmation
@@ -67,6 +69,7 @@ class Settings:
         except ValueError:
             self.watch_s = 3600
         self.quiet = env.get("LANLOOM_FW_QUIET_HOURS", "").strip()
+        self.deny = tuple(h.strip() for h in env.get("LANLOOM_EXECUTOR_DENY_HOSTS", "").split(",") if h.strip())
 
     def armed(self) -> bool:
         """Real writes need the phrase in the environment AND a file the operator created by hand."""
@@ -104,7 +107,24 @@ def build_adapter(s: Settings):
             options = load_write_options(s.adapter_options, secret_fields=manifest.write_secret_fields)
         except CredentialError as exc:
             raise SystemExit("adapter options: %s" % exc)
-    return integrations.load_write(family, **options)
+    if "state_dir" in options:
+        raise SystemExit("adapter options: state_dir is set by the executor, not in the options file")
+    options["state_dir"] = str(s.state)          # e.g. the sign-in cap that holds across restarts
+    try:
+        return integrations.load_write(family, **options)
+    except (TypeError, ValueError) as exc:
+        raise SystemExit("adapter options: %s" % exc)
+
+
+def guard_hosts(s: Settings, adapter) -> list:
+    """The only hosts this executor may connect to: the app and the adapter's own endpoints."""
+    from urllib.parse import urlsplit
+    hosts = [urlsplit(s.app).hostname or "127.0.0.1"]
+    try:
+        hosts += [str(h) for h in (adapter.endpoints() if hasattr(adapter, "endpoints") else [])]
+    except Exception:
+        pass
+    return hosts
 
 
 def executor_info(s: Settings, adapter) -> dict:
@@ -138,6 +158,12 @@ def run(s: Settings, once: bool = False) -> int:
         return 2
     s.state.mkdir(mode=0o700, parents=True, exist_ok=True)
     adapter = build_adapter(s)
+    from . import connguard as guard
+    in_force = guard.install(guard_hosts(s, adapter), s.deny)
+    if not in_force["allowed"]:
+        print("executor: none of the app's or the controller's addresses could be resolved", file=sys.stderr)
+        return 2
+    log.info("connection guard: %d allowed address(es), %d refused", in_force["allowed"], in_force["denied"])
     keys = read_private(keys_path(s), [])
 
     def report(ev):

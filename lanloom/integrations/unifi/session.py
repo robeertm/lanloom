@@ -12,9 +12,19 @@ Lessons kept from earlier controller work:
 * a session lives in a process-wide cache keyed by controller and account, so the account check, the connection
   test and the running reader share one sign-in.
 
+* a console also puts the CSRF token into the payload of its ``TOKEN`` cookie (field ``csrfToken``); it is used when
+  no header carried one.
+
+The write half (executor) uses the same session class with a stricter cap that holds across processes and restarts
+(``FileLedger``: a small 0600 file in the executor's state directory, never followed through a symbolic link).
+
 Cookies, CSRF token and password stay in private attributes; ``repr()`` shows the controller only.
 """
+import base64
 import hashlib
+import json
+import os
+import stat
 import threading
 import time
 
@@ -74,7 +84,7 @@ class Session:
                 if value and len(value) <= 2048 and all(32 < ord(c) < 127 for c in value):
                     self._csrf = value
         if not self._csrf:
-            self._csrf = self._cookies.get("csrf_token")
+            self._csrf = self._cookies.get("csrf_token") or csrf_from_token(self._cookies.get("TOKEN"))
 
     def headers(self) -> dict:
         out = {}
@@ -87,6 +97,87 @@ class Session:
     def started(self, style: str) -> None:
         self.style = style
         self.since = time.time()
+
+
+def csrf_from_token(token):
+    """The ``csrfToken`` field of a console's ``TOKEN`` cookie (a signed token of three dot-separated parts), or None."""
+    try:
+        part = str(token or "").split(".")[1]
+        data = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+    except (IndexError, ValueError, TypeError):
+        return None
+    value = data.get("csrfToken") if isinstance(data, dict) else None
+    if isinstance(value, str) and 0 < len(value) <= 2048 and all(32 < ord(c) < 127 for c in value):
+        return value
+    return None
+
+
+class FileLedger:
+    """Sign-in cap of the write half across processes: at most ``per_hour`` sign-ins in any hour, and after a refused
+    session ``pause_s`` seconds without any. ``book()`` before every sign-in raises LoginPaused when it must wait.
+    An unreadable or tampered file counts as a fresh refusal (rather wait than flood the controller)."""
+
+    def __init__(self, path, per_hour: int = 4, pause_s: int = PAUSE_AFTER_REFUSAL_S, clock=time.time):
+        self.path, self.per_hour, self.pause_s, self.clock = (str(path) if path else None), per_hour, pause_s, clock
+        self._mem = {"logins": [], "not_before": 0.0}
+        self._lock = threading.Lock()
+
+    def __repr__(self):
+        return "FileLedger(per_hour=%d)" % self.per_hour
+
+    def _read(self) -> dict:
+        if not self.path:
+            return dict(self._mem)
+        try:
+            fd = os.open(self.path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        except FileNotFoundError:
+            return {"logins": [], "not_before": 0.0}
+        except OSError:
+            return {"logins": [], "not_before": self.clock() + self.pause_s}
+        try:
+            with os.fdopen(fd, "rb") as fh:
+                if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
+                    raise ValueError("not a file")
+                data = json.loads(fh.read(65536).decode("utf-8"))
+            return {"logins": [float(x) for x in data.get("logins") or [] if isinstance(x, (int, float)) and not isinstance(x, bool)],
+                    "not_before": float(data.get("not_before") or 0)}
+        except (ValueError, TypeError, AttributeError, OSError):
+            return {"logins": [], "not_before": self.clock() + self.pause_s}
+
+    def _write(self, data: dict) -> None:
+        if not self.path:
+            self._mem = data
+            return
+        tmp = self.path + ".tmp"
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        os.replace(tmp, self.path)
+
+    def book(self) -> None:
+        with self._lock:
+            now = self.clock()
+            data = self._read()
+            data["logins"] = [t for t in data["logins"] if now - 3600 < t <= now + 60]
+            if now < data["not_before"] or len(data["logins"]) >= self.per_hour:
+                self._write(data)
+                raise LoginPaused()
+            data["logins"].append(now)
+            self._write(data)
+
+    def refused(self) -> None:
+        with self._lock:
+            data = self._read()
+            data["not_before"] = self.clock() + self.pause_s
+            self._write(data)
+
+    def paused_until(self) -> float:
+        with self._lock:
+            return self._read()["not_before"]
 
 
 def shared(host: str, user: str, secret: str) -> Session:

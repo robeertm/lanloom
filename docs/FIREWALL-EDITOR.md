@@ -1,15 +1,17 @@
 # Firewall editor
 
-The **Firewall** tab shows which zone and network every device sits in and what each zone may reach. In **Change** mode you can move a device to another network, see in plain words what that means, and apply it as one signed change.
+The **Firewall** tab shows which zone and network every device sits in and what each zone may reach. In **Change** mode you can move a device to another network, give it a fixed address or a new name, see in plain words what that means, and apply it as one signed change.
 
 > ## ⚠️ Read this before you let it write to a real controller
 >
-> - **Out of the box nothing is written anywhere.** The editor runs in **simulation** mode against a built-in sample network. Real changes need a separate executor service, a built-in adapter for your controller family (see [COMPATIBILITY.md](COMPATIBILITY.md); none ships yet), and an explicit arming step on the host. All three are off by default.
+> - **Out of the box nothing is written anywhere.** The editor runs in **simulation** mode against a built-in sample network. Real changes need a separate executor service, a built-in adapter for your controller family with write support (see [COMPATIBILITY.md](COMPATIBILITY.md)), and an explicit arming step on the host. All three are off by default.
 > - **Moving a wireless client can reconfigure every access point.** Many controllers re-provision all access points when a client's network assignment changes. The wireless network can be gone for 2 to 4 minutes in the whole building. The preview says so; plan changes for a quiet moment and set `LANLOOM_FW_QUIET_HOURS`.
 > - **You can lock yourself out.** A device that loses its internet or management access can cut off the very path you need to undo the change. The gate refuses moves of protected devices, moves into management networks and moves that take away the internet of the device you are using, and it keeps a local backup so the executor can roll back on its own. It cannot know every path in your network. Keep local console access to your controller.
 > - **Private (changing) hardware addresses defeat per-device rules.** Phones and tablets often use a random address per network. A move that is tied to the address does not last. The preview asks you to switch that off on the device first.
 > - **Things that use a device by its address break.** Automations, printers set up by address and similar links have to be updated. The preview lists known dependencies, but only those the controller state reports.
-> - **The executor holds controller credentials.** Use a dedicated local account with the least rights your controller offers, never an owner account, and keep its options file readable only by the executor.
+> - **A new fixed address takes effect later, a removed one can change the address.** A device picks up a fixed address when it renews its address (reconnect or restart it); without a fixed address it may get a different one later, and whatever reaches it by address loses it.
+> - **The executor holds controller credentials.** Use a dedicated local account with the least rights your controller offers, never an owner account, and keep its options file readable only by the executor. The executor can connect only to the app and to its controller (connection guard).
+> - **Use at your own risk.** Keep local console access to your controller; Lanloom never writes without your passkey. This is no legal advice and no warranty.
 
 ## Modes
 
@@ -31,6 +33,20 @@ When a device-family adapter reads your controller (see [COMPATIBILITY.md](COMPA
 A hypervisor adapter appears the same way. Its view has no zone board; instead it lists findings, the firewall at datacenter, node and guest level (options, rules in order, security groups, aliases, IP sets), every guest network card with bridge, VLAN and firewall flag, and the bridges, bonds and software-defined network of each node. It is read only as well.
 
 How the matrix is read: for each pair of zones Lanloom walks the enabled rules in the controller's order and takes the first one that covers the whole zone pair (no network, address, port, protocol, connection-state or schedule filter). Narrower rules are listed below the matrix with their filters; they decide for the traffic they match.
+
+### Changing a device: network, fixed address, name
+
+In **Change** mode, drag a device onto another network, or tap or click it (phones, keyboard: Enter) to open its sheet:
+
+- **Network** - *Move to …* lists every network; the ones it cannot go to say why (protected device, management network, connected by cable when the network follows the switch port, network not known while the device is offline).
+- **Name** - the name the controller shows for it (1 to 64 characters).
+- **Fixed address** - *Always give this device the same address* with the address; it must lie inside the device's network, must not be the network's own address or its gateway and must not belong to another device. Taking the tick away removes the fixed address.
+
+Only what the connected controller can change is offered (its capability list); nothing is shown greyed out. The changes collect in the draft bar at the bottom, one chip per device; **Preview** shows every field old → new, and moving and changing the same device in one draft becomes one step. Known devices that are offline right now but carry settings of their own (name, fixed address, network override) are listed too, so they can be renamed or get their address before they come back.
+
+The command palette (Ctrl K) has *Change a device (network, name, fixed address) …*, and a device found there offers *Move to … / change*; both open this sheet. Changing needs the **Operator** role (drafts and previews); applying needs an **Admin** with a passkey. Every draft change is written to the audit log.
+
+The nightly report has a section **Changes written**: what the executor changed on the controller since the last report (done, undone, refused), with a point for each change that was put back on its own or could not be put back. It appears when an external executor is set up; rehearsals on the sample network never appear.
 
 ## How a change runs
 
@@ -66,9 +82,10 @@ Right before writing, against a fresh controller read:
 2. Signature valid for a pinned key (simulation in the app: no signature, nothing is written).
 3. At most **10 objects** per change.
 4. The controller state still matches the plan (`base` fingerprint and every `before`), otherwise "the network changed in the meantime".
-5. **Lockout protection:** protected devices (gateway, network equipment, servers others depend on, the host running Lanloom) never move; management networks are no target; wired devices that share a port with others do not move alone; the device you approve from must keep its internet.
-6. Marked points (private address, your own device, quiet hours) were confirmed in the preview.
-7. The adapter reports the controller healthy and no other change is still running or being watched.
+5. **Lockout protection:** protected devices (gateway, network equipment, servers others depend on, the host running Lanloom) never move or change; management networks are no target; wired devices that share a port with others do not move alone, and devices whose network follows their switch port are not moved by a client setting; the device you approve from must keep its internet.
+6. **Addresses:** a new or fixed address lies inside its network, is not the network's own address or its gateway, belongs to no other device and is not used twice in the same plan (the gate checks this itself; not every controller does).
+7. Marked points (private address, your own device, quiet hours) were confirmed in the preview.
+8. The adapter reports the controller healthy and no other change is still running or being watched.
 
 ## Backup, watch, rollback, history
 
@@ -94,6 +111,7 @@ The write half of an adapter subclasses `lanloom.firewall.adapter.ControllerAdap
 | `settle(steps)` | wait until provisioning finished |
 | `probe(steps)` | `{"global_ok": bool, "missing": [ids not as planned]}` |
 | `lockout(state, step)` | extra lockout rule of the family (the neutral rules always run) |
+| `endpoints()` | host names or addresses the adapter connects to; the executor's connection guard allows nothing else |
 
 Every request of a write half goes through one send path with a field-exact allow-list (method, path pattern, body fields, allowed values), checked below the adapter. See `SimulatedController` in `lanloom/firewall/adapter.py` for a complete reference and `tests/test_plan_v2.py` for stand-ins that fail on purpose.
 
@@ -141,3 +159,4 @@ The executor is updated by hand (`docker compose pull executor && docker compose
 | `LANLOOM_EXECUTOR_ADAPTER_OPTIONS` | executor | – | options file with the write credentials (0600, owned by the executor's user) |
 | `LANLOOM_EXECUTOR_ORIGINS` | executor | – | origins the app is opened from; required for `controller` |
 | `LANLOOM_EXECUTOR_WATCH_S` | executor | `3600` | watch time after a real change |
+| `LANLOOM_EXECUTOR_DENY_HOSTS` | executor | – | host names or addresses the executor must never connect to (for example the real controller while it rehearses against a test controller) |

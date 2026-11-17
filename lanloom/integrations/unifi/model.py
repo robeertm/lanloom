@@ -529,7 +529,7 @@ def _clients(raw, ids, nets) -> tuple:
 
     devices = []
     sta = items(raw, "sta")
-    if sta:
+    if sta or users:
         port_count = {}
         for c in sta:
             if c.get("is_wired") and norm_mac(c.get("sw_mac")) and c.get("sw_port") is not None:
@@ -551,7 +551,24 @@ def _clients(raw, ids, nets) -> tuple:
                             "private_address": is_private_mac(mac), "protected": None,
                             "parent": oid("e", parent) if parent else None,
                             "band": {"ng": "2.4ghz", "na": "5ghz", "6e": "6ghz"}.get(c.get("radio")) if not wired else None,  # identifier: radio codes
-                            "blocked": bool(c.get("blocked") or u.get("blocked")), "guest": bool(c.get("is_guest"))})
+                            "blocked": bool(c.get("blocked") or u.get("blocked")), "guest": bool(c.get("is_guest")), "online": True,
+                            "network_by_port": wired})
+        online = {norm_mac(c.get("mac")) for c in sta}
+        # known clients that are offline right now but carry settings of their own (a name, a fixed address, a network
+        # override): they can still be renamed or get their fixed address, and their settings count for the plan
+        for mac, u in users.items():
+            if mac in online or len(devices) >= MAX_ITEMS:
+                continue
+            override = bool(u.get("virtual_network_override_enabled")) and bool(u.get("virtual_network_override_id"))
+            fixed = _ip(u.get("fixed_ip")) if u.get("use_fixedip") else None
+            if not (text(u.get("name")) or fixed or override):
+                continue
+            ref = u.get("virtual_network_override_id") if override else (u.get("network_id") if fixed else u.get("last_connection_network_id"))
+            devices.append({"id": oid("c", mac), "name": text(u.get("name") or u.get("hostname")) or text(u.get("oui"), 32) or "?",
+                            "kind": "client", "network": net_for(fixed, ref), "ip": fixed, "fixed": bool(fixed), "fixed_ip": fixed,
+                            "wired": bool(u.get("is_wired")), "alone_on_port": None, "private_address": is_private_mac(mac),
+                            "protected": None, "parent": None, "band": None, "blocked": bool(u.get("blocked")),
+                            "guest": bool(u.get("is_guest")), "online": False, "network_by_port": bool(u.get("is_wired"))})
     else:
         for c in items(raw, "o_clients"):
             kind = str(c.get("type") or "")
@@ -562,13 +579,58 @@ def _clients(raw, ids, nets) -> tuple:
                             "network": net_for(c.get("ipAddress"), None), "ip": _ip(c.get("ipAddress")), "fixed": False,
                             "wired": kind == "WIRED", "alone_on_port": False, "private_address": is_private_mac(mac),
                             "protected": None, "parent": None, "band": None, "blocked": False,
-                            "guest": str(_d(c.get("access")).get("type") or "") == "GUEST"})
+                            "guest": str(_d(c.get("access")).get("type") or "") == "GUEST", "online": True})
     reservations = []
     for mac, u in users.items():
         if u.get("use_fixedip") and _ip(u.get("fixed_ip")):
             reservations.append({"id": oid("d", mac), "client": oid("c", mac), "name": text(u.get("name")) or text(u.get("hostname")) or "?",
                                  "ip": _ip(u.get("fixed_ip")), "network": ids.net_id(u.get("network_id")) if u.get("network_id") else None})
     return devices, reservations
+
+
+# ---------------------------------------------------------------------------- back to vendor ids (write half)
+USER_FIELDS = ("name", "use_fixedip", "fixed_ip", "network_id", "virtual_network_override_enabled",
+               "virtual_network_override_id")
+
+
+def network_refs(raw) -> dict:
+    """Neutral network id -> {"id": classic object id, "cidr", "purpose", "gateway_ip"} for every network of the
+    classic API (the write half needs the classic id in a client's settings)."""
+    ids = _Ids(raw)
+    out = {}
+    for n in items(raw, "networkconf"):
+        if not n.get("_id"):
+            continue
+        cidr = cidr_of(n.get("ip_subnet"))
+        out[ids.net_id(n["_id"])] = {"id": str(n["_id"]), "cidr": cidr, "purpose": str(n.get("purpose") or ""),
+                                     "gateway_ip": str(ipaddress.ip_interface(n["ip_subnet"]).ip) if cidr else None}
+    return out
+
+
+def client_refs(raw) -> dict:
+    """Neutral client id -> {"user": classic user id, "online": bool, "wired": bool, "record": {the user settings the
+    write half may change, as stored now}}. Online clients without a user record of their own use the id the
+    controller lists for them (``user_id``)."""
+    out = {}
+    for u in items(raw, "user"):
+        mac = norm_mac(u.get("mac"))
+        if mac and u.get("_id"):
+            out[oid("c", mac)] = {"user": str(u["_id"]), "online": False, "wired": bool(u.get("is_wired")),
+                                  "record": {f: u.get(f) for f in USER_FIELDS if f in u}}
+    for c in items(raw, "sta"):
+        mac = norm_mac(c.get("mac"))
+        if not mac:
+            continue
+        cid = oid("c", mac)
+        if cid in out:
+            out[cid]["online"] = True
+            out[cid]["wired"] = bool(c.get("is_wired"))
+            continue
+        uid = c.get("user_id") or c.get("_id")
+        if uid:
+            out[cid] = {"user": str(uid), "online": True, "wired": bool(c.get("is_wired")),
+                        "record": {f: c.get(f) for f in USER_FIELDS if f in c}}
+    return out
 
 
 # ---------------------------------------------------------------------------- wireless, forwards, wans, vpn

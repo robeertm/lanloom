@@ -104,6 +104,22 @@
 .fw-move__name { font-weight: var(--ll-fw-semibold); }
 .fw-move__zone { font-size: var(--ll-fs-xs); }
 
+.fw-tile.is-offline .fw-tile__name { color: var(--ll-text-2); }
+.fw-tile__pin { display: inline-flex; vertical-align: -1px; margin-right: 3px; color: var(--ll-text-3); }
+.fw-dev { display: flex; flex-direction: column; gap: 14px; }
+.fw-dev__lead { margin: 0; }
+.fw-dev__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--ll-border);
+  border-radius: var(--ll-radius-sm); }
+.fw-dev__label { font-size: var(--ll-fs-xs); color: var(--ll-text-2); }
+.fw-dev__value { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fw-dev__net { font-weight: var(--ll-fw-semibold); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fw-dev__fixed { display: flex; flex-direction: column; gap: 8px; }
+.fw-dev__fixed .field { margin: 0; }
+.fw-pick { max-height: min(56vh, 520px); overflow-y: auto; }
+.fw-pv__edits { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--ll-fs-sm); }
+.fw-pv__edits b { color: var(--ll-accent-text); }
+.fw-pv__field { color: var(--ll-text-2); display: inline-block; min-width: 110px; }
+
 .fw-progress, .fw-history { padding: 16px 18px; }
 .fw-progress h2, .fw-history h2 { font-size: var(--ll-fs-lg); margin: 0 0 6px; }
 .fw-steps { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }

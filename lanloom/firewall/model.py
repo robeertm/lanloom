@@ -82,10 +82,14 @@ def drop_targets(state: dict, device: dict) -> dict:
     for nid, net in nets.items():
         if device.get("protected"):
             out[nid] = "fw.why.protected"
+        elif not device.get("network"):
+            out[nid] = "fw.why.no_network"
         elif nid == device.get("network"):
             out[nid] = "fw.why.same"
         elif net.get("management"):
             out[nid] = "fw.why.management"
+        elif device.get("network_by_port"):
+            out[nid] = "fw.why.wired_port"
         elif device.get("wired") and device.get("alone_on_port") is False:
             out[nid] = "fw.why.shared_port"
         else:
@@ -112,9 +116,118 @@ def pick_address(state: dict, device: dict, target_net: dict, taken_extra=()) ->
     raise Refused("fw.block.full", net=target_net["name"])
 
 
-def preview(state: dict, moves: dict, *, requester_ip: str = None, quiet: bool = False) -> dict:
-    """Draft moves {device_id: network_id} -> steps, plain-language consequences, warnings and blocks."""
+def _taken_addresses(state: dict, net: dict, skip: str = None) -> set:
+    """Addresses in a network that belong to another device (its current address or its fixed address)."""
+    out = set()
+    for d in state.get("devices") or []:
+        if d.get("id") == skip:
+            continue
+        for key in ("ip", "fixed_ip"):
+            ip = d.get(key)
+            if ip and d.get("network") == net["id"] or (ip and key == "fixed_ip" and _in(ip, net)):
+                out.add(ip)
+    return out
+
+
+def _in(ip: str, net: dict) -> bool:
+    try:
+        return ipaddress.ip_address(ip) in ipaddress.ip_network(net.get("cidr") or "", strict=False)
+    except ValueError:
+        return False
+
+
+def address_problem(state: dict, dev: dict, net: dict, ip: str):
+    """Why ``ip`` cannot be the (fixed) address of ``dev`` in ``net``: a (key, vars) pair, or None when it can.
+    Controllers do not all check this themselves (some store an address outside the network without a word)."""
+    try:
+        addr = ipaddress.ip_address(ip)
+        cidr = ipaddress.ip_network(net.get("cidr") or "", strict=False)
+    except ValueError:
+        return "fw.block.ip_invalid", {"ip": str(ip)[:45], "name": dev.get("name", "")}
+    if addr not in cidr or addr.version != cidr.version:
+        return "fw.block.ip_outside", {"ip": ip, "net": net.get("name", ""), "cidr": str(cidr), "name": dev.get("name", "")}
+    hosts = list(cidr.hosts()) if cidr.num_addresses <= 65536 else []
+    gateway = net.get("gateway_ip") or (str(hosts[0]) if hosts else None)
+    if addr in (cidr.network_address, cidr.broadcast_address) or ip == gateway:
+        return "fw.block.ip_reserved", {"ip": ip, "name": dev.get("name", "")}
+    if ip in _taken_addresses(state, net, skip=dev.get("id")):
+        return "fw.block.ip_taken", {"ip": ip, "name": dev.get("name", "")}
+    return None
+
+
+def _cur(dev: dict, field: str):
+    """A device's current value in the shape of a plan step (no value = empty text)."""
+    v = dev.get(field)
+    return "" if v is None and field in ("fixed_ip", "ip", "name") else v
+
+
+EDIT_FIELDS = ("name", "fixed_ip")
+
+
+def clean_edits(state: dict, edits) -> dict:
+    """Draft edits {device_id: {"name"?, "fixed_ip"?}} reduced to valid, real changes (unknown devices, unknown fields,
+    invalid values and values equal to the current one are dropped)."""
+    _, _, devs = index(state)
+    out = {}
+    for dev_id, fields in (edits or {}).items():
+        dev = devs.get(dev_id) if isinstance(dev_id, str) else None
+        if not dev or not isinstance(fields, dict):
+            continue
+        keep = {}
+        for f, v in fields.items():
+            if f not in EDIT_FIELDS or not isinstance(v, str):
+                continue
+            v = v.strip()
+            try:
+                stepkinds.KINDS["client.set"].fields[f](v)
+            except stepkinds.FieldError:
+                continue
+            if v != _cur(dev, f):
+                keep[f] = v
+        if keep:
+            out[dev_id] = keep
+    return out
+
+
+def _edit_only(state, dev, edit, steps, changes, warnings, blocks, confirm, deps, requester, taken) -> None:
+    """A device that stays in its network and only gets a new name and/or fixed address."""
+    if dev.get("protected"):
+        blocks.append(["fw.block.protected", {"name": dev["name"], "reason": dev.get("protected") or ""}])
+        return
+    _, nets, _ = index(state)
+    net = nets.get(dev.get("network"))
+    if "fixed_ip" in edit and edit["fixed_ip"]:
+        if not net:
+            blocks.append(["fw.block.no_network", {"name": dev.get("name", "")}])
+            return
+        prob = address_problem(state, dev, net, edit["fixed_ip"]) or (
+            ("fw.block.ip_taken", {"ip": edit["fixed_ip"], "name": dev["name"]}) if edit["fixed_ip"] in taken.get(net["id"], ()) else None)
+        if prob:
+            blocks.append([prob[0], prob[1]])
+            return
+        taken.setdefault(net["id"], []).append(edit["fixed_ip"])
+    after = dict(edit)
+    steps.append({"kind": "client.set", "object": dev["id"], "before": {f: _cur(dev, f) for f in after}, "after": after})
+    fields = [{"field": f, "from": _cur(dev, f), "to": v} for f, v in sorted(after.items())]
+    changes.append({"device": dev["id"], "name": dev["name"], "kind": dev.get("kind"), "edit": fields})
+    if "fixed_ip" in edit:
+        if edit["fixed_ip"]:
+            warnings.append(["fw.warn.fixed_ip_lease", {"name": dev["name"], "ip": edit["fixed_ip"]}])
+        else:
+            warnings.append(["fw.warn.fixed_ip_removed", {"name": dev["name"]}])
+            for by in deps.get(dev["id"], []):
+                warnings.append(["fw.warn.dependency", {"name": dev["name"], "by": by}])
+        if requester and requester["id"] == dev["id"]:
+            warnings.append(["fw.warn.self", {"name": dev["name"]}])
+            confirm.append("self")
+
+
+def preview(state: dict, moves: dict, *, requester_ip: str = None, quiet: bool = False, edits: dict = None) -> dict:
+    """Draft moves {device_id: network_id} and edits {device_id: {"name"?, "fixed_ip"?}} -> steps, plain-language
+    consequences, warnings and blocks. A device that is only moved gives a ``move`` step (plans of moves only stay
+    v1); a device with an edit gives one ``client.set`` step that carries every changed field, a move included."""
     zones, nets, devs = index(state)
+    edits = edits or {}
     steps, changes, warnings, blocks = [], [], [], []
     confirm = []
     taken = {}
@@ -123,30 +236,54 @@ def preview(state: dict, moves: dict, *, requester_ip: str = None, quiet: bool =
     for dep in state.get("dependencies") or []:
         deps.setdefault(dep.get("device"), []).append(dep.get("by"))
     wireless_moved = False
-    for dev_id, net_id in sorted(moves.items()):
-        dev, net = devs.get(dev_id), nets.get(net_id)
-        if not dev or not net:
+    for dev_id in sorted(set(moves) | set(edits)):
+        net_id = moves.get(dev_id)
+        dev = devs.get(dev_id)
+        edit = edits.get(dev_id) or {}
+        if not dev or (net_id is not None and not nets.get(net_id)):
             blocks.append(["fw.block.unknown", {}])
             continue
-        why = drop_targets(state, dev).get(net_id)
-        if why == "fw.why.same":
+        if net_id is None or net_id == dev.get("network"):
+            if edit:
+                _edit_only(state, dev, edit, steps, changes, warnings, blocks, confirm, deps, requester, taken)
             continue
+        if not dev.get("network"):
+            blocks.append(["fw.block.no_network", {"name": dev.get("name", "")}])
+            continue
+        net = nets[net_id]
+        why = drop_targets(state, dev).get(net_id)
         if why:
             blocks.append([{"fw.why.protected": "fw.block.protected", "fw.why.management": "fw.block.management",
-                            "fw.why.shared_port": "fw.block.shared_port"}[why], {"name": dev["name"], "reason": dev.get("protected") or ""}])
+                            "fw.why.shared_port": "fw.block.shared_port", "fw.why.no_network": "fw.block.no_network", "fw.why.wired_port": "fw.block.wired_move"}[why], {"name": dev["name"], "reason": dev.get("protected") or ""}])
             continue
         old_net = nets.get(dev["network"]) or {"name": "?", "zone": None}
-        new_ip = pick_address(state, dev, net, taken.get(net_id, ()))
+        if edit.get("fixed_ip"):
+            new_ip = edit["fixed_ip"]
+            prob = address_problem(state, dev, net, new_ip) or (
+                ("fw.block.ip_taken", {"ip": new_ip, "name": dev["name"]}) if new_ip in taken.get(net_id, ()) else None)
+            if prob:
+                blocks.append([prob[0], prob[1]])
+                continue
+        else:
+            new_ip = pick_address(state, dev, net, taken.get(net_id, ()))
         taken.setdefault(net_id, []).append(new_ip)
-        steps.append({"kind": "move", "device": dev_id,
-                      "before": {"network": dev["network"], "ip": dev.get("ip") or ""},
-                      "after": {"network": net_id, "ip": new_ip}})
+        if edit:
+            after = {"network": net_id, "fixed_ip": new_ip}
+            if edit.get("name"):
+                after["name"] = edit["name"]
+            steps.append({"kind": "client.set", "object": dev_id, "before": {f: _cur(dev, f) if f != "network" else dev["network"] for f in after},
+                          "after": after})
+        else:
+            steps.append({"kind": "move", "device": dev_id,
+                          "before": {"network": dev["network"], "ip": dev.get("ip") or ""},
+                          "after": {"network": net_id, "ip": new_ip}})
         before, after = abilities(state, dev["network"]), abilities(state, net_id)
         b_s, a_s = sentences(state, before), sentences(state, after)
         changes.append({"device": dev_id, "name": dev["name"], "kind": dev.get("kind"), "from": old_net["name"], "to": net["name"],
                         "from_zone": (zones.get(old_net.get("zone")) or {}).get("name"), "to_zone": (zones.get(net.get("zone")) or {}).get("name"),
                         "old_ip": dev.get("ip"), "new_ip": new_ip,
-                        "may": a_s, "may_not": [s for s in b_s if s not in a_s]})
+                        "may": a_s, "may_not": [s for s in b_s if s not in a_s],
+                        "edit": [{"field": "name", "from": dev["name"], "to": edit["name"]}] if edit.get("name") else []})
         warnings.append(["fw.warn.new_ip", {"name": dev["name"], "old": dev.get("ip") or "?", "new": new_ip}])
         if not dev.get("wired"):
             wireless_moved = True
@@ -274,7 +411,8 @@ def gate(state: dict, plan: dict, *, target: str, now: float, quiet: bool, busy:
         why = drop_targets(state, dev).get(net["id"])
         if why:
             raise Refused({"fw.why.protected": "fw.block.protected", "fw.why.management": "fw.block.management",
-                           "fw.why.shared_port": "fw.block.shared_port", "fw.why.same": "fw.block.format"}[why],
+                           "fw.why.shared_port": "fw.block.shared_port", "fw.why.same": "fw.block.format",
+                           "fw.why.no_network": "fw.block.no_network", "fw.why.wired_port": "fw.block.wired_move"}[why],
                           name=dev["name"], reason=dev.get("protected") or "")
         if ipaddress.ip_address(st["after"]["ip"]) not in ipaddress.ip_network(net["cidr"], strict=False):
             raise Refused("fw.block.format")
@@ -350,11 +488,47 @@ def lockout_reason(state: dict, step: dict):
     return None
 
 
+def _now_value(obj: dict, field: str, planned):
+    """The fresh value to compare with a step's ``before``: a missing text value counts as empty text."""
+    v = obj.get(field)
+    return "" if v is None and isinstance(planned, str) else v
+
+
+def _gate_device(state: dict, dev: dict, st: dict) -> None:
+    """Moves and client settings: the target network must take the device, the address must fit and be free."""
+    nets = neutral.objects(state, "networks")
+    after = st["after"]
+    net_id = after.get("network") or dev.get("network")
+    net = nets.get(net_id)
+    if "network" in after and after["network"] != dev.get("network"):
+        why = drop_targets(state, dev).get(after["network"]) if net else "fw.why.same"
+        if why:
+            raise Refused({"fw.why.protected": "fw.block.protected", "fw.why.management": "fw.block.management",
+                           "fw.why.shared_port": "fw.block.shared_port", "fw.why.same": "fw.block.format",
+                           "fw.why.no_network": "fw.block.no_network", "fw.why.wired_port": "fw.block.wired_move"}[why],
+                          name=dev.get("name", ""), reason=dev.get("protected") or "")
+    elif st["kind"] == "move":
+        raise Refused("fw.block.format")
+    if dev.get("protected"):
+        raise Refused("fw.block.protected", name=dev.get("name", ""), reason=dev.get("protected") or "")
+    ip = after.get("ip") if st["kind"] == "move" else after.get("fixed_ip")
+    if ip:
+        if not net:
+            raise Refused("fw.block.unknown")
+        prob = address_problem(state, dev, net, ip)
+        if prob:
+            raise Refused(prob[0], **prob[1])
+
+
 def _gate_v2(state, plan, *, target, now, quiet, busy, healthy, caps) -> None:
     _gate_common(state, plan, target=target, now=now, busy=busy, healthy=healthy)
     check_capabilities(plan, caps)
     seen = set()
     req = plan["requester"].get("device")
+    wanted = [(st["after"].get("network"), st["after"].get("ip") or st["after"].get("fixed_ip")) for st in plan["steps"]
+              if stepkinds.KINDS[st["kind"]].area == "devices" and (st["after"].get("ip") or st["after"].get("fixed_ip"))]
+    if len(set(ip for _, ip in wanted)) != len(wanted):
+        raise Refused("fw.block.conflict")
     for st in plan["steps"]:
         kind = stepkinds.KINDS[st["kind"]]
         oid = stepkinds.step_object(st)
@@ -368,16 +542,10 @@ def _gate_v2(state, plan, *, target, now, quiet, busy, healthy, caps) -> None:
         else:
             if obj is None:
                 raise Refused("fw.block.unknown")
-            if any(obj.get(f) != v for f, v in st["before"].items()):
+            if any(_now_value(obj, f, v) != v for f, v in st["before"].items()):
                 raise Refused("fw.block.conflict")
-        if kind.name == "move":
-            dev = obj
-            net = (neutral.objects(state, "networks")).get(st["after"]["network"])
-            why = drop_targets(state, dev).get(st["after"]["network"]) if net else "fw.why.same"
-            if why:
-                raise Refused({"fw.why.protected": "fw.block.protected", "fw.why.management": "fw.block.management",
-                               "fw.why.shared_port": "fw.block.shared_port", "fw.why.same": "fw.block.format"}[why],
-                              name=dev.get("name", ""), reason=dev.get("protected") or "")
+        if kind.area == "devices" and kind.name in ("move", "client.set"):
+            _gate_device(state, obj, st)
         why = lockout_reason(state, st)
         if why:
             raise Refused(why, name=(obj or {}).get("name", ""), reason=(obj or {}).get("protected") or "")
@@ -397,6 +565,8 @@ def apply_moves(state: dict, steps: list) -> dict:
     for st in steps:
         d = by_id[st["device"]]
         d["network"], d["ip"] = st["after"]["network"], st["after"]["ip"]
+        if d.get("fixed_ip"):
+            d["fixed_ip"] = st["after"]["ip"]
     return new
 
 

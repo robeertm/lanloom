@@ -8,7 +8,7 @@ CAPABILITIES = {
     "family": "simulation",
     "api": {"kind": "simulation", "version": "1"},
     "read": ["networks", "zones", "clients"],
-    "write": {"move": "B"},
+    "write": {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "client.set.network": "B"},
     "rollback": {"device_native": False, "object_snapshot": True},
     "limits": {"objects_per_plan": 10},
     "lockout": ["mgmt_network", "self_path"],

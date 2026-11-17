@@ -20,6 +20,7 @@ Open **Settings → Notifications**. Everybody (viewer, operator, admin) has the
 | Backup too old | warning | – | – |
 | Lanloom update available | note | – | – |
 | Security notice for your account (only you get it) | warning | – | – |
+| Controller change put back (only with the external executor; could not be put back: critical) | warning | – | – |
 
 *Incident* and *Vulnerability* are already in the register and appear as soon as the features that report them are there. New devices found by the very first scan are no news; neither are rows about the past.
 

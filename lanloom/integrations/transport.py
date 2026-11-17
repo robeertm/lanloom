@@ -12,6 +12,8 @@ The adapter cannot widen the list at run time (lists are frozen when the transpo
 Static tests check that read halves and translation modules import no network module and reach the network only
 through this file.
 """
+import hashlib
+import hmac
 import http.client
 import json
 import re
@@ -34,14 +36,15 @@ class TransportError(Exception):
 
 
 class Rule:
-    __slots__ = ("method", "path", "fields", "values", "login")
+    __slots__ = ("method", "path", "fields", "values", "login", "nonempty")
 
-    def __init__(self, method: str, path: str, *, fields=None, values=None, login: bool = False):
+    def __init__(self, method: str, path: str, *, fields=None, values=None, login: bool = False, nonempty: bool = False):
         self.method = method.upper()
         self.path = re.compile(r"\A(?:%s)\Z" % path)
         self.fields = None if fields is None else frozenset(fields)
         self.values = dict(values or {})
         self.login = login
+        self.nonempty = nonempty                 # the body must carry at least one of the fields
         if set(self.values) - set(self.fields or ()):
             raise ValueError("value checks for fields the rule does not allow")
 
@@ -53,6 +56,8 @@ class Rule:
         if not isinstance(body, dict) or not set(body) <= self.fields:
             return False
         if self.login and set(body) != self.fields:
+            return False
+        if self.nonempty and not body:
             return False
         for name, check in self.values.items():
             if name in body:
@@ -112,7 +117,7 @@ class Transport:
     (a callable), so this object never stores them and ``repr()`` shows only the host."""
 
     def __init__(self, base_url: str, allow: AllowList, *, auth_headers=None, allow_self_signed: bool = False,
-                 timeout: float = 10.0, max_bytes: int = MAX_BYTES):
+                 timeout: float = 10.0, max_bytes: int = MAX_BYTES, pin_sha256: str = None):
         parts = urlsplit(str(base_url or ""))
         if parts.scheme not in ("http", "https") or not parts.hostname or parts.username or parts.password:
             raise TransportError("integration.err.url")
@@ -122,6 +127,10 @@ class Transport:
         self._allow = allow
         self._auth = auth_headers
         self._self_signed = bool(allow_self_signed)
+        pin = re.sub(r"[^0-9a-f]", "", str(pin_sha256 or "").lower())
+        if pin_sha256 and len(pin) != 64:
+            raise TransportError("integration.err.pin")
+        self._pin = pin or None                  # SHA-256 of the device's certificate: the connection is bound to it
         self.timeout = max(1.0, float(timeout))
         self.max_bytes = max_bytes
         self.refused = 0
@@ -154,11 +163,17 @@ class Transport:
             heads["Content-Type"] = "application/json"
             payload = json.dumps(body).encode("utf-8")
         if self._tls:
-            conn = http.client.HTTPSConnection(self._host, self._port, timeout=self.timeout, context=_ssl_context(self._self_signed))
+            conn = http.client.HTTPSConnection(self._host, self._port, timeout=self.timeout,
+                                               context=_ssl_context(self._self_signed or bool(self._pin)))
         else:
             conn = http.client.HTTPConnection(self._host, self._port, timeout=self.timeout)
         try:
             try:
+                if self._pin and self._tls:
+                    conn.connect()
+                    seen = hashlib.sha256(conn.sock.getpeercert(binary_form=True) or b"").hexdigest()
+                    if not hmac.compare_digest(seen, self._pin):
+                        raise TransportError("integration.err.certificate", "certificate does not match the pinned one")
                 conn.request(method, path, body=payload, headers=heads)
                 resp = conn.getresponse()
                 data = resp.read(self.max_bytes + 1)

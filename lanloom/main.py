@@ -87,6 +87,9 @@ class App:
         from .firewall.editor import Editor
         self.firewall = Editor(cfg, store)
         self.firewall.live = self.core.live_configs
+        self.firewall.journal = self.real_core.reports.journal       # finished real changes -> nightly report
+        self.firewall.notify = self.real_core.notify                  # a change put back -> notification rules
+        from .firewall import report as _fw_report  # noqa: F401 - registers the nightly report section
         from .ai.manager import AI
         from .ai import report as _ai_report  # noqa: F401 - registers the nightly report section
         self.ai = AI(self.core, store, vault, cfg)
@@ -873,9 +876,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def fw_draft(request: Request):
         data = await body(request)
         moves = data.get("moves") if isinstance(data.get("moves"), dict) else {}
-        note(request, detail={"moves": len(moves)})
+        edits = data.get("edits") if isinstance(data.get("edits"), dict) else None
+        note(request, detail={"moves": len(moves), "edits": len(edits or {})})
         try:
-            return state.firewall.set_draft(request.state.user, moves)
+            return state.firewall.set_draft(request.state.user, moves, edits=edits)
         except Refused as exc:
             return refused(exc)
 

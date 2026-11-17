@@ -20,7 +20,7 @@ Type a few words; **every word has to match**. A word that starts a word of the 
 
 | Group | What | Where it is matched |
 | --- | --- | --- |
-| Views and commands | every view, the settings pages, light/dark, colour themes, rate unit, update check | in the page |
+| Views and commands | every view, the settings pages, light/dark, colour themes, rate unit, update check, *Change a device (network, name, fixed address) …* | in the page |
 | Devices | name, address, hardware address, kind, host names, maker and model | the server |
 | Virtual machines and containers | name, id, addresses, host (from a hypervisor connection) | the server |
 | Services | which device offers which service, with the port | the server |
@@ -49,7 +49,7 @@ Operators: `>` `>=` `<` `<=` `=` (also `≥` and `≤`). A unit is compared when
 
 | Hit | Actions |
 | --- | --- |
-| Device, virtual machine, service | Open (the card of the device), Copy address |
+| Device, virtual machine, service | Open (the card of the device), Copy address; for a device also *Move to … / change* (operators: opens the firewall editor with its sheet - network, name, fixed address) |
 | Entity | Open the sensor page, Show the hub card, Copy ID |
 | Automation | Show the hub card, Copy ID |
 

@@ -18,7 +18,7 @@ import json
 import re
 import time
 
-from . import CAPABILITIES, model, session
+from . import CAPABILITIES, READ_ONLY_WRITE_KEYS, model, session
 from .. import capabilities
 from ..credentials import Secret
 from ..transport import Forbidden, Transport, TransportError, read_allowlist
@@ -99,7 +99,7 @@ class UnifiReader:
         self.full_interval = max(self.interval, float(full_interval))
         self._official_prefix = None      # "/proxy/network" | "" once found; False = not available
         self._site_id = None
-        self._caps = capabilities.validate(CAPABILITIES, self.family)
+        self._caps = capabilities.refine(capabilities.validate(CAPABILITIES, self.family), write_missing=READ_ONLY_WRITE_KEYS)
         self.last_raw_keys = ()
 
     def __repr__(self):
@@ -311,7 +311,7 @@ class UnifiReader:
         if not state.get("ports"):
             missing |= {"ports"}
         caps = capabilities.refine(capabilities.validate(CAPABILITIES, self.family), version=state["controller"]["version"] or "",
-                                   read_missing=missing)
+                                   read_missing=missing, write_missing=READ_ONLY_WRITE_KEYS)
         caps["api"]["kind"] = "official-local" if has_official else "classic-local"
         self._caps = caps
         return caps

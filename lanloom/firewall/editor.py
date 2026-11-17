@@ -59,6 +59,8 @@ class Editor:
         self._sim = None
         self._runner = None
         self.live = None           # callable -> fresh configurations read by family adapters (set by the app)
+        self.journal = None        # event journal of the nightly report (set by the app)
+        self.notify = None         # notification rules (set by the app)
 
     # ------------------------------------------------------------------ simulation
     def sim(self):
@@ -103,13 +105,18 @@ class Editor:
     def _draft_key(self, user) -> str:
         return "fw_draft:%s" % user["id"]
 
+    EMPTY = {"moves": {}, "edits": {}, "t": 0, "undo_of": None}
+
     def draft(self, user) -> dict:
         d = self.store.get_setting(self._draft_key(user), None)
         if not isinstance(d, dict) or time.time() - d.get("t", 0) > DRAFT_TTL_S:
-            return {"moves": {}, "t": 0, "undo_of": None}
+            return dict(self.EMPTY, moves={}, edits={})
+        d.setdefault("edits", {})             # drafts of earlier releases carried moves only
         return d
 
-    def set_draft(self, user, moves: dict, undo_of=None) -> dict:
+    def set_draft(self, user, moves: dict, undo_of=None, edits: dict = None) -> dict:
+        """Moves {device: network} and edits {device: {"name"?, "fixed_ip"?}}. ``edits=None`` keeps the edits of the
+        current draft (a client that only sends moves, as earlier releases did, does not lose them)."""
         st = self.state()
         if st is None:
             raise model.Refused("fw.err.no_state")
@@ -118,19 +125,28 @@ class Editor:
         for dev_id, net_id in (moves or {}).items():
             if isinstance(dev_id, str) and isinstance(net_id, str) and dev_id in devs and net_id in nets and devs[dev_id]["network"] != net_id:
                 clean[dev_id] = net_id
-        if len(clean) > model.MAX_OBJECTS:
-            raise model.Refused("fw.block.too_many", n=len(clean), max=model.MAX_OBJECTS)
-        from ..integrations import capabilities as capmod
-        if clean and not capmod.can(self.capabilities(), "move"):
-            raise model.Refused("fw.block.capability", kind="move")
         prev = self.draft(user)
-        d = {"moves": clean, "t": int(prev.get("t") or time.time()) if clean else 0,
-             "undo_of": undo_of if undo_of is not None else (prev.get("undo_of") if clean else None)}
+        ed = model.clean_edits(st, prev.get("edits") if edits is None else edits)
+        n = len(set(clean) | set(ed))
+        if n > model.MAX_OBJECTS:
+            raise model.Refused("fw.block.too_many", n=n, max=model.MAX_OBJECTS)
+        from ..integrations import capabilities as capmod
+        caps = self.capabilities()
+        if clean and not capmod.can(caps, "move"):
+            raise model.Refused("fw.block.capability", kind="move")
+        for dev_id, fields in ed.items():
+            for f, v in fields.items():
+                probe = {"kind": "client.set", "object": dev_id, "before": {f: model._cur(devs[dev_id], f)}, "after": {f: v}}
+                if capmod.stage_for(caps, probe) is None:
+                    raise model.Refused("fw.block.capability", kind="client.set." + f)
+        busy = bool(clean or ed)
+        d = {"moves": clean, "edits": ed, "t": int(prev.get("t") or time.time()) if busy else 0,
+             "undo_of": undo_of if undo_of is not None else (prev.get("undo_of") if busy else None)}
         self.store.set_setting(self._draft_key(user), d)
         return d
 
     def clear_draft(self, user) -> None:
-        self.store.set_setting(self._draft_key(user), {"moves": {}, "t": 0, "undo_of": None})
+        self.store.set_setting(self._draft_key(user), dict(self.EMPTY, moves={}, edits={}))
 
     def live_sources(self) -> list:
         try:
@@ -153,10 +169,10 @@ class Editor:
             from ..integrations import capabilities as capmod
             st = entry["state"]
             return {"mode": "live", "source": source, "sources": sources, "state": st, "targets": {},
-                    "draft": {"moves": {}, "t": 0, "undo_of": None}, "quiet": self.is_quiet(), "quiet_hours": self.quiet_hours,
+                    "draft": dict(self.EMPTY, moves={}, edits={}), "quiet": self.is_quiet(), "quiet_hours": self.quiet_hours,
                     "executor": self.executor_status(), "running": None, "history": [], "max_objects": model.MAX_OBJECTS,
                     "requester": next((d["id"] for d in st.get("devices") or [] if d.get("ip") == client_ip), None),
-                    "capabilities": capmod.public(entry["caps"]),
+                    "capabilities": capmod.public(dict(entry["caps"], write={})),     # a live source is shown, never written
                     "live": {"name": entry["name"], "family": entry.get("family"), "age_s": entry.get("age_s"),
                              "version": (st.get("controller") or {}).get("version"), "apis": (st.get("controller") or {}).get("apis")}}
         st = self.state()
@@ -182,8 +198,9 @@ class Editor:
         st = self.state()
         if st is None:
             raise model.Refused("fw.err.no_state")
-        moves = self.draft(user).get("moves") or {}
-        return model.preview(st, moves, requester_ip=client_ip, quiet=self.is_quiet())
+        d = self.draft(user)
+        return model.preview(st, d.get("moves") or {}, requester_ip=client_ip, quiet=self.is_quiet(),
+                             edits=model.clean_edits(st, d.get("edits")))
 
     def make_plan(self, user, client_ip: str, confirmed: list, rp_id: str) -> dict:
         pv = self.preview(user, client_ip)
@@ -242,10 +259,20 @@ class Editor:
         job = next((j for j in self.history() if j["plan"] == plan_id), None)
         if not job or job.get("status") != "done" or not job.get("inverse") or not job.get("undo_until") or time.time() > job["undo_until"]:
             raise model.Refused("fw.err.undo_gone")
-        if any(s.get("kind") != "move" for s in job["inverse"]):
-            raise model.Refused("fw.err.undo_gone")      # only moves are drafted in the editor so far
-        moves = {s["device"]: s["after"]["network"] for s in job["inverse"]}
-        return self.set_draft(user, moves, undo_of=plan_id)
+        if any(s.get("kind") not in ("move", "client.set") for s in job["inverse"]):
+            raise model.Refused("fw.err.undo_gone")      # only moves and client settings are drafted in the editor
+        moves, edits = {}, {}
+        for s in job["inverse"]:
+            if s["kind"] == "move":
+                moves[s["device"]] = s["after"]["network"]
+                continue
+            after = s["after"]
+            if "network" in after:
+                moves[s["object"]] = after["network"]
+            fields = {f: after[f] for f in model.EDIT_FIELDS if f in after}
+            if fields:
+                edits[s["object"]] = fields
+        return self.set_draft(user, moves, undo_of=plan_id, edits=edits)
 
     def reset_simulation(self) -> None:
         if self.mode != "simulation" or self.runner().busy():
@@ -264,12 +291,45 @@ class Editor:
                                 "to": (nets.get(s["after"]["network"]) or {}).get("name", "?")})
             else:
                 obj = neutral.find(st, s) or {}
-                summary.append({"name": obj.get("name") or s["after"].get("name") or s["before"].get("name") or "?",
-                                "kind": s["kind"], "fields": stepkinds.changed_fields(s)})
+                item = {"name": obj.get("name") or s["after"].get("name") or s["before"].get("name") or "?",
+                        "kind": s["kind"], "fields": stepkinds.changed_fields(s)}
+                if s["kind"] == "client.set":
+                    if "network" in s["after"]:
+                        item["to"] = (nets.get(s["after"]["network"]) or {}).get("name", "?")
+                    if "name" in s["after"]:
+                        item["name_new"] = s["after"]["name"]
+                    if "fixed_ip" in s["after"]:
+                        item["fixed_ip"] = s["after"]["fixed_ip"]
+                summary.append(item)
         jobs = self.history()
         jobs.insert(0, {"plan": plan["id"], "user": user["username"], "t": int(time.time()), "status": "running", "stage": "queued",
-                        "summary": summary, "undo_of": plan.get("undo_of"), "inverse": None, "undo_until": None})
+                        "summary": summary, "undo_of": plan.get("undo_of"), "inverse": None, "undo_until": None,
+                        "target": plan.get("target")})
         self.store.set_setting("fw_jobs", jobs[:20])
+
+    def _journal_change(self, job: dict) -> None:
+        """A finished change on a real controller goes into the event journal (nightly report section "Changes");
+        rehearsals on the sample network do not. No addresses, no secrets: names, counts, the result."""
+        if job.get("target") in (None, "simulation"):
+            return
+        names = [str(x.get("name") or "?")[:40] for x in (job.get("summary") or [])][:10]
+        if self.notify is not None and job["status"] in ("rolled_back", "failed"):
+            try:
+                self.notify.emit("fw_change", "fw_change:%s" % job["plan"], once=True,
+                                 severity="critical" if job["status"] == "failed" else "warning",
+                                 data={"what": ", ".join(names[:3]) or "?", "who": str(job.get("user") or "?")[:64],
+                                       "result_key": job.get("reason") if str(job.get("reason") or "").startswith("fw.res.") else "fw.res.apply_failed"})
+            except Exception:
+                pass
+        if self.journal is None:
+            return
+        try:
+            self.journal.add("fw_change", {"plan": job["plan"], "user": str(job.get("user") or "")[:64], "status": job["status"],
+                                           "reason": job.get("reason") or "", "n": len(job.get("summary") or []),
+                                           "names": [str(x.get("name") or "?")[:40] for x in (job.get("summary") or [])][:10],
+                                           "undo_of": job.get("undo_of")})
+        except Exception:
+            pass
 
     def history(self) -> list:
         jobs = self.store.get_setting("fw_jobs", [])
@@ -290,11 +350,14 @@ class Editor:
             jobs = self.history()
             for job in jobs:
                 if job["plan"] == ev["plan"]:
+                    first = job.get("status") == "running"
                     job.update(status=ev["status"], stage=ev.get("stage"), reason=ev.get("reason"), finished=int(time.time()))
                     inv = ev.get("inverse")
                     if ev["status"] == "done" and isinstance(inv, list) and inv:
                         job["inverse"] = inv
                         job["undo_until"] = int(time.time()) + UNDO_TTL_S
+                    if first:
+                        self._journal_change(job)
             self.store.set_setting("fw_jobs", jobs)
         else:
             jobs = self.history()

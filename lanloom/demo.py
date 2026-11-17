@@ -550,6 +550,11 @@ class Demo:
             ev("src_fail", p - 2.4 * h, id=key, name=names["hub"], key="source.hub.auth_failed")
             ev("src_ok", p - 2.3 * h, id=key, name=names["hub"])
         devev("dev_gone", 50, p - 1.5 * h, since=p - 25.5 * h)
+        # changes written through the executor (section "Changes written"): one done, one put back on its own
+        ev("fw_change", p - 9.2 * h, plan="p_demo_1", user="admin", status="done", reason="fw.res.done", n=2,
+           names=["Kitchen tablet", "Office printer"], undo_of=None)
+        ev("fw_change", p - 8.7 * h, plan="p_demo_2", user="admin", status="rolled_back", reason="fw.res.rolled_back_device", n=1,
+           names=["Garden camera"], undo_of=None)
         devev("dev_offline", 20, p - 6 * h)
         devev("dev_back", 20, p - 1.0 * h)
         fam = _demo_family()

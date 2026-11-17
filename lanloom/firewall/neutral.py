@@ -8,7 +8,8 @@ executor that has not been updated yet keep working) and adds optional lists::
     v1  allow         [[from_zone, to_zone], ...]          derived from policies when an adapter has them
     v1  networks      [{id, name, zone, cidr, vlan, management, dhcp?, internet?, purpose?, own?}]
     v1  devices       [{id, name, kind, network, ip, fixed, wired, alone_on_port, private_address, protected,
-                        fixed_ip?, parent?, band?, blocked?}]       end devices ("clients" in vendor terms)
+                        fixed_ip?, parent?, band?, blocked?, online?, network_by_port?}]   end devices ("clients")
+                        network_by_port: the device's network follows its switch port (a client setting cannot move it)
     v2  equipment     [{id, name, kind, model, firmware, mgmt_ip, uplink {device, port}}]   network equipment
     v2  ports         [{id, device, idx, name, link, speed, poe {capable, on}, profile, native_vlan, tagged[],
                         is_uplink, lldp_neighbor}]

@@ -98,6 +98,23 @@ the filter. See [DISCOVERY.md](../DISCOVERY.md).
 Zones, networks and rules, read from your controller; changes as a draft with a dry run. See
 [FIREWALL-EDITOR.md](../FIREWALL-EDITOR.md).
 
+![Device sheet: network, name and fixed address](../screenshots/firewall-device-light.png)
+
+- **What you see.** Every zone with its networks and the devices in them; a pin marks a fixed address. A live
+  controller source is read only; the simulation (sample network) and the external executor can be changed.
+- **How to change.** Switch to *Change*. Drag a device onto another network, or tap or click it to open its sheet:
+  *Move to …*, *Name*, *Fixed address* - only what the connected controller can change is offered. The changes collect
+  in the draft bar (one chip per device); *Preview* shows every field old → new, the warnings and what blocks.
+- **Checks.** A fixed address must lie inside the device's network, must not be the network's own address or its
+  gateway and must not belong to another device. A device connected by cable cannot be moved by a client setting (its
+  network follows the switch port), and a device whose network is unknown while it is offline can only be renamed.
+- **Who may.** Operators prepare drafts and previews; applying needs an admin, and with the external executor a passkey
+  signature per change. Every draft is in the audit log; changes on a real controller appear in the nightly report
+  under *Changes written*.
+- **On the phone.** Tap a device: the sheet opens from the bottom; *Move to …* leads to the list of networks.
+- **From the search** (`Ctrl K`): *Change a device (network, name, fixed address) …*, or a device hit → *Move to … /
+  change*.
+
 <a id="reports"></a>
 ## Nightly report
 
@@ -167,6 +184,8 @@ two seconds or more, times such as "seen 5 s ago" may look shifted by that much.
 | `#/devices/<device>` | the device list with that device's card |
 | `#/devices?show=new` | the device list filtered (`new`, `unsure`, `offline`) |
 | `#/reports/<day>` | that nightly report |
+| `#/firewall/device/<address>` | the firewall editor in change mode with the sheet of that device |
+| `#/firewall/pick` | the firewall editor with a searchable list of the devices that can be changed |
 | `#/settings/<page>` | a settings page |
 
 Opening a card, a report or a filter changes the address, so the back key closes the card or returns to the report or

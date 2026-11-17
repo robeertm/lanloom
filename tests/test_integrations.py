@@ -81,7 +81,7 @@ def test_manifest_validation(change):
 
 def test_read_half_loads_in_the_app_write_half_only_in_the_executor(monkeypatch):
     reader = integrations.load_read("simulation")
-    assert reader.read()["devices"] and reader.capabilities()["write"] == {"move": "B"}
+    assert reader.read()["devices"] and reader.capabilities()["write"] == {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "client.set.network": "B"}
     with pytest.raises(PermissionError):
         integrations.load_write("simulation", settle_s=0)
     monkeypatch.setitem(integrations._EXECUTOR, "on", True)
@@ -235,7 +235,7 @@ def test_executor_options_file_must_be_private(tmp_path, monkeypatch):
     a = ex.build_adapter(ex.Settings(env))
     info = ex.executor_info(ex.Settings(env), a)
     assert info["plan_version_max"] == 2 and info["api_level"] == integrations.INTEGRATION_API
-    assert info["capabilities"]["write"] == {"move": "B"}
+    assert info["capabilities"]["write"] == {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "client.set.network": "B"}
 
 
 # ---------------------------------------------------------------------------- the one send path

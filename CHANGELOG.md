@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.23.0] – 2026-11-17
+
+### Added
+- **Change clients through the executor** for UniFi Network controllers (stage B; product names are used only to identify compatible products, no affiliation or endorsement): move a wireless client to another network (network override plus a fixed address there), give a client a fixed address, change or remove it, and rename it. The write half runs only in the executor service with a site-administrator account of its own that the app never sees; client settings exist only in the classic API. Everything else is refused by a field-exact allow-list below the adapter. Guide: [docs/integrations/unifi.md](docs/integrations/unifi.md#changing-clients-stage-b).
+- **Device sheet in the firewall editor**: tap or click a device in Change mode (on a phone too) to move it, rename it or give it a fixed address - only what the connected controller can change is offered. The draft bar collects moves and changes per device; the preview shows every field old → new, and a device that is moved and renamed in one draft becomes one step.
+- **Checks before anything is written**: a new or fixed address must lie inside its network, must not be the network's own address or its gateway, must not belong to another device and must not be used twice in one plan - in the preview, again in the executor's gate against a fresh read, and once more in the write half (controller software stores some wrong combinations without a word). After writing, every client is read back; a value that did not take rolls the change back.
+- **Connection guard in the executor**: the executor process can connect only to the app and to its controller; anything else is refused before a connection is made. `LANLOOM_EXECUTOR_DENY_HOSTS` names addresses that are always refused, for example the real controller while the executor rehearses against a test controller.
+- Write half sessions: at most four sign-ins an hour, counted across executor restarts, a 15-minute pause after a refused session, one new sign-in after HTTP 401 and none after 403; the connection can be bound to the controller's certificate (`cert_sha256`). An account that cannot write is refused, an owner-level account gives a warning.
+- Known clients that are offline but carry settings of their own (a name, a fixed address, a network override) appear in the Firewall tab with their last network, so they can be renamed or get their address before they return.
+- Command palette: *Change a device (network, name, fixed address) …*, and the action *Move to … / change* on a device hit; deep links `#/firewall/device/<address>` and `#/firewall/pick`.
+- Nightly report section **Changes written**: what the executor changed since the last report (done, undone, refused), with a point for each change that was put back on its own or could not be put back. Rehearsals on the sample network never appear. The demo shows one of each.
+- The sample network (simulation and demo) can rename devices and change fixed addresses too.
+- Notification event **Controller change put back** (Settings › Notifications, group *Changes on the controller*): a change on a real controller that was put back on its own (warning) or could not be put back (critical). Finished changes are not announced; they are in the nightly report.
+
+### Changed
+- A device whose network follows its switch port (connected by cable) and a device whose network is not known while it is offline are no move target any more; the preview says why instead of the executor refusing the plan later.
+- The plan fingerprint accepts measured values with decimals in the controller state (for example a port's power draw) instead of failing.
+- Live configurations read by a device-family adapter never offer write controls, whatever the family could write through the executor.
+
 ## [1.22.1] – 2026-11-17
 
 ### Changed

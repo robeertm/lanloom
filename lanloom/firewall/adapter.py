@@ -18,6 +18,8 @@ Contract of an adapter (all methods synchronous, called from the executor thread
 * ``settle(steps) -> None``     wait until the controller finished provisioning (may sleep)
 * ``probe(steps) -> dict``      watch probe: {"global_ok": bool, "missing": [object ids not as planned]}
 * ``lockout(state, step)``      extra family-specific lockout rule: a refusal key or None (neutral rules always run)
+* ``endpoints() -> list``       host names or addresses the adapter connects to; the executor's connection guard
+                                allows nothing else (see ``lanloom.connguard``)
 """
 import copy
 import json
@@ -60,6 +62,9 @@ class ControllerAdapter:
 
     def lockout(self, state: dict, step: dict):
         return None
+
+    def endpoints(self) -> list:
+        return []
 
 
 # ---------------------------------------------------------------------------- the sample network
@@ -129,6 +134,7 @@ def sample_state() -> dict:
         base = nets[d["network"]]["cidr"].rsplit(".", 1)[0]
         dd = {k: v for k, v in d.items() if not k.startswith("_")}
         dd["ip"] = "%s.%d" % (base, d["_last"])
+        dd["fixed_ip"] = dd["ip"] if d["fixed"] else ""
         devices.append(dd)
     return {"controller": {"label": "Sample network", "kind": "simulation"}, "zones": copy.deepcopy(_ZONES),
             "allow": copy.deepcopy(_ALLOW), "networks": copy.deepcopy(_NETS), "devices": devices,
@@ -147,7 +153,7 @@ class SimulatedController(ControllerAdapter):
     family = "simulation"
 
     def __init__(self, state: dict = None, persist=None, settle_s: float = 2.0, fail_devices=(), capabilities=None,
-                 fail_after_writes: int = 0, fail_restore: bool = False):
+                 fail_after_writes: int = 0, fail_restore: bool = False, state_dir=None):
         self._state = copy.deepcopy(state) if state else sample_state()
         self._persist = persist
         self._lock = threading.Lock()
@@ -209,6 +215,10 @@ class SimulatedController(ControllerAdapter):
                     self.writes.append(oid)
             elif obj is not None and any(obj.get(f) != v for f, v in step["after"].items()):
                 obj.update(copy.deepcopy(step["after"]))
+                if step["kind"] == "client.set":
+                    obj["fixed"] = bool(obj.get("fixed_ip"))
+                    if "network" in step["after"] and obj.get("fixed_ip"):
+                        obj["ip"] = obj["fixed_ip"]       # the sample device takes its new address at once
                 self.writes.append(oid)
             self._save()
             return None

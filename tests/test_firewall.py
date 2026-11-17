@@ -338,7 +338,7 @@ def sign_in(c):
 
 
 def wait_done(c):
-    for _ in range(200):
+    for _ in range(600):              # up to 30 s: the simulation runs in a thread, slow under a loaded test machine
         v = c.get("/api/firewall").json()
         if not v["running"]:
             return v

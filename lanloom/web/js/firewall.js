@@ -1,5 +1,7 @@
-/* Lanloom — firewall editor: view and change mode, drag and drop or "Move to…", draft bar, plain-language
-   preview, passkey approval (external executor) or simulation, progress, history and undo. */
+/* Lanloom — firewall editor: view and change mode, drag and drop or "Move to…", a device sheet (network, name, fixed
+   address - each only when the controller can change it), draft bar, plain-language preview, passkey approval
+   (external executor) or simulation, progress, history and undo. Routes: #/firewall/device/<address> opens the sheet
+   of a device, #/firewall/pick a device picker (both used by the command palette). */
 (function () {
   'use strict';
   const LL = window.Lanloom;
@@ -8,15 +10,28 @@
   const ICON = {
     lock: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
     grip: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
+    pin: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>',
     shield: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6c0 4.6 3.2 8.2 7.5 9.6 4.3-1.4 7.5-5 7.5-9.6v-6z"/><path d="m8.8 12 2.3 2.3 4.3-4.6" stroke-linecap="round"/></svg>'
   };
   LL.FW_ICON = ICON.shield;
 
+  function pin() { const el = svg(ICON.pin, 'fw-tile__pin'); el.setAttribute('role', 'img'); el.setAttribute('aria-label', t('fw.tile.fixed')); el.removeAttribute('aria-hidden'); el.title = t('fw.tile.fixed'); return el; }
   function svg(html, cls) { const s = h('span', { class: cls || 'fw-ico', 'aria-hidden': 'true' }); s.innerHTML = html; return s; }
   function tr(item) { const v = Object.assign({}, item[1] || {}); if (v.reason && LL.strings[v.reason]) v.reason = t(v.reason); return t(item[0], v); }
 
+  function hasKey(v, key) { const w = v && v.capabilities && v.capabilities.write; return !!w && Object.prototype.hasOwnProperty.call(w, key); }
+  // one line for a change of a job (progress card, history): "Phone → Media" or "Phone · name, fixed address"
+  function sumText(x) {
+    if (x.to && !x.kind) return x.name + ' → ' + x.to;
+    const parts = [];
+    if (x.to) parts.push('→ ' + x.to);
+    (x.fields || []).filter(f => f !== 'network').forEach(f => parts.push(f === 'name' && x.name_new ? t('fw.sum.name', { name: x.name_new }) : t('fw.field.' + f)));
+    return x.name + (parts.length ? ' · ' + parts.join(', ') : '');
+  }
+  LL.fwSumText = sumText;
+
   function firewallView() {
-    return async function (app) {
+    return async function (app, rest) {
       const fr = LL.frame(app, 'firewall');
       const page = h('div', { class: 'page fw-page' });
       const bar = h('div', { class: 'fw-draftbar', hidden: true, role: 'region', 'aria-label': t('fw.draft.label') });
@@ -26,17 +41,24 @@
 
       async function load() {
         try { st.view = await api('/api/firewall' + (st.source ? '?source=' + encodeURIComponent(st.source) : '')); } catch (e) { page.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
-        st.pv = st.view.mode !== 'live' && Object.keys(st.view.draft.moves || {}).length ? await api('/api/firewall/preview', { method: 'POST', body: {} }).catch(() => null) : null;
+        st.pv = st.view.mode !== 'live' && draftCount(st.view) ? await api('/api/firewall/preview', { method: 'POST', body: {} }).catch(() => null) : null;
         render();
         clearTimeout(st.timer);
         if (st.view.running) st.timer = setTimeout(load, 1500);
         else if (st.view.mode === 'live') st.timer = setTimeout(load, 60000);
       }
 
-      async function setMoves(moves) {
-        try { await api('/api/firewall/draft', { method: 'PUT', body: { moves } }); }
-        catch (e) { LL.toast(LL.errText(e), 'error'); }
+      async function setMoves(moves, edits) {
+        const body = { moves };
+        if (edits) body.edits = edits;
+        try { await api('/api/firewall/draft', { method: 'PUT', body }); }
+        catch (e) { LL.toast(fwErr(e), 'error'); }
         await load();
+      }
+      function setEdits(devId, fields) {
+        const e = Object.assign({}, st.view.draft.edits || {});
+        if (fields && Object.keys(fields).length) e[devId] = fields; else delete e[devId];
+        return setMoves(Object.assign({}, st.view.draft.moves), e);
       }
       function stage(devId, netId) { const m = Object.assign({}, st.view.draft.moves); m[devId] = netId; return setMoves(m); }
       async function takeSuggestion(moves) {           // AI suggestions become a draft only by the user's click
@@ -44,22 +66,29 @@
         st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ }
         await load();
       }
-      function unstage(devId) { const m = Object.assign({}, st.view.draft.moves); delete m[devId]; return setMoves(m); }
+      function unstage(devId) {
+        const m = Object.assign({}, st.view.draft.moves); delete m[devId];
+        const e = Object.assign({}, st.view.draft.edits || {}); delete e[devId];
+        return setMoves(m, e);
+      }
+      const draftCount = v => new Set(Object.keys(v.draft.moves || {}).concat(Object.keys(v.draft.edits || {}))).size;
 
       // ---------------------------------------------------------------- rendering
       // controls appear only for what the connected controller can do (capability list from the server)
       function canMove(v) { const w = v.capabilities && v.capabilities.write; return LL.can('operate') && (!w || Object.prototype.hasOwnProperty.call(w, 'move')); }
+      function canEdit(v, field) { return LL.can('operate') && v.mode !== 'live' && hasKey(v, 'client.set.' + field); }
+      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip'); }
 
       function render() {
         const v = st.view;
-        if (!canMove(v)) st.mode = 'view';
+        if (!canChange(v)) st.mode = 'view';
         if (!v.state) { page.replaceChildren(head(v), h('div', { class: 'empty-state' }, h('h2', {}, t('fw.nostate.title')), h('p', { class: 'muted' }, t('fw.nostate.text')))); bar.hidden = true; return; }
         const kids = [head(v)];
         if (v.mode === 'simulation') kids.push(h('div', { class: 'callout fw-sim' }, h('strong', {}, t('fw.sim.title')), ' ', t('fw.sim.text'),
           LL.can('admin') ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: resetSim, disabled: !!v.running }, t('fw.sim.reset')) : null));
         if (v.mode === 'live') kids.push(h('div', { class: 'callout fw-live' }, svg(ICON.lock, 'fw-live__ico'), h('span', {}, t(v.state.hosts && v.state.hosts.length ? 'fw.live.callout_hv' : 'fw.live.callout', { name: v.live.name }))));
         else if (!LL.can('operate')) kids.push(h('div', { class: 'callout' }, t('fw.role.readonly')));
-        else if (!canMove(v)) kids.push(h('div', { class: 'callout' }, t('fw.executor.readonly')));
+        else if (!canChange(v)) kids.push(h('div', { class: 'callout' }, t('fw.executor.readonly')));
         if (v.quiet) kids.push(h('div', { class: 'callout callout--warn' }, t('fw.quiet.now', { hours: v.quiet_hours })));
         if (v.running) kids.push(progressCard(v.running));
         if (!(v.mode === 'live' && v.state.hosts && v.state.hosts.length)) kids.push(board(v));
@@ -92,7 +121,7 @@
         })) : null;
         return h('div', { class: 'page__head fw-head' },
           h('div', { class: 'fw-head__title' }, h('h1', {}, t('nav.firewall')), h('div', { class: 'fw-head__meta' }, chip, meta ? h('span', { class: 'muted' }, meta) : null)),
-          h('div', { class: 'fw-head__tools' }, pick, canMove(v) && LL.aiFirewallButton ? LL.aiFirewallButton(v, v.draft.moves, takeSuggestion) : null, canMove(v) ? seg : null, v.mode === 'live' || !LL.can('admin') ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
+          h('div', { class: 'fw-head__tools' }, pick, canMove(v) && LL.aiFirewallButton ? LL.aiFirewallButton(v, v.draft.moves, takeSuggestion) : null, canChange(v) ? seg : null, v.mode === 'live' || !LL.can('admin') ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
       }
 
       function board(v) {
@@ -145,24 +174,28 @@
       function tile(v, d, change) {
         const moved = !!change;
         const locked = !!d.protected;
+        const edit = (v.draft.edits || {})[d.id];
         const el = h('div', { class: 'fw-tile' + (locked ? ' is-locked' : '') + (moved ? ' is-new' : '') + (v.requester === d.id ? ' is-self' : ''),
           dataset: { dev: d.id }, title: locked ? t('fw.tile.stays_why', { reason: t(d.protected) }) : d.name },
           st.mode === 'change' && !locked ? svg(ICON.grip, 'fw-tile__grip') : null,
           h('div', { class: 'fw-tile__main' },
-            h('div', { class: 'fw-tile__name' }, d.name),
-            h('div', { class: 'fw-tile__meta mono' }, moved ? ['→ ', h('b', {}, change.new_ip)] : d.ip)),
+            h('div', { class: 'fw-tile__name' }, edit && edit.name ? edit.name : d.name),
+            h('div', { class: 'fw-tile__meta mono' }, moved ? ['→ ', h('b', {}, change.new_ip)]
+              : edit && edit.fixed_ip != null ? (edit.fixed_ip ? [pin(), h('b', {}, edit.fixed_ip)] : h('s', {}, d.fixed_ip || d.ip)) : [d.fixed_ip ? pin() : null, d.ip || '—'])),
           moved ? h('span', { class: 'chip chip--accent fw-tile__badge' }, t('fw.tile.new'))
+            : edit ? h('span', { class: 'chip chip--accent fw-tile__badge' }, t('fw.tile.edited'))
             : locked ? h('span', { class: 'fw-tile__lock', role: 'img', 'aria-label': t('fw.tile.stays') }, svg(ICON.lock))
               : v.requester === d.id ? h('span', { class: 'chip chip--muted fw-tile__badge' }, t('fw.tile.you')) : null);
+        if (d.online === false) el.classList.add('is-offline');
         if (st.mode === 'change' && !locked) {
           el.tabIndex = 0;
           el.setAttribute('role', 'button');
-          el.setAttribute('aria-label', t('fw.tile.move_aria', { name: d.name }));
-          el.draggable = true;
+          el.setAttribute('aria-label', t(canMove(v) ? 'fw.tile.move_aria' : 'fw.tile.change_aria', { name: d.name }));
+          el.draggable = canMove(v);
           el.addEventListener('dragstart', ev => { st.drag = d.id; ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', d.id); } catch (e) { /* old engines */ } markTargets(v, d.id); });
           el.addEventListener('dragend', endDrag);
-          el.addEventListener('click', () => openMove(v, d));
-          el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openMove(v, d); } });
+          el.addEventListener('click', () => openDevice(v, d));
+          el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDevice(v, d); } });
         }
         return el;
       }
@@ -207,18 +240,90 @@
         dlg.el.classList.add('modal--sheet');
       }
 
+      // ---------------------------------------------------------------- device sheet: network, name, fixed address
+      // Only what the controller can change is offered (capability list). Tap a tile on a phone -> this sheet.
+      function openDevice(v, d) {
+        const editName = canEdit(v, 'name'), editIp = canEdit(v, 'fixed_ip');
+        if (!editName && !editIp) { if (canMove(v)) openMove(v, d); return; }
+        const s = v.state;
+        const staged = (v.draft.edits || {})[d.id] || {};
+        const stagedNet = (v.draft.moves || {})[d.id] || null;
+        let pick = stagedNet;
+        const nameIn = h('input', { type: 'text', class: 'input', maxlength: '64', autocomplete: 'off', value: staged.name != null ? staged.name : d.name });
+        const curFixed = staged.fixed_ip != null ? staged.fixed_ip : (d.fixed_ip || '');
+        const fixedCb = h('input', { type: 'checkbox', checked: !!curFixed });
+        const ipIn = h('input', { type: 'text', class: 'input mono', inputmode: 'decimal', autocomplete: 'off', spellcheck: 'false', value: curFixed || d.ip || '', disabled: !curFixed });
+        fixedCb.addEventListener('change', () => { ipIn.disabled = !fixedCb.checked; if (fixedCb.checked && !ipIn.value) ipIn.value = d.ip || ''; if (fixedCb.checked) ipIn.focus(); });
+        const msg = h('div', { class: 'msg' });
+        const netName = id => (s.networks.find(n => n.id === id) || {}).name || '?';
+        const netRow = canMove(v) && !d.protected ? h('div', { class: 'fw-dev__row' },
+          h('div', { class: 'fw-dev__label' }, t('fw.dev.network')),
+          h('div', { class: 'fw-dev__value' }, h('span', { class: 'fw-dev__net' }, pick ? netName(d.network) + ' → ' + netName(pick) : netName(d.network)),
+            h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => { dlg.close(); openMove(v, d); } }, t('fw.dev.move')))) : null;
+        const body = h('div', { class: 'fw-dev' },
+          h('p', { class: 'muted fw-dev__lead' }, [d.ip || '—', d.online === false ? t('fw.dev.offline') : null].filter(Boolean).join(' · ')),
+          netRow,
+          editName ? LL.field(t('fw.dev.name'), nameIn) : null,
+          editIp ? h('div', { class: 'fw-dev__fixed' },
+            h('label', { class: 'check' }, fixedCb, h('span', {}, t('fw.dev.fixed'))),
+            LL.field(t('fw.dev.fixed_ip'), ipIn, t('fw.dev.fixed_hint', { cidr: (s.networks.find(n => n.id === (pick || d.network)) || {}).cidr || '' }))) : null,
+          msg);
+        const save = h('button', { class: 'btn btn--primary btn--block', type: 'button', onclick: async () => {
+          const fields = {};
+          const name = nameIn.value.trim();
+          if (editName && name && name !== d.name) fields.name = name;
+          if (editName && !name) { LL.msg(msg, t('fw.dev.name_empty'), 'error'); return; }
+          if (editIp) {
+            const want = fixedCb.checked ? ipIn.value.trim() : '';
+            if (fixedCb.checked && !/^[0-9a-fA-F:.]{2,45}$/.test(want)) { LL.msg(msg, t('fw.dev.ip_invalid'), 'error'); return; }
+            if (want !== (d.fixed_ip || '')) fields.fixed_ip = want;
+          }
+          dlg.close();
+          await setEdits(d.id, fields);
+        } }, t('fw.dev.stage'));
+        const dlg = LL.dialog(t('fw.dev.title', { name: d.name }), body, save);
+        dlg.el.classList.add('modal--sheet');
+        setTimeout(() => (editName ? nameIn : ipIn).focus(), 30);
+      }
+
+      // a searchable list of the devices that can be changed (command palette: "Change a device…")
+      function openPicker(v) {
+        const s = v.state;
+        const all = s.devices.filter(d => !d.protected).sort((a, b) => a.name.localeCompare(b.name));
+        const q = h('input', { type: 'search', class: 'input', placeholder: t('fw.pick.search'), 'aria-label': t('fw.pick.search'), autocomplete: 'off' });
+        const list = h('div', { class: 'fw-move fw-pick', role: 'listbox', 'aria-label': t('fw.pick.title') });
+        const draw = () => {
+          const needle = q.value.trim().toLowerCase();
+          const hits = all.filter(d => !needle || d.name.toLowerCase().includes(needle) || String(d.ip || '').includes(needle)).slice(0, 60);
+          list.replaceChildren(...(hits.length ? hits.map(d => h('button', { type: 'button', class: 'fw-move__opt', role: 'option', onclick: () => { dlg.close(); openDevice(v, d); } },
+            h('span', { class: 'fw-move__name' }, d.name, ' ', h('span', { class: 'mono muted' }, d.ip || '—')),
+            h('span', { class: 'fw-move__zone muted' }, (s.networks.find(n => n.id === d.network) || {}).name || ''))) : [h('p', { class: 'muted' }, t('fw.pick.none'))]));
+        };
+        q.addEventListener('input', draw);
+        draw();
+        const dlg = LL.dialog(t('fw.pick.title'), h('div', { class: 'fw-dev' }, q, list));
+        dlg.el.classList.add('modal--sheet');
+        setTimeout(() => q.focus(), 30);
+      }
+
       // ---------------------------------------------------------------- draft bar
       function renderBar() {
         const v = st.view;
         const moves = v.draft.moves || {};
-        const ids = Object.keys(moves);
+        const edits = v.draft.edits || {};
+        const ids = [...new Set(Object.keys(moves).concat(Object.keys(edits)))];
         bar.hidden = !ids.length;
         if (!ids.length) { fr.main.classList.remove('has-draftbar'); return; }
         fr.main.classList.add('has-draftbar');
         const s = v.state;
         const chips = ids.map(id => {
-          const d = s.devices.find(x => x.id === id) || { name: '?' }; const n = s.networks.find(x => x.id === moves[id]) || { name: '?' };
-          return h('button', { type: 'button', class: 'fw-chip', title: t('fw.draft.undo_one', { name: d.name }), onclick: () => unstage(id) }, d.name + ' → ' + n.name, h('span', { 'aria-hidden': 'true' }, ' ✕'));
+          const d = s.devices.find(x => x.id === id) || { name: '?' }; const n = s.networks.find(x => x.id === moves[id]);
+          const e = edits[id] || {};
+          const parts = [];
+          if (n) parts.push('→ ' + n.name);
+          if (e.name) parts.push(t('fw.sum.name', { name: e.name }));
+          if (e.fixed_ip != null) parts.push(e.fixed_ip ? t('fw.sum.fixed', { ip: e.fixed_ip }) : t('fw.sum.fixed_off'));
+          return h('button', { type: 'button', class: 'fw-chip', title: t('fw.draft.undo_one', { name: d.name }), onclick: () => unstage(id) }, d.name + ' ' + parts.join(' · '), h('span', { 'aria-hidden': 'true' }, ' ✕'));
         });
         bar.replaceChildren(
           h('div', { class: 'fw-draftbar__info' }, h('strong', {}, t('fw.draft', { n: ids.length })),
@@ -239,9 +344,14 @@
         const ext = v.mode === 'external';
         const applyBtn = h('button', { class: 'btn btn--primary btn--block fw-apply', type: 'button' }, t(ext ? 'fw.preview.apply_passkey' : 'fw.preview.apply_sim'));
         const refresh = () => { applyBtn.disabled = !LL.can('admin') || pv.blocks.length > 0 || [...needs].some(k => !confirm.has(k)) || (ext && !LL.passkeySupported()); };
-        const changes = h('div', { class: 'fw-pv__changes' }, pv.changes.map(c => h('div', { class: 'fw-pv__change' },
+        const editRows = c => (c.edit || []).length ? h('ul', { class: 'fw-pv__edits' }, c.edit.map(e => h('li', {},
+          h('span', { class: 'fw-pv__field' }, t('fw.field.' + e.field)), ' ',
+          h('s', { class: e.field === 'fixed_ip' ? 'mono' : '' }, e.from || t('fw.preview.none_value')), ' → ',
+          h('b', { class: e.field === 'fixed_ip' ? 'mono' : '' }, e.to || t('fw.preview.none_value'))))) : null;
+        const changes = h('div', { class: 'fw-pv__changes' }, pv.changes.map(c => !c.to ? h('div', { class: 'fw-pv__change' },
+          h('div', { class: 'fw-pv__what' }, h('strong', {}, c.name), h('span', { class: 'muted' }, ' · ' + t('fw.preview.settings'))), editRows(c)) : h('div', { class: 'fw-pv__change' },
           h('div', { class: 'fw-pv__what' }, h('strong', {}, c.name), h('span', { class: 'muted' }, ' · ' + t('fw.preview.from_to', { from: c.from, to: c.to }))),
-          h('div', { class: 'mono fw-pv__ip' }, h('s', {}, c.old_ip), ' → ', h('b', {}, c.new_ip)),
+          h('div', { class: 'mono fw-pv__ip' }, h('s', {}, c.old_ip), ' → ', h('b', {}, c.new_ip)), editRows(c),
           h('div', { class: 'fw-pv__cols' },
             h('div', { class: 'fw-pv__box fw-pv__box--ok' }, h('h4', {}, t('fw.preview.may')), h('ul', {}, c.may.length ? c.may.map(x => h('li', {}, tr(x))) : [h('li', { class: 'muted' }, t('fw.preview.nothing'))])),
             h('div', { class: 'fw-pv__box fw-pv__box--no' }, h('h4', {}, t('fw.preview.may_not')), h('ul', {}, c.may_not.length ? c.may_not.map(x => h('li', {}, tr(x))) : [h('li', { class: 'muted' }, t('fw.preview.nothing_lost'))]))))));
@@ -304,7 +414,7 @@
         const until = p.watch_until ? Math.max(0, p.watch_until - Math.round(Date.now() / 1000)) : null;
         return h('section', { class: 'card fw-progress', 'aria-live': 'polite' },
           h('h2', {}, t('fw.progress.title')),
-          h('p', { class: 'muted' }, job.summary.map(x => x.name + ' → ' + x.to).join(' · ')),
+          h('p', { class: 'muted' }, job.summary.map(sumText).join(' · ')),
           h('ol', { class: 'fw-steps' }, STAGES.slice(0, -1).map((s, i) => h('li', { class: i < idx ? 'is-done' : i === idx ? 'is-now' : '' },
             h('span', { class: 'fw-steps__dot', 'aria-hidden': 'true' }, i < idx ? '✓' : ''), t('fw.stage.' + s),
             s === 'watch' && i === idx && until != null ? h('span', { class: 'muted' }, ' · ' + t('fw.progress.left', { s: until })) : null))));
@@ -316,7 +426,7 @@
         return h('section', { class: 'card fw-history' }, h('h2', {}, t('fw.history.title')),
           h('ul', {}, v.history.slice(0, 8).map(j => h('li', { class: 'fw-history__row' },
             h('span', { class: 'chip ' + ({ done: 'chip--ok', rolled_back: 'chip--warn', failed: 'chip--danger', refused: 'chip--danger', running: 'chip--accent' }[j.status] || 'chip--muted') }, t('fw.status.' + j.status)),
-            h('span', { class: 'fw-history__what' }, j.summary.map(x => x.name + ' → ' + x.to).join(', '), j.undo_of ? h('span', { class: 'muted' }, ' · ' + t('fw.history.undo_of')) : null),
+            h('span', { class: 'fw-history__what' }, j.summary.map(sumText).join(', '), j.undo_of ? h('span', { class: 'muted' }, ' · ' + t('fw.history.undo_of')) : null),
             h('span', { class: 'muted fw-history__when' }, LL.fmtDate(j.t), j.reason && j.status !== 'done' && LL.strings[j.reason] ? ' · ' + t(j.reason) : ''),
             j.status === 'done' && j.inverse && j.undo_until > now && LL.can('operate') ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => {
               try { await api('/api/firewall/undo', { method: 'POST', body: { plan: j.plan } }); st.mode = 'change'; await load(); openPreview(); } catch (e) { LL.toast(fwErr(e), 'error'); }
@@ -353,11 +463,31 @@
       }
 
       await load();
+      const want = rest && rest[0];
+      if ((want === 'device' || want === 'pick') && st.view && st.view.state) {
+        if (st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; await load(); }
+        window.history.replaceState(null, '', LL.base + '#/firewall');
+        if (canChange(st.view)) {
+          st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ } render();
+          const ip = want === 'device' ? decodeURIComponent(rest[1] || '') : '';
+          const dev = ip ? st.view.state.devices.find(d => d.ip === ip || d.fixed_ip === ip) : null;
+          if (dev && !dev.protected) openDevice(st.view, dev);
+          else if (want === 'pick' || ip) { if (ip && !dev) LL.toast(t('fw.pick.not_here'), 'info'); openPicker(st.view); }
+        } else LL.toast(t(LL.can('operate') ? 'fw.executor.readonly' : 'fw.role.readonly'), 'info');
+      }
       return { destroy: () => { clearTimeout(st.timer); fr.destroy(); } };
     };
   }
 
   LL.view('firewall', firewallView());
+
+  // ------------------------------------------------------------------ command palette (picked up by js/palette.js)
+  LL.registerCommand = LL.registerCommand || function (cmd) { LL.commands = (LL.commands || []).filter(c => c.id !== cmd.id).concat([cmd]); };
+  LL.registerAction = LL.registerAction || function (act) { LL.actions = (LL.actions || []).filter(a => a.id !== act.id).concat([act]); };
+  LL.registerCommand({ id: 'firewall-change-device', group: 'commands', order: 40, label: 'fw.cmd.change', keywords: 'fw.cmd.change_keywords',
+    available: () => LL.can('operate'), run: () => LL.go('#/firewall/pick') });
+  LL.registerAction({ id: 'firewall-move', kinds: ['device'], order: 20, label: 'fw.cmd.move_to', available: hit => LL.can('operate') && !!hit.ip,
+    run: hit => LL.go('#/firewall/device/' + encodeURIComponent(hit.ip)) });
 })();
 
 /* Lanloom — read-only parts of the firewall tab for configurations read by a device-family adapter: zone matrix,

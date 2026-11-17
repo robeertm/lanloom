@@ -19,7 +19,7 @@ Nothing, except the optional update check, which asks the public release feed fo
 Every morning at 06:30 (changeable) Lanloom sums up the night in the Reports tab: outages, new and missing devices, interrupted connections, data paths hints, configuration changes, expiring certificates and its own updates. It is rule-based and made on the host. If Lanloom was off at that time, the report is made at the next start. See [NIGHTLY-REPORT.md](NIGHTLY-REPORT.md).
 
 ### Can Lanloom change anything on my devices?
-No. It is read-only by construction. The scanner only probes, the hub connection cannot call services, the MQTT client cannot publish, SNMP uses read operations only and the switch controller connection only reads two lists with a view-only account. The firewall editor runs as a simulation against a sample network unless you set up the separate executor service with a built-in adapter for your controller family and arm it explicitly; see [FIREWALL-EDITOR.md](FIREWALL-EDITOR.md).
+No. It is read-only by construction. The scanner only probes, the hub connection cannot call services, the MQTT client cannot publish, SNMP uses read operations only and the switch controller connection only reads two lists with a view-only account. The firewall editor runs as a simulation against a sample network unless you set up the separate executor service with a built-in adapter for your controller family that can write (see [COMPATIBILITY.md](COMPATIBILITY.md)) and arm it explicitly; even then every change needs your passkey and is backed up, watched and rolled back on its own if something goes wrong. See [FIREWALL-EDITOR.md](FIREWALL-EDITOR.md).
 
 ### Does it support IPv6?
 Not in 1.0. Scanning is IPv4 only.

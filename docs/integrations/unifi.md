@@ -1,6 +1,6 @@
-# UniFi Network (local API): read adapter
+# UniFi Network (local API): read adapter and client write half
 
-Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. It **only reads**. Nothing is ever changed on the controller from Lanloom in this release.
+Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) below). Nothing else is ever written.
 
 What you get:
 
@@ -66,6 +66,38 @@ Sign-ins are capped (six per hour per controller and account) and a refused sign
 
 Tested versions are listed in [COMPATIBILITY.md](../COMPATIBILITY.md).
 
+## Changing clients (stage B)
+
+The write half runs only inside the executor service (its own container, see [FIREWALL-EDITOR.md](../FIREWALL-EDITOR.md#turning-on-the-external-executor)), never in the web app, with an account the app never sees. It can do exactly this:
+
+| change | what is written | notes |
+|---|---|---|
+| move a client to another network | network override and a fixed address in the new network | wireless clients only - a cable-connected client changes its network through its switch port (port settings come in a later release); the client reconnects, the executor waits for it |
+| fixed address | fixed address on (with the address) or off | the address must lie inside the client's network, must not be the network's own address or its gateway, and must not belong to another client; the client picks it up when it renews its address |
+| name | the client's name (alias) | 1 to 64 characters |
+
+Everything else - blocking clients, networks, firewall rules, port settings, wireless networks, firmware, restarts, accounts - is refused by the allow-list below the adapter, whatever a plan says.
+
+**Checks the controller does not make itself.** Tested on a self-hosted Network application 10.0: it stores a network id that does not exist, an address that does not fit the named network, an empty or a very long name without a word. The write half checks all of these before it sends anything, reads every client back after writing and stops (the executor rolls back) when the values did not take.
+
+**Account.** Client settings exist only in the classic API (the official integration API has no client writes), so the executor signs in with a **local account of its own**: role *Site Admin* (or a custom role with rights to the Network application only), no remote access, no system rights. The read-only account of the app stays separate. An owner or super administrator works but gives a warning in the executor log; a view-only account is refused (it cannot write).
+
+**Options file** of the executor (`LANLOOM_EXECUTOR_ADAPTER=unifi`, `LANLOOM_EXECUTOR_ADAPTER_OPTIONS=<path>`, mode 0600, owned by the executor's user, never a symbolic link):
+
+```json
+{"url": "https://192.168.1.1", "site": "default",
+ "write_username": "lanloom-writer", "write_password": "…",
+ "allow_self_signed": true, "cert_sha256": "<SHA-256 of the console's certificate>"}
+```
+
+`cert_sha256` binds the connection to the console's own certificate (recommended when the console uses a self-signed one; without it the executor logs a warning). One way to read it: `openssl s_client -connect 192.168.1.1:443 </dev/null 2>/dev/null | openssl x509 -outform der | sha256sum`. Unknown option names are refused at start, so a typo cannot go unnoticed.
+
+**Sessions.** At most four sign-ins an hour, counted across executor restarts (a small file in the executor's state directory), a 15-minute pause after a refused session, one new sign-in after HTTP 401 and none after 403, a planned new sign-in before the controller's own session limit.
+
+**Connection guard.** The executor process can connect only to the app and to the controller's address (resolved at start); anything else is refused before a connection is made. A rehearsal executor that writes to a test controller lists the real console under `LANLOOM_EXECUTOR_DENY_HOSTS`, so a run against the test controller can never reach the real one.
+
+**Before the first real change:** keep local console access at hand, try the change on the sample network (simulation) first, and read the warnings in the preview. Use at your own risk; Lanloom never writes without your passkey.
+
 ## Troubleshooting
 
 | status | what to do |
@@ -76,6 +108,9 @@ Tested versions are listed in [COMPATIBILITY.md](../COMPATIBILITY.md).
 | Sign-in paused | wait 15 minutes after repeated refusals; check the password first |
 | Access denied for this account | the role lacks rights to the Network application |
 | TLS / certificate problem | tick *Accept a self-signed certificate* |
+| Executor: "A wired device changes its network through its switch port" | the client is connected by cable; only wireless clients can be moved by a client setting |
+| Executor: certificate does not match the pinned one | the console's certificate was renewed (or it is another device): read the new fingerprint and update `cert_sha256` |
+| Executor: account cannot write | the executor's account has the view-only role; give it *Site Admin* |
 
 ---
 

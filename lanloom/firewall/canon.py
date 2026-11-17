@@ -64,4 +64,18 @@ def fingerprint(state: dict) -> str:
         fields = fields or _writable_fields()
         keep = ("id",) + tuple(sorted(fields.get(area, ())))
         core[area] = [{k: it.get(k) for k in keep if k in it} for it in items if isinstance(it, dict)]
-    return "fp:" + digest_hex(core)[:20]
+    return "fp:" + digest_hex(_no_floats(core))[:20]
+
+
+def _no_floats(x, depth=0):
+    """Measured values (a port's power draw, ...) may be floating-point numbers; for the fingerprint they count as
+    text. States without such values give the same bytes as before."""
+    if depth > 12:
+        return x
+    if isinstance(x, float):
+        return "%.6g" % x
+    if isinstance(x, dict):
+        return {k: _no_floats(v, depth + 1) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_no_floats(v, depth + 1) for v in x]
+    return x
