@@ -631,10 +631,10 @@
     const here = id => '#/devices' + (id ? '/' + encodeURIComponent(id) : '') + LL.queryString();
     // a second interface has no card of its own on the map: its row opens the card of the device it belongs to
     const cardOf = id => { const d = data.devices.find(x => x.id === id); return d && d.merged_into ? d.merged_into.id : id; };
-    // the list scrolls inside the main area: the card follows, so it opens in view however far down the row was
-    const follow = () => { const y = fr.main.scrollTop; panel.style.transform = y ? 'translateY(' + y + 'px)' : ''; };
-    fr.main.addEventListener('scroll', follow, { passive: true });
-    const openRow = id => { follow(); LL.deepLink(here(id)); openDetail(panel, cardOf(id), () => LL.deepLink(here(null))); };
+    // the list scrolls inside the main area: the card opens where the list is scrolled to, so it is in view however
+    // far down the row was (set once when it opens; following every scroll would move it under a pointer)
+    const placeCard = () => { const y = fr.main.scrollTop; panel.style.transform = y ? 'translateY(' + y + 'px)' : ''; };
+    const openRow = id => { placeCard(); LL.deepLink(here(id)); openDetail(panel, cardOf(id), () => LL.deepLink(here(null))); };
     let render = function () {
       const s = q.value.toLowerCase();
       const rows = data.devices.filter(d => keep(d) && (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' ')].join(' ').toLowerCase().includes(s)));

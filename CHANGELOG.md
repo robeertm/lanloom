@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.32.2] – 2026-11-17
+
+### Fixed
+- Device list: the card is placed where the list is scrolled to only when it opens; it no longer moves along with every scroll, which could pull a button away from under the pointer.
+- 1.32.0 and 1.32.1 were not released on their own; 1.32.2 contains all of it.
+
 ## [1.32.1] – 2026-11-17
 
 ### Changed
