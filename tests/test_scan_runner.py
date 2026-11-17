@@ -98,7 +98,7 @@ def test_result_schema_and_content(fake_net):
     assert hosts["192.168.77.99"]["sources"] == ["mdns"] and hosts["192.168.77.99"]["hostnames"] == ["phantom.local"]
     for h in res["hosts"]:
         assert set(h) == {"ip", "mac", "hostnames", "sources", "ports", "mdns", "ssdp", "is_gateway",
-                          "is_self", "rtt_ms", "ipv6", "wsd", "netbios", "snmp"}
+                          "is_self", "rtt_ms", "ipv6", "wsd", "netbios", "snmp", "protect"}
         for p in h["ports"]:
             assert set(p) == {"port", "proto", "service", "banner"} and p["proto"] == "tcp"
     gw = hosts["192.168.77.1"]

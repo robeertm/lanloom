@@ -75,7 +75,7 @@
     id: 'go.' + k, group: 'views', order: i, label: () => t('cmdk.go', { name: t(label) }), keywords: () => t('cmdk.kw.' + k), run: () => LL.go('#/' + k) }));
   // settings pages: [id, route part, label key, lowest role]
   const SETTINGS = [['settings', '', 'nav.settings', 'viewer'], ['account', '/account', 'settings.tab.account', 'viewer'], ['users', '/users', 'settings.tab.users', 'admin'],
-    ['security', '/security', 'settings.tab.security', 'admin'], ['backup', '/backup', 'backup.tab', 'admin'], ['ai', '/ai', 'ai.tab', 'admin']];
+    ['security', '/security', 'settings.tab.security', 'admin'], ['backup', '/backup', 'backup.tab', 'admin'], ['network', '/network', 'settings.tab.network', 'viewer'], ['ai', '/ai', 'ai.tab', 'admin']];
   SETTINGS.forEach(([k, sub, label, role], i) => LL.registerCommand({
     id: 'go.settings.' + k, group: 'views', order: 20 + i, typedOnly: k !== 'settings', available: () => role === 'viewer' || LL.can(role === 'admin' ? 'admin' : 'operate'),
     label: () => (k === 'settings' ? t('cmdk.go', { name: t(label) }) : t('cmdk.go', { name: t('nav.settings') + ' › ' + t(label) })),

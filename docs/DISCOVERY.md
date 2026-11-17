@@ -92,3 +92,70 @@ Changing a grouping needs the operator role and is written to the audit log.
 A device seen for the first time is listed with its address and, where known, the registered maker; a private
 address or an address in no register is named as such. A second interface of a device that is already known is not
 reported as a new device.
+
+## Networks and VLANs
+
+*Settings › Network* lists every network Lanloom knows: the networks of this host's own interfaces, the networks and
+VLANs a controller adapter publishes (with name, VLAN number, address service and isolation) and private networks
+behind a router of this host. Each one has a *reach*:
+
+| Reach | Meaning |
+| --- | --- |
+| Scanned directly | on a link of this host: the scan may sweep it (private range of at most /22) |
+| Scan allowed across router | behind a router, and an administrator agreed to a gentle scan across it (revocable, kept per range) |
+| Adapter data only | behind a router, no agreement: **nothing is sent into the network**; its devices come from the adapter's data |
+| Never scanned | public, carrier-grade NAT, larger than /22, loopback or multicast ranges, with the reason |
+
+Automatic rescans include the on-link networks you chose and the ranges you agreed to, never anything else. On the
+network map every network and VLAN is a zone titled with its name, VLAN number and range.
+
+## Devices only an adapter knows, and devices without an IP address
+
+Clients of a controller (also in other VLANs), the address table of a switch (read over SNMP) and LLDP neighbours
+join the inventory without any scan. Their cards say *Controller or switch data* as the way they were found. A switch
+often learns a hardware address that no scan ever saw an IP address for: such a device is kept under its hardware
+address and shown without an IP address.
+
+A hardware address without an IP address is folded into the device it belongs to (a second network card, a docking
+station, a second port of a router) when the evidence is strong enough:
+
+| Evidence | Weight |
+| --- | --- |
+| announced over LLDP: chassis address and port address of one neighbour | strong |
+| several hardware addresses of one device in the hub's device registry | strong |
+| same registered block of hardware addresses, same switch port, first seen within ten minutes of each other, while the other device has an IP address | medium (65 %: grouped, undoable) |
+
+Private (random) addresses never fold into another device by block. The *Show separately* button and your own
+choices work as before. The switch *Add devices that only a controller or switch knows* (Settings › Network) turns
+this off; the first booking after it was switched on does not report its devices as new in the nightly report.
+
+## Scan protection
+
+Some devices must not be poked by a scan. Lanloom keeps three classes with fixed rules and lists every protected
+device in *Settings › Network*:
+
+| Class | Rule |
+| --- | --- |
+| Printer | never touched on the raw printing ports 9100–9102 and 515, not even by a connection that is closed right away; everything else as usual |
+| Industrial | gentle scan: only the web ports 80 and 443, no name or SNMP requests. The industrial ports (102, 502, 20000, 44818, 47808) are probed only by a deep scan with your consent, and never on a protected device |
+| Passive only | no packet at all: no port, no banner, no name request, no neighbour nudge; only what the device announces itself (neighbour table, mDNS, SSDP, WS-Discovery) is read. Medical and payment systems and everything you mark |
+
+A class is chosen from what the device announced or what an earlier scan saw (open ports such as 631 or 9100,
+DNS-SD printer types, UPnP printer words, industrial and medical ports, industrial and medical DNS-SD types) and
+stays until you set another one on the device card (*Printer*, *Industrial*, *Passive only*, *No protection* or
+back to *Automatic*). The same rules apply to the presence check and to the sweep of routed ranges. Setting a class
+needs the operator role and is written to the audit log (`device.protect`).
+
+## What can be connected
+
+`lanloom/integrations/catalog.json` lists the device classes Lanloom recognises and what can be connected to each:
+the built-in sources (home-automation hub, MQTT broker, SNMP), the device-family adapters of the registry (read-only;
+*read and configure* where the family has an executor half), storage devices and mobile-network routers over SNMP,
+and classes that are **planned**: a UPS over a UPS monitoring service, printers, cameras, container hosts and DNS
+filters. A planned class shows what it will read and a read-only account guide, but no button that would do nothing.
+The catalog is built in and extended only in the repository (no plugins). It is derived from stored scan data: nothing
+is sent to a device to build a suggestion.
+
+The device card has a section *Can be connected* (with *Connect*, which opens the same dialog as the setup assistant,
+pre-filled with the address only) and *Settings › Network* lists everything, not yet connected first, sorted by
+benefit. Lanloom adds no outgoing connection with any of this.

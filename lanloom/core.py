@@ -9,8 +9,9 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology
+from . import adapter_inventory, classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, zones as zones_mod
 from .crypto import Vault
+from .scan import protect as protect_mod
 from .store import Store
 
 log = logging.getLogger("lanloom")
@@ -32,6 +33,7 @@ DEFAULT_SETTINGS = {
     "paths_own_networks": [],   # data paths: own networks and tunnels beyond the LAN (never "unassigned")
     "paths_no_internet": [],    # data paths: local networks that should not reach the internet
     "scan_snmp_public": False,  # scans may ask devices with the default read community (user choice, off by default)
+    "adapter_inventory": True,  # devices only an adapter knows (other VLANs, switch address tables) join the inventory
     "netflow_enabled": False,   # data paths: NetFlow/IPFIX receiver (off by default; needs at least one allowed exporter)
     "netflow_port": netflow.DEFAULT_PORT,
     "netflow_exporters": [],    # addresses allowed to send flows; packets from anyone else are dropped
@@ -115,6 +117,7 @@ class Core:
         self.snmp: dict = {}               # integration id -> latest snmp frame
         self.topic_order: dict = {}        # integration id -> stable list of shown topic roots
         self.topo_obs: dict = {}           # source key -> {"integ": id, "ev": latest topology event}
+        self._adapter_t = 0.0              # last time the adapters' devices were booked into the inventory
         self.live_cfg: dict = {}           # integration id -> latest neutral configuration of a family read half
         self._topo_cache = None            # (key, resolved topology)
         self._topo_sig = ""
@@ -163,7 +166,7 @@ class Core:
         allowed = {"rescan_hours": int, "update_check": bool, "language": (str, type(None)), "setup_done": bool,
                    "uplink_iface": str, "rate_unit": str, "home_country": str, "paths_own_networks": list,
                    "paths_no_internet": list, "netflow_enabled": bool, "netflow_port": int, "netflow_exporters": list,
-                   "netflow_lan_networks": list}
+                   "netflow_lan_networks": list, "adapter_inventory": bool}
         nets = {}
         for key in ("paths_own_networks", "paths_no_internet", "netflow_lan_networks"):   # all or nothing: check first
             if key in patch:
@@ -308,7 +311,8 @@ class Core:
         self.ip_to_device = {}
         ip6 = {}
         for dev in self.store.devices():
-            self.ip_to_device[dev["ip"]] = dev["id"]
+            if dev["ip"]:                  # a device only an adapter knows may have no address yet
+                self.ip_to_device[dev["ip"]] = dev["id"]
             data = dev["data"]
             for a in (data.get("ipv6") or [])[:16]:
                 try:
@@ -369,11 +373,32 @@ class Core:
         rows = []
         for d in self.store.devices():
             link = links.get(d["id"]) or {}
-            port = "%s#%s" % (link.get("parent"), link.get("port")) if link.get("parent") and link.get("port") else None
+            adp = d["data"].get("adapter") or {}
+            if adp.get("parent_mac") and adp.get("port"):      # where the adapter saw the address (not moved by the topology)
+                port = "%s#%s" % (adp["parent_mac"], adp["port"])
+            else:
+                port = "%s#%s" % (link.get("parent"), link.get("port")) if link.get("parent") and link.get("port") else None
             rows.append(dict(d, link_port=port))
-        res = identity.groups(rows, rules["split"], rules["join"])
+        res = identity.groups(rows, rules["split"], rules["join"], self._identity_links())
         self._ident_cache = (key, res)
         return res
+
+    def _identity_links(self) -> list:
+        """Announced "these addresses are one device" facts: an LLDP neighbour's chassis and port addresses, and the
+        several hardware addresses of one device in a hub's device registry."""
+        out = []
+        for entry in self.topo_obs.values():
+            for n in ((entry or {}).get("ev") or {}).get("lldp") or []:
+                macs = [m for m in (n.get("chassis_mac"), n.get("port_mac")) if m]
+                ips = [i for i in (n.get("mgmt_ip") or n.get("chassis_ip"),) if i]
+                if len(macs) + len(ips) >= 2:
+                    out.append({"macs": macs, "ips": ips, "why": "same_lldp_chassis", "conf": 0.85})
+        for e in self.hub.values():
+            for d in ((e or {}).get("snapshot") or {}).get("devices") or []:
+                macs = [m for m in d.get("macs") or [] if m]
+                if 2 <= len(macs) <= 8:
+                    out.append({"macs": macs, "ips": [], "why": "same_hub_device", "conf": 0.8})
+        return out[:2000]
 
     def set_identity(self, device_id: str, action: str, other: str) -> dict:
         """split: show two devices separately for good; join: treat them as one; reset: forget both choices."""
@@ -455,7 +480,64 @@ class Core:
             "status": "unknown",
         }
         view.update(self._identity_view(dev))
+        view["protect"] = self._protect_view(dev)
+        view["adapter"] = data.get("adapter") if isinstance(data.get("adapter"), dict) else None
+        view["adapter_only"] = adapter_inventory.is_adapter_only(data)
+        view["zone"] = None
         return view
+
+    # ------------------------------------------------------------------ protection list
+    def protect_marks(self) -> dict:
+        marks = self.store.get_setting("protect_marks", {}) or {}
+        return {k: v for k, v in marks.items() if isinstance(k, str) and v in protect_mod.MARKS}
+
+    def _protect_view(self, dev: dict):
+        marks = self.protect_marks()
+        mark = marks.get(dev["id"])
+        klass, why, source = protect_mod.resolve(dev["data"], mark)
+        auto, auto_why = protect_mod.auto_class(dev["data"])
+        if klass is None and mark is None and auto is None:
+            return None
+        return {"class": klass, "why": why, "source": source, "mark": mark, "auto": auto}
+
+    def set_protect(self, device_id: str, mark) -> dict:
+        """The user's mark for one device: printer, industrial, passive, none (no automatic class) or None (forget)."""
+        if mark is not None and mark not in protect_mod.MARKS:
+            raise ValueError("protect.err.invalid")
+        if not self.store.device(device_id):
+            raise ValueError("device.err.missing")
+        marks = self.protect_marks()
+        if mark is None:
+            marks.pop(device_id, None)
+        else:
+            marks[device_id] = mark
+        self.store.set_setting("protect_marks", dict(list(marks.items())[-2000:]))
+        self.structure_version += 1
+        return self.device_view(self.store.device(device_id))
+
+    def protected_map(self) -> dict:
+        """{ip: {"class", "why", "source"}} for the scanner: what the inventory already knows about sensitive devices."""
+        marks, out = self.protect_marks(), {}
+        for d in self.store.devices():
+            if not d["ip"]:
+                continue
+            klass, why, source = protect_mod.resolve(d["data"], marks.get(d["id"]))
+            if klass:
+                out[d["ip"]] = {"class": klass, "why": why, "source": source}
+            elif marks.get(d["id"]) == "none":
+                out[d["ip"]] = {"source": "none"}
+        return out
+
+    def protect_list(self) -> list:
+        """Every device with a protection class, for the list in Settings (most protective first)."""
+        out = []
+        for d in self.devices():
+            p = d.get("protect")
+            if p and p.get("class"):
+                out.append({"id": d["id"], "title": d["title"], "ip": d["ip"], "mac": d["mac"], "kind": d["kind"],
+                            "class": p["class"], "why": p["why"], "source": p["source"]})
+        rank = {"passive": 0, "industrial": 1, "printer": 2}
+        return sorted(out, key=lambda e: (rank.get(e["class"], 3), e["title"].lower(), e["id"]))
 
     def device_status(self, dev: dict, last_scan=False) -> str:
         now = time.time()
@@ -658,7 +740,8 @@ class Core:
                 result = await self.demo.scan(plan, progress, preview=lambda r: self._preview(r, scan_id))
             else:
                 from . import scan
-                result = await scan.run(plan, progress, preview=lambda r: self._preview(r, scan_id))
+                result = await scan.run(plan, progress, preview=lambda r: self._preview(r, scan_id),
+                                        protected=self.protected_map())
             count = self.ingest(result, scan_id)
             self._mark_first_picture()
             self.store.execute("UPDATE scans SET finished=?, status='done', hosts=?, stats=? WHERE id=?",
@@ -704,15 +787,20 @@ class Core:
         hosts = result.get("hosts") or []
         with self.store.transaction():
             for host in hosts:
-                if not host.get("ip"):
-                    continue
+                if not host.get("ip") and classify.device_id(host).startswith("d-ip-"):
+                    continue                  # neither an address nor a hardware address: nothing to identify it by
                 verdict = classify.classify(host, vendor=self.registry().lookup(host.get("mac")))
                 data = dict(host)
                 data.update({"certainty": verdict["certainty"], "reasons": verdict["reasons"],
                              "runner_up": verdict["runner_up"]})
                 dev_id = classify.device_id(host)
+                if "adapter" not in data:     # what an adapter told about the device stays until the next booking
+                    old_row = self.store.one("SELECT data FROM devices WHERE id=?", (dev_id,))
+                    old_adapter = json.loads(old_row["data"]).get("adapter") if old_row else None
+                    if old_adapter:
+                        data["adapter"] = old_adapter
                 # a device first seen by IP and now with a MAC keeps its user edits
-                if dev_id.startswith("d-") and not dev_id.startswith("d-ip-"):
+                if dev_id.startswith("d-") and not dev_id.startswith("d-ip-") and host.get("ip"):
                     old = self.store.one("SELECT id, user_title, user_kind, hidden FROM devices WHERE id=?",
                                          ("d-ip-" + host["ip"].replace(".", "-").replace(":", "-"),))
                     if old:
@@ -720,7 +808,7 @@ class Core:
                         self.store.execute("UPDATE phys_manual SET device_id=? WHERE device_id=?", (dev_id, old["id"]))
                         self.store.execute("UPDATE phys_manual SET parent_id=? WHERE parent_id=?", (dev_id, old["id"]))
                         self._manual_ver += 1
-                self.store.upsert_device({"id": dev_id, "ip": host["ip"], "mac": host.get("mac"), "data": data,
+                self.store.upsert_device({"id": dev_id, "ip": host.get("ip") or "", "mac": host.get("mac"), "data": data,
                                           "kind": verdict["kind"], "confidence": verdict["confidence"],
                                           "title": verdict["title"]}, scan_id)
                 self.presence[dev_id] = time.time()
@@ -732,7 +820,9 @@ class Core:
             await asyncio.sleep(300)
             try:
                 hours = int(self.store.get_setting("rescan_hours", 6) or 0)
-                cidrs = self.store.get_setting("rescan_cidrs", []) or []
+                cidrs = list(self.store.get_setting("rescan_cidrs", []) or [])
+                cidrs += [c for c in self.zone_consent() if c not in cidrs]      # ranges the user allowed across a router
+                cidrs = cidrs[:8]
                 if not hours or not cidrs or (self._scan_task and not self._scan_task.done()):
                     continue
                 last = self.store.one("SELECT started FROM scans ORDER BY id DESC LIMIT 1")
@@ -769,8 +859,13 @@ class Core:
             pass
         sem = asyncio.Semaphore(8)
 
+        marks = self.protect_marks()
+
         async def probe(dev: dict) -> None:
-            ports = [p["port"] for p in dev["data"].get("ports") or [] if isinstance(p.get("port"), int)]
+            klass = protect_mod.resolve(dev["data"], marks.get(dev["id"]))[0]
+            ports = [p["port"] for p in dev["data"].get("ports") or [] if isinstance(p.get("port"), int)
+                     and (klass is None or klass == "printer" and p["port"] not in protect_mod.PRINTER_RAW
+                          or klass == "industrial" and p["port"] in protect_mod.INDUSTRIAL_WEB)]
             if dev["data"].get("is_self"):
                 self.presence[dev["id"]] = time.time()
                 return
@@ -790,7 +885,7 @@ class Core:
             if neighbours.get(dev["ip"]):
                 self.presence[dev["id"]] = time.time()
 
-        await asyncio.gather(*(probe(d) for d in self.store.devices(include_hidden=False) if _is_private(d["ip"])))
+        await asyncio.gather(*(probe(d) for d in self.store.devices(include_hidden=False) if d["ip"] and _is_private(d["ip"])))
 
     # ------------------------------------------------------------------ integrations
     def integrations(self) -> list:
@@ -1239,6 +1334,10 @@ class Core:
             cad.tick(now)
             self.topo_obs[key] = {"integ": integ_id, "ev": ev}
             self._topo_cache = None
+            try:
+                self.book_adapter_devices(now)
+            except Exception:
+                log.exception("booking adapter devices failed")
             sig = self.topology()["signature"]
             if sig != self._topo_sig:
                 self._topo_sig = sig
@@ -1288,6 +1387,116 @@ class Core:
             return hvmodel.vlan_chain(st, uplinks, switches)
         except Exception:
             return []
+
+    # ------------------------------------------------------------------ devices only an adapter knows
+    def book_adapter_devices(self, now: Optional[float] = None, force: bool = False) -> int:
+        """Book the devices the adapters report (clients in other VLANs, switch address tables, LLDP neighbours) into
+        the inventory. No packet is sent. At most every 30 s; switched off by the setting ``adapter_inventory``."""
+        now = time.time() if now is None else now
+        if not self.store.get_setting("adapter_inventory", True):
+            return 0
+        if not force and 0 <= now - self._adapter_t < 30:
+            return 0
+        self._adapter_t = now
+        own = [d["mac"] for d in self.store.devices() if d["data"].get("is_self") and d.get("mac")]
+        return self.ingest_adapter(adapter_inventory.records(self.topo_obs, own), now)
+
+    def ingest_adapter(self, recs: list, now: Optional[float] = None) -> int:
+        """Put adapter records into the inventory. A device a scan already knows only gets the adapter's facts added
+        (and an address it did not have); a new device is classified like a scanned one. Returns the number of new
+        devices. The first booking after the feature started does not announce its devices as "new" in the night
+        report - they were there before."""
+        now = time.time() if now is None else now
+        rows = {r["id"]: r for r in self.store.query("SELECT * FROM devices")}
+        adapter_count = sum(1 for r in rows.values() if '"sources":["adapter"]' in r["data"])
+        fresh, touched = [], []
+        with self.store.transaction():
+            for rec in recs:
+                host = adapter_inventory.host_of(rec)
+                did = classify.device_id(host)
+                row = rows.get(did)
+                if row is None:
+                    if adapter_count >= adapter_inventory.MAX_RECORDS:
+                        continue
+                    adapter_count += 1
+                    fresh.append(host)
+                    continue
+                data = json.loads(row["data"])
+                changed = data.get("adapter") != host["adapter"]
+                data["adapter"] = host["adapter"]
+                ip = row["ip"]
+                if not ip and rec.get("ip"):
+                    ip, changed = rec["ip"], True
+                    data["ip"] = ip
+                if rec.get("name") and rec["name"] not in (data.get("hostnames") or []) and len(data.get("hostnames") or []) < 8:
+                    data["hostnames"] = (data.get("hostnames") or []) + [rec["name"]]
+                    changed = True
+                if changed:
+                    self.store.execute("UPDATE devices SET ip=?, data=? WHERE id=?",
+                                       (ip, json.dumps(data, separators=(",", ":")), did))
+                touched.append(did)
+        new_ids = []
+        if fresh:
+            self.ingest({"hosts": fresh}, None)
+            new_ids = [classify.device_id(h) for h in fresh]
+            for h in fresh:      # infrastructure the controller names by role is not an "unknown" device
+                role = (h.get("adapter") or {}).get("role")
+                if role in adapter_inventory.ROLE_KINDS:
+                    self.store.execute("UPDATE devices SET kind=?, confidence=? WHERE id=? AND kind='unknown'",
+                                       (adapter_inventory.ROLE_KINDS[role], 0.9, classify.device_id(h)))
+        for rec in recs:
+            self.presence[classify.device_id(adapter_inventory.host_of(rec))] = now
+        if new_ids or touched:
+            self._refresh_index()
+        seeded = self.store.get_setting("adapter_seeded", False)
+        if recs and not seeded:
+            self.store.set_setting("adapter_seeded", True)
+            journal = getattr(getattr(self, "reports", None), "watch", None)
+            if journal is not None and new_ids and getattr(journal, "seeded", False):
+                journal.known.update(new_ids)
+                journal.save()
+        return len(new_ids)
+
+    # ------------------------------------------------------------------ zones (networks and VLANs)
+    def zone_consent(self) -> list:
+        return [c for c in (self.store.get_setting("zone_consent", []) or []) if isinstance(c, str)][:7]
+
+    def zone_list(self) -> dict:
+        """Every network Lanloom knows (own interfaces, adapter networks and VLANs, routes) with how far it may look
+        into each, and the devices of each. No packet is sent."""
+        routes = []
+        if not self.demo:
+            from .scan import netinfo
+            try:
+                with open(netinfo.ROUTE_PATH, encoding="ascii", errors="replace") as fh:
+                    routes = netinfo.parse_routes(fh.read(1 << 20))
+            except OSError:
+                pass
+        states = [{"key": e["key"], "name": e["name"], "state": e["state"]} for e in self.live_configs()]
+        zs = zones_mod.build(self.networks(), states, routes, self.zone_consent())
+        zs, unzoned = zones_mod.assign(zs, self.devices())
+        macless = sum(1 for d in self.store.devices() if not d["ip"])
+        return {"zones": zs, "unzoned": len(unzoned), "no_address": macless,
+                "adapter_inventory": bool(self.store.get_setting("adapter_inventory", True))}
+
+    def set_zone_consent(self, cidr: str, on: bool) -> dict:
+        """The user agrees (or withdraws) that a scan may cross a router into one range. Only ranges the zone list
+        knows, only ones the scanner would accept at all."""
+        from .scan import safety
+        net = safety.parse_cidr(cidr)
+        ok, key = safety.check_cidr(cidr)
+        if net is None or not ok:
+            raise ValueError(key if net is not None else "scan.unsafe.invalid")
+        known = {z["cidr"] for z in self.zone_list()["zones"]}
+        if str(net) not in known:
+            raise ValueError("zone.err.unknown")
+        cur = [c for c in self.zone_consent() if c != str(net)]
+        if on:
+            if len(cur) >= safety.MAX_RANGES - 1:
+                raise ValueError("scan.unsafe.too_many")
+            cur.append(str(net))
+        self.store.set_setting("zone_consent", cur)
+        return self.zone_list()
 
     def live_configs(self, max_age_s: float = 1200.0) -> list:
         """Fresh configurations of family read halves, newest integration first in id order."""

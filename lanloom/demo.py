@@ -72,7 +72,7 @@ HOSTS = [
      "ports": [_port(22, "ssh")],
      "mdns": [{"type": "_workstation._tcp", "name": "Office laptop", "port": 9, "txt": {}}],
      "ipv6": ["fd4c:4c00:50::20", "fe80::4c:4cff:fe00:14"]},
-    {"ip": "192.168.50.21", "n": 21, "names": ["studio-desktop.lan"],
+    {"ip": "192.168.50.21", "n": 21, "mac": "00:00:5e:00:53:44", "names": ["studio-desktop.lan"],
      "ports": [_port(139, "netbios"), _port(445, "smb"), _port(3389, "remote-desktop")], "title": "Studio desktop",
      "netbios": {"computer": "STUDIO-PC", "workgroup": "HOME"},
      "wsd": [{"types": ["wsdp:Device", "pub:Computer"], "xaddrs": [], "endpoint": None}]},
@@ -146,11 +146,30 @@ MAKERS = {1: "Example Networks", 2: "Example Networks", 3: "Example Networks", 4
           63: "Example Sensors", 64: "Example Sensors", 65: "Example Sensors", 66: "Example Energy", 67: "Example Energy"}
 RANDOM_MACS = (22, 23, 13, 14)
 
+# Devices only an adapter knows (the sample controller lists them; nothing was scanned there): networks behind the
+# router in their own VLANs, plus two hardware addresses without an IP address.
+# (mac, ip or None, name, medium, parent host number, port or band, maker or None)
+ADAPTER_CLIENTS = (
+    ("00:00:5e:00:60:10", "192.168.60.11", "Window sensor hall", "radio", AP_1, "2.4ghz", "Example Sensors"),
+    ("00:00:5e:00:60:30", "192.168.60.12", "Window sensor kitchen", "radio", AP_1, "2.4ghz", "Example Sensors"),
+    ("00:00:5e:00:60:50", "192.168.60.13", "Smart plug TV", "radio", AP_1, "2.4ghz", "Example Energy"),
+    ("00:00:5e:00:60:70", "192.168.60.14", "Thermostat bedroom", "radio", AP_2, "2.4ghz", "Example Energy"),
+    ("00:00:5e:00:70:10", "192.168.70.21", "Camera garage", "wired", SWITCH, "11", "Example Vision"),
+    ("00:00:5e:00:70:30", "192.168.70.22", "Camera driveway", "wired", SWITCH, "12", "Example Vision"),
+    ("da:a1:19:7e:41:c3", "192.168.80.31", "Guest phone", "radio", AP_1, "5ghz", None),
+    # a second network card of the studio desktop (docking station): same maker block, same switch port, seen at the same
+    # time, no IP address
+    ("00:00:5e:00:53:9a", None, None, "wired", SWITCH, "7", None),
+)
+ADAPTER_FDB = (("00:00:5e:00:90:11", "lan2"),)        # an address the router's table learned, nothing else known
+
 
 def registry():
     from .oui import Oui
     reg = Oui()
-    reg.override = {"names": {_hmac(n): name for n, name in MAKERS.items()}, "random": {_hmac(n) for n in RANDOM_MACS}}
+    names = {_hmac(n): name for n, name in MAKERS.items()}
+    names.update({m: maker for m, _ip, _nm, _md, _par, _pt, maker in ADAPTER_CLIENTS if maker})
+    reg.override = {"names": names, "random": {_hmac(n) for n in RANDOM_MACS} | {"da:a1:19:7e:41:c3"}}
     return reg
 
 
@@ -268,6 +287,10 @@ def controller_event(now: float) -> dict:
     for n, (ap, band) in RADIO.items():
         clients.append({"mac": _hmac(n), "ip": _host(n)["ip"], "name": None, "medium": "radio", "parent_mac": _mac(ap),
                         "port": None, "band": band, "ssid": SSID})
+    for mac, ip, name, medium, parent, where, _maker in ADAPTER_CLIENTS:
+        radio = medium == "radio"
+        clients.append({"mac": mac, "ip": ip, "name": name, "medium": medium, "parent_mac": _mac(parent),
+                        "port": None if radio else where, "band": where if radio else None, "ssid": "Things" if radio else None})
     return {"type": "topology", "source": "controller", "t": now, "devices": devices, "clients": clients}
 
 
@@ -278,7 +301,7 @@ def router_topology_event(now: float) -> dict:
             "lldp": [{"local_port": "lan1", "local_port_num": 2, "chassis_mac": _mac(SWITCH), "chassis_ip": None, "chassis_text": None,
                       "port_id": "1", "port_mac": None, "port_desc": "Port 1", "sys_name": "core-switch", "caps": ["bridge"],
                       "mgmt_ip": _host(SWITCH)["ip"]}],
-            "fdb": []}
+            "fdb": [{"mac": mac, "port": port} for mac, port in ADAPTER_FDB]}
 
 
 def scan_host(h: dict) -> dict:
@@ -386,6 +409,9 @@ class Demo:
         scan_id = core.store.execute("INSERT INTO scans(started, finished, mode, cidrs, status, hosts) VALUES(?,?,?,?,?,?)",
                                      (time.time() - 60, time.time() - 45, "gentle", '["%s"]' % NET, "done", len(HOSTS))).lastrowid
         core.ingest({"hosts": [scan_host(h) for h in HOSTS]}, scan_id)
+        from . import adapter_inventory
+        core.ingest_adapter(adapter_inventory.records({"demo": {"ev": controller_event(time.time())},
+                                                       "demo-router": {"ev": router_topology_event(time.time())}}))
         # the demo network has been known for a few days; two devices joined today (start page: "new since yesterday")
         now = time.time()
         core.store.execute("UPDATE devices SET first_seen = first_seen - ?", (4 * 86400,))

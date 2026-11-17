@@ -127,6 +127,16 @@ A short report of every night with points to tick off. Each report has its own a
 Scanning, connections, appearance, notifications, users, security, backup and AI. See [INSTALL.md](../INSTALL.md),
 [ACCESS.md](../ACCESS.md), [NOTIFICATIONS.md](../NOTIFICATIONS.md) and [BACKUP.md](../BACKUP.md).
 
+**Network** (every role to look, operators set protection classes, administrators allow scans across a router): the
+networks and VLANs Lanloom knows with their reach, the scan protection list and what can be connected to which device.
+See [DISCOVERY.md](../DISCOVERY.md).
+
+![Networks and VLANs](../screenshots/network-zones-light.png)
+
+![Scan protection](../screenshots/network-protect-light.png)
+
+![What can be connected](../screenshots/network-connect-light.png)
+
 **Notifications** (every role): your own rules per event, quiet hours, push on this device, the planned maintenance and
 the history of what the rules did. Operators plan maintenance; administrators set the shared limits, the
 protected networks and the heartbeat.

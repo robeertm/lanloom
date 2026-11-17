@@ -1,0 +1,24 @@
+/* Lanloom — Settings > Network (zones, protection list, what can be connected) and the matching device card sections. */
+.dz-page { display: flex; flex-direction: column; gap: var(--ll-space-4); min-width: 0; }
+.dz-list, .dz-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.dz-zone, .dz-prot { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; padding: 12px 0; border-top: 1px solid var(--ll-border); }
+.dz-list > :first-child { border-top: 0; }
+.dz-zone__main, .dz-prot__main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dz-prot__main { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.dz-zone__title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-weight: var(--ll-fw-medium); overflow-wrap: anywhere; }
+.dz-zone__meta, .dz-prot__why, .dz-prot__addr { font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.dz-prot__name { font-weight: var(--ll-fw-medium); overflow-wrap: anywhere; }
+.dz-prot__set { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dz-rules { gap: 8px; margin: 0 0 var(--ll-space-3); }
+.dz-rules li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 12px; align-items: start; font-size: var(--ll-fs-sm); }
+.dz-rules .chip { justify-self: start; }
+.dz-int__group { margin: var(--ll-space-3) 0 0; font-size: var(--ll-fs-sm); color: var(--ll-text-2); text-transform: uppercase; letter-spacing: .05em; }
+.dz-int__side { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.dz-int__mode { font-size: var(--ll-fs-sm); }
+.dz-int--compact .setup-suggest__head { align-items: flex-start; }
+@media (max-width: 560px) {
+  .dz-zone, .dz-prot { grid-template-columns: minmax(0, 1fr); }
+  .dz-zone__act .btn, .dz-prot .select { width: 100%; }
+  .dz-rules li { grid-template-columns: minmax(0, 1fr); }
+  .dz-int__side { justify-content: flex-start; }
+}

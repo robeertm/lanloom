@@ -394,6 +394,21 @@ Every device card shows the maker (what the device says itself, otherwise the pu
 </tr>
 </table>
 
+### Networks, VLANs, devices without an address, scan protection
+
+*Settings › Network* lists every network and VLAN Lanloom knows. It scans only what it reaches directly; behind a router it fills a network from the controller's data and sends nothing into it, unless you agree to a gentle scan across that router. Devices that only a controller or a switch knows (other VLANs, hardware addresses without an IP address) join the inventory without a scan, and a second network card without an address folds into its device when the evidence is strong. A protection list keeps printers off their raw printing ports, industrial controllers to the web ports and medical or payment systems completely passive. The catalog of what can be connected shows, per device, which source fits (read-only first); entries that are not available yet say so. Details: [docs/DISCOVERY.md](docs/DISCOVERY.md).
+
+<table>
+<tr>
+<td><img src="docs/screenshots/network-vlans-light.png" width="380" alt="Network map with a zone for each VLAN"></td>
+<td><img src="docs/screenshots/network-zones-light.png" width="380" alt="Settings: networks and VLANs with their reach"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/network-connect-light.png" width="380" alt="What can be connected: planned entries show their steps"></td>
+<td><img src="docs/screenshots/phone-network-protect.png" width="200" alt="Phone: scan protection list"></td>
+</tr>
+</table>
+
 ## Live data and integrations
 
 Dots appear only where bytes are actually measured:
@@ -459,7 +474,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/BACKUP.md](docs/BACKUP.md): backup and restore in the app, automatic backups, moving to another host, the file format
 - [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md): notification rules per person, quiet hours, planned maintenance, flap protection, web push, the heartbeat
 - [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path
-- [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces
+- [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces, networks and VLANs, devices without an address, scan protection, what can be connected
 - [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md): the home-automation bridge: what is read, admin mode, sparing the hub, privacy filter
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)

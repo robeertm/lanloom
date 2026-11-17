@@ -14,7 +14,7 @@ import logging
 import socket
 import time
 
-from . import banners, llmnr, mdns, nbns, ndp, neighbors, netinfo, ports, safety, snmpprobe, ssdp, wsd
+from . import banners, llmnr, mdns, nbns, ndp, neighbors, netinfo, ports, protect, safety, snmpprobe, ssdp, wsd
 from .ratelimit import Limiter, TokenBucket
 
 log = logging.getLogger("lanloom.scan")
@@ -215,7 +215,7 @@ async def _reverse_names(ips, timeout: float) -> dict[str, str]:
     return out
 
 
-def _host_dict(h: "_Host", gateways, self_ips) -> dict:
+def _host_dict(h: "_Host", gateways, self_ips, shield=None) -> dict:
     return {
         "ip": h.ip, "mac": h.mac, "hostnames": list(h.hostnames), "sources": list(h.sources),
         "ports": [{"port": p, "proto": "tcp", "service": ports.service_name(p), "banner": h.open[p]}
@@ -224,11 +224,15 @@ def _host_dict(h: "_Host", gateways, self_ips) -> dict:
         "ipv6": list(h.ipv6), "wsd": h.wsd, "netbios": h.netbios, "snmp": h.snmp,
         "is_gateway": h.ip in gateways, "is_self": h.ip in self_ips,
         "rtt_ms": round(h.rtt, 2) if h.rtt is not None else None,
+        "protect": shield.result(h.ip) if shield is not None else None,
     }
 
 
-async def run(plan, progress=None, preview=None) -> dict:
+async def run(plan, progress=None, preview=None, protected=None) -> dict:
     """Execute a plan. Returns a ScanResult dict. Cancellable.
+
+    ``protected`` ({ip: {"class", "why", "source"}}): the protection classes the inventory already knows (see
+    ``scan.protect``); hosts of a class are not probed beyond what the class allows.
 
     ``preview`` (optional, sync or async): called once after the quick phases (neighbour table, mDNS, SSDP,
     WS-Discovery) with the hosts known so far - the first picture comes before the slower port and banner phases."""
@@ -265,6 +269,7 @@ async def run(plan, progress=None, preview=None) -> dict:
     iface_ips = sorted(self_ips)
 
     hosts: dict[str, _Host] = {}
+    shield = protect.Shield(protected, deep=deep)
 
     def host(ip: str) -> _Host:
         h = hosts.get(ip)
@@ -288,7 +293,7 @@ async def run(plan, progress=None, preview=None) -> dict:
         bucket = TokenBucket(plan["nudge_rate"])
         sent = 0
         for i in range(0, len(linked_addrs), 32):
-            chunk = [a for a in linked_addrs[i:i + 32] if a not in self_ips]
+            chunk = [a for a in linked_addrs[i:i + 32] if a not in self_ips and shield.allow_datagram(a)]
             sent += await neighbors.nudge(chunk, bucket)
             prog("neighbors", min(i + 32, len(linked_addrs)), len(all_addrs), len(hosts))
         extra_probes += sent
@@ -320,6 +325,8 @@ async def run(plan, progress=None, preview=None) -> dict:
         async def sweep_one(ip):
             nonlocal done
             for port in ports.SWEEP_PORTS:
+                if not shield.allow_port(ip, port):          # a protected host is not poked, not even to see if it is there
+                    continue
                 async with limiter.slot(ip):
                     state, rtt = await ports.tcp_probe(ip, port, timeout)
                 if state in (ports.OPEN, ports.REFUSED):
@@ -389,10 +396,12 @@ async def run(plan, progress=None, preview=None) -> dict:
     for ip in self_ips | gateways:
         if in_scope(ip):
             host(ip)
+    for ip, h in hosts.items():
+        shield.observe(ip, {"mdns": h.mdns, "ssdp": h.ssdp})
 
     if preview is not None and hosts:
         try:
-            res = preview({"hosts": [_host_dict(hosts[ip], gateways, self_ips) for ip in sorted(hosts, key=_sort_key)]})
+            res = preview({"hosts": [_host_dict(hosts[ip], gateways, self_ips, shield) for ip in sorted(hosts, key=_sort_key)]})
             if inspect.isawaitable(res):
                 await res
         except asyncio.CancelledError:
@@ -403,7 +412,8 @@ async def run(plan, progress=None, preview=None) -> dict:
     # ---------------------------------------------------------------- phase: ports (+ reverse DNS)
     targets = sorted(hosts, key=_sort_key)
     port_list = list(plan["ports"])
-    jobs = [(ip, p) for p in port_list for ip in targets]      # port-major: spreads load across hosts
+    jobs = [(ip, p) for p in port_list for ip in targets
+            if ip in self_ips or shield.allow_port(ip, p)]      # port-major: spreads load across hosts
     total = len(jobs)
     done_ports = 0
     prog("ports", 0, total, len(hosts), force=True)
@@ -411,10 +421,14 @@ async def run(plan, progress=None, preview=None) -> dict:
     async def probe(job):
         nonlocal done_ports
         ip, port = job
+        if ip not in self_ips and not shield.allow_port(ip, port):       # the class changed while the scan ran
+            done_ports += 1
+            return
         async with limiter.slot(ip):
             state, rtt = await ports.tcp_probe(ip, port, timeout)
         h = hosts[ip]
         if state == ports.OPEN:
+            shield.note_open(ip, port)
             h.open[port] = None
             h.add_source("tcp")
             h.add_rtt(rtt)
@@ -439,7 +453,8 @@ async def run(plan, progress=None, preview=None) -> dict:
             hosts[ip].add_name(name)
 
     # ---------------------------------------------------------------- phase: banners
-    web_jobs = [(ip, p) for ip in targets for p in sorted(hosts[ip].open) if p in ports.WEB_PORTS]
+    web_jobs = [(ip, p) for ip in targets for p in sorted(hosts[ip].open)
+                if p in ports.WEB_PORTS and (ip in self_ips or shield.allow_banner(ip, p))]
     if not plan["banners"]:
         web_jobs = []
     done_b = 0
@@ -458,7 +473,7 @@ async def run(plan, progress=None, preview=None) -> dict:
     prog("banners", len(web_jobs), len(web_jobs), len(hosts), force=True)
 
     # ---------------------------------------------------------------- phase: identify (one datagram per host)
-    ask_ips = [ip for ip in targets if ip not in self_ips]
+    ask_ips = [ip for ip in targets if ip not in self_ips and shield.allow_datagram(ip)]
     udp_t = float(plan["udp_timeout"])
     id_total = len(ask_ips) * (int(plan["netbios"]) + int(plan["llmnr"]) + int(plan["snmp_public"]))
     id_done = 0
@@ -501,7 +516,7 @@ async def run(plan, progress=None, preview=None) -> dict:
     duration = time.monotonic() - t0
     out_hosts = []
     for ip in sorted(hosts, key=_sort_key):
-        out_hosts.append(_host_dict(hosts[ip], gateways, self_ips))
+        out_hosts.append(_host_dict(hosts[ip], gateways, self_ips, shield))
     probes = limiter.probes + extra_probes
     return {"started": started, "finished": finished, "mode": "deep" if deep else "gentle",
             "networks": result_networks, "hosts": out_hosts,

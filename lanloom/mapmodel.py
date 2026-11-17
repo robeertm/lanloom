@@ -7,7 +7,7 @@ import re
 import time
 from urllib.parse import urlparse
 
-from . import hubmerge, live, topology
+from . import hubmerge, live, topology, zones as zones_mod
 from .core import FLOW_KEEP, PRESENCE_INTERVAL, flow_trace, lan_trace, topic_trace, uplink_trace
 
 ZONE_OF_KIND = {
@@ -56,11 +56,11 @@ def _device_component(core, dev: dict, special_kind: str = None) -> dict:
     kind = dev["kind"]
     if special_kind and kind in ("unknown", "server", "iot", "service"):
         kind = special_kind
-    comp = {"id": dev["id"], "kind": kind, "title": dev["title"], "subtitle": dev["ip"], "status": dev["status"],
+    comp = {"id": dev["id"], "kind": kind, "title": dev["title"], "subtitle": dev["ip"] or dev.get("mac") or "", "status": dev["status"],
             "grade": "unknown", "metric": None, "badges": dev["services"][:3]}
     if not dev["title"]:
         comp["title_key"] = "kind." + kind
-        comp["title_suffix"] = "." + dev["ip"].rsplit(".", 1)[-1] if "." in dev["ip"] else ""
+        comp["title_suffix"] = "." + dev["ip"].rsplit(".", 1)[-1] if "." in (dev["ip"] or "") else ""
     if dev["is_self"]:
         comp["title_key"] = "kind.self"
         comp["title"] = ""
@@ -217,6 +217,17 @@ def build(core, view: str = "overview") -> dict:
                     nets.append(n)
             except ValueError:
                 pass
+        # the networks and VLANs the adapters publish: their devices get a zone of their own, titled with the name
+        zinfo = {}
+        try:
+            states = [{"key": e["key"], "name": e["name"], "state": e["state"]} for e in core.live_configs()]
+            for z in zones_mod.build([], states):
+                n = ipaddress.ip_network(z["cidr"])
+                zinfo[str(n)] = z
+                if n not in nets and n.version == 4:
+                    nets.append(n)
+        except Exception:      # a broken adapter state never breaks the map
+            zinfo = {}
         phys = _physical(core, devices, router)
         carried = set()            # physical links that carry measured bytes of this host (its flows and its internet traffic)
         if self_dev and host_ok:
@@ -245,10 +256,15 @@ def build(core, view: str = "overview") -> dict:
                     zones[zid]["vars"] = {"host": host["title"] or host["ip"]}
                 comp["zone"] = zid
             else:
-                net = next((n for n in nets if _in(dev["ip"], n)), None)
+                net = max((n for n in nets if _in(dev["ip"], n)), key=lambda n: n.prefixlen, default=None)
                 zid = "net:" + (str(net) if net else "other")
                 if zid not in zones:
                     zone(zid, None if net else "zone.other_net", str(net) if net else None, order=order)
+                    info = zinfo.get(str(net)) if net else None
+                    if info and (info.get("name") or info.get("vlan")):
+                        zones[zid]["title_key"] = ("zone.net_named_vlan" if info.get("name") and info.get("vlan")
+                                                   else "zone.net_named" if info.get("name") else "zone.net_vlan")
+                        zones[zid]["vars"] = {"name": info.get("name") or "", "vlan": info.get("vlan") or "", "cidr": str(net)}
                     net_order[zid] = order
                     order += 1
                 comp["zone"] = zid

@@ -173,7 +173,7 @@ def _keys(dev: dict) -> dict:
     mac = oui.norm_mac(dev.get("mac") or data.get("mac"))
     return {"udn": udns, "sys": sys_key, "nb": nb if nb and nb not in GENERIC_NAMES else "", "mdns": _mdns_hosts(data),
             "mac": mac, "first": float(dev.get("first_seen") or 0), "scan": dev.get("last_scan"),
-            "port": dev.get("link_port")}
+            "port": dev.get("link_port"), "noip": not dev.get("ip")}
 
 
 def _combine(a: float, b: float) -> float:
@@ -201,6 +201,12 @@ def pair_evidence(ka: dict, kb: dict) -> tuple:
                 conf, why = _combine(conf, 0.35), why + ["same_port"]
             if ka["first"] and kb["first"] and abs(ka["first"] - kb["first"]) <= FIRST_SEEN_WINDOW_S:
                 conf, why = _combine(conf, 0.2), why + ["first_seen_together"]
+    # an address-only device next to a device with an address: same registered block, same port, first seen together
+    if ma and mb and ka["noip"] != kb["noip"] and not oui.is_random(ma) and not oui.is_random(mb) \
+            and ma[:8] == mb[:8] and ka["port"] and ka["port"] == kb["port"] \
+            and ka["first"] and kb["first"] and abs(ka["first"] - kb["first"]) <= FIRST_SEEN_WINDOW_S \
+            and "adjacent_mac" not in why:
+        conf, why = _combine(conf, 0.65), why + ["same_block_port_time"]
     return round(conf, 3), why
 
 
@@ -214,7 +220,36 @@ def _pair(a: str, b: str) -> tuple:
     return (a, b) if a <= b else (b, a)
 
 
-def groups(devices: Iterable[dict], splits: Iterable = (), joins: Iterable = ()) -> dict:
+def _link_pairs(devs: dict, keys: dict, links) -> dict:
+    """{(a, b): (confidence, [reason])} from announced links. A link is {"macs": [...], "ips": [...], "why": key,
+    "conf": number}: every device that owns one of the addresses is the same device as every other one."""
+    by_mac, by_ip = {}, {}
+    for i, d in devs.items():
+        if keys[i]["mac"]:
+            by_mac.setdefault(keys[i]["mac"], []).append(i)
+        if d.get("ip"):
+            by_ip.setdefault(d["ip"], []).append(i)
+    out: dict = {}
+    for link in links or []:
+        ids = set()
+        for m in link.get("macs") or []:
+            ids.update(by_mac.get(oui.norm_mac(m), ()))
+        for ip in link.get("ips") or []:
+            ids.update(by_ip.get(ip, ()))
+        ids = sorted(ids)
+        if not 2 <= len(ids) <= 8:
+            continue
+        conf, why = float(link.get("conf") or 0.8), str(link.get("why") or "linked")
+        for x in range(len(ids)):
+            for y in range(x + 1, len(ids)):
+                pair = _pair(ids[x], ids[y])
+                old = out.get(pair)
+                out[pair] = (_combine(old[0], conf), old[1] + [why]) if old and why not in old[1] \
+                    else old or (conf, [why])
+    return out
+
+
+def groups(devices: Iterable[dict], splits: Iterable = (), joins: Iterable = (), links: Iterable = ()) -> dict:
     """{"members": {secondary: {primary, confidence, reasons, manual}}, "aliases": {primary: [secondary...]},
     "suggestions": [{a, b, confidence, reasons}]}"""
     devs = {d["id"]: d for d in devices}
@@ -254,6 +289,19 @@ def groups(devices: Iterable[dict], splits: Iterable = (), joins: Iterable = ())
         for j in nxt:
             for i in ids:
                 cand.add(_pair(i, j))
+    # address-only devices on the same port as another device of the same registered block
+    by_port: dict = {}
+    for i, k in keys.items():
+        if k["port"] and k["mac"] and not oui.is_random(k["mac"]):
+            by_port.setdefault(k["port"], []).append(i)
+    for ids in by_port.values():
+        if 1 < len(ids) <= 16:
+            for x in range(len(ids)):
+                for y in range(x + 1, len(ids)):
+                    if keys[ids[x]]["noip"] != keys[ids[y]]["noip"] and keys[ids[x]]["mac"][:8] == keys[ids[y]]["mac"][:8]:
+                        cand.add(_pair(ids[x], ids[y]))
+    announced = _link_pairs(devs, keys, links)
+    cand |= set(announced)
     cand |= {p for p in join if p[0] in devs and p[1] in devs}
 
     parent = {i: i for i in devs}
@@ -269,6 +317,8 @@ def groups(devices: Iterable[dict], splits: Iterable = (), joins: Iterable = ())
         if (a, b) in split:
             continue
         conf, why = pair_evidence(keys[a], keys[b])
+        if (a, b) in announced:
+            conf, why = _combine(conf, announced[(a, b)][0]), why + [w for w in announced[(a, b)][1] if w not in why]
         manual = (a, b) in join
         if manual or conf >= SURE:
             evidence[(a, b)] = (1.0 if manual else conf, ["manual"] if manual else why, manual)

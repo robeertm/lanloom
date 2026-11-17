@@ -128,7 +128,7 @@ class Watch:
         for dev in core.store.devices():
             did = dev["id"]
             ids.add(did)
-            title = dev.get("user_title") or dev["title"] or dev["ip"]
+            title = dev.get("user_title") or dev["title"] or dev["ip"] or dev.get("mac") or ""
             if did not in self.known:
                 self.known.add(did)
                 merged = groups["members"].get(did)

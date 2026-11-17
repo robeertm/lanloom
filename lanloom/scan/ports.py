@@ -43,7 +43,8 @@ GENTLE_PORTS: dict[int, str] = {
 
 # Additional ports for the deep scan (only with explicit consent).
 _DEEP_EXTRA: dict[int, str] = {
-    7: "echo", 20: "ftp-data", 25: "smtp", 37: "time", 69: "tftp", 79: "finger", 88: "kerberos",
+    7: "echo", 20: "ftp-data", 102: "industrial-iso-tsap", 104: "medical-imaging", 502: "industrial-modbus",
+    2575: "medical-messaging", 11112: "medical-imaging-alt", 44818: "industrial-eip", 47808: "building-bacnet", 25: "smtp", 37: "time", 69: "tftp", 79: "finger", 88: "kerberos",
     110: "pop3", 111: "rpcbind", 113: "ident", 119: "nntp", 123: "ntp", 135: "rpc", 137: "netbios-ns",
     139: "netbios", 143: "imap", 161: "snmp", 179: "bgp", 199: "smux", 389: "ldap", 427: "slp",
     464: "kpasswd", 465: "smtps", 497: "backup", 500: "ike", 513: "rlogin", 514: "syslog", 515: "lpd",
@@ -75,7 +76,7 @@ _DEEP_EXTRA: dict[int, str] = {
     8880: "web-alt", 8888: "web-alt", 8889: "web-alt", 8899: "web-alt", 8920: "media-server-tls",
     8989: "web-alt", 9001: "web-alt", 9002: "web-alt", 9090: "web-alt", 9091: "web-alt",
     9200: "search", 9443: "https-alt", 9999: "web-alt", 10000: "web-admin", 10001: "device-discovery",
-    10243: "media-share", 11211: "cache", 12345: "web-alt", 18080: "web-alt", 20000: "web-alt",
+    10243: "media-share", 11211: "cache", 12345: "web-alt", 18080: "web-alt", 20000: "industrial-dnp",
     27017: "db", 37777: "camera-ctl", 49153: "upnp", 49154: "upnp", 50000: "web-alt",
     51413: "p2p", 55443: "https-alt", 62078: "device-sync",
 }

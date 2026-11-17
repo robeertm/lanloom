@@ -20,6 +20,7 @@ from starlette.routing import Match
 from . import __version__, access, auth, config as config_mod, demoview, mapmodel, palette, setup_assist, textfmt
 from .audit import AuditLog
 from .core import Core
+from .integrations import catalog
 from .crypto import Vault, load_or_create_key
 from .store import Store
 from .updates import Updates
@@ -472,6 +473,47 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             return state.core.set_identity(device_id, action, other)
         except ValueError as exc:
             return err(str(exc), 404 if str(exc) == "device.err.missing" else 400)
+
+    @app.post("/api/devices/{device_id}/protect")
+    async def device_protect(device_id: str, request: Request):
+        """The protection class of one device (see scan/protect.py): printer, industrial, passive, none, or null to
+        go back to the automatic class."""
+        data = await body(request)
+        mark = data.get("mark")
+        note(request, target=device_id, detail={"mark": str(mark)[:12]})
+        try:
+            return state.core.set_protect(device_id, mark)
+        except ValueError as exc:
+            return err(str(exc), 404 if str(exc) == "device.err.missing" else 400)
+
+    @app.get("/api/protect")
+    async def get_protect():
+        return {"devices": await asyncio.to_thread(state.core.protect_list)}
+
+    @app.get("/api/zones")
+    async def get_zones():
+        return await asyncio.to_thread(state.core.zone_list)
+
+    @app.post("/api/zones/consent")
+    async def zone_consent(request: Request):
+        data = await body(request)
+        cidr, on = str(data.get("cidr") or "")[:64], data.get("on") is True
+        note(request, target=cidr, detail={"on": on})
+        try:
+            return await asyncio.to_thread(state.core.set_zone_consent, cidr, on)
+        except ValueError as exc:
+            return err(str(exc))
+
+    @app.get("/api/integrate")
+    async def get_integrate():
+        """What can be connected to which device (the catalog's suggestions, best first). Read only."""
+        items = await asyncio.to_thread(catalog.suggestions, state.core)
+        return {"items": items, "counts": catalog.counts(items), "classes": catalog.public()}
+
+    @app.get("/api/devices/{device_id}/integrate")
+    async def get_device_integrate(device_id: str):
+        items = await asyncio.to_thread(catalog.for_device, state.core, device_id)
+        return {"items": items}
 
     @app.get("/api/topology")
     async def get_topology():
@@ -1085,7 +1127,7 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

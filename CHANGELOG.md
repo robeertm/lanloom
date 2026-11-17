@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.24.0] – 2026-11-17
+
+### Added
+- **Networks and VLANs.** *Settings → Network* lists every network Lanloom knows – the networks of this host's interfaces, the networks and VLANs a controller adapter publishes (name, VLAN number, address service, isolation) and private networks behind a router – and how far it may look into each: *scanned directly*, *scan allowed across router*, *adapter data only* or *never scanned* (with the reason). Behind a router nothing is sent into a network unless an administrator agrees to a gentle scan across it (per range, revocable, audit entry `zone.consent`); automatic rescans include only on-link networks and agreed ranges. The network map titles every network and VLAN zone with its name, VLAN number and range.
+- **Devices only an adapter knows.** Clients of a controller (also in other VLANs), the address table of a switch (SNMP) and LLDP neighbours join the inventory without a scan (*Controller or switch data* on the card). A switch in *Settings → Network* turns this off; the first booking is not reported as "new devices" in the nightly report.
+- **Devices without an IP address.** A hardware address no IP address is known for is kept under its hardware address, drawn with the address as its subtitle, and folded into the device it belongs to when the evidence is strong: same registered block, same switch port and first seen within ten minutes while the other device has an address; an LLDP neighbour's chassis and port addresses; several addresses of one device in the hub's device registry. Grouping stays undoable.
+- **Scan protection.** Three fixed classes: *printer* (never touched on 9100–9102 and 515, not even by a connection that closes right away), *industrial* (gentle scan: web ports 80 and 443 only, no name requests) and *passive only* (no packet at all; medical and payment systems and everything you mark). The class comes from what a device announced or an earlier scan saw and stays until you set another one on the device card (*No protection* switches the automatic class off); the presence check and the sweep of routed ranges obey it. The industrial and medical ports (102, 104, 502, 2575, 11112, 20000, 44818, 47808) are probed only by a deep scan with consent, never on a protected device. Audit entry `device.protect`.
+- **What can be connected.** A built-in catalog of device classes (hub, MQTT broker, SNMP devices, controllers, hypervisors, storage devices, mobile-network routers; planned: UPS, printers, cameras, container hosts, DNS filters) with a read-only-account guide for each. The device card has a *Can be connected* section (the *Connect* button opens the usual dialog, pre-filled with the address only) and *Settings → Network* lists everything, best first. Planned classes say so and offer no button. Nothing is sent to a device to build a suggestion; no new outgoing connection.
+- API: `GET /api/zones`, `POST /api/zones/consent` (administrator), `GET /api/protect`, `POST /api/devices/{id}/protect` (operator), `GET /api/integrate`, `GET /api/devices/{id}/integrate`; setting `adapter_inventory`.
+- Demo: three adapter-only networks (smart home, cameras, guests), a second network card without an IP address, a protected printer, planned catalog entries.
+- Guide: [docs/DISCOVERY.md](docs/DISCOVERY.md); README section with screenshots.
+
+### Changed
+- The scan result carries a `protect` field per host; port 20000 is listed as an industrial port in the deep scan.
+
 ## [1.23.0] – 2026-11-17
 
 ### Added

@@ -453,7 +453,7 @@ def test_topology_event_bumps_structure_once_and_not_for_identical_event(core):
     ev = demo.controller_event(time.time())
     core.on_event("int:4", 4, ev)
     v1 = core.structure_version
-    assert v1 == v0 + 1
+    assert v1 >= v0 + 1                  # the topology changed; devices only the controller knows are booked as well
     core.on_event("int:4", 4, dict(ev, t=time.time() + 5))
     assert core.structure_version == v1
     changed = demo.controller_event(time.time())
@@ -509,7 +509,8 @@ def test_network_view_without_topology_is_unchanged(core):
     view = mapmodel.build(core, "network")
     zones = {z["id"] for z in view["zones"]}
     assert "cabling" not in zones and not any(z.startswith("guests:") for z in zones)
-    assert zones <= {"edge", "net:192.168.50.0/24"} and "net:192.168.50.0/24" in zones
+    # devices only the controller knows (no network adapter here) sit under "other addresses"
+    assert zones <= {"edge", "net:192.168.50.0/24", "net:other"} and "net:192.168.50.0/24" in zones
     kinds = {t["kind"] for t in view["traces"]}
     assert not kinds & {"cable", "radio", "virtual"} and "lan" in kinds
     assert not any(t["id"].startswith("p:") for t in view["traces"])

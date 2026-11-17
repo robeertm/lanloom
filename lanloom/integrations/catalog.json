@@ -1,0 +1,25 @@
+{
+ "version": 1,
+ "note": "Device classes Lanloom can recognise and what can be connected to each. Built in; extended only in the repository (no plugins). Texts live in the translations under catalog.<id>.*. Only generic terms here: maker and product names stay out of this file.",
+ "classes": [
+  {"id": "hub", "source": "builtin", "kind": "hub", "mode": "read", "benefit": 80, "status": "available", "steps": 4},
+  {"id": "mqtt", "source": "builtin", "kind": "mqtt", "mode": "read", "benefit": 55, "status": "available", "steps": 4},
+  {"id": "snmp", "source": "builtin", "kind": "snmp", "mode": "read", "benefit": 100, "status": "available", "steps": 4},
+  {"id": "controller", "source": "family", "guide": "family", "mode": "auto", "benefit": 95, "status": "available", "steps": 4},
+  {"id": "hypervisor", "source": "family", "guide": "hv", "mode": "auto", "benefit": 85, "status": "available", "steps": 4},
+  {"id": "ups", "source": "catalog", "status": "planned", "topic": "power", "mode": "read", "benefit": 60, "steps": 4,
+   "detect": [{"port": 3493}, {"mdns": "_nut._tcp"}], "device_kinds": []},
+  {"id": "printer", "source": "catalog", "status": "planned", "topic": "printing", "mode": "read", "benefit": 30, "steps": 4,
+   "detect": [{"mdns": "_ipp._tcp"}, {"mdns": "_ipps._tcp"}, {"mdns": "_printer._tcp"}, {"port": 631}], "device_kinds": ["printer"]},
+  {"id": "camera", "source": "catalog", "status": "planned", "topic": "cameras", "mode": "read", "benefit": 35, "steps": 4,
+   "detect": [{"port": 554}, {"mdns": "_rtsp._tcp"}], "device_kinds": ["camera"]},
+  {"id": "container_host", "source": "catalog", "status": "planned", "topic": "host-agent", "mode": "read", "benefit": 70, "steps": 4,
+   "detect": [{"port": 2375}, {"port": 2376}], "device_kinds": []},
+  {"id": "dns_filter", "source": "catalog", "status": "planned", "topic": "dns-filter", "mode": "read", "benefit": 65, "steps": 4,
+   "detect": [{"port": 53, "title": "dns"}, {"port": 53, "title": "ad block"}, {"port": 80, "title": "dns filter"}], "device_kinds": []},
+  {"id": "nas", "source": "catalog", "status": "available", "kind": "snmp", "mode": "read", "benefit": 50, "steps": 4,
+   "detect": [{"mdns": "_smb._tcp"}, {"mdns": "_afpovertcp._tcp"}, {"mdns": "_nfs._tcp"}], "device_kinds": ["nas"]},
+  {"id": "mobile_router", "source": "catalog", "status": "available", "kind": "snmp", "mode": "read", "benefit": 45, "steps": 4,
+   "detect": [{"title": "lte"}, {"title": "5g"}, {"title": "cellular"}], "device_kinds": []}
+ ]
+}

@@ -349,7 +349,7 @@
     const rows = [[t('device.name'), name], [t('device.kind'), kindSel], [t('device.certainty'), LL.certaintyChip(dev.certainty)], [t('device.why'), reasons || '—'],
       [t('ident.vendor'), vendorCell], [t('ident.model'), withSrc(dev.model, dev.model_source)],
       [t('ident.firmware'), withSrc(dev.firmware, dev.firmware_source)],
-      [t('device.ip'), h('span', { class: 'mono' }, dev.ip)], [t('device.mac'), dev.mac ? h('span', { class: 'mono' }, dev.mac) : null],
+      [t('device.ip'), dev.ip ? h('span', { class: 'mono' }, dev.ip) : h('span', { class: 'muted' }, t('device.no_ip'))], [t('device.mac'), dev.mac ? h('span', { class: 'mono' }, dev.mac) : null],
       [t('ident.ipv6'), dev.ipv6 && dev.ipv6.length ? h('span', { class: 'mono ident-v6' }, dev.ipv6.join('\n')) : null],
       [t('device.hostnames'), dev.hostnames && dev.hostnames.length ? dev.hostnames.join(', ') : null],
       [t('ident.netbios'), dev.netbios && dev.netbios.computer ? dev.netbios.computer + (dev.netbios.workgroup ? ' · ' + dev.netbios.workgroup : '') : null],
@@ -363,7 +363,8 @@
     (dev.mdns || []).forEach(m => ann.push(h('li', {}, h('span', { class: 'mono' }, m.type), ' — ', m.name || '')));
     (dev.ssdp || []).forEach(s => ann.push(h('li', {}, h('span', { class: 'mono' }, (s.device_type || s.st || '').replace(/^urn:/, '')), ' — ', [s.friendly_name, s.model].filter(Boolean).join(' · '))));
     const hide = !may ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
-    return h('div', {}, section(t('detail.device'), facts(rows)), LL.aiHintSection ? LL.aiHintSection(dev) : null, identitySection(dev, may), ports ? section(t('device.ports'), ports) : null,
+    return h('div', {}, section(t('detail.device'), facts(rows)), LL.aiHintSection ? LL.aiHintSection(dev) : null, identitySection(dev, may),
+      LL.integrateSection ? LL.integrateSection(dev) : null, LL.protectSection ? LL.protectSection(dev, may) : null, ports ? section(t('device.ports'), ports) : null,
       ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, hide ? h('div', { class: 'detail__foot' }, hide) : null);
   }
 
@@ -621,7 +622,7 @@
   const SETTINGS_PAGES = [['general', '', 'settings.general', 'viewer'], ['account', 'account', 'settings.tab.account', 'viewer'],
     ['notifications', 'notifications', 'notify.tab', 'viewer'],
     ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['backup', 'backup', 'backup.tab', 'admin'],
-    ['storage', 'storage', 'storage.tab', 'admin'], ['ai', 'ai', 'ai.tab', 'admin']];
+    ['storage', 'storage', 'storage.tab', 'admin'], ['network', 'network', 'settings.tab.network', 'viewer'], ['ai', 'ai', 'ai.tab', 'admin']];
   function settingsSubnav(active) {
     const allowed = p => p[3] === 'viewer' || LL.can(p[3] === 'admin' ? 'admin' : 'operate');
     return h('nav', { class: 'seg settings-subnav', 'aria-label': t('settings.sections') }, SETTINGS_PAGES.filter(allowed).map(([k, sub, label]) =>
@@ -631,7 +632,7 @@
   async function settingsView(app, rest) {
     const fr = frame(app, 'settings');
     const sub = rest && rest[0];
-    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, notifications: LL.notifyPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage }[sub];
+    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, notifications: LL.notifyPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage, network: LL.networkPage }[sub];
     if (subPage) {
       const pg = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav(sub)));
       fr.main.append(pg);
