@@ -16,6 +16,9 @@ there, what talks to what, and what is down, in one picture.
 - **Traces** for connections. Moving dots are measured bytes; nothing is animated that was not measured. The line
   styles tell the kind of link (cable, radio, service, flow, integration, uplink).
 - **Zones** are the areas of the board, one per network or VLAN, titled with its name, VLAN number and range.
+- **The legend** at the bottom names the line styles. Each line style in it is a switch: a click hides that kind of
+  line on the whole board (with its dots, port marks and end marks), a second click shows it again, *Show all* brings
+  every kind back. A hidden kind is greyed and struck through; each board remembers its own choice in this browser.
 - **Chips above the board** filter by **area** (one zone of the board; the internet edge stays for orientation) or
   show **problems only** (components that are down or whose data stopped).
 - **Hover window.** Rest the mouse on a tile for half a second: the traffic of the last hour and the availability of
@@ -29,6 +32,8 @@ there, what talks to what, and what is down, in one picture.
 
 - Click a component to open its card; the address follows (`#/map/<component>`), so the card can be shared and the
   back key closes it.
+- Click *Wireless*, *Cable*, *Flow* or another line style in the legend to hide it, for example to see only the
+  wireless links or only the flows of a busy network; click it again (or *Show all*) to bring it back.
 - Use the area chips to look at one network or one cabinet at a time (`#/map?zone=<area>`), or *Problems only*
   (`#/map?only=problems`).
 - Magnify the board with the mouse wheel or two fingers.
@@ -54,7 +59,8 @@ there, what talks to what, and what is down, in one picture.
 
 - **Read:** the device list, the live traces of the last minutes, the availability history, the topology Lanloom has
   resolved.
-- **Stored in the browser:** the map animation setting, theme and palette (this browser only).
+- **Stored in the browser:** the map animation setting, theme and palette, and the line styles you hid in the legend
+  (one list per board, this browser only).
 - **Sent:** nothing outside your Lanloom. Zooming, filtering and the hover window are computed locally or from Lanloom's
   own database.
 - **Roles:** every role looks at the map and its cards. Operators change names, types, hidden state, manual connections,

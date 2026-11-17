@@ -56,7 +56,7 @@ def test_every_used_key_exists():
     for prefix, values in (("board.kind.", kinds),
                            ("board.grade.", ["realtime", "near", "periodic", "sluggish", "interrupted", "unknown"]),
                            ("board.status.", ["up", "down", "unknown"]),
-                           ("board.trace.", ["uplink", "lan", "service", "flow", "integration"])):
+                           ("board.trace.", ["uplink", "lan", "service", "flow", "integration", "cable", "radio", "virtual"])):
         for v in values:
             assert prefix + v in en, prefix + v
     # end and port marks: every literal key in the source exists, band keys complete

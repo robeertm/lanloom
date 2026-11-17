@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.33.0] – 2026-11-17
+
+### Added
+- **The legend filters the board.** On the map and the network view every line style in the legend (Uplink, LAN, Flow, Integration, Cable, Wireless, Virtual, and *Not measured*) is a switch: a click hides that kind of line on the whole board, a second click shows it again, *Show all* brings every kind back. A hidden kind is greyed and struck through. It leaves the drawing completely (traces, pads, vias, the exit to the board edge), its traffic dots stop at once, a selected component no longer lights neighbours over it, and its port and end marks go as well. The live redraw keeps the filter, so hidden lines never flicker back. Each board remembers its own choice in the browser (`lanloom.board.hide.<view>`), so the map and the network view keep separate filters across reloads. The switches are real buttons with a pressed state, keyboard focus stays on a switch while it is used, and on phones they are finger-sized and show no sticky hover after a tap. Texts in English and German. Suggested in issue 6.
+
+### Changed
+- Live frames only update the dot size text of the legend instead of rebuilding it, so a focused switch keeps its focus.
+- The legend is a labelled group instead of a note, since it now holds controls.
+- Docs: manual pages *Map* and *Network* (legend switches, what is stored in the browser).
+
 ## [1.32.2] – 2026-11-17
 
 ### Fixed
