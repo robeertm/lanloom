@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.19.0] – 2026-11-17
+
+### Added
+- **Search and commands** (`Ctrl K`, `⌘ K`, `/` or the Search button in the top bar): one box that finds devices, virtual machines and containers, services (which device offers which service, with the port), automations and scripts, and entities of a home-automation hub, and that runs commands – every view, the settings pages, light/dark, each colour theme, the rate unit (bits or bytes) and "Check for updates". Every word has to match; typos are forgiven from four letters; "Recent" shows your last choices (kept in this browser only; "Clear recent items" empties it).
+- **Value filter**: a comparison such as `> 25 °C` or `<= 40 %` lists hub entities whose current number fits (units are compared when typed), highest or lowest first; the words of the query still narrow by name.
+- **Actions of a hit** as a menu (`→` or the dots on a phone): Open (the card of the device), Copy address, Show the hub card, Copy ID. An action is offered only when its view exists; features register their own with `Lanloom.registerAction`, commands with `Lanloom.registerCommand`.
+- Deep links `#/map/<id>` and `#/network/<id>` open the card of a component (the page switches to the board that has it).
+- API: `GET /api/search?q=&limit=` (any signed-in role, read only, not audited). The hub entities are indexed once per snapshot; a search over 3000 of them answers in well under 50 ms (typically 3 to 10 ms on a small computer).
+- Keyboard and screen reader: combobox with a listbox, `aria-activedescendant`, announced result count, focus returns to where it was; on a phone the palette fills the screen. English and German texts, demo data for every group, documentation in [docs/PALETTE.md](docs/PALETTE.md), screenshots.
+
 ## [1.18.1] – 2026-11-17
 
 1.18.0 was not released on its own; its changes are part of this version.

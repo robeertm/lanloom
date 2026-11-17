@@ -29,6 +29,7 @@
 - **Several users, three roles.** Viewer, operator and admin, enforced on the server for every route. Invitation links, two-step sign-in with an authenticator app, recovery codes or passkeys, sessions you can end, security notices and a tamper-evident audit log. Optional sign-in through your own authentication proxy. See [docs/ACCESS.md](docs/ACCESS.md).
 - **AI, local or cloud (optional).** An Explain button on devices, notes of the nightly report and firewall rules lets an AI answer in plain words, in the language of the app. **Ask your network** answers questions with links to the devices and views concerned, the nightly report gets a paragraph *In plain words*, the AI suggests what an unknown device is (you confirm), and the firewall editor shows suggestions you can take over as a draft. Off by default; AI only reads and never changes a setting. See [docs/integrations/ai.md](docs/integrations/ai.md).
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
+- **Search and commands.** One box for everything: press `Ctrl K` (`⌘ K` on a Mac) or `/`, or tap the Search button in the top bar. It finds devices, virtual machines and containers, services, automations and entities of a home-automation hub, and it runs commands: every view, the settings pages, light/dark, colour theme, rate unit, "Check for updates". Typos are forgiven, the last choices come first, a hit has a menu of actions (open, copy the address), and a comparison such as `> 25 °C` lists hub values that fit. Read only, full screen on a phone, usable with a keyboard and a screen reader. See [docs/PALETTE.md](docs/PALETTE.md).
 - **Device list** with search, light/dark/auto mode and two colour themes (Circuit green and Aurora), a phone layout with bottom tabs, English and German UI.
 - **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network (or tap it and choose "Move to…" on a phone), collect moves in a draft and get a plain-language preview: what the device may do afterwards, what it may no longer do, and what to watch out for. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
 - **Your controller's configuration, read only.** With a device-family adapter (see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)) the Firewall tab shows the real zones, networks and clients, the firewall rules in the controller's order with hit counters and a zone matrix, port forwarding, wireless networks, and the network equipment with every switch port. The same adapter feeds the physical topology. It uses a read-only account or key and cannot change anything.
@@ -170,6 +171,21 @@ The card of the hub shows what the bridge reads, which private data stays out (p
 </tr>
 </table>
 
+### Search and commands
+
+Press `Ctrl K`, `⌘ K` or `/` anywhere, or use the Search button. Views and commands are matched in the page; devices, services, automations and hub entities are searched on the server. A comparison such as `> 20 °C` filters hub values, and the arrow to the right (or the dots on a phone) opens the actions of a hit.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/palette-search-light.png" width="100%" alt="The search box with hits grouped into devices, services, automations and hub entities"><br><sub>Everything in one box, grouped by what it is</sub></td>
+<td width="50%"><img src="docs/screenshots/palette-values-dark.png" width="100%" alt="The value filter listing hub sensors above 20 degrees"><br><sub>A comparison filters hub values: highest first</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/palette-actions-light.png" width="100%" alt="The actions of a device hit: open and copy address"><br><sub>The actions of a hit; only what exists is offered</sub></td>
+<td width="50%"></td>
+</tr>
+</table>
+
 ### Backup and moving to another host
 
 Settings › Backup saves the whole configuration into one file encrypted with your passphrase (Argon2id, AES-256-GCM): accounts and second factors, connections with their credentials, every name you set, "connected via" entries, drafts, settings and the audit log, optionally history. Automatic backups run on a schedule into the data volume, keep as many files as you choose, and the nightly report says when the newest one is too old. A restore shows first what it replaces, ends every session and works on a new host too, from the first-start page and across architectures (amd64 ↔ arm64). See [docs/BACKUP.md](docs/BACKUP.md).
@@ -254,6 +270,8 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 <td><img src="docs/screenshots/phone-storage.png" width="200" alt="Phone: storage settings"></td>
 <td><img src="docs/screenshots/phone-ai-explain.png" width="200" alt="Phone: AI explanation of a device"></td>
 <td><img src="docs/screenshots/phone-ask.png" width="200" alt="Phone: Ask your network"></td>
+<td><img src="docs/screenshots/phone-palette-search.png" width="200" alt="Phone: search and commands"></td>
+<td><img src="docs/screenshots/phone-palette-values.png" width="200" alt="Phone: value filter in the search"></td>
 <td><img src="docs/screenshots/phone-report-plain.png" width="200" alt="Phone: nightly report in plain words"></td>
 <td><img src="docs/screenshots/phone-wizard-scan.png" width="200" alt="Phone wizard scan step"></td>
 <td><img src="docs/screenshots/phone-firewall-move.png" width="200" alt="Phone: move a device to another network"></td>
@@ -394,6 +412,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md): hardware requirements with measured values, storage and retention, the nightly clean-up, the counter check, the frame budget of the map
 - [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md): the nightly report, its sections, the archive, optional delivery, adding a section
+- [docs/PALETTE.md](docs/PALETTE.md): search and commands: keys, what is searched, the value filter, actions, adding a command
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): supported integrations and AI services, what each can read and write
 - [docs/integrations/ai.md](docs/integrations/ai.md): AI, local or cloud: setup in three ways, privacy layer, hardware, troubleshooting
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): how device-family adapters are built (read and write halves, capabilities, plan steps, credentials)

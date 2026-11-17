@@ -35,7 +35,7 @@
     const header = h('header', { class: 'topbar' },
       h('a', { class: 'topbar__brand', href: '#/map' }, LL.logo(26), h('span', { class: 'brand-name' }, 'Lanloom'),
         LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
-      nav, h('div', { class: 'topbar__right' }, LL.aiAskButton ? LL.aiAskButton() : null, updateBtn, gradePill, themeBtn));
+      nav, h('div', { class: 'topbar__right' }, LL.paletteButton ? LL.paletteButton() : null, LL.aiAskButton ? LL.aiAskButton() : null, updateBtn, gradePill, themeBtn));
     const main = h('main', { class: 'main main--' + active }, content);
     const notes = LL.noticeBar ? LL.noticeBar() : null;              // security notices (new device, lock-out ...)
     const demoBar = LL.state && LL.state.demo_view ? h('div', { class: 'demo-bar', role: 'status' },
@@ -75,7 +75,7 @@
 
   // ------------------------------------------------------------------ map views
   function mapView(kind) {
-    return async function (app) {
+    return async function (app, rest) {
       const fr = frame(app, kind === 'network' ? 'network' : 'map');
       const host = h('div', { class: 'board-host' });
       const panel = h('aside', { class: 'detail', hidden: true, 'aria-label': t('detail.label') });
@@ -86,12 +86,22 @@
         return fr;
       }
       let selected = null;
+      const onSelectId = id => { selected = id; board.highlight(id); openDetail(panel, id, () => { selected = null; board.highlight(null); }); };
       const board = LL.Board.mount(host, {
-        view: localise(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(),
-        onSelect: id => { selected = id; board.highlight(id); openDetail(panel, id, () => { selected = null; board.highlight(null); }); }
+        view: localise(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: onSelectId
       });
       const onTheme = ev => board.setTheme(ev.detail);
       document.addEventListener('ll-theme', onTheme);
+      // deep link #/map/<id> or #/network/<id> (command palette, answers of "Ask your network"): open that component's card;
+      // a component that sits on the other board sends the page there
+      const want = rest && rest[0] ? decodeURIComponent(rest[0]) : '';
+      if (want) {
+        if (data.components.some(c => c.id === want)) onSelectId(want);
+        else {
+          const other = kind === 'network' ? 'map' : 'network';
+          api('/api/map?view=' + (kind === 'network' ? 'overview' : 'network')).then(d => { if (d.components.some(c => c.id === want)) LL.go('#/' + other + '/' + encodeURIComponent(want)); }).catch(() => {});
+        }
+      }
       // change channel instead of polling: the live frame carries the structure version and a map version that rises
       // when statuses, flow traces or source states change; the map is fetched only then (and once after a hidden tab)
       let structure = data.structure, mapver = null, stale = false;

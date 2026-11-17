@@ -1,0 +1,87 @@
+# Search and commands
+
+One box for everything Lanloom knows and can do. It is read only: it finds things and takes you to them, and the few commands that change something (rate unit, update check) are the same ones the settings offer, with the same role.
+
+![The search box with hits grouped by kind](screenshots/palette-search-light.png)
+
+## Opening it
+
+| How | Where |
+| --- | --- |
+| `Ctrl K` (`⌘ K` on a Mac) | everywhere inside the app, pressing it again closes it |
+| `/` | everywhere, when no text field has the focus |
+| the **Search** button in the top bar | always; on a phone it is the magnifier |
+
+It does not open on the sign-in or setup pages. `Esc` closes it and gives the focus back to where you were.
+
+## What is searched
+
+Type a few words; **every word has to match**. A word that starts a word of the name beats one inside a name, accents and capitals do not matter, and a typo is forgiven from four letters on (one edit, two for words of eight letters or more; two neighbouring letters swapped count as one edit): `kichen tablt` finds *Kitchen tablet*.
+
+| Group | What | Where it is matched |
+| --- | --- | --- |
+| Views and commands | every view, the settings pages, light/dark, colour themes, rate unit, update check | in the page |
+| Devices | name, address, hardware address, kind, host names, maker and model | the server |
+| Virtual machines and containers | name, id, addresses, host (from a hypervisor connection) | the server |
+| Services | which device offers which service, with the port | the server |
+| Automations and scripts | name and id (from the home-automation bridge) | the server |
+| Hub entities | name, id and area of what the bridge delivered; the current state is shown | the server |
+
+Hidden devices are never offered. Hub data comes only as the bridge delivered it, so what the privacy filter keeps out (people, trackers, cameras, calendars, notifications by default) cannot be found either.
+
+With nothing typed, the box shows **Recent** (your last choices) and the views and commands. "Clear recent items" empties that list. It is kept in this browser only and never sent anywhere.
+
+## The value filter
+
+A comparison filters hub entities by their current value:
+
+- `> 25 °C` – everything above 25 degrees, highest first
+- `<= 40 %` – everything at or below 40 percent, lowest first
+- `kitchen temp < 20` – the words narrow by name, the comparison by value
+
+Operators: `>` `>=` `<` `<=` `=` (also `≥` and `≤`). A unit is compared when you type one (`°C`, `C`, `%`); without a unit every number matches. Entities whose state is not a number never match. A comparison asks about hub values only, so the other groups stay empty while it is in the box.
+
+![A comparison lists the hub values that fit](screenshots/palette-values-dark.png)
+
+## Actions of a hit
+
+`Enter` does the first action of a hit. `→` (at the end of the text) or the dots at the right of the row show all of them; `←`, `Esc` or "Back to results" return to the list.
+
+| Hit | Actions |
+| --- | --- |
+| Device, virtual machine, service | Open (the card of the device), Copy address |
+| Automation, entity | Show the hub card, Copy ID |
+
+An action exists only when something registered it, so an action for a view Lanloom does not have yet is never shown. Later features add theirs (for example a chain-of-outage view adds its own action to devices).
+
+![The actions of a device hit](screenshots/palette-actions-light.png)
+
+## Keyboard, screen reader, phone
+
+`↑` `↓` move, `Home` and `End` jump (with an empty box), `Enter` chooses, `Tab` moves between the box and the close button. The box is a combobox with a listbox below it; the selected row is announced through `aria-activedescendant`, and the number of results is read out when it changes. On a phone the palette fills the screen and each row has room for a thumb.
+
+![On a phone](screenshots/phone-palette-search.png)
+
+## Roles and privacy
+
+- `GET /api/search` needs a signed-in session, any role. It writes nothing and adds nothing to the audit log.
+- A role only sees what it can see elsewhere: a viewer sees the same devices and hub entities as in the lists. Commands that change something (rate unit, update check) are offered to administrators only, and the server checks the role again.
+- The query goes to your own Lanloom, never anywhere else. The list of recent choices stays in the browser.
+
+## Speed
+
+The hub entities are indexed once per snapshot and the devices are indexed until they change; a search over 3000 hub entities answers in well under 50 ms (the answer carries the time in `ms`), and `scripts/benchmark.py` measures the search over devices as `search_ms`. A typo costs a little more the first time a word is tried and is remembered after that.
+
+## Adding a command or an action
+
+Both are registered in the page (see `lanloom/web/js/app.js`):
+
+```js
+// a command: label and keywords are translation keys (or functions returning text)
+Lanloom.registerCommand({ id: 'my-view', group: 'views', label: () => t('cmdk.go', { name: t('nav.mine') }),
+  keywords: 'nav.mine.keywords', available: () => Lanloom.can('operate'), run: () => Lanloom.go('#/mine') });
+// an action of a hit: kinds are device, guest, service, automation, entity
+Lanloom.registerAction({ id: 'open.mine', kinds: ['device'], label: 'my.action', available: hit => !!hit.ip, run: hit => Lanloom.go('#/mine/' + hit.id) });
+```
+
+Texts go into every language file; the language test checks that. The matcher is `lanloom/web/js/fuzzy.js` (page) and `lanloom/palette.py` (server) with the same rules, and a test compares their scores.

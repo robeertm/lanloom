@@ -236,6 +236,19 @@
   };
   LL.msg = function (el, text, kind) { el.textContent = text || ''; el.className = 'msg' + (text ? ' msg--' + (kind || 'info') : ''); };
 
+  // ------------------------------------------------------------------ command palette registers
+  // Commands (js/palette.js shows them): {id, label, keywords?, group?, available?(), run(), order?}; label and keywords are
+  // translation keys or functions returning text. Actions are the choices of a search hit: {id, kinds: ['device', ...], label,
+  // available?(hit), run(hit), order?}. A view or feature registers its own entries, so nothing appears before it exists.
+  LL.commands = LL.commands || [];
+  LL.registerCommand = LL.registerCommand || function (cmd) {
+    LL.commands = LL.commands.filter(c => c.id !== cmd.id).concat([cmd]);
+  };
+  LL.actions = LL.actions || [];
+  LL.registerAction = function (act) {
+    LL.actions = LL.actions.filter(a => a.id !== act.id).concat([act]);
+  };
+
   // ------------------------------------------------------------------ routing
   LL.state = null;
   LL.go = function (hash) { if (location.hash !== hash) location.hash = hash; else route(); };

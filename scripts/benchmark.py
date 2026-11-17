@@ -12,6 +12,7 @@ and live traffic on every device's trace. Measured in this process:
     component     GET /api/component/<id> of a device: first opening, and the refresh of an open card (every 5 s)
     paths         GET /api/paths for 24 h and 30 days
     storage       GET /api/storage
+    search        GET /api/search over devices, services and guests (a word several devices match, then a word with a typo)
     tick          one second of the live loop (frame building), CPU share = tick time / 1 s
     rss           resident memory after everything (process, from /proc) and Python heap of the core (tracemalloc)
 
@@ -194,6 +195,8 @@ def measure(n: int, runs: int = 5, data_dir: Path = None) -> dict:
     res["paths_24h_ms"] = timed(lambda: (c.paths._cache.clear(), dumps(c.paths_summary("24h"))), runs)
     res["paths_30d_ms"] = timed(lambda: (c.paths._cache.clear(), dumps(c.paths_summary("30d"))), runs)
     res["storage_ms"] = timed(lambda: dumps(c.storage.overview()), max(2, runs // 2))
+    from lanloom import palette
+    res["search_ms"] = timed(lambda: (palette.search(c, "sample"), palette.search(c, "swtich")), runs)    # a broad word, then a typo
     res["map_kb"] = round(len(dumps(mapmodel.build(c, "overview"))) / 1024, 1)
     res["ring_samples"] = c.ring.samples()
     res["heap_mb"] = round((tracemalloc.get_traced_memory()[0] - base_heap) / 1e6, 1)
@@ -207,7 +210,7 @@ def measure(n: int, runs: int = 5, data_dir: Path = None) -> dict:
 
 
 COLS = ("devices", "start_ms", "tick_ms", "cpu_live_pct", "map_overview_ms", "map_network_ms", "devices_ms", "devices_cold_ms", "component_first_ms", "component_ms",
-        "paths_24h_ms", "paths_30d_ms", "storage_ms", "map_kb", "heap_mb", "rss_mb", "db_mb")
+        "paths_24h_ms", "paths_30d_ms", "storage_ms", "search_ms", "map_kb", "heap_mb", "rss_mb", "db_mb")
 
 
 def main(argv=None) -> int:

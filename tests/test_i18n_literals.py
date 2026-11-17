@@ -36,6 +36,7 @@ ALLOWED = {
     ("firewall.js", "VLAN "): "VLAN is the standard term in every language",
     ("firewall.js", "G"): "unit prefix on a port tile (2.5G), the same in every language",
     ("firewall.js", " Mbit/s"): "unit symbol, the same in every language",
+    ("palette.js", "Esc"): "the label printed on the Escape key of a keyboard; the same in every language",
     ("firewall.js", "Passkey"): "the platform's own word for the credential; the same in every language",
 }
 

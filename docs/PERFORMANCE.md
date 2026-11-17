@@ -60,6 +60,7 @@ every value within a multiple of it, so a change that makes something much slowe
 
 ## What keeps it light
 
+- **Search is indexed.** The search box ([PALETTE.md](PALETTE.md)) keeps the searchable text of every device and of every hub entity and rebuilds an entry only when it changed; a search over 3000 hub entities takes a few milliseconds, and `scripts/benchmark.py` measures it as `search_ms` (kept in budget by `tests/test_budget.py`).
 - **Change channel instead of polling.** The live connection carries a structure number and a map change number. The
   browser fetches the map only when statuses, flow traces or sources really changed, the data paths only after new
   hourly data, and nothing at all while the tab is hidden.

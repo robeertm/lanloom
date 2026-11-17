@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.routing import APIRoute
 from starlette.routing import Match
 
-from . import __version__, access, auth, config as config_mod, demoview, mapmodel, setup_assist, textfmt
+from . import __version__, access, auth, config as config_mod, demoview, mapmodel, palette, setup_assist, textfmt
 from .audit import AuditLog
 from .core import Core
 from .crypto import Vault, load_or_create_key
@@ -426,6 +426,11 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.get("/api/devices")
     async def devices():
         return {"devices": state.core.devices()}
+
+    @app.get("/api/search")
+    async def search(q: str = "", limit: int = palette.LIMIT_GROUP):
+        """Command palette: devices, guests, services, automations and hub entities that match (read only)."""
+        return await asyncio.to_thread(palette.search, state.core, q[:palette.MAX_QUERY], limit)
 
     @app.patch("/api/devices/{device_id}")
     async def patch_device(device_id: str, request: Request):
@@ -1032,7 +1037,7 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/storage.js", "css/storage.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/storage.js", "css/storage.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

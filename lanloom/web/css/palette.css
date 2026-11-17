@@ -1,0 +1,73 @@
+/* Lanloom — command palette (S1): top bar button and the search sheet. */
+
+/* top bar button */
+.cmdk-pill { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 10px; border-radius: var(--ll-radius-pill); border: 1px solid var(--ll-border);
+  background: var(--ll-surface-2); color: var(--ll-text-2); font: inherit; font-size: var(--ll-fs-sm); cursor: pointer; white-space: nowrap; }
+.cmdk-pill:hover { border-color: var(--ll-accent); color: var(--ll-text); }
+.cmdk-pill:focus-visible { outline: 2px solid var(--ll-accent); outline-offset: 2px; }
+.cmdk-pill__icon { display: inline-flex; }
+.cmdk-pill__keys, .cmdk kbd { font: inherit; font-family: var(--ll-font-mono); font-size: var(--ll-fs-2xs); line-height: 1; padding: 3px 6px; border-radius: var(--ll-radius-xs); border: 1px solid var(--ll-border);
+  background: var(--ll-surface); color: var(--ll-text-3); }
+
+/* the sheet */
+body.cmdk-open { overflow: hidden; }
+.cmdk { position: fixed; inset: 0; z-index: 100; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; opacity: 0; transition: opacity .12s ease; }
+.cmdk.is-open { opacity: 1; }
+.cmdk__backdrop { position: absolute; inset: 0; background: var(--ll-overlay); }
+.cmdk__dialog { position: relative; width: min(640px, 100%); max-height: min(560px, 100%); display: flex; flex-direction: column; overflow: hidden; background: var(--ll-surface);
+  border: 1px solid var(--ll-border); border-radius: var(--ll-radius-xl); box-shadow: var(--ll-shadow-2); transform: translateY(-6px); transition: transform .14s ease; }
+.cmdk.is-open .cmdk__dialog { transform: none; }
+.cmdk__head { flex: none; display: flex; align-items: center; gap: 12px; padding: 0 12px 0 16px; height: 56px; border-bottom: 1px solid var(--ll-border); color: var(--ll-text-3); }
+.cmdk .cmdk__input[type=text], .cmdk .cmdk__input[type=text]:focus { flex: 1 1 auto; width: auto; min-width: 0; height: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; outline: 0; box-shadow: none;
+  background: transparent; color: var(--ll-text); font: inherit; font-size: var(--ll-fs-lg); }
+.cmdk__input::placeholder { color: var(--ll-text-3); }
+.cmdk__close { flex: none; display: inline-flex; align-items: center; justify-content: center; height: 28px; min-width: 28px; padding: 0 8px; border-radius: var(--ll-radius-sm); border: 1px solid var(--ll-border);
+  background: var(--ll-surface-2); color: var(--ll-text-3); font: inherit; font-family: var(--ll-font-mono); font-size: var(--ll-fs-2xs); cursor: pointer; }
+.cmdk__close:hover { border-color: var(--ll-accent); color: var(--ll-text); }
+.cmdk__close:focus-visible { outline: 2px solid var(--ll-accent); outline-offset: 2px; }
+.cmdk__close-x { display: none; font-size: 14px; }
+.cmdk__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px 8px 8px; }
+.cmdk__list, .cmdk__group { list-style: none; margin: 0; padding: 0; }
+.cmdk__section { margin: 0; }
+.cmdk__label { display: flex; align-items: baseline; gap: 8px; padding: 10px 10px 4px; font-size: var(--ll-fs-xs); font-weight: var(--ll-fw-semibold); letter-spacing: .04em; text-transform: uppercase; color: var(--ll-text-3); }
+.cmdk__extra { text-transform: none; letter-spacing: 0; font-family: var(--ll-font-mono); font-weight: var(--ll-fw-regular); color: var(--ll-accent-text); }
+.cmdk__item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 10px; border-radius: var(--ll-radius-md); cursor: pointer; color: var(--ll-text); }
+.cmdk__item.is-active { background: var(--ll-accent-soft); }
+.cmdk__icon { flex: none; display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: var(--ll-radius-sm); background: var(--ll-surface-2); color: var(--ll-text-2); }
+.cmdk__item.is-active .cmdk__icon { background: var(--ll-surface); color: var(--ll-accent-text); }
+.cmdk__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cmdk__title { font-size: var(--ll-fs-md); font-weight: var(--ll-fw-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdk__title mark { background: transparent; color: var(--ll-accent-text); font-weight: var(--ll-fw-bold); }
+.cmdk__sub { font-size: var(--ll-fs-sm); color: var(--ll-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdk__value { flex: none; font-family: var(--ll-font-mono); font-size: var(--ll-fs-sm); font-variant-numeric: tabular-nums; color: var(--ll-text-2); }
+.cmdk__more { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: var(--ll-radius-sm); background: transparent; color: var(--ll-text-3); cursor: pointer; opacity: 0; }
+.cmdk__item.is-active .cmdk__more, .cmdk__more:focus-visible { opacity: 1; }
+.cmdk__more:hover { background: var(--ll-surface); color: var(--ll-text); }
+.cmdk__empty { display: flex; flex-direction: column; gap: 6px; padding: 28px 16px; text-align: center; color: var(--ll-text-2); overflow-wrap: anywhere; }
+.cmdk__menuhead { display: flex; align-items: center; gap: 10px; padding: 4px 4px 6px; border-bottom: 1px solid var(--ll-border); margin-bottom: 6px; }
+.cmdk__menutitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--ll-fw-semibold); }
+.cmdk__back { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 10px 0 6px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-pill); background: var(--ll-surface-2); color: var(--ll-text-2);
+  font: inherit; font-size: var(--ll-fs-sm); cursor: pointer; flex: none; }
+.cmdk__back:hover { border-color: var(--ll-accent); color: var(--ll-text); }
+.cmdk__back .cmdk__icon { width: 20px; height: 20px; background: transparent; }
+.cmdk__foot { flex: none; display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 8px 16px; border-top: 1px solid var(--ll-border); background: var(--ll-surface-2); font-size: var(--ll-fs-xs); color: var(--ll-text-3); }
+.cmdk__foot kbd { margin-right: 2px; }
+
+@media (max-width: 1180px) {
+  .cmdk-pill { padding: 0 9px; }
+  .cmdk-pill__label, .cmdk-pill__keys { display: none; }
+}
+@media (hover: none) { .cmdk__more { opacity: 1; } }
+/* phones: a full-screen sheet, rows with room for a thumb */
+@media (max-width: 700px) {
+  .cmdk { padding: 0; }
+  .cmdk__dialog { width: 100%; max-height: none; height: 100%; border: 0; border-radius: 0; box-shadow: none; padding-top: env(safe-area-inset-top); transform: translateY(10px); }
+  .cmdk__head { height: 60px; }
+  .cmdk__close span:first-child { display: none; }
+  .cmdk__close-x { display: inline; }
+  .cmdk__close { height: 36px; min-width: 36px; }
+  .cmdk__item { min-height: 52px; }
+  .cmdk__foot { display: none; }
+  .cmdk__body { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) { .cmdk, .cmdk__dialog { transition: none; } }
