@@ -71,7 +71,7 @@ Click **Switch on push for this device** and allow notifications. Each device (b
 - On a phone, add Lanloom to the home screen first (some phones offer push only to installed web apps).
 - The messages are encrypted for each browser (RFC 8291) and signed with the VAPID key of your Lanloom (RFC 8292). The private key is created on first use and kept in the encrypted secret store; the push service only sees ciphertext. A browser that ended its subscription is forgotten automatically.
 
-The same service worker is the **offline shell** of the installed app: when the network is gone, Lanloom still opens instead of an error page. It always asks the network first and never caches the API, so an update is never hidden behind an old copy.
+The same service worker is the **offline shell** of the installed app: when the network is gone, Lanloom still opens instead of an error page. It always asks the network first and never caches the API, so an update is never hidden behind an old copy. It is registered only where it is needed – on the notifications page, in the installed app and in a browser that already receives push; an open page is never taken over, the worker starts with the next page load.
 
 ## Heartbeat to the outside
 

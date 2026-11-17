@@ -15,7 +15,11 @@
   LL.pushSupported = () => !!(window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && window.Notification);
   async function swReg() {
     if (!('serviceWorker' in navigator)) return null;
-    try { return await navigator.serviceWorker.getRegistration(LL.base) || await navigator.serviceWorker.ready; } catch (e) { return null; }
+    try {
+      const reg = await navigator.serviceWorker.getRegistration(LL.base);
+      if (reg) return reg;
+      return await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 5000))]);
+    } catch (e) { return null; }
   }
   async function currentSub() {
     const reg = await swReg();
@@ -26,6 +30,7 @@
     if (!LL.pushSupported()) throw Object.assign(new Error('notify.push.unsupported'), { key: 'notify.push.unsupported' });
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') throw Object.assign(new Error('notify.push.denied'), { key: 'notify.push.denied' });
+    await LL.swRegister();
     const reg = await swReg();
     if (!reg) throw Object.assign(new Error('notify.push.unsupported'), { key: 'notify.push.unsupported' });
     let sub = await reg.pushManager.getSubscription();
@@ -63,6 +68,7 @@
 
   // ------------------------------------------------------------------ page
   LL.notifyPage = async function (pg) {
+    if (LL.pushSupported()) LL.swRegister();
     const host = h('div', { class: 'nt-page' });
     pg.append(host);
     let data = await api('/api/notify');
@@ -387,9 +393,16 @@
     } });
 
   // ------------------------------------------------------------------ service worker (push + offline shell)
+  // Registered only where it is needed: on this page (to switch push on), in the installed app (offline shell) and in a
+  // browser that already receives push. A plain browser tab never gets one, so nothing sits between it and the server.
+  LL.swRegister = function () {
+    if (!('serviceWorker' in navigator) || !window.isSecureContext) return Promise.resolve(null);
+    return navigator.serviceWorker.register(LL.url('sw.js'), { scope: LL.base }).catch(() => null);
+  };
   if ('serviceWorker' in navigator && window.isSecureContext) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register(LL.url('sw.js'), { scope: LL.base }).catch(() => { /* push and the offline shell are optional */ });
+      const standalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+      if (standalone || (window.Notification && Notification.permission === 'granted')) LL.swRegister();
     });
   }
 })();

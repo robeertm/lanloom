@@ -11,8 +11,8 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('lanloom-') && k !== CACHE).map(k => caches.delete(k))))
-    .then(() => self.clients.claim()));
+  // no clients.claim(): an open page stays as it is; the worker takes over from the next navigation
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('lanloom-') && k !== CACHE).map(k => caches.delete(k)))));
 });
 
 function isShellAsset(url) {

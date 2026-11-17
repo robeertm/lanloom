@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.22.1] – 2026-11-17
+
+### Changed
+- The service worker of the notifications is registered only where it is needed – on the notifications page, in the installed app and in a browser that already receives push – and no longer takes over a page that is already open. A plain browser tab has nothing between it and the server; a page reload under heavy load in one browser engine waited for the worker in the release check.
+- 1.22.0 was not released on its own; 1.22.1 contains all of it.
+
 ## [1.22.0] – 2026-11-17
 
 ### Added
@@ -14,7 +20,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Heartbeat to the outside** (administrators, optional): Lanloom calls an address of yours every 1 to 60 minutes so an outside service notices when Lanloom itself is down; stored encrypted, *Call now* to test.
 - **History** of the last 30 days with what the rules did (sent, bundled, failed, nightly report, quiet hours, maintenance, flap, cool-down, daily limit, no channel); administrators see the outcome per person.
 - **Nightly report section "Notifications"**: messages sent, held back by quiet hours, during maintenance, flaps, repeats, over the daily limit; failed deliveries and a failing heartbeat need a look.
-- **Service worker**: web push and the offline shell of the installed app (network first, the API is never cached).
+- **Service worker**: web push and the offline shell of the installed app (network first, the API is never cached), registered only on the notifications page, in the installed app or once push is allowed.
 - Demo: rules, a weekly and a past maintenance window, a day of history with every outcome, a heartbeat.
 - API: `GET /api/notify`, `PUT /api/notify/prefs`, `GET /api/notify/history`, `POST /api/notify/push`, `POST /api/notify/push/forget`, `DELETE /api/notify/push/{id}`, `POST /api/notify/test` (any role, own data), `POST`/`DELETE /api/notify/maintenance` (operator), `PUT /api/notify/settings`, `PUT /api/notify/heartbeat`, `POST /api/notify/heartbeat/test` (admin); every change is written to the audit log.
 - Guide: [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md); README section with screenshots; SECURITY.md lists the new opt-in outbound connections.
