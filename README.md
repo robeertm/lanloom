@@ -17,6 +17,9 @@
 
 ## What it does
 
+- **Overview first.** The start page says in three seconds how the network is doing: a health banner with the last 24 hours in five-minute steps, six key figures (devices, online, new since yesterday, fresh sources, the internet line, data paths of the day) that each link to the details, and cards for what stands out, the nightly report, new and uncertain devices (first seen, origin of the address) and the last sign of life of every source. A source that simply has nothing yet says so calmly ("Source waiting", "No data yet", "Stale") instead of showing an error. The page redraws itself every few seconds without folding what you opened.
+- **Right now, About this view, live state.** Key `L` (or the pulse button) opens the *Right now* rail: what is noteworthy (one sub line each), the active conversations with their rates, the changes of the last hours and new devices. Key `I` explains the open view and links to the manual; on wide screens it is open by default. The header says "Live" with the time of the last update, "Updated 12 s ago", "Disconnected" with a Reconnect button, or "Paused" while the tab is in the background; its dialog shows the live grade of every source and the clock offset between your browser and the server. See [docs/manual/views.md](docs/manual/views.md).
+- **Deep links everywhere.** Every view, component card, device, nightly report and map filter has its own address (`#/map/<id>?zone=services`), so you can bookmark or share it, and the back key returns to what you saw before. The map filters by area or shows only what is down.
 - **Draws the network as a PCB.** Zones for the Internet edge, Network, Servers and services, Computers and phones, Media and cameras, Smart home, Printers and other. Hub rooms and MQTT topic groups appear when those integrations are connected.
 - **Routes traces like a board.** Orthogonal and 45° segments, buses and vias. Traces that end at the same component and port share one trunk, and their dots add up on it.
 - **Says where traces go.** End marks name peers outside your network where a trace leaves the board; port marks show the destination port or protocol at the end of a live trace.
@@ -61,9 +64,22 @@ All screenshots show the built-in demo network with invented names and addresses
 </tr>
 </table>
 
+### Overview
+
+![Overview start page, light theme](docs/screenshots/overview-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/overview-dark.png" width="100%" alt="Overview start page in dark theme"><br><sub>Health with the last 24 hours, key figures, noteworthy issues, new devices</sub></td>
+<td width="50%"><img src="docs/screenshots/overview-rail-dark.png" width="100%" alt="The Right now rail beside the overview"><br><sub>Key L: noteworthy issues, active conversations, changes, new devices</sub></td>
+</tr>
+</table>
+
 ### The map
 
 ![Map, light theme](docs/screenshots/map-light.png)
+
+![Map filtered to one area](docs/screenshots/map-filter-light.png)
 
 ![Network view, dark theme](docs/screenshots/network-dark.png)
 
@@ -257,6 +273,8 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 
 <table>
 <tr>
+<td><img src="docs/screenshots/phone-overview.png" width="200" alt="Phone: overview start page"></td>
+<td><img src="docs/screenshots/phone-rail.png" width="200" alt="Phone: the Right now rail"></td>
 <td><img src="docs/screenshots/phone-map-light.png" width="200" alt="Phone map, light"></td>
 <td><img src="docs/screenshots/phone-map-dark.png" width="200" alt="Phone map, dark"></td>
 <td><img src="docs/screenshots/phone-detail.png" width="200" alt="Phone component card"></td>
@@ -403,6 +421,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 
 ## Documentation
 
+- [docs/manual/views.md](docs/manual/views.md): the views one by one (overview, map, network, data paths, devices, firewall, nightly report, settings), the rails, keys, live state and deep links
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, moving to another host, uninstall
 - [docs/BACKUP.md](docs/BACKUP.md): backup and restore in the app, automatic backups, moving to another host, the file format
 - [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path

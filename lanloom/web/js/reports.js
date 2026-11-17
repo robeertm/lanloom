@@ -161,7 +161,7 @@
     if (!day) return;
     S.preview = false;
     try { S.rep = await api('/api/reports/' + day); S.day = day; } catch (e) { LL.toast(LL.errText(e), 'error'); return; }
-    if (location.hash !== '#/reports/' + day) history.replaceState(null, '', '#/reports/' + day);
+    LL.deepLink('#/reports/' + day);                     // the back key returns to the report shown before
     draw(page);
   }
 

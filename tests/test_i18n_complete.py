@@ -22,6 +22,7 @@ WEB = os.path.join(ROOT, "lanloom", "web")
 SAME_AS_ENGLISH = {
     r"ai\.status\.public": "only a label and a model name around the word Cloud, which German uses as it is",
     r"integrations\.family\..+": "a product name with its standard description",
+    r"livestate\.live": "the header says Live and the time; German uses the word Live as it is",
 }
 
 # Families of keys chosen at run time ('kind.' + x). A key counts as used when the code builds its prefix. Prefixes with two or more
@@ -35,6 +36,9 @@ ONE_PART_FAMILIES = {
     "palette.": "colour themes (settings)",
     "certainty.": "topology certainty (detail panel)",
     "agent.": "kind of device of a session or audit entry (access.js)",
+    "change.": "kind of a journal event in the Right now rail (shell.js)",
+    "livestate.": "state of the live feed in the header and the live grade dialog (views.js)",
+    "srcstate.": "calm state of a source on the start page (overview.js)",
 }
 
 SOURCES = ("lanloom", "updater")

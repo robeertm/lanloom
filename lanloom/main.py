@@ -427,6 +427,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def devices():
         return {"devices": state.core.devices()}
 
+    @app.get("/api/overview")
+    async def overview():
+        """Start page: key figures, health with a short look back, noteworthy issues, new/unsure devices, source freshness."""
+        return state.core.overview.summary()
+
+    @app.get("/api/overview/now")
+    async def overview_now():
+        """The "Right now" rail: active conversations, recent changes, new devices, noteworthy issues."""
+        return state.core.overview.right_now()
+
     @app.get("/api/search")
     async def search(q: str = "", limit: int = palette.LIMIT_GROUP):
         """Command palette: devices, guests, services, automations and hub entities that match (read only)."""
@@ -1037,7 +1047,7 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/storage.js", "css/storage.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

@@ -6,27 +6,70 @@
   const GRADES = ['realtime', 'near', 'periodic', 'sluggish', 'interrupted', 'unknown'];
 
   // ------------------------------------------------------------------ live feed (one socket for all views)
-  const live = { ws: null, listeners: new Set(), last: null, retry: 1000, timer: null };
+  // state: connecting | live | offline | paused (tab in the background: the socket rests, nothing is drawn)
+  const live = { ws: null, listeners: new Set(), statusListeners: new Set(), last: null, lastAt: 0, offset: null, retry: 1000, timer: null,
+    state: 'connecting', paused: false };
+  function liveState(st) {
+    if (live.state === st) return;
+    live.state = st;
+    live.statusListeners.forEach(fn => { try { fn(st); } catch (e) { /* a listener must not stop the feed */ } });
+  }
   function liveConnect() {
+    if (live.paused) { liveState('paused'); return; }
     if (live.ws && live.ws.readyState <= 1) return;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    if (live.state !== 'live') liveState('connecting');
     const ws = live.ws = new WebSocket(proto + '//' + location.host + LL.url('/api/live'));
-    ws.onmessage = ev => { let f; try { f = JSON.parse(ev.data); } catch (e) { return; } live.last = f; live.retry = 1000; live.listeners.forEach(fn => fn(f)); };
-    ws.onclose = () => { live.ws = null; if (live.listeners.size) { clearTimeout(live.timer); live.timer = setTimeout(liveConnect, live.retry); live.retry = Math.min(15000, live.retry * 2); } };
+    ws.onmessage = ev => {
+      let f; try { f = JSON.parse(ev.data); } catch (e) { return; }
+      live.last = f; live.retry = 1000; live.lastAt = Date.now();
+      if (f.t) live.offset = Date.now() / 1000 - f.t;       // clock offset browser - server (plus the transport time)
+      liveState('live');
+      live.listeners.forEach(fn => fn(f));
+    };
+    ws.onclose = () => {
+      if (live.ws === ws) live.ws = null;
+      if (live.paused) { liveState('paused'); return; }
+      liveState('offline');
+      if (live.listeners.size) { clearTimeout(live.timer); live.timer = setTimeout(liveConnect, live.retry); live.retry = Math.min(15000, live.retry * 2); }
+    };
   }
   function liveSubscribe(fn) { live.listeners.add(fn); liveConnect(); if (live.last) fn(live.last); return () => live.listeners.delete(fn); }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      live.paused = true; clearTimeout(live.timer);
+      if (live.ws) { try { live.ws.close(); } catch (e) { /* closing */ } }
+      liveState('paused');
+    } else if (live.paused) {
+      live.paused = false; live.retry = 1000;
+      if (live.listeners.size) liveConnect(); else liveState('connecting');
+    }
+  });
+  LL.live = {
+    subscribe: liveSubscribe,
+    onStatus(fn) { live.statusListeners.add(fn); return () => live.statusListeners.delete(fn); },
+    state: () => live.state, lastAt: () => live.lastAt, last: () => live.last, offset: () => live.offset,
+    reconnect() {
+      live.paused = false; live.retry = 1000; clearTimeout(live.timer);
+      const old = live.ws; live.ws = null;
+      if (old) { try { old.onclose = null; old.close(); } catch (e) { /* closing */ } }
+      liveState('connecting'); liveConnect();
+    }
+  };
 
   // ------------------------------------------------------------------ app frame (header + nav)
   function frame(app, active, content) {
-    const tabs = [['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports'], ['settings', 'nav.settings']];
+    const tabs = [['overview', 'nav.overview'], ['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports'], ['settings', 'nav.settings']];
     const nav = h('nav', { class: 'tabs', 'aria-label': t('nav.label') }, tabs.map(([k, label]) =>
-      h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null },
+      h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null, title: t(label) },
         h('span', { class: 'tab__icon', 'aria-hidden': 'true' }), h('span', { class: 'tab__label' }, t(label)),
         LL.strings['nav.short.' + k] ? h('span', { class: 'tab__short', 'aria-hidden': 'true' }, t('nav.short.' + k)) : null)));
     const navIcon = k => NAV_ICONS[k] || ({ paths: LL.NAV_PATHS_ICON, reports: LL.NAV_REPORTS_ICON }[k]) || LL.FW_ICON || '';
     nav.querySelectorAll('.tab__icon').forEach((el, i) => { el.innerHTML = navIcon(tabs[i][0]); });
-    const gradePill = h('button', { class: 'grade-pill', type: 'button', title: t('live.overall'), onclick: () => openSources() },
-      h('i', { class: 'grade-pill__dot' }), h('span', { class: 'grade-pill__text' }, t('board.grade.unknown')));
+    // live state in the header: "Live · 14:32:05", "Updated 12 s ago", "Disconnected", "Paused"; the dot is the overall live grade
+    const gradePill = h('button', { class: 'grade-pill live-pill', type: 'button', title: t('live.overall'), onclick: () => (live.state === 'offline' ? LL.live.reconnect() : openSources()) },
+      h('i', { class: 'grade-pill__dot' }), h('span', { class: 'grade-pill__text' }, t('livestate.connecting')));
+    const reconnectBtn = h('button', { class: 'btn btn--ghost btn--sm live-reconnect', type: 'button', hidden: true, onclick: () => LL.live.reconnect() }, t('livestate.reconnect'));
     const updateBtn = h('button', { class: 'update-pill', type: 'button', hidden: true, onclick: () => openUpdate() }, t('update.available_short'));
     const themeBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': t('theme.toggle'), title: t('theme.toggle'), onclick: () => {
       const order = ['auto', 'light', 'dark']; const next = order[(order.indexOf(LL.theme()) + 1) % 3]; LL.setTheme(next); LL.toast(t('theme.' + next));
@@ -35,27 +78,46 @@
     const header = h('header', { class: 'topbar' },
       h('a', { class: 'topbar__brand', href: '#/map' }, LL.logo(26), h('span', { class: 'brand-name' }, 'Lanloom'),
         LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
-      nav, h('div', { class: 'topbar__right' }, LL.paletteButton ? LL.paletteButton() : null, LL.aiAskButton ? LL.aiAskButton() : null, updateBtn, gradePill, themeBtn));
+      nav, h('div', { class: 'topbar__right' }, LL.paletteButton ? LL.paletteButton() : null, LL.aiAskButton ? LL.aiAskButton() : null, updateBtn, reconnectBtn, gradePill,
+        LL.railButtons ? LL.railButtons() : null, themeBtn));
+    themeBtn.classList.add('theme-btn');
     const main = h('main', { class: 'main main--' + active }, content);
     const notes = LL.noticeBar ? LL.noticeBar() : null;              // security notices (new device, lock-out ...)
     const demoBar = LL.state && LL.state.demo_view ? h('div', { class: 'demo-bar', role: 'status' },
       h('span', { class: 'demo-bar__text' }, h('strong', {}, t('setup.demo.bar_title')), ' ', t('setup.demo.bar_text')),
       h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => LL.demoView(false) }, t('setup.demo.leave'))) : null;
-    app.replaceChildren(h('div', { class: 'frame' }, header, demoBar, notes, main));
+    app.replaceChildren(h('div', { class: 'frame' }, header, demoBar, notes, LL.shellBody ? LL.shellBody(main, active) : main));
+    const pillText = gradePill.querySelector('.grade-pill__text');
+    const narrow = window.matchMedia('(max-width: 1400px)');          // the short form: only the time
+    function showState() {
+      const st = live.state, age = live.lastAt ? (Date.now() - live.lastAt) / 1000 : null;
+      let text, key = st;
+      if (st === 'live' && age != null && age > 5) { key = 'stale'; text = t(narrow.matches ? 'time.ago' : 'livestate.stale', { age: LL.fmtAge(age) }); }
+      else if (st === 'live') text = t(narrow.matches ? 'livestate.live_short' : 'livestate.live', { time: new Date(live.lastAt).toLocaleTimeString(LL.locale(), { hour12: false }) });
+      else text = t('livestate.' + st);
+      gradePill.dataset.live = key;
+      if (pillText.textContent !== text) pillText.textContent = text;
+      reconnectBtn.hidden = st !== 'offline';
+      const g = (live.last && live.last.overall && live.last.overall.grade) || 'unknown';
+      gradePill.title = t('livestate.title', { grade: t('board.grade.' + g) });
+    }
     const unsub = liveSubscribe(f => {
-      const g = (f.overall && f.overall.grade) || 'unknown';
-      gradePill.dataset.grade = g;
-      gradePill.lastChild.textContent = t('board.grade.' + g);
+      gradePill.dataset.grade = live.state === 'live' ? ((f.overall && f.overall.grade) || 'unknown') : 'unknown';
+      showState();
     });
+    const unStatus = LL.live.onStatus(() => { if (live.state !== 'live') gradePill.dataset.grade = 'unknown'; showState(); });
+    const clock = setInterval(showState, 1000);
+    showState();
     if (LL.can('admin')) checkUpdate(updateBtn);
     if (LL.setReportsUnread) LL.setReportsUnread((LL.state && LL.state.reports_unread) || 0);
     if (LL.state && LL.state.authenticated && LL.can('operate') && !LL.state.report_tz_auto && !frame.tzSent) {
       frame.tzSent = true;                 // the browser's time zone is the automatic report zone (when the container has none)
       try { api('/api/reports/tz', { method: 'POST', body: { tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '' } }).catch(() => {}); } catch (e) { /* ignore */ }
     }
-    return { main, destroy: unsub };
+    return { main, destroy: () => { unsub(); unStatus(); clearInterval(clock); } };
   }
   const NAV_ICONS = {
+    overview: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0 1 16 0"/><path d="M12 13l3.5-4"/><path d="M4 17h16"/><circle cx="12" cy="13" r="1.2"/></svg>',
     map: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h4.5v7.5M6.5 10v7.5H14"/></svg>',
     network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1"/><rect x="2.5" y="16.5" width="6" height="5" rx="1"/><rect x="15.5" y="16.5" width="6" height="5" rx="1"/><path d="M12 7.5v4.5M5.5 16.5V12h13v4.5"/></svg>',
     devices: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/></svg>',
@@ -76,27 +138,66 @@
   // ------------------------------------------------------------------ map views
   function mapView(kind) {
     return async function (app, rest) {
-      const fr = frame(app, kind === 'network' ? 'network' : 'map');
+      const route = kind === 'network' ? 'network' : 'map';
+      const fr = frame(app, route);
       const host = h('div', { class: 'board-host' });
+      const filterBar = h('div', { class: 'map-filter', role: 'toolbar', 'aria-label': t('mapfilter.label') });
       const panel = h('aside', { class: 'detail', hidden: true, 'aria-label': t('detail.label') });
-      fr.main.append(host, panel);
+      fr.main.append(h('div', { class: 'map-col' }, filterBar, host), panel);
       let data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview'));
       if (!data.components.length) {
+        filterBar.remove();
         host.replaceChildren(emptyState());
         return fr;
       }
       let selected = null;
-      const onSelectId = id => { selected = id; board.highlight(id); openDetail(panel, id, () => { selected = null; board.highlight(null); }); };
+      // the address follows the open card (#/map/<id>), the back key closes it again
+      const here = id => '#/' + route + (id ? '/' + encodeURIComponent(id) : '') + LL.queryString();
+      const onSelectId = (id, fromAddress) => {
+        selected = id; board.highlight(id);
+        if (!fromAddress) LL.deepLink(here(id));
+        openDetail(panel, id, () => { selected = null; board.highlight(null); LL.deepLink(here(null)); });
+      };
+      // area filter (#/map?zone=<id>) and "problems only" (#/map?only=problems); the internet edge always stays for orientation
+      const filtered = view => {
+        const zone = LL.query.get('zone'), only = LL.query.get('only');
+        if (!zone && !only) return view;
+        let comps = view.components;
+        if (zone) comps = comps.filter(c => c.zone === zone || c.zone === 'edge');
+        if (only === 'problems') comps = comps.filter(c => c.zone === 'edge' || c.status === 'down' || c.grade === 'interrupted');
+        const ids = new Set(comps.map(c => c.id)), zs = new Set(comps.map(c => c.zone));
+        return Object.assign({}, view, { components: comps, zones: view.zones.filter(z => zs.has(z.id)), traces: view.traces.filter(tr => ids.has(tr.a) && ids.has(tr.b)) });
+      };
+      const show = d => localise(filtered(d));
+      function drawFilter() {
+        const zones = localise(data).zones.filter(z => z.id !== 'edge');
+        const zone = LL.query.get('zone'), only = LL.query.get('only');
+        const set = (key, value) => {
+          if (value) LL.query.set(key, value); else LL.query.delete(key);
+          LL.deepLink(here(selected));
+          board.update(show(data)); if (selected) board.highlight(selected);
+          drawFilter();
+        };
+        const chip = (label, on, fn, extra) => h('button', { class: 'mf-chip' + (on ? ' is-on' : '') + (extra || ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', onclick: fn }, label);
+        filterBar.replaceChildren(...[
+          zones.length > 1 ? chip(t('mapfilter.all'), !zone, () => set('zone', null)) : null,
+          ...(zones.length > 1 ? zones.map(z => chip(z.title || '—', zone === z.id, () => set('zone', zone === z.id ? null : z.id))) : []),
+          h('span', { class: 'mf-sep', 'aria-hidden': 'true' }),
+          chip(t('mapfilter.problems'), only === 'problems', () => set('only', only === 'problems' ? null : 'problems'), ' mf-chip--problems')].filter(Boolean));
+        const n = filtered(data).components.filter(c => c.zone !== 'edge').length;
+        if ((zone || only) && !n) filterBar.append(h('span', { class: 'mf-empty muted' }, t(only ? 'mapfilter.none_problems' : 'mapfilter.none')));
+      }
       const board = LL.Board.mount(host, {
-        view: localise(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: onSelectId
+        view: show(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: id => onSelectId(id)
       });
+      drawFilter();
       const onTheme = ev => board.setTheme(ev.detail);
       document.addEventListener('ll-theme', onTheme);
       // deep link #/map/<id> or #/network/<id> (command palette, answers of "Ask your network"): open that component's card;
       // a component that sits on the other board sends the page there
       const want = rest && rest[0] ? decodeURIComponent(rest[0]) : '';
       if (want) {
-        if (data.components.some(c => c.id === want)) onSelectId(want);
+        if (data.components.some(c => c.id === want)) onSelectId(want, true);
         else {
           const other = kind === 'network' ? 'map' : 'network';
           api('/api/map?view=' + (kind === 'network' ? 'overview' : 'network')).then(d => { if (d.components.some(c => c.id === want)) LL.go('#/' + other + '/' + encodeURIComponent(want)); }).catch(() => {});
@@ -109,7 +210,7 @@
       async function refresh() {
         if (refreshing) { stale = true; return; }
         refreshing = true;
-        try { data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); structure = data.structure; board.update(localise(data)); if (selected) board.highlight(selected); }
+        try { data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); structure = data.structure; board.update(show(data)); if (selected) board.highlight(selected); drawFilter(); }
         catch (e) { /* keep the old board */ }
         refreshing = false;
         if (stale) { stale = false; refresh(); }
@@ -415,14 +516,26 @@
   }
   function openSources() {
     const f = live.last || { overall: { sources: [] } };
+    // live state, the rhythm of the feed and the clock offset between this browser and the server
+    const off = live.offset;
+    const offText = off == null ? t('livegrade.offset.unknown')
+      : Math.abs(off) < 0.5 ? t('livegrade.offset.same')
+      : t(off > 0 ? 'livegrade.offset.ahead' : 'livegrade.offset.behind', { s: LL.fmtNum(Math.abs(off), 1) });
+    const stateRow = h('div', { class: 'lg-state' },
+      h('span', { class: 'lg-state__pill', dataset: { live: live.state } }, h('i'), t('livestate.' + live.state, { time: live.lastAt ? new Date(live.lastAt).toLocaleTimeString(LL.locale(), { hour12: false }) : '—' })),
+      live.state === 'live' ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => { LL.live.reconnect(); dlgRef.close(); } }, t('livestate.reconnect')));
+    const clockRow = h('p', { class: 'lg-clock' + (off != null && Math.abs(off) >= 2 ? ' lg-clock--warn' : '') }, h('strong', {}, t('livegrade.offset') + ': '), offText,
+      off != null && Math.abs(off) >= 2 ? h('span', { class: 'muted' }, ' ' + t('livegrade.offset.hint')) : null);
+    const dlgRef = {};
     const rows = (f.overall.sources || []).map(s => h('tr', {}, h('td', {}, s.kind ? s.name : t(s.name)), h('td', {}, h('span', { class: 'grade-chip', dataset: { grade: s.grade } }, h('i'), t('board.grade.' + s.grade))),
       h('td', { class: 'num' }, s.cadence_s != null ? LL.fmtAge(s.cadence_s) : '—'), h('td', { class: 'num' }, s.age_s != null ? LL.fmtAge(s.age_s) : '—')));
-    dialog(t('live.title'), h('div', {}, h('p', { class: 'muted' }, t('live.explain')),
+    Object.assign(dlgRef, dialog(t('live.title'), h('div', {}, stateRow, h('p', { class: 'muted' }, t('live.explain')), clockRow,
       h('table', { class: 'mini-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('live.source')), h('th', {}, t('live.grade')), h('th', { class: 'num' }, t('live.cadence')), h('th', { class: 'num' }, t('live.age')))),
         h('tbody', {}, rows.length ? rows : [h('tr', {}, h('td', { colspan: '4', class: 'muted' }, t('live.none')))])),
       h('ul', { class: 'grade-legend' }, GRADES.map(g => h('li', {}, h('span', { class: 'grade-chip', dataset: { grade: g } }, h('i'), t('board.grade.' + g)), ' ', t('live.def.' + g)))),
-      counterSection()));
+      counterSection())));
   }
+  LL.openLiveGrade = openSources;
 
   // ------------------------------------------------------------------ update notice
   let updateState = null;
@@ -466,10 +579,18 @@
     const showHidden = h('input', { type: 'checkbox' });
     const list = h('div', { class: 'device-list' });
     const panel = h('aside', { class: 'detail', hidden: true, 'aria-label': t('detail.label') });
+    // list filter from the start page (#/devices?show=new|unsure|offline): a chip says what is shown and removes the filter
+    const show = ['new', 'unsure', 'offline'].includes(LL.query.get('show')) ? LL.query.get('show') : '';
+    let ov = null;
+    if (show === 'new') { try { ov = await api('/api/overview'); } catch (e) { ov = null; } }
+    const newIds = new Set(ov ? ov.new.map(d => d.id) : []);
+    const keep = d => !show || (show === 'new' ? newIds.has(d.id) : show === 'offline' ? d.status === 'down' : (!d.is_self && d.certainty !== 'sure'));
+    const here = id => '#/devices' + (id ? '/' + encodeURIComponent(id) : '') + LL.queryString();
+    const openRow = id => { LL.deepLink(here(id)); openDetail(panel, id, () => LL.deepLink(here(null))); };
     function render() {
       const s = q.value.toLowerCase();
-      const rows = data.devices.filter(d => (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' ')].join(' ').toLowerCase().includes(s)));
-      list.replaceChildren(...rows.map(d => h('button', { class: 'device-row' + (d.hidden ? ' is-hidden' : ''), type: 'button', onclick: () => openDetail(panel, d.id) },
+      const rows = data.devices.filter(d => keep(d) && (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' ')].join(' ').toLowerCase().includes(s)));
+      list.replaceChildren(...rows.map(d => h('button', { class: 'device-row' + (d.hidden ? ' is-hidden' : ''), type: 'button', onclick: () => openRow(d.id) },
         LL.kindIcon(d.kind), h('span', { class: 'device-row__main' }, h('span', { class: 'device-row__title' }, d.is_self ? t('kind.self') : (d.title || t('kind.' + d.kind))), h('span', { class: 'device-row__sub mono' }, d.ip)),
         h('span', { class: 'device-row__kind' }, t('kind.' + d.kind)), h('span', { class: 'device-row__svc' }, d.services.slice(0, 3).map(s => h('span', { class: 'll-badge' }, s))),
         h('span', { class: 'status-dot status-dot--' + d.status, title: t('board.status.' + d.status) }))));
@@ -479,11 +600,12 @@
     const count = h('span', { class: 'muted' });
     q.addEventListener('input', render); showHidden.addEventListener('change', render);
     fr.main.append(h('div', { class: 'page' }, h('div', { class: 'page__head' }, h('h1', {}, t('nav.devices')), count),
-      h('div', { class: 'toolbar' }, q, h('label', { class: 'check' }, showHidden, h('span', {}, t('devices.show_hidden')))), list), panel);
+      h('div', { class: 'toolbar' }, q, h('label', { class: 'check' }, showHidden, h('span', {}, t('devices.show_hidden'))),
+        show ? h('a', { class: 'mf-chip is-on dev-filter', href: '#/devices', title: t('devices.filter.clear') }, t('devices.filter.' + show), h('span', { 'aria-hidden': 'true' }, ' ✕')) : null), list), panel);
     render();
-    // deep link #/devices/<id> (answers of "Ask your network" link here): open that device's card
+    // deep link #/devices/<id> (answers of "Ask your network", the start page and the live rail link here): open that device's card
     const want = rest && rest[0] ? decodeURIComponent(rest[0]) : '';
-    if (want && data.devices.some(d => d.id === want)) openDetail(panel, want);
+    if (want && data.devices.some(d => d.id === want)) openDetail(panel, want, () => LL.deepLink(here(null)));
     return fr;
   }
 

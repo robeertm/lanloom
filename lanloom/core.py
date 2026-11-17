@@ -138,6 +138,8 @@ class Core:
         self._map_sig = None
         self._map_sig_t = 0.0
         self._view_cache: dict = {}                     # device id -> (row signature, view without status)
+        from .overview import Overview
+        self.overview = Overview(self)
         self._refresh_index()
 
     # ------------------------------------------------------------------ settings
@@ -1387,6 +1389,7 @@ class Core:
         if ports:
             frame["ports"] = {flow_trace(self_id or "self", dev_id): p for dev_id, p in ports.items()}
         self.last_frame = frame
+        self.overview.maybe_sample(now)
         return frame
 
 

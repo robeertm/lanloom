@@ -297,6 +297,9 @@ def scan_host(h: dict) -> dict:
             "is_gateway": bool(h.get("gw")), "is_self": bool(h.get("self")), "rtt_ms": round(random.uniform(0.4, 6.0), 2)}
 
 
+NEW_TODAY = ((99, 2.5 * 3600), (67, 40 * 60))     # (host number, seconds since first seen)
+
+
 class Demo:
     def __init__(self, seed: int = 7):
         self.rng = random.Random(seed)
@@ -313,6 +316,40 @@ class Demo:
                 "booked": int(flows * 0.8), "bytes": flows * 52000, "dropped_foreign": 3, "malformed": 0, "waiting": 1,
                 "refused": 0, "skipped_local": flows // 7, "skipped_self": flows // 30, "last_packet": now - 4,
                 "last_flow": now - 4, "exporters": ex, "error": None}
+
+    # ------------------------------------------------------------------ overview (start page, "Right now" rail)
+    def overview_history(self, now: float, step: float, length: int) -> list:
+        """A plausible day of health samples (a short wobble overnight, one brief warning) until the live loop has its own."""
+        out = []
+        start = now - step * (length - 1)
+        for i in range(length):
+            t = start + i * step
+            hour = time.localtime(t).tm_hour
+            level = 0
+            if i in (length - 61, length - 60, length - 59):
+                level = 2                                   # the camera blinked for a quarter of an hour
+            elif i in (length - 140, length - 139):
+                level = 1                                   # a source answered late
+            online = 22 + (3 if 7 <= hour <= 23 else 0) + (i % 3 == 0)
+            out.append([round(t), level, online, 27])
+        return out
+
+    def overview_changes(self, core, now: float) -> list:
+        """A few recent changes of the demo network (sample names), so the rail never looks empty in the demo."""
+        def dev(n):
+            row = core.store.device("d-" + _hmac(n).replace(":", ""))
+            return {"id": row["id"], "title": row.get("user_title") or row["title"] or row["ip"], "kind": row.get("user_kind") or row["kind"]} if row else None
+        names = {row["kind"]: row["name"] for row in core.store.query("SELECT kind, name FROM integrations")}
+        rows = []
+        cycle = int(now // 600)
+        for back, kind, n in ((95, "dev_back", 22), (460, "dev_offline", 23), (1500, "dev_back", 30), (3300, "dev_offline", 22)):
+            d = dev(n)
+            if d:
+                rows.append({"t": now - back - (cycle % 7) * 3, "kind": kind, "data": d})
+        if names.get("mqtt"):
+            rows.append({"t": now - 2100, "kind": "src_ok", "data": {"id": "int:demo", "name": names["mqtt"]}})
+            rows.append({"t": now - 2160, "kind": "src_fail", "data": {"id": "int:demo", "name": names["mqtt"], "key": "source.mqtt.timeout"}})
+        return rows
 
     def networks(self) -> list:
         return [{"cidr": NET, "iface": "eth0", "self_ip": "192.168.50.11", "gateway": "192.168.50.1", "private": True,
@@ -349,6 +386,11 @@ class Demo:
         scan_id = core.store.execute("INSERT INTO scans(started, finished, mode, cidrs, status, hosts) VALUES(?,?,?,?,?,?)",
                                      (time.time() - 60, time.time() - 45, "gentle", '["%s"]' % NET, "done", len(HOSTS))).lastrowid
         core.ingest({"hosts": [scan_host(h) for h in HOSTS]}, scan_id)
+        # the demo network has been known for a few days; two devices joined today (start page: "new since yesterday")
+        now = time.time()
+        core.store.execute("UPDATE devices SET first_seen = first_seen - ?", (4 * 86400,))
+        for n, ago in NEW_TODAY:
+            core.store.execute("UPDATE devices SET first_seen = ? WHERE id = ?", (now - ago, "d-" + _hmac(n).replace(":", "")))
         core.store.set_setting("rescan_cidrs", [NET])
         self.seed_manual(core)
         seed_paths(core)

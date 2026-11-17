@@ -260,20 +260,23 @@
   async function route() {
     const seq = ++routeSeq;
     const app = document.getElementById('app');
-    const hash = location.hash || '#/';
-    const [name, ...rest] = hash.replace(/^#\/?/, '').split('/');
+    // #/<view>/<part>...?<query>: the query carries view state (map area filter, device list filter ...)
+    const raw = (location.hash || '#/').replace(/^#\/?/, '');
+    const qpos = raw.indexOf('?');
+    LL.query = new URLSearchParams(qpos >= 0 ? raw.slice(qpos + 1) : '');
+    const [name, ...rest] = (qpos >= 0 ? raw.slice(0, qpos) : raw).split('/');
     let st;
     try { st = LL.state = await api('/api/state', { allow401: true }); if (st && st.rate_unit) LL.rateUnit = st.rate_unit === 'bits' ? 'bits' : 'bytes'; }
     catch (e) { app.replaceChildren(h('div', { class: 'boot-error' }, t('error.offline'))); return; }
     if (!Object.keys(LL.strings).length || (st.language && st.language !== LL.lang)) await loadLang(LL.pickLang(st.language));
-    let target = name || 'map';
+    let target = name || 'overview';
     if (st.setup_needed) target = 'setup';
     else if (target === 'invite' && !st.authenticated) target = 'invite';      // invitation or reset link, opened signed out
     else if (!st.authenticated) target = 'login';
     else if (st.enroll) target = 'enroll';                                      // second factor required: set it up first
     else if (!st.setup_done) target = 'setup';
     else if (target === 'setup' && !st.demo_view && LL.can('admin') && LL.setupAgainActive && LL.setupAgainActive()) target = 'setup';   // Settings > Setup: run again
-    else if (target === 'login' || target === 'setup' || target === 'invite' || target === 'enroll') target = 'map';
+    else if (target === 'login' || target === 'setup' || target === 'invite' || target === 'enroll') target = 'overview';
     if (seq !== routeSeq) return;            // a newer navigation started meanwhile
     if (target !== name) history.replaceState(null, '', LL.base + '#/' + target);
     if (current && current.destroy) { try { current.destroy(); } catch (e) { /* ignore */ } }
@@ -282,6 +285,15 @@
     current = await fn(app, rest, st) || null;
   }
   LL.route = route;
+  // Deep link of a state inside a view (selected component, opened report, filter): the address follows, the back key
+  // returns to the state before (the browser fires hashchange, the view is drawn again from the address).
+  LL.deepLink = function (hash, replace) {
+    if (location.hash === hash || (!location.hash && hash === '#/')) return;
+    const url = LL.base + hash;
+    if (replace) history.replaceState(null, '', url); else history.pushState(null, '', url);
+  };
+  // the query of a hash ('' or '?a=b'), e.g. to keep the area filter when a component card opens
+  LL.queryString = () => { const q = LL.query ? LL.query.toString() : ''; return q ? '?' + q : ''; };
   window.addEventListener('hashchange', route);
   window.addEventListener('DOMContentLoaded', route);
 
@@ -295,7 +307,7 @@
   }
   LL.authPage = authPage;
   function afterSignIn(res) {
-    if (res && res.enroll) LL.go('#/enroll'); else LL.go('#/map');
+    if (res && res.enroll) LL.go('#/enroll'); else LL.go('#/overview');
   }
   LL.afterSignIn = afterSignIn;
 

@@ -193,7 +193,7 @@
     let me;
     try { me = await api('/api/account'); } catch (e) { return; }
     const body = h('div', { class: 'stack enroll' });
-    const done = () => LL.go('#/map');
+    const done = () => LL.go('#/overview');
     const choose = () => fill(body, 
       h('p', {}, t('enroll.lead', { role: t('role.name.' + me.role) })),
       h('div', { class: 'enroll__choices' },

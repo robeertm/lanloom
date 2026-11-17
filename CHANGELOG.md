@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.20.0] – 2026-11-17
+
+### Added
+- **Overview as the start page.** After signing in Lanloom opens *Overview*: a health banner ("All good", "N things need a look", "Something is down") with the last 24 hours in five-minute steps, six key figures – devices, online, new since yesterday, fresh sources, the internet line, data paths of the day – each a link to the details, and cards for what stands out (one line and one sub line per issue), the latest nightly report, new devices (first seen, origin of the address), devices whose type is not yet certain, and every source with its last sign of life. The page redraws itself every ten seconds and keeps folded cards and "Show more" as you left them.
+- **Calm states for sources**: "Fresh", "Source waiting", "No data yet", "Stale", "Connection fails", "Off" – nothing shows an error just because it has nothing yet.
+- **Right now** rail (key `L` or the pulse button): noteworthy issues, active conversations with their rates, the changes of the last six hours and new devices; refreshes every five seconds while shown, rests in a background tab; shown or hidden is remembered.
+- **About this view** rail (key `I` or the *i* button): a short explanation of the open view with a link to the new manual page [docs/manual/views.md](docs/manual/views.md); open by default from 1900 px. Below 1280 px both rails slide over the page, on a phone they fill the screen.
+- **Live state in the header**: "Live · 14:32:05", "Updated 12 s ago", "Disconnected" with a **Reconnect** button, "Paused" while the tab is in the background (the live feed then rests). The live grade dialog also shows the **clock offset** between the browser and the server.
+- **Deep links and the back key**: the address follows the open component card (`#/map/<id>`), the device card (`#/devices/<id>`), the nightly report (`#/reports/<day>`) and the map filter; the back key closes the card or returns to the report or filter shown before.
+- **Map filter**: chips above the board show one area (zone) or problems only (`#/map?zone=…`, `#/map?only=problems`). The device list opens filtered from the start page (`?show=new|unsure|offline`).
+- Commands in the search (`Ctrl K`): Overview, show or hide *Right now* and *About this view*, live grade and clock, reconnect.
+- API: `GET /api/overview` and `GET /api/overview/now` (any signed-in role, read only). Later features add noteworthy entries with `lanloom.overview.register_note`, figures and cards with `Lanloom.registerOverviewTile` and `Lanloom.registerOverviewCard`.
+- Demo: two devices that joined today, a day of health history and recent changes, so every part of the start page and the rail shows something.
+
+### Changed
+- Signing in, finishing an invitation or a second factor now lands on *Overview* instead of the map.
+- The header with eight tabs: from 1401 to 1700 px the tabs show their names without icons, from 701 to 1400 px icons only (the name as a tooltip); the theme button moves into the settings and the search below 960 px. The search button keeps its place.
+
 ## [1.19.0] – 2026-11-17
 
 ### Added

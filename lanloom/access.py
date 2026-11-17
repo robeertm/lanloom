@@ -120,6 +120,8 @@ RULES = {
     # ---------------------------------------------------------------- inventory and map
     ("GET", "/api/devices"): R(V),
     ("GET", "/api/search"): R(V),
+    ("GET", "/api/overview"): R(V),
+    ("GET", "/api/overview/now"): R(V),
     ("PATCH", "/api/devices/{device_id}"): R(O, "device.change"),
     ("DELETE", "/api/devices/{device_id}"): R(O, "device.forget"),
     ("POST", "/api/devices/{device_id}/identity"): R(O, "device.identity"),
