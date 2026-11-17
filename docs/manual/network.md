@@ -15,6 +15,8 @@ in?".
 - **Cables** as solid traces, **wireless links** as dashed traces with a radio mark, **guests on a host** as dotted
   traces. The port number (or the wireless band and network name) sits at the device end of the trace.
 - **Zones** per network or VLAN, with the same area chips as on the map.
+- **Legend switches** as on the [map](map.md#what-you-see): click *Cable*, *Wireless* or *Virtual* to hide that kind of
+  link; the network view keeps its own choice, apart from the map.
 - **Cards** of switches and access points list the devices on their ports.
 - **The deciding source.** The card of a device says which source placed it, which others agree and what the rest say
   ("Switch controller says Core switch - Port 10. Manual entry has priority.").

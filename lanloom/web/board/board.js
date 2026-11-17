@@ -1,5 +1,5 @@
 /* Lanloom — circuit-board map engine.
-   Lanloom.Board.mount(el, {view, theme, compact, onSelect, t, locale, bundle, port}) → {update, live, setTheme, highlight, setTalk, destroy}
+   Lanloom.Board.mount(el, {view, theme, compact, onSelect, t, locale, bundle, port}) → {update, live, setTheme, highlight, setTalk, hidden, setHidden, destroy}
    Load order: router.js, bundles.js, layout.js, icons.js, dots.js, endmarks.js, portmarks.js, board.js (plus css/tokens.css,
    css/board.css, board/endmarks.css and board/portmarks.css). End and port marks are optional: without their scripts the board
    works as before.
@@ -8,17 +8,22 @@
    port(trace, end) → port key at that end ('' = any, null = never bundle there); bundle: false switches bundling off.
    Zones and tiles are DOM (crisp text, focusable buttons), traces are SVG under the tiles, glow and dots are two
    viewport-sized canvases above. Traces are routed in a Web Worker (window fallback) and only when the structure
-   (ids/positions) changes — never on live frames. */
+   (ids/positions) changes — never on live frames.
+   Line filter: the legend entries of the line kinds (and "Not measured") are toggle buttons. A hidden kind is left out where the
+   board draws (traces, pads, vias, exits), in the dot geometry, in the highlight and in what the end and port marks see, so a live
+   redraw never brings it back. The choice is kept per view in localStorage (lanloom.board.hide.<view>). */
 (function (root) {
   'use strict';
   const LL = root.Lanloom = root.Lanloom || {};
   const Router = LL.Router, Bundles = LL.Bundles, Layout = LL.Layout, Icons = LL.Icons, Dots = LL.Dots, Endmarks = LL.Endmarks, Portmarks = LL.Portmarks;
-  const SCRIPT = (document.currentScript && document.currentScript.src) || '';
+  const SCRIPT = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) || '';
   const BASE = SCRIPT ? SCRIPT.replace(/[^/]*$/, '') : '';
   const NS = 'http://www.w3.org/2000/svg';
   const GRADES = ['realtime', 'near', 'periodic', 'sluggish', 'interrupted', 'unknown'];
   const TRACE_KINDS = ['uplink', 'lan', 'service', 'flow', 'integration', 'cable', 'radio', 'virtual'];
   const PHYS_DASH = { radio: '4 3', virtual: '0.5 3.5' };   // legend swatches; the traces get the same pattern from board.css
+  const FILTER_KEYS = TRACE_KINDS.concat(['unmeasured', 'talk']);   // what the legend can hide: a line kind, every trace without a measurement, or the dashed "talks to" lines
+  const HIDE_KEY = 'lanloom.board.hide.';
   const STATUSES = ['up', 'down', 'unknown'];
   const ELL = '…';
   const SAFETY = 1.5;   // px reserve between canvas measurement and DOM rendering
@@ -34,6 +39,9 @@
     "board.legend.unmeasured": "Not measured",
     "board.legend.waiting": "Waiting for live data",
     "board.legend.talk": "Talks to (last 24 hours)",
+    "board.legend.hide": "Hide: {kind}",
+    "board.legend.show": "Show: {kind}",
+    "board.legend.show_all": "Show all",
     "board.grade.realtime": "Real-time",
     "board.grade.near": "Near real-time",
     "board.grade.periodic": "Periodic",
@@ -168,6 +176,26 @@
     try { localStorage.setItem('lanloom.routes.' + slot, JSON.stringify({ k: key, r: routes })); } catch (e) { /* full or blocked — fine */ }
   }
 
+  // ------------------------------------------------------------------ line filter (pure helpers, also used by the tests)
+  // stored value → Set of hidden filter keys; anything unknown or broken counts as "nothing hidden"
+  function parseHidden(raw) {
+    try { const a = JSON.parse(raw == null || raw === '' ? '[]' : raw); return new Set(Array.isArray(a) ? a.filter(k => FILTER_KEYS.includes(k)) : []); } catch (e) { return new Set(); }
+  }
+  // Set of visible line kinds for the marks' kindFilter(), or null when nothing is hidden (= all)
+  function visibleKinds(hidden) {
+    if (!hidden || !hidden.size) return null;
+    return new Set(TRACE_KINDS.filter(k => !hidden.has(k)));
+  }
+  // is a trace ({kind, measured}) drawn with this set of hidden keys?
+  function traceShown(t, hidden) {
+    if (!hidden || !hidden.size) return true;
+    t = t || {};
+    if (hidden.has(TRACE_KINDS.includes(t.kind) ? t.kind : 'lan')) return false;
+    return !(hidden.has('unmeasured') && !t.measured);
+  }
+  // exits (leads to the board edge) are uplinks; they carry no measurement flag of their own
+  const exitShown = (x, hidden) => !hidden || !hidden.has(x.kind || 'uplink');
+
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = v => +(+v).toFixed(2);
 
@@ -183,6 +211,7 @@
       this.traceInfo = new Map();  // trace id → view trace
       this.key = null; this.layout = null; this.view = null; this.frameQ = null;
       this.highlighted = null; this.gradeOf = new Map();
+      this.hidden = new Set(); this.hiddenSlot = null; this._dotSig = null;   // line filter (legend toggles), per view
       this.talk = []; this.peers = {}; this.seenPorts = {}; this.exits = []; this.marks = null; this.routed = false;
       this.ready = new Promise(res => { this._resolveReady = res; });
       this.stats = { routeMs: null, routed: 0, failed: 0, fallback: 0, bundled: 0, fromCache: false, layouts: 0, worker: null };
@@ -198,7 +227,7 @@
       r.setAttribute('role', 'region');
       r.setAttribute('aria-label', this.t('board.region'));
       r.innerHTML = `<div class="ll-scroll"><div class="ll-stage"><div class="ll-live" aria-hidden="true"><canvas class="ll-layer ll-glow"></canvas><canvas class="ll-layer ll-dots"></canvas></div><div class="ll-zones" aria-hidden="true"></div><svg class="ll-traces" xmlns="${NS}" aria-hidden="true"><g class="ll-talk"></g><g class="ll-tr"></g><g class="ll-pads"></g></svg><div class="ll-ztitles"></div><div class="ll-tiles"></div></div></div>
-        <div class="ll-legend" role="note"></div><div class="ll-empty" hidden></div>`;
+        <div class="ll-legend" role="group"></div><div class="ll-empty" hidden></div>`;
       this.host.appendChild(r);
       this.scroll = r.querySelector('.ll-scroll'); this.stage = r.querySelector('.ll-stage');
       this.svg = r.querySelector('.ll-traces'); this.gTr = r.querySelector('.ll-tr'); this.gTalk = r.querySelector('.ll-talk'); this.gPads = r.querySelector('.ll-pads');
@@ -212,6 +241,13 @@
         if (typeof this.o.onSelect === 'function') this.o.onSelect(b.dataset.id);
       };
       this.tilesEl.addEventListener('click', this._onClick);
+      this._onLegend = ev => {
+        const b = ev.target.closest && ev.target.closest('button[data-flt], button[data-flt-all]');
+        if (!b || !this.legendEl.contains(b)) return;
+        if (b.hasAttribute('data-flt-all')) this.setHidden([]);
+        else this.toggleKind(b.dataset.flt);
+      };
+      this.legendEl.addEventListener('click', this._onLegend);
       this._onScroll = () => { this.dots.setScroll(this.scroll.scrollTop); this.marksReposition(); };
       this.scroll.addEventListener('scroll', this._onScroll, { passive: true });
       this._lastW = 0;
@@ -262,6 +298,7 @@
     update(view) {
       if (this.dead) return;
       this.view = normaliseView(view);
+      this.loadHidden();
       const width = this.scroll.clientWidth || this.root.clientWidth || 1200;
       this._lastW = width;
       const compact = this.o.compact == null ? width <= Layout.COMPACT_MAX : !!this.o.compact;
@@ -293,7 +330,10 @@
       if (key !== this.key) {
         this.key = key;
         this.route(spec, compact);
-      } else this.renderTraces();   // same structure: keep routes, refresh classes (measured, kinds)
+      } else {   // same structure: keep routes, refresh classes (measured, kinds)
+        this.renderTraces();
+        if (this.hidden.size && this.dotSig() !== this._dotSig) this.syncDots();   // a trace got (or lost) its measurement
+      }
       if (this.highlighted) this.highlight(this.highlighted);
     }
 
@@ -543,19 +583,30 @@
     applyRoutes(list, partial) {
       this.routes = new Map(list.map(r => [r.id, r]));
       this.renderTraces();
-      if (!partial || list.length) {
-        this.dots.setGeometry(list.map(r => {
-          const t = this.traceInfo.get(r.id) || {};
-          return { id: r.id, pts: r.pts, kind: t.kind || 'lan', measured: !!t.measured, members: r.members || 1 };
-        }));
-      }
+      if (!partial || list.length) this.syncDots();
+    }
+    // dot geometry = the drawn routes without hidden kinds; replacing it drops the dots in flight, so a hidden kind loses its dots at once
+    syncDots() {
+      const list = [];
+      this.routes.forEach(r => {
+        const t = this.traceInfo.get(r.id) || {};
+        if (!traceShown(t, this.hidden)) return;
+        list.push({ id: r.id, pts: r.pts, kind: t.kind || 'lan', measured: !!t.measured, members: r.members || 1 });
+      });
+      this._dotSig = list.map(x => x.id).join('\n');
+      this.dots.setGeometry(list);
+    }
+    dotSig() {
+      const ids = [];
+      this.routes.forEach(r => { if (traceShown(this.traceInfo.get(r.id) || {}, this.hidden)) ids.push(r.id); });
+      return ids.join('\n');
     }
     renderTraces() {
       const paths = [], pads = [], vias = new Set(), viaEls = [];
       const compact = this.layout && this.layout.compact;
       const pw = compact ? 5 : 6, ph = compact ? 3 : 3.4;
       this.routes.forEach(r => {
-        const t = this.traceInfo.get(r.id); if (!t) return;
+        const t = this.traceInfo.get(r.id); if (!t || !traceShown(t, this.hidden)) return;
         const kind = TRACE_KINDS.includes(t.kind) ? t.kind : 'lan';
         const d = 'M' + r.pts.map(q => num(q[0]) + ',' + num(q[1])).join('L');
         paths.push(`<path class="ll-trace ll-k-${kind}${t.measured ? '' : ' is-unmeasured'}" data-t="${esc(r.id)}" data-a="${esc(r.a)}" data-b="${esc(r.b)}" d="${d}"/>`);
@@ -572,6 +623,7 @@
       });
       // exits: straight leads from a tile to the board edge (peers beyond the LAN); the end mark hangs at their outer end
       this.exits.forEach(x => {
+        if (!exitShown(x, this.hidden)) return;
         const d = 'M' + x.pts.map(q => num(q[0]) + ',' + num(q[1])).join('L');
         if (x.exit) paths.push(`<path class="ll-trace ll-k-${x.kind} ll-exit" data-t="${esc(x.id)}" data-a="${esc(x.a)}" d="${d}"/>`);
         const p = x.padA, across = p.s === 't' || p.s === 'b', w = across ? pw : ph, h = across ? ph : pw;
@@ -596,7 +648,7 @@
     }
     renderTalk() {
       const lay = this.layout, rows = [];
-      if (lay && this.talk.length) {
+      if (lay && this.talk.length && !this.hidden.has('talk')) {
         const top = Math.max(1, ...this.talk.map(p => (+p.ab || 0) + (+p.ba || 0)));
         this.talk.forEach(p => {
           const a = lay.tiles[p.a], b = lay.tiles[p.b]; if (!a || !b) return;
@@ -611,7 +663,7 @@
     // ---------------------------------------------------------------- live
     live(frame) {
       if (!frame || this.dead) return;
-      if (frame.q && frame.q !== this.frameQ) { this.frameQ = frame.q; this.renderLegend(); }
+      if (frame.q && frame.q !== this.frameQ) { this.frameQ = frame.q; this.updateQLegend(); }
       let gradeChanged = false;
       if (frame.grades) for (const id in frame.grades) {
         const e = this.tiles.get(id); if (!e) continue;
@@ -645,21 +697,71 @@
 
     // ---------------------------------------------------------------- legend
     renderLegend() {
-      const t = this.t, q = this.frameQ;
+      const t = this.t;
+      // the legend is rebuilt on structure changes: a focused toggle keeps the focus (same key, or the first toggle)
+      const act = typeof document !== 'undefined' ? document.activeElement : null;
+      const had = act && this.legendEl.contains(act) ? (act.dataset.flt || (act.hasAttribute('data-flt-all') ? '*' : '')) : '';
       const kinds = new Set(this.view ? this.view.traces.filter(x => this.layout && this.layout.tiles[x.a] && this.layout.tiles[x.b]).map(x => x.kind) : []);
       const dotSvg = '<svg width="40" height="12" viewBox="0 0 40 12" aria-hidden="true"><path d="M1 6H39" class="ll-lg-trace"/><circle cx="9" cy="6" r="2.4" class="ll-lg-dot"/><circle cx="9" cy="6" r="1" class="ll-lg-core"/><circle cx="21" cy="6" r="2.4" class="ll-lg-dot"/><circle cx="21" cy="6" r="1" class="ll-lg-core"/><circle cx="33" cy="6" r="3.4" class="ll-lg-dot"/><circle cx="33" cy="6" r="1.4" class="ll-lg-core"/></svg>';
       const dashSvg = '<svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6H27" class="ll-lg-dash"/></svg>';
       const kindSw = k => `<svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><path d="M1 6H17" style="stroke:var(--ll-pcb-trace-${k});stroke-width:${k === 'uplink' ? 2.4 : k === 'virtual' ? 2.2 : 1.8}${PHYS_DASH[k] ? ';stroke-dasharray:' + PHYS_DASH[k] + ';stroke-linecap:round' : ''}"/></svg>`;
+      const toggle = (key, sw, label) => {
+        const on = !this.hidden.has(key);
+        return `<button type="button" class="ll-legend__item ll-legend__flt${on ? '' : ' is-off'}" data-flt="${key}" aria-pressed="${on}" title="${esc(t(on ? 'board.legend.hide' : 'board.legend.show', { kind: label }))}">${sw}<span>${esc(label)}</span></button>`;
+      };
       const parts = [];
-      parts.push(`<span class="ll-legend__item ll-legend__q">${dotSvg}<span>${q ? esc(t('board.legend.dot', { size: formatBytes(q, this.locale) })) : esc(t('board.legend.waiting'))}</span></span>`);
-      parts.push(`<span class="ll-legend__item">${dashSvg}<span>${esc(t('board.legend.unmeasured'))}</span></span>`);
+      parts.push(`<span class="ll-legend__item ll-legend__q">${dotSvg}<span class="ll-legend__qtext">${esc(this.qText())}</span></span>`);
+      parts.push(toggle('unmeasured', dashSvg, t('board.legend.unmeasured')));
       const kl = TRACE_KINDS.filter(k => kinds.has(k));
-      if (kl.length) parts.push('<span class="ll-legend__sep" aria-hidden="true"></span>' + kl.map(k => `<span class="ll-legend__item">${kindSw(k)}<span>${esc(t('board.trace.' + k))}</span></span>`).join(''));
-      if (this.talk.length) parts.push(`<span class="ll-legend__item ll-legend__talk"><svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6H27" class="ll-lg-talk"/></svg><span>${esc(t('board.legend.talk'))}</span></span>`);
+      if (kl.length) parts.push('<span class="ll-legend__sep" aria-hidden="true"></span>' + kl.map(k => toggle(k, kindSw(k), t('board.trace.' + k))).join(''));
+      if (this.talk.length) parts.push(toggle('talk', '<svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6H27" class="ll-lg-talk"/></svg>', t('board.legend.talk')));
+      if ([...this.hidden].some(k => k === 'unmeasured' || k === 'talk' || kl.includes(k))) parts.push(`<button type="button" class="ll-legend__all" data-flt-all="">${esc(t('board.legend.show_all'))}</button>`);
       parts.push('<span class="ll-legend__sep" aria-hidden="true"></span><span class="ll-legend__grades"></span>');
       this.legendEl.innerHTML = parts.join('');
       this.gradesEl = this.legendEl.querySelector('.ll-legend__grades');
+      if (had) {
+        const back = (had === '*' ? null : this.legendEl.querySelector(`button[data-flt="${had}"]`)) || this.legendEl.querySelector('button[data-flt]');
+        if (back) back.focus({ preventScroll: true });
+      }
       this.updateGradeLegend();
+    }
+    qText() { return this.frameQ ? this.t('board.legend.dot', { size: formatBytes(this.frameQ, this.locale) }) : this.t('board.legend.waiting'); }
+    // live frames only change the dot size text (no rebuild: a focused toggle stays focused)
+    updateQLegend() {
+      const el = this.legendEl.querySelector('.ll-legend__qtext');
+      if (!el) { this.renderLegend(); return; }
+      el.textContent = this.qText();
+      this.marksReposition();
+    }
+
+    // ---------------------------------------------------------------- line filter
+    hideSlot() { return HIDE_KEY + ((this.view && this.view.view) || 'map'); }
+    loadHidden() {
+      const slot = this.hideSlot();
+      if (slot === this.hiddenSlot) return;
+      this.hiddenSlot = slot;
+      let raw = null;
+      try { raw = localStorage.getItem(slot); } catch (e) { /* storage unavailable: nothing hidden */ }
+      this.hidden = parseHidden(raw);
+    }
+    toggleKind(key) {
+      if (!FILTER_KEYS.includes(key)) return;
+      const next = new Set(this.hidden);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      this.setHidden([...next]);
+    }
+    setHidden(keys) {
+      if (this.dead) return;
+      this.hidden = new Set((keys || []).filter(k => FILTER_KEYS.includes(k)));
+      try {
+        if (this.hidden.size) localStorage.setItem(this.hideSlot(), JSON.stringify([...this.hidden].sort()));
+        else localStorage.removeItem(this.hideSlot());
+      } catch (e) { /* storage unavailable: the filter lasts until the page is left */ }
+      this.renderTalk();
+      this.renderTraces();   // traces, pads, vias, exits, highlight and both mark layers
+      this.syncDots();
+      this.renderLegend();
+      this.root.dispatchEvent(new CustomEvent('ll-filter', { detail: { hidden: [...this.hidden].sort() } }));
     }
     updateGradeLegend() {
       if (!this.gradesEl || !this.gradeCounts) return;
@@ -684,8 +786,8 @@
       this.gTalk.querySelectorAll('.ll-talkline').forEach(e => e.classList.toggle('is-on', !!id && (e.dataset.a === id || e.dataset.b === id)));
       if (!id) { this.dots.setFocus(null); return; }
       const on = new Set([id]), traces = new Set();
-      this.routes.forEach(r => { if (r.a === id || r.b === id) { traces.add(r.id); on.add(r.a); on.add(r.b); } });
-      this.exits.forEach(x => { if (x.a === id) traces.add(x.id); });
+      this.routes.forEach(r => { if ((r.a === id || r.b === id) && traceShown(this.traceInfo.get(r.id), this.hidden)) { traces.add(r.id); on.add(r.a); on.add(r.b); } });
+      this.exits.forEach(x => { if (x.a === id && exitShown(x, this.hidden)) traces.add(x.id); });
       on.forEach(x => { const e = this.tiles.get(x); if (e) e.el.classList.add('is-on'); });
       const sel = this.tiles.get(id); if (sel) sel.el.classList.add('is-selected');
       this.svg.querySelectorAll('[data-t]').forEach(e => { if (traces.has(e.dataset.t)) e.classList.add('is-on'); });
@@ -719,18 +821,18 @@
       });
       this.exits = out;
     }
-    // routed traces plus exits in the neutral form of the marks (the same object per trace while its route stays)
+    // routed traces plus exits in the neutral form of the marks (the same object per trace while its route stays); hidden kinds are left out
     traceViews() {
       const out = [], cache = this._views || (this._views = new Map()), keep = new Set();
       this.routes.forEach(r => {
-        const t = this.traceInfo.get(r.id); if (!t) return;
+        const t = this.traceInfo.get(r.id); if (!t || !traceShown(t, this.hidden)) return;
         let v = cache.get(r.id);
         if (!v || v.route !== r) { v = { route: r, id: r.id, a: r.a, b: r.b, pts: r.pts, padA: r.padA, padB: r.padB, edgeEnd: null, exit: null, bundles: [] }; cache.set(r.id, v); }
         v.kind = TRACE_KINDS.includes(t.kind) ? t.kind : 'lan';
         keep.add(r.id); out.push(v);
       });
       cache.forEach((v, k) => { if (!keep.has(k)) cache.delete(k); });
-      return out.concat(this.exits);
+      return out.concat(this.exits.filter(x => exitShown(x, this.hidden)));
     }
     // port marks: target port of a flow — seen in live connections, else the first open port from the scan; unknown → nothing
     portFacts() {
@@ -778,7 +880,7 @@
           return o;
         },
         labels: () => { const o = []; this.zones.forEach(z => { if (z.z) o.push([z.z.x + 14, z.z.y - 10, z.titleW || 160, 20]); }); return o; },
-        kindFilter: () => null,
+        kindFilter: () => visibleKinds(this.hidden),
         chain: () => null,
         highlighted: () => this.highlighted,
         selected: () => this.highlighted,
@@ -832,6 +934,7 @@
       clearTimeout(this._roT);
       this._ro.disconnect();
       this.tilesEl.removeEventListener('click', this._onClick);
+      this.legendEl.removeEventListener('click', this._onLegend);
       this.scroll.removeEventListener('scroll', this._onScroll);
       if (document.fonts && document.fonts.removeEventListener) document.fonts.removeEventListener('loadingdone', this._onFonts);
       if (this.marks) { if (this.marks.em) this.marks.em.destroy(); if (this.marks.pm) this.marks.pm.destroy(); this.marks = null; }
@@ -859,6 +962,8 @@
       setTheme: t => b.setTheme(t),
       highlight: id => b.highlight(id),
       setTalk: pairs => b.setTalk(pairs),
+      hidden: () => [...b.hidden].sort(),
+      setHidden: keys => b.setHidden(keys),
       destroy: () => b.destroy(),
       ready: b.ready,
       stats: () => Object.assign({}, b.stats, { dots: Object.assign({}, b.dots.stats) }),
@@ -867,5 +972,5 @@
     };
   }
 
-  LL.Board = { mount, formatBytes, fitText, STRINGS, version: '1.0.0' };
+  LL.Board = { mount, formatBytes, fitText, STRINGS, FILTER_KEYS, parseHidden, visibleKinds, traceShown, version: '1.1.0' };
 })(typeof self !== 'undefined' ? self : this);

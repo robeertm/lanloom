@@ -281,6 +281,24 @@
 .ll-legend__item { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .ll-legend__item svg { display: block; flex: none; }
 .ll-legend__item b { color: var(--ll-text); font-weight: var(--ll-fw-semibold); }
+/* line filter: the line styles are toggle buttons (pressed = shown); a hidden kind is greyed and struck through */
+.ll-legend__flt, .ll-legend__all {
+  margin: -3px -6px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--ll-radius-sm, 6px);
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+@media (hover: hover) { .ll-legend__flt:hover, .ll-legend__all:hover { background: var(--ll-surface-3); color: var(--ll-text); } }   /* no sticky hover after a tap */
+.ll-legend__flt:focus-visible, .ll-legend__all:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 1px; }
+.ll-legend__flt.is-off { color: var(--ll-text-3); }
+.ll-legend__flt.is-off span { text-decoration: line-through; }
+.ll-legend__flt.is-off svg { opacity: .35; filter: grayscale(1); }
+.ll-legend__all { color: var(--ll-accent-text); font-weight: var(--ll-fw-semibold); }
 .ll-legend__sep { width: 1px; height: 16px; background: var(--ll-border); }
 .ll-legend__grades { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .ll-legend__grade { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -303,6 +321,8 @@
   max-width: none;
   box-shadow: none;
 }
+.ll-legend.is-inline { row-gap: 12px; }
+.ll-legend.is-inline .ll-legend__flt, .ll-legend.is-inline .ll-legend__all { margin: -5px -8px; padding: 5px 8px; }   /* finger-sized, rows do not overlap */
 
 /* ---------------------------------------------------------------- empty state */
 .ll-empty {
