@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.32.0] – 2026-11-17
+
+### Added
+- **Forget device** on the card of a hidden or offline device (operators): removes the entry, its history and what you entered for it, after a confirmation in the app's own dialog. This host and the gateway cannot be forgotten; a device that still answers is found again by the next scan, as a new entry. The function existed on the server, now the card offers it.
+- **Devices behind a Wi-Fi repeater that rewrites addresses**: when one of two entries has a private hardware address and both end in the same three bytes, the card offers *Same device* if a second fact fits: the same IP address, or the other address inside the device's host or mDNS name. At most 50 %, so it is only ever a suggestion, never an automatic merge; *Different devices* keeps them apart.
+- Maker behind such a repeater: if a device with a private address carries its real, registered address in its own host or mDNS name (same last three bytes), the maker of that address is shown, marked *address in its name, register*.
+- Classification: the DNS-SD service type of a common family of smart plugs and relays (`_shelly._tcp`, identifier) counts as a smart-home device.
+
+### Fixed
+- The card of a **hidden device** opens again. It said "This element is no longer on the map", so a hidden device could not be shown again from its card. Hidden devices and second interfaces now open their card without connections.
+- A hidden entry never becomes the main entry of a joined group, so joining an old hidden entry with the live device no longer hides both from the map.
+
+### Changed
+- The buttons at the foot of a card have a gap and wrap on narrow screens.
+- Docs: FAQ *A device appears twice behind a Wi-Fi repeater*, DISCOVERY.md (repeater evidence, maker from the name), manual page *Devices* (hidden devices, Forget device), TROUBLESHOOTING.md, README.
+- CHANGELOG: the 1.31.0 section stands in its place above 1.30.1.
+
+## [1.31.0] – 2026-11-17
+
+### Added
+- **Manual with one page per view** under `docs/manual/` (overview, map, network, data paths, devices, inventory, firewall, nightly reports, automations, settings, AI), every page built the same way: purpose, what you see, how to use it, limits, privacy, see also. `docs/manual/README.md` is the index; `views.md` keeps the rails, keys, live state and deep links. The *About this view* rail now links to the page of the open view instead of one long page. The Automations tab now has its *About this view* text (English and German) as well.
+- **Troubleshooting** (`docs/TROUBLESHOOTING.md`): how to read the state of a source, a table of every reason with its usual cause and fix, one section for each source (this host, SNMP, MQTT, switch controller, home-automation hub), a shared table for the device-family adapters (each guide keeps its own product table), AI services, data paths and NetFlow, scanning and devices, sign-in, install, update and backup.
+- **Diagnostic export** (*Settings > General*, administrators): one JSON file with the version, the kind of installation, counts, the state and reason key of every connection and the last scans, for attaching to an issue. It holds no addresses, names, credentials or notes (connections are numbered, not named); a second pass replaces anything that still looks like a hardware address, IP address, mail address or web address, and the number of replacements is in the file. Each download is written to the audit log. Route `POST /api/diagnostics` (admin).
+- **Compatibility matrix** in `docs/COMPATIBILITY.md`: family by stage (read, write) by checked firmware, with how each version was checked and the "no affiliation or endorsement" line.
+- **Issue forms** (`.github/ISSUE_TEMPLATE/`): bug, wish, adapter request (which data, which firmware) and test report; each starts with the notice never to post secrets; blank issues are off and no foreign channel is linked.
+- FAQ: answers for stale or failing connections, reporting a problem, an empty scan, missing devices, supported firmware, read-only accounts, reverse proxies and removing devices.
+- Tests: a link checker over every Markdown file (relative links, images, anchors), checks that every view has its manual page and that the rail points to it, that every adapter family has its matrix row and troubleshooting section, and that the issue forms are complete; tests of the diagnostic export against every value of the demo inventory.
+
 ## [1.30.1] – 2026-11-17
 
 ### Changed
@@ -30,17 +58,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Header with a hub connected (ten tabs): labels only up to 2000 px, icons only up to 1640 px; the phone's bottom bar shows icons only instead of labels cut to a few letters.
 - More hub states read in plain words (paused, standby, heating, cooling, above/below the horizon, opening, closing, jammed, detected, clear).
 - Performance budget: `automations_ms` (list, who switches what, timeline and day plan with as many automations as devices and 20,000 state changes).
-
-## [1.31.0] – 2026-11-17
-
-### Added
-- **Manual with one page per view** under `docs/manual/` (overview, map, network, data paths, devices, inventory, firewall, nightly reports, automations, settings, AI), every page built the same way: purpose, what you see, how to use it, limits, privacy, see also. `docs/manual/README.md` is the index; `views.md` keeps the rails, keys, live state and deep links. The *About this view* rail now links to the page of the open view instead of one long page. The Automations tab now has its *About this view* text (English and German) as well.
-- **Troubleshooting** (`docs/TROUBLESHOOTING.md`): how to read the state of a source, a table of every reason with its usual cause and fix, one section for each source (this host, SNMP, MQTT, switch controller, home-automation hub), a shared table for the device-family adapters (each guide keeps its own product table), AI services, data paths and NetFlow, scanning and devices, sign-in, install, update and backup.
-- **Diagnostic export** (*Settings > General*, administrators): one JSON file with the version, the kind of installation, counts, the state and reason key of every connection and the last scans, for attaching to an issue. It holds no addresses, names, credentials or notes (connections are numbered, not named); a second pass replaces anything that still looks like a hardware address, IP address, mail address or web address, and the number of replacements is in the file. Each download is written to the audit log. Route `POST /api/diagnostics` (admin).
-- **Compatibility matrix** in `docs/COMPATIBILITY.md`: family by stage (read, write) by checked firmware, with how each version was checked and the "no affiliation or endorsement" line.
-- **Issue forms** (`.github/ISSUE_TEMPLATE/`): bug, wish, adapter request (which data, which firmware) and test report; each starts with the notice never to post secrets; blank issues are off and no foreign channel is linked.
-- FAQ: answers for stale or failing connections, reporting a problem, an empty scan, missing devices, supported firmware, read-only accounts, reverse proxies and removing devices.
-- Tests: a link checker over every Markdown file (relative links, images, anchors), checks that every view has its manual page and that the rail points to it, that every adapter family has its matrix row and troubleshooting section, and that the issue forms are complete; tests of the diagnostic export against every value of the demo inventory.
 
 ## [1.29.1] – 2026-11-17
 

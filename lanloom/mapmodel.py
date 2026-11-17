@@ -588,6 +588,12 @@ def component_detail(core, comp_id: str) -> dict:
     view = cached_build(core, "overview")
     net_view = cached_build(core, "network")
     comp = next((c for c in view["components"] + net_view["components"] if c["id"] == comp_id), None)
+    if not comp and comp_id.startswith("d-"):
+        # a stored device that is not drawn (hidden, or a second interface of another device): its card still opens,
+        # so it can be shown again, split off, or forgotten; it has no connections on the map
+        stored = core.store.device(comp_id)
+        if stored:
+            comp = _device_component(core, core.device_view(stored))
     if not comp:
         return None
     traces = [t for t in view["traces"] + net_view["traces"] if comp_id in (t["a"], t["b"])]

@@ -13,7 +13,9 @@ Deterministic and offline. Two parts:
     Finds devices that are one physical device with several interfaces (wired + wireless, a second port of a
     router, a NAS with two cards). Evidence, strongest first: same UPnP unique device name, same SNMP system name
     and object id, same NetBIOS computer name, same DNS-SD host name, neighbouring hardware addresses of the same
-    registered block together with a shared name, port or first sighting within a few minutes. Name-based
+    registered block together with a shared name, port or first sighting within a few minutes, and a hardware address
+    a wireless repeater rewrote (first three bytes replaced by a private prefix, last three kept) together with the
+    same network address or the real address inside an announced name (only ever a suggestion). Name-based
     evidence counts only while both devices are current, so a replaced device is not merged with its successor.
     Pairs at or above SURE are merged automatically; probable pairs become suggestions. A user's split always
     wins, a user's join always merges. Merging only changes how the map shows the devices: nothing is deleted.
@@ -38,7 +40,7 @@ _VERSION_RX = re.compile(r"(?:\bv(?:er(?:sion)?)?\.?\s*|\bfirmware\s*|\brelease\
 _BARE_VERSION_RX = re.compile(r"\b(\d+\.\d+(?:\.\d+){0,2})\b")
 GENERIC_NAMES = {"localhost", "workgroup", "unknown", "esp", "device", "host", "phone", "tablet", "laptop", "desktop",
                  "default", "user", "admin", "router", "gateway", "printer", "camera", "tv"}
-SOURCES_RANK = {"upnp": 3, "mdns": 3, "snmp": 3, "wsd": 2, "oui": 1}
+SOURCES_RANK = {"upnp": 3, "mdns": 3, "snmp": 3, "wsd": 2, "oui": 1, "name": 1}
 
 
 def _text(v, n: int = 64) -> str:
@@ -59,6 +61,22 @@ def _txt_value(txt: dict, keys) -> str:
 def _firmware_from(text: str) -> str:
     m = _VERSION_RX.search(text or "")
     return m.group(1)[:32] if m else ""
+
+
+_HEX12_RX = re.compile(r"(?<![0-9a-f])([0-9a-f]{12})(?![0-9a-f])")
+
+
+def name_mac(mac: str, data: dict) -> Optional[str]:
+    """The device's real hardware address when a repeater rewrote it: many small devices put their address into
+    their host or DNS-SD instance name. Counts only if that address is a registered one and keeps the last three
+    bytes of the address seen on the network (a repeater only replaces the first three)."""
+    if not mac:
+        return None
+    for hx in _HEX12_RX.findall(_names(data)):
+        real = oui.norm_mac(hx)
+        if real and real != mac and real[9:] == mac[9:] and not oui.is_random(real) and not oui.is_group(real):
+            return real
+    return None
 
 
 def fingerprint(data: dict, registry: Optional[oui.Oui] = None) -> dict:
@@ -118,6 +136,12 @@ def fingerprint(data: dict, registry: Optional[oui.Oui] = None) -> dict:
         feats["workgroup"] = _text(nb.get("workgroup"), 15)
     if reg_name:
         add("vendor", reg_name, "oui", "oui:registered")
+    elif mac and origin == oui.RANDOM:
+        real = name_mac(mac, data)
+        real_name = reg.lookup(real) if real else None
+        if real_name:
+            add("vendor", real_name, "name", "oui:name")
+            feats["name_mac"] = real
     if mac:
         feats["oui_prefix"] = mac[:8]
     if origin == oui.RANDOM:
@@ -143,7 +167,7 @@ def fingerprint(data: dict, registry: Optional[oui.Oui] = None) -> dict:
     for field, w in (("vendor", 0.35), ("model", 0.35), ("firmware", 0.15)):
         src = out.get(field + "_source")
         if src:
-            score += w * (1.0 if src != "oui" else 0.6)
+            score += w * (1.0 if src not in ("oui", "name") else 0.6)
     score += 0.15 if agree > 1 else 0.0
     out["confidence"] = round(min(score, 1.0), 2)
     out["registered_name"] = reg_name
@@ -162,6 +186,24 @@ def _mdns_hosts(data: dict) -> set:
     return names
 
 
+def _names(data: dict) -> str:
+    """Every name a device announced (host names and DNS-SD instance names), lower case, for address searches."""
+    names = [str(h) for h in data.get("hostnames") or [] if isinstance(h, str)]
+    names += [str(m.get("name")) for m in data.get("mdns") or [] if isinstance(m, dict) and isinstance(m.get("name"), str)]
+    return " ".join(n.lower() for n in names)[:2000]
+
+
+def _mac_hex(mac: str) -> str:
+    return mac.replace(":", "") if mac else ""
+
+
+def _translated(ma: str, mb: str) -> bool:
+    """Two hardware addresses that differ only in the first three bytes, one of them locally administered: the
+    pattern of a wireless repeater that rewrites the address of its clients (it keeps the last three bytes)."""
+    return bool(ma and mb and ma != mb and ma[9:] == mb[9:] and ma[:8] != mb[:8]
+                and (oui.is_random(ma) or oui.is_random(mb)))
+
+
 def _keys(dev: dict) -> dict:
     data = dev.get("data") or {}
     udns = {(s.get("udn") or "").lower() for s in data.get("ssdp") or [] if s.get("udn")}
@@ -173,7 +215,7 @@ def _keys(dev: dict) -> dict:
     mac = oui.norm_mac(dev.get("mac") or data.get("mac"))
     return {"udn": udns, "sys": sys_key, "nb": nb if nb and nb not in GENERIC_NAMES else "", "mdns": _mdns_hosts(data),
             "mac": mac, "first": float(dev.get("first_seen") or 0), "scan": dev.get("last_scan"),
-            "port": dev.get("link_port"), "noip": not dev.get("ip")}
+            "port": dev.get("link_port"), "noip": not dev.get("ip"), "ip": dev.get("ip") or "", "names": _names(data)}
 
 
 def _combine(a: float, b: float) -> float:
@@ -201,6 +243,17 @@ def pair_evidence(ka: dict, kb: dict) -> tuple:
                 conf, why = _combine(conf, 0.35), why + ["same_port"]
             if ka["first"] and kb["first"] and abs(ka["first"] - kb["first"]) <= FIRST_SEEN_WINDOW_S:
                 conf, why = _combine(conf, 0.2), why + ["first_seen_together"]
+    # a repeater rewrote the address: only with a second fact (same address on the network, or the other hardware
+    # address inside an announced name); at most 0.5, so it stays a suggestion and is never merged on its own
+    if _translated(ma, mb):
+        same_ip = bool(ka["ip"]) and ka["ip"] == kb["ip"]
+        in_name = _mac_hex(ma) in kb["names"] or _mac_hex(mb) in ka["names"]
+        if same_ip or in_name:
+            conf, why = _combine(conf, 0.35), why + ["translated_mac"]
+            if same_ip:
+                conf, why = _combine(conf, 0.10), why + ["same_ip"]
+            if in_name:
+                conf, why = _combine(conf, 0.15), why + ["mac_in_name"]
     # an address-only device next to a device with an address: same registered block, same port, first seen together
     if ma and mb and ka["noip"] != kb["noip"] and not oui.is_random(ma) and not oui.is_random(mb) \
             and ma[:8] == mb[:8] and ka["port"] and ka["port"] == kb["port"] \
@@ -212,7 +265,8 @@ def pair_evidence(ka: dict, kb: dict) -> tuple:
 
 def _rank(dev: dict) -> tuple:
     data = dev.get("data") or {}
-    return (bool(data.get("is_self")), bool(data.get("is_gateway")), not str(dev["id"]).startswith("d-ip-"),
+    return (bool(data.get("is_self")), bool(data.get("is_gateway")), not bool(dev.get("hidden")),
+            not str(dev["id"]).startswith("d-ip-"),
             len(data.get("ports") or []), -float(dev.get("first_seen") or 0))
 
 
@@ -270,6 +324,8 @@ def groups(devices: Iterable[dict], splits: Iterable = (), joins: Iterable = (),
         if k["mac"] and not oui.is_random(k["mac"]):
             v = oui.mac_int(k["mac"])
             buckets.setdefault(("a", v >> 3), []).append(i)          # neighbours: same block of 8 (next block below)
+        if k["mac"]:
+            buckets.setdefault(("t", oui.mac_int(k["mac"]) & 0xFFFFFF), []).append(i)   # same last three bytes (repeater)
     cand = set()
     for ids in buckets.values():
         if 1 < len(ids) <= 16:

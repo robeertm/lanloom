@@ -210,7 +210,7 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .detail__sec { padding: 14px 0; border-bottom: 1px solid var(--ll-border); }
 .detail__sec:last-child { border-bottom: 0; }
 .detail__sec h3 { font-size: var(--ll-fs-xs); text-transform: uppercase; letter-spacing: .08em; color: var(--ll-text-3); margin-bottom: 10px; font-weight: var(--ll-fw-semibold); }
-.detail__foot { padding-top: 14px; display: flex; justify-content: flex-end; }
+.detail__foot { padding-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .detail__loading { padding: 18px; }
 .facts { display: grid; grid-template-columns: minmax(96px, auto) minmax(0, 1fr); gap: 8px 14px; margin: 0; font-size: var(--ll-fs-sm); }
 .facts dt { color: var(--ll-text-3); }

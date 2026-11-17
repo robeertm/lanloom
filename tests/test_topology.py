@@ -695,3 +695,35 @@ def test_rate_unit_setting_is_validated_and_shown_in_state(client):
     assert client.get("/api/state").json()["rate_unit"] == "bits"
     assert client.put("/api/settings", json={"rate_unit": "parsecs"}, headers=HDR).json()["rate_unit"] == "bits"
     assert client.put("/api/settings", json={"rate_unit": "bytes"}, headers=HDR).json()["rate_unit"] == "bytes"
+
+
+# ---------------------------------------------------------------------------------------------- hidden and forgotten devices
+def test_card_of_a_hidden_device_opens_and_is_gone_after_forget(core):
+    feed(core)
+    assert mapmodel.component_detail(core, PRINTER) is not None
+    core.patch_device(PRINTER, {"hidden": True})
+    d = mapmodel.component_detail(core, PRINTER)
+    assert d is not None, "a hidden device must still open its card"
+    assert d["device"]["hidden"] is True and d["traces"] == [] and d["component"]["id"] == PRINTER
+    assert core.forget_device(PRINTER) is True
+    assert mapmodel.component_detail(core, PRINTER) is None
+    assert mapmodel.component_detail(core, "d-000000000000") is None
+
+
+def test_forget_route_removes_the_device_for_an_operator(client):
+    _login(client)
+    assert client.get("/api/component/" + PRINTER).status_code == 200
+    client.patch("/api/devices/" + PRINTER, json={"hidden": True}, headers=HDR)
+    assert client.get("/api/component/" + PRINTER).status_code == 200
+    r = client.delete("/api/devices/" + PRINTER, headers=HDR)
+    assert r.status_code == 200 and r.json() == {"ok": True}
+    assert client.get("/api/component/" + PRINTER).status_code == 404
+    assert PRINTER not in {d["id"] for d in client.get("/api/devices").json()["devices"]}
+
+
+def test_forget_needs_operator_and_the_card_has_a_forget_button():
+    from lanloom import access
+    rule = access.RULES[("DELETE", "/api/devices/{device_id}")]
+    assert rule.role == "operator" and rule.audit == "device.forget"
+    src = (Path(__file__).resolve().parent.parent / "lanloom" / "web" / "js" / "views.js").read_text()
+    assert "method: 'DELETE'" in src and "t('device.forget')" in src and "device.forget_confirm" in src

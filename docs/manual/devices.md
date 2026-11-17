@@ -34,6 +34,11 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
 - **Correct what Lanloom guessed** (operators): rename the device, choose its type, hide it from the map, or join two
   interfaces of one device. A suggestion of 30 to 60 % shows *Same device* and *Different devices*; *Show separately*
   undoes an automatic grouping. Your choice is kept until you change it.
+- **Hidden devices** stay in the list: tick *Show hidden* and open the row to see the card, show the device on the map
+  again or forget it.
+- **Forget device** (operators): on the card of a hidden or offline device. The entry, its history and what you
+  entered for it are removed for good, after a confirmation. A device that still answers is found again by the next
+  scan, as a new entry. This host and the gateway cannot be forgotten.
 - **Protect a device from scanning** (operators): choose *Printer*, *Industrial*, *Passive only*, *No protection* or
   back to *Automatic* on the card.
 - **Connect it** (admins): the *Can be connected* section offers *Connect* with the address filled in.

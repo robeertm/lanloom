@@ -264,7 +264,7 @@
     // the hub side of a merged device comes first: one component, network side and hub side
     if (d.hub_side || d.hub_suggest) sections.push(LL.hubSideSection(d.hub_side, d.hub_suggest, id));
     const devSec = d.device ? deviceSection(d.device, d) : null;
-    const foot = devSec && devSec.querySelector(':scope > .detail__foot');   // "Hide from the map" stays the last button of the card
+    const foot = devSec && devSec.querySelector(':scope > .detail__foot');   // "Hide from the map" and "Forget device" stay the last buttons of the card
     if (foot) foot.remove();
     if (d.physical && (d.physical.link || d.physical.children || d.physical.choices || d.physical.unknown)) {
       const phys = h('div', {}, physicalSection(d.physical, id));
@@ -372,9 +372,33 @@
     (dev.mdns || []).forEach(m => ann.push(h('li', {}, h('span', { class: 'mono' }, m.type), ' — ', m.name || '')));
     (dev.ssdp || []).forEach(s => ann.push(h('li', {}, h('span', { class: 'mono' }, (s.device_type || s.st || '').replace(/^urn:/, '')), ' — ', [s.friendly_name, s.model].filter(Boolean).join(' · '))));
     const hide = !may ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
+    // a leftover (hidden, or offline) can be removed for good; never this host or the gateway. A device that still
+    // answers comes back with the next scan, as a new entry.
+    const forget = may && (dev.hidden || dev.status === 'down') && !dev.is_self && !dev.is_gateway ? h('button', { class: 'btn btn--danger-ghost btn--sm', type: 'button', onclick: async () => {
+      if (!await askForget(dev.title || dev.ip || dev.mac || '')) return;
+      try {
+        await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'DELETE' });
+        LL.toast(t('device.forgotten'), 'ok');
+        LL.deepLink(location.hash.replace('/' + encodeURIComponent(dev.id), ''), true);   // no link to a device that is gone
+        LL.route();
+      } catch (e) { LL.toast(LL.errText(e), 'error'); }
+    } }, t('device.forget')) : null;
     return h('div', {}, section(t('detail.device'), facts(rows)), LL.aiHintSection ? LL.aiHintSection(dev) : null, identitySection(dev, may),
       LL.integrateSection ? LL.integrateSection(dev) : null, LL.protectSection ? LL.protectSection(dev, may) : null, LL.inventorySection ? LL.inventorySection(dev) : null, ports ? section(t('device.ports'), ports) : null,
-      ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, hide ? h('div', { class: 'detail__foot' }, hide) : null);
+      ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, hide || forget ? h('div', { class: 'detail__foot' }, forget, hide) : null);
+  }
+
+  // "Forget device" asks in the app's own dialog (no browser pop-up)
+  function askForget(name) {
+    return new Promise(resolve => {
+      let answered = false;
+      const yes = h('button', { class: 'btn btn--danger', type: 'button', onclick: () => { answered = true; d.close(); resolve(true); } }, t('device.forget'));
+      const no = h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => d.close() }, t('access.cancel'));
+      const d = dialog(t('device.forget_title', { name }), h('p', {}, t('device.forget_confirm')), h('div', { class: 'btn-row' }, no, yes));
+      const obs = new MutationObserver(() => { if (!d.el.isConnected) { obs.disconnect(); if (!answered) resolve(false); } });
+      obs.observe(document.body, { childList: true });
+      setTimeout(() => no.focus(), 30);
+    });
   }
 
   // ------------------------------------------------------------------ one device, several interfaces

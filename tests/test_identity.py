@@ -301,3 +301,62 @@ def test_snmp_public_is_off_unless_chosen():
     assert scan.make_plan(["192.168.1.0/24"])["snmp_public"] is False
     assert scan.make_plan(["192.168.1.0/24"], deep=True, consent=True)["snmp_public"] is False
     assert core.DEFAULT_SETTINGS["scan_snmp_public"] is False
+
+
+# ---------------------------------------------------------------------- repeater rewrites the hardware address
+def test_repeater_rewritten_address_is_a_suggestion_never_a_merge():
+    a = dev("d-a", "4c:4c:00:11:22:33", scan=1, ip="192.168.1.9")                                   # the old entry
+    b = dev("d-b", "52:c7:be:11:22:33", scan=5, ip="192.168.1.9", hostnames=["plug-4c4c00112233.local"])
+    g = identity.groups([a, b])
+    assert g["members"] == {}
+    assert len(g["suggestions"]) == 1
+    sg = g["suggestions"][0]
+    assert sg["reasons"] == ["translated_mac", "same_ip", "mac_in_name"]
+    assert identity.PROBABLE <= sg["confidence"] < identity.SURE
+    only_ip = identity.groups([dict(b, data=dict(b["data"], hostnames=[])), a])["suggestions"]
+    assert [s["reasons"] for s in only_ip] == [["translated_mac", "same_ip"]]
+    only_name = identity.groups([a, dict(b, ip="192.168.1.77")])["suggestions"]
+    assert [s["reasons"] for s in only_name] == [["translated_mac", "mac_in_name"]]
+    # the real address can also be in a DNS-SD instance name
+    c = dev("d-c", "52:c7:be:11:22:33", scan=5, ip="192.168.1.78", mdns=[{"type": "_http._tcp", "name": "plug-4c4c00112233"}])
+    assert [s["reasons"] for s in identity.groups([a, c])["suggestions"]] == [["translated_mac", "mac_in_name"]]
+
+
+def test_repeater_pattern_needs_a_second_fact_and_a_private_address():
+    a = dev("d-a", "4c:4c:00:11:22:33", ip="192.168.1.9")
+    no_fact = dev("d-b", "52:c7:be:11:22:33", ip="192.168.1.10")                    # same last bytes, nothing else
+    assert identity.groups([a, no_fact])["suggestions"] == []
+    both_registered = dev("d-b", "4c:4d:00:11:22:33", ip="192.168.1.9")             # two registered addresses
+    assert identity.groups([a, both_registered])["suggestions"] == []
+    other_bytes = dev("d-b", "52:c7:be:11:22:34", ip="192.168.1.9")                 # same IP, other last bytes (replaced device)
+    assert identity.groups([a, other_bytes])["suggestions"] == []
+    assert identity.groups([a, no_fact], splits=[["d-a", "d-b"]])["suggestions"] == []
+
+
+def test_a_hidden_entry_never_becomes_the_primary_of_a_group():
+    a = dev("d-a", "4c:4c:00:11:22:33", scan=1, first=500.0, ip="192.168.1.9", ports=[{"port": 80}, {"port": 443}])
+    b = dev("d-b", "52:c7:be:11:22:33", scan=5, first=2000.0, ip="192.168.1.9")
+    assert identity.groups([a, b], joins=[["d-a", "d-b"]])["aliases"] == {"d-a": ["d-b"]}
+    a["hidden"] = 1
+    assert identity.groups([a, b], joins=[["d-a", "d-b"]])["aliases"] == {"d-b": ["d-a"]}
+
+
+def test_maker_from_the_real_address_inside_the_announced_name():
+    r = oui.Oui()
+    r.override = {"names": {"4c:4c:00:11:22:33": "Register Name"}, "random": {"52:c7:be:11:22:33", "52:c7:be:11:22:34"}}
+    data = {"mac": "52:c7:be:11:22:33", "hostnames": ["plug-4c4c00112233.local"]}
+    fp = identity.fingerprint(data, r)
+    assert fp["origin"] == oui.RANDOM and fp["vendor"] == "Register Name" and fp["vendor_source"] == "name"
+    assert fp["features"]["name_mac"] == "4c:4c:00:11:22:33" and fp["confidence"] <= 0.35
+    # only when the last three bytes match the address on the network
+    assert identity.fingerprint(dict(data, mac="52:c7:be:11:22:34"), r)["vendor"] is None
+    # a private address inside the name is never a maker; neither is a longer hex string
+    assert identity.fingerprint(dict(data, hostnames=["plug-024c00112233.local"]), r)["vendor"] is None
+    assert identity.fingerprint(dict(data, hostnames=["x-4c4c00112233ab.local"]), r)["vendor"] is None
+
+
+def test_smart_plug_announcement_makes_a_smart_home_device():
+    host = {"ip": "192.168.1.53", "mac": "52:c7:be:11:22:33",
+            "mdns": [{"type": "_shelly._tcp", "name": "plug-aabbccddeeff", "txt": {}}]}
+    v = classify.classify(host)
+    assert v["kind"] == "iot" and "mdns:_shelly._tcp" in v["reasons"]

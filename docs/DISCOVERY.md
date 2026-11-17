@@ -48,7 +48,10 @@ The device card shows:
 - **Address origin**:
   - *Registered maker*: the first part of the hardware address is in the public IEEE register.
   - *Private or random address*: the address is locally administered. Phones and laptops use such addresses for
-    privacy, virtual machines often do too. Lanloom never assigns a maker to them.
+    privacy, virtual machines often do too. Lanloom does not assign a maker to them, with one exception: behind a
+    Wi-Fi repeater that rewrites addresses, a device often still puts its real address into its own host name or
+    mDNS name. If that address is registered and ends in the same three bytes, its maker is shown, marked
+    *address in its name, register*.
   - *Unregistered address*: a globally unique address whose prefix is in no register.
   - *Only an IP address is known*: the device sits in a routed network without a neighbour entry.
 - **IPv6 addresses** and the **NetBIOS name**, when found.
@@ -78,12 +81,19 @@ two addresses. Lanloom puts them together when the evidence is strong:
 | same NetBIOS computer name (both seen in the latest scan) | medium |
 | same mDNS host name (both seen in the latest scan) | medium |
 | neighbouring hardware addresses of the same registered block | weak; stronger with the same switch port, and with first sightings within ten minutes |
+| an address a Wi-Fi repeater rewrote: last three bytes equal, first three replaced by a private prefix, plus the same IP address or the other address inside an announced name | at most 50 %, so only ever a suggestion |
 
 At 60 % or more the second interface is drawn as part of the first device: the map shows one component, its card
 lists the interface with the reasons. Between 30 % and 60 % the card shows a suggestion with *Same device* and
 *Different devices*. *Show separately* undoes an automatic grouping. Your choice is kept until you change it;
 nothing is deleted. Name-based evidence counts only while both devices are current, so a replaced device is not
 mistaken for its successor. Private (random) addresses never count as neighbours.
+
+Many Wi-Fi repeaters replace the first three bytes of a client's hardware address with a private prefix and keep the
+last three. The device then shows up as a new entry next to its old one. Lanloom offers *Same device* for such a pair
+when a second fact fits (the same IP address, or the original address inside the device's host or mDNS name); it never
+merges them on its own. A hidden entry never becomes the main entry of a group, so joining does not hide the device.
+Old entries that are no longer needed can be removed with *Forget device* on their card (see below).
 
 Changing a grouping needs the operator role and is written to the audit log.
 

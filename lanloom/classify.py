@@ -36,6 +36,7 @@ MDNS_RULES = {
     "_matterc._udp": ("iot", 0.45),               # identifier: DNS-SD type of a smart-home standard (commissioning)
     "_meshcop._udp": ("hub", 0.45),               # identifier: DNS-SD type of a low-power mesh border router
     "_esphomelib._tcp": ("iot", 0.6),             # identifier: DNS-SD type of a firmware for small sensor boards
+    "_shelly._tcp": ("iot", 0.6),                 # identifier: DNS-SD type of a family of smart plugs and relays
     "_companion-link._tcp": ("phone", 0.3),       # identifier: DNS-SD type of a phone/tablet companion service
 }
 

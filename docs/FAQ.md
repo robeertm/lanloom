@@ -102,7 +102,10 @@ Lanloom refuses accounts that can change settings where it can check it (device-
 Yes. Set `LANLOOM_TRUSTED_ORIGINS` and `LANLOOM_TRUSTED_PROXIES`, and `LANLOOM_BASE_PATH` for a sub-path, as described in [INSTALL.md](INSTALL.md#behind-a-reverse-proxy). The message "The request came from another site and was blocked" means the proxy's public address is not in `LANLOOM_TRUSTED_ORIGINS`.
 
 ### How do I remove a device that is gone?
-Forget it on its card (operators), or see the *Probably gone* rows of the [inventory](manual/inventory.md), which can be decommissioned. Devices without a sign of life for a while are marked automatically.
+Open its card (hidden devices: tick *Show hidden* in the device list) and choose *Forget device* (operators; only for hidden or offline devices, after a confirmation). Or see the *Probably gone* rows of the [inventory](manual/inventory.md), which can be decommissioned and kept as history. Devices without a sign of life for a while are marked automatically.
+
+### A device appears twice behind a Wi-Fi repeater
+Many repeaters rewrite the hardware address of their clients: the first three bytes are replaced by a private prefix, the last three stay. Lanloom identifies a device by that address, so it shows a second entry. When the IP address is the same, or the device's host or mDNS name still contains its original address, the card offers *Same device* (never an automatic merge). Join the two there, or decommission the old entry in the inventory, or forget it on its card. If the name contains the original address, the maker is taken from it.
 
 ### Where is the manual?
 In [docs/manual/](manual/README.md): one page per view with its purpose, what you see, how to use it, its limits and what it does with your data. The *About this view* rail (key `I`) links to the page of the open view.
