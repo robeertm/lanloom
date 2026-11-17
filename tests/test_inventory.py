@@ -239,10 +239,15 @@ def test_warranty_states(core):
     assert s["warranty_soon"] == 1 and s["warranty_expired"] == 1
 
 
+FAKE_TABLE = [{"id": "ex-os-20", "match": [r"\bexample os 20\b"], "until": "2025-05-31"},
+              {"id": "ex-os-10", "match": [r"\bexample os 10\b"], "until": "2025-10-14"}]
+
+
 def test_end_of_updates_from_the_table_and_the_own_date_wins(core):
-    a = add(core, 1, "Server", kind="server", data={"snmp": {"descr": "Linux host 5.4 Ubuntu 20.04 LTS"}})
+    core.inventory.eol = eol_mod.EolTable.from_raw(FAKE_TABLE, as_of="2026-01-01")      # fictional products only
+    a = add(core, 1, "Server", kind="server", data={"snmp": {"descr": "Managed server, Example OS 20 LTS"}})
     e = item(core, a)["eol"]
-    assert e["id"] == "ubuntu2004" and e["source"] == "table" and e["state"] == "past"
+    assert e["id"] == "ex-os-20" and e["source"] == "table" and e["state"] == "past" and e["name"] is None
     core.inventory.set_fields(a, {"eol_until": plus(100)})
     e = item(core, a)["eol"]
     assert e["source"] == "own" and e["state"] == "soon" and e["days_left"] == 100
@@ -253,8 +258,8 @@ def test_end_of_updates_from_the_table_and_the_own_date_wins(core):
     # the firmware the person writes down counts as well
     b = add(core, 2, "PC", kind="computer")
     assert item(core, b)["eol"] is None
-    core.inventory.set_fields(b, {"firmware": "Windows 10 Pro 22H2"})
-    assert item(core, b)["eol"]["id"] == "win10" and item(core, b)["firmware_source"] == "own"
+    core.inventory.set_fields(b, {"firmware": "Example OS 10 Pro 22H2"})
+    assert item(core, b)["eol"]["id"] == "ex-os-10" and item(core, b)["firmware_source"] == "own"
 
 
 def test_firmware_from_a_family_and_from_the_hub(core):
@@ -281,14 +286,17 @@ def test_the_bundled_table_is_valid():
     assert as_of and len(entries) == len(doc["entries"]) >= 10
     assert len({e["id"] for e in entries}) == len(entries)
     t = eol_mod.EolTable()
-    assert t.lookup("Microsoft", "Windows Server 2012 R2 Standard")["id"] == "winsrv2012r2"
-    assert t.lookup("Windows 11") is None and t.lookup("") is None and t.lookup(None, None) is None
+    for e in entries:                     # every entry carries a sample its own patterns match - and no other entry's patterns decide it
+        assert e["sample"], e["id"]
+        assert t.lookup(e["sample"])["id"] == e["id"], e["id"]
+        assert t.lookup(e["sample"])["name"] is None            # the bundled table shows no product names
+    assert t.lookup("") is None and t.lookup(None, None) is None and t.lookup("example os 99") is None
 
 
 def test_a_bad_entry_is_skipped_and_an_own_table_overrides(tmp_path):
     good = {"id": "x1", "name": "X", "match": ["foo"], "until": "2030-01-01"}
     bad = [{"id": "Bad Id", "name": "X", "match": ["a"], "until": "2030-01-01"}, {"id": "b2", "name": "X", "match": ["("], "until": "2030-01-01"},
-           {"id": "b3", "name": "X", "match": ["a"], "until": "2030-02-31"}, {"id": "b4", "name": "", "match": ["a"], "until": "2030-01-01"},
+           {"id": "b3", "name": "X", "match": ["a"], "until": "2030-02-31"}, {"id": "b4", "name": 5, "match": ["a"], "until": "2030-01-01"},
            {"id": "b5", "name": "X", "match": [], "until": "2030-01-01"}, "nonsense"]
     p = tmp_path / "eol.json"
     p.write_text(json.dumps({"as_of": "2027-01-01", "entries": bad + [good]}))
@@ -296,9 +304,10 @@ def test_a_bad_entry_is_skipped_and_an_own_table_overrides(tmp_path):
     p.write_text("not json")
     assert eol_mod.load_table(p) == (None, [])
     own = tmp_path / "own.json"
-    own.write_text(json.dumps({"as_of": "2099-01-01", "entries": [{"id": "win10", "name": "Win 10", "match": ["windows 10"], "until": "2031-01-01"}]}))
+    bundled_id = eol_mod.EolTable().entries[0]["id"]
+    own.write_text(json.dumps({"as_of": "2099-01-01", "entries": [{"id": bundled_id, "name": "Mine", "match": ["my own product"], "until": "2031-01-01"}]}))
     t = eol_mod.EolTable(extra=own)
-    assert t.lookup("windows 10")["until"] == "2031-01-01" and t.as_of == "2099-01-01"
+    assert t.lookup("my own product 3")["until"] == "2031-01-01" and t.lookup("my own product")["name"] == "Mine" and t.as_of == "2099-01-01"
 
 
 # ------------------------------------------------------------------ list, filter, sort, bulk
@@ -345,7 +354,7 @@ def test_a_merged_interface_is_not_a_row(core):
     assert [r["id"] for r in rows] == [a]
 
 
-# ------------------------------------------------------------------ nightly section (fixed windows)
+# ------------------------------------------------------------------ nightly section (fixed time ranges)
 def _ctx(core, since, until):
     return SimpleNamespace(core=core, since=since, until=until, events=lambda *kinds: core.reports.journal.between(since, until, kinds or None))
 

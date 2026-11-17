@@ -77,8 +77,9 @@ its date, the row shows *Back on the network* and the nightly report says so; *P
 - **Your own table:** drop a file with the same format into the data directory (`<data>/eol/eol.json`); its entries are
   added, an entry with the same id replaces the bundled one. A bad entry is skipped and logged.
 
-Entry format: `{"id": "win10", "name": "Windows 10", "match": ["\\bwindows 10\\b"], "until": "2025-10-14"}` - `match` is a list of
-regular expressions tested against the lower-cased text, `until` a date.
+Entry format: `{"id": "example-os-1", "match": ["\\bexample os 1\\b"], "until": "2025-10-14"}` - `match` is a list of
+regular expressions tested against the lower-cased text, `until` a date, `name` (optional) a label, `sample` (optional)
+a text the patterns must match.
 
 ## The Inventory view
 

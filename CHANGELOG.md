@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.26.1] – 2026-11-17
+
+### Changed
+- The bundled end-of-updates table carries identifiers, patterns and dates only, no display names; the entry sheet says "From the table: updates end on <date>". An own table may still give its entries a name.
+- 1.26.0 was not released on its own; 1.26.1 contains all of it.
+
 ## [1.26.0] – 2026-11-17
 
 ### Added

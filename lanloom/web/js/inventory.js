@@ -387,7 +387,7 @@
       const was = { purpose: it.purpose, room: it.room, purchase_date: it.purchase_date, warranty_until: it.warranty_until, shop: it.shop, note: it.note, serial: it.serial,
         firmware: it.firmware_own, eol_until: it.eol_until, owner: it.owner };
       const msg = h('div', { class: 'msg', role: 'alert' });
-      const eolHint = it.eol && it.eol.source === 'table' && !it.eol_until ? t('inventory.f.eol_table', { name: it.eol.name, date: day(it.eol.until) }) : null;
+      const eolHint = it.eol && it.eol.source === 'table' && !it.eol_until ? t('inventory.f.eol_table', { date: day(it.eol.until) }) : null;
       const rep = it.serial_reported && it.serial_reported !== it.serial ? t('inventory.f.serial_reported', { value: it.serial_reported }) : null;
       const save = h('button', { class: 'btn btn--primary', type: 'submit' }, t('inventory.save'));
       const form = h('form', { class: 'inv-form', novalidate: true, onsubmit: async ev => {

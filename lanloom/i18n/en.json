@@ -1618,7 +1618,7 @@
  "inventory.err.setting": "This value is outside the allowed range.",
  "inventory.err.state": "This device is not decommissioned.",
  "inventory.f.eol": "End of updates (own entry)",
- "inventory.f.eol_table": "From the table: {name} until {date}",
+ "inventory.f.eol_table": "From the table: updates end {date}",
  "inventory.f.firmware": "Own firmware version",
  "inventory.f.firmware_detected": "Detected: {value} ({source})",
  "inventory.f.note": "Note",

@@ -40,10 +40,10 @@ def clean_entry(raw) -> Optional[dict]:
     """One validated entry ``{id, name, until, rx: [compiled patterns]}`` or None."""
     if not isinstance(raw, dict):
         return None
-    eid, name, until = raw.get("id"), raw.get("name"), raw.get("until")
+    eid, name, until = raw.get("id"), raw.get("name", ""), raw.get("until")
     pats = raw.get("match")
-    if not (isinstance(eid, str) and re.fullmatch(r"[a-z0-9_.-]{1,40}", eid)) or not isinstance(name, str) or not name.strip():
-        return None
+    if not (isinstance(eid, str) and re.fullmatch(r"[a-z0-9_.-]{1,40}", eid)) or not isinstance(name, str):
+        return None             # the name is optional: the bundled table carries ids only, an own table may name its entries
     if parse_date(until) is None or not isinstance(pats, list) or not pats:
         return None
     rx = []
@@ -54,7 +54,8 @@ def clean_entry(raw) -> Optional[dict]:
             rx.append(re.compile(p))
         except re.error:
             return None
-    return {"id": eid, "name": name.strip()[:60], "until": until, "rx": rx}
+    sample = raw.get("sample")
+    return {"id": eid, "name": name.strip()[:60], "until": until, "rx": rx, "sample": sample if isinstance(sample, str) else ""}
 
 
 def load_table(path: Path) -> tuple:
@@ -107,4 +108,4 @@ class EolTable:
         if not hits:
             return None
         e = max(hits, key=lambda x: x["until"])
-        return {"id": e["id"], "name": e["name"], "until": e["until"]}
+        return {"id": e["id"], "name": e["name"] or None, "until": e["until"]}

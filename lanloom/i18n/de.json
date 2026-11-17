@@ -1618,7 +1618,7 @@
  "inventory.err.setting": "Dieser Wert liegt außerhalb des erlaubten Bereichs.",
  "inventory.err.state": "Dieses Gerät ist nicht außer Betrieb genommen.",
  "inventory.f.eol": "Ende der Updates (eigene Angabe)",
- "inventory.f.eol_table": "Laut Tabelle: {name} bis {date}",
+ "inventory.f.eol_table": "Laut Tabelle enden die Updates am {date}",
  "inventory.f.firmware": "Eigene Firmware-Version",
  "inventory.f.firmware_detected": "Erkannt: {value} ({source})",
  "inventory.f.note": "Notiz",
