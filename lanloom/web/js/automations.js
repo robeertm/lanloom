@@ -377,7 +377,7 @@
       const nowLine = h('div', { class: 'au-plan__now', style: 'left:' + pct(nowMin()) }, h('span', { class: 'au-plan__nowlabel' }, t('auto.plan.now', { time: hhmm(Math.floor(nowMin())) })));
       const rows = d.items.map(it => {
         const track = h('div', { class: 'au-plan__track' }, night.map(n => n.cloneNode()));
-        it.windows.forEach(w => {
+        it.spans.forEach(w => {
           const a = w.kind === 'sun' ? (w.from_ts ? minuteOf({ ts: w.from_ts }) : null) : (w.from ? minuteOf({ at: w.from }) : null);
           const b = w.kind === 'sun' ? (w.to_ts ? minuteOf({ ts: w.to_ts }) : null) : (w.to ? minuteOf({ at: w.to }) : null);
           const s0 = a == null ? 0 : a, s1 = b == null ? 1440 : b;

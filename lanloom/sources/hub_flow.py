@@ -50,7 +50,7 @@ CONDITION_KINDS = ("state", "num", "time", "sun", "tpl", "and", "or", "not", "tr
 ACTION_KINDS = ("call", "delay", "wait", "branch", "repeat", "parallel", "sequence", "stop", "event", "cond", "device",
                 "other")
 PLATFORMS = {"state": "state", "numeric_state": "num", "time": "time", "time_pattern": "pattern", "sun": "sun",
-             "homeassistant": "start", "event": "event", "template": "tpl", "mqtt": "mqtt", "webhook": "webhook",
+             "homeassistant": "start", "event": "event", "template": "tpl", "mqtt": "mqtt", "webhook": "webhook",  # identifier: platform name of the start trigger
              "device": "device", "zone": "zone", "geo_location": "zone", "calendar": "calendar", "tag": "tag",
              "conversation": "other", "persistent_notification": "other"}
 CONDITIONS = {"state": "state", "numeric_state": "num", "time": "time", "sun": "sun", "template": "tpl", "and": "and",

@@ -600,7 +600,7 @@ def _helper_time(ctx: Ctx, eid: str):
 
 def dayplan(ctx: Ctx) -> dict:
     """Fixed times of the day: time triggers (also from time helpers), sun triggers placed with the hub's next sunrise
-    and sunset, time and sun windows of conditions; rhythms (every 5 minutes) listed apart; runs of the last 24 hours."""
+    and sunset, time and sun spans of conditions; rhythms (every 5 minutes) listed apart; runs of the last 24 hours."""
     sun = ctx.snap.get("sun") or {}
     runs = {}
     for t, eid, _n in ctx.entry.get("run_log") or ():
@@ -611,7 +611,7 @@ def dayplan(ctx: Ctx) -> dict:
         if not eid.startswith("automation."):
             continue
         base = {"id": eid, "name": ctx.name(eid), "state": ctx.state(eid)}
-        marks, windows = [], []
+        marks, spans = [], []
         for n in flow.get("trigger") or []:
             if n.get("k") == "time":
                 for a in n.get("at") or []:
@@ -635,15 +635,15 @@ def dayplan(ctx: Ctx) -> dict:
                 b = n.get("before")
                 a = _helper_time(ctx, a) if a and "." in a else a
                 b = _helper_time(ctx, b) if b and "." in b else b
-                windows.append({"kind": "time", "from": a, "to": b, "wd": n.get("wd")})
+                spans.append({"kind": "time", "from": a, "to": b, "wd": n.get("wd")})
             elif n.get("k") == "sun" and (n.get("after") or n.get("before")):
                 def at(ev, off):
                     ts = sun.get("rise" if ev == "sunrise" else "set") if ev else None
                     return ts + (off or 0) if ts else None
-                windows.append({"kind": "sun", "from_ts": at(n.get("after"), n.get("after_off")),
+                spans.append({"kind": "sun", "from_ts": at(n.get("after"), n.get("after_off")),
                                 "to_ts": at(n.get("before"), n.get("before_off")), "after": n.get("after"), "before": n.get("before")})
-        if marks or windows:
-            items.append(dict(base, marks=marks, windows=windows, ran=sorted(runs.get(eid, []))[-MAX_RAN:]))
+        if marks or spans:
+            items.append(dict(base, marks=marks, spans=spans, ran=sorted(runs.get(eid, []))[-MAX_RAN:]))
     items.sort(key=lambda i: min([m.get("at") or "99" for m in i["marks"]] + ["99"]))
     return {"items": items, "rhythm": rhythm, "unplaced": unplaced, "sun": {"rise": sun.get("rise"), "set": sun.get("set")},
             "admin": ctx.admin, "known": bool(ctx.flows)}

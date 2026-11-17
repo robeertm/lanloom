@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.30.1] – 2026-11-17
+
+### Changed
+- Day plan: the German texts speak of the rise and set of the sun in other words; the plan's data calls the time ranges of conditions `spans`.
+- 1.30.0 was not released on its own; 1.30.1 contains all of it.
+
 ## [1.30.0] – 2026-11-17
 
 ### Added
@@ -12,7 +18,7 @@ All notable changes to this project are documented here. The format follows [Kee
   - **Findings** from Lanloom's own rules: a missing entity (renamed or removed), an unavailable entity, a runaway (60 runs within one hour), a conflict (two automations setting one entity to opposite states within 60 seconds), a script loop, an automation that switches what starts it, a `single` automation that drops starts while it waits, one that has not run for 30 days, a paused lookup.
   - **Dependency board** of any entity: sources on the left (automations and scripts with the verb they use, by hand, by itself), consumers on the right; for an automation what starts and checks it and what it switches. A dot travels along the traces whenever an automation runs (live frame `autoruns`; a flash with reduced motion).
   - **Who switches what**: per entity the causes of the last 24 hours (an automation or script, a person - never who - or the device itself) and the automations configured to switch it; conflicts on top.
-  - **Timeline** of the last 24 hours (filters for automations, people, devices), **day plan** from 00:00 to 24:00 with a moving now line (time triggers, time helpers, sun triggers with their offset placed with the hub's next sunrise and sunset, windows of time and sun conditions, night shaded, runs as ticks; an agenda on the phone), **rooms** with the devices and their live state, and **hub health**: integrations that cannot start or keep retrying, unavailable entities per domain and per integration, silent radio devices - bundled, never healed.
+  - **Timeline** of the last 24 hours (filters for automations, people, devices), **day plan** from 00:00 to 24:00 with a moving now line (time triggers, time helpers, sun triggers with their offset placed with the hub's next sunrise and sunset, time spans of time and sun conditions, night shaded, runs as ticks; an agenda on the phone), **rooms** with the devices and their live state, and **hub health**: integrations that cannot start or keep retrying, unavailable entities per domain and per integration, silent radio devices - bundled, never healed.
 - Nightly report section **Automations** (one per hub connection, only when there is something to judge): missing entities, conflicts of the night, integrations with errors and unavailable entities per domain as points; self-starts, dropped starts and long silence as notes. The AI features see it only as its summary.
 - Command palette: *Go to Automations*, typed *Who switches what*, *Timeline*, *Day plan*, *Rooms*, *Hub health*, *Show automations with findings*; *Open in Automations* on an automation hit, *Show dependencies* on automation and entity hits.
 - Routes `GET /api/hub/{id}/auto`, `…/auto/item/{entity_id}`, `…/auto/board/{entity_id}`, `…/auto/who`, `…/auto/timeline`, `…/auto/plan`, `…/auto/rooms`, `…/auto/health` (all read only, viewer role).

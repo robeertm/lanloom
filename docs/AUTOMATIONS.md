@@ -80,7 +80,7 @@ automations. Filters for automations, people and devices, and a search. People a
 ### Day plan
 
 Today from 00:00 to 24:00 with a **now line** that moves on: time triggers (also from time helpers), sun triggers placed
-with the hub's next sunrise and sunset (with their offset), the windows of time and sun conditions as bands, night
+with the hub's next sunrise and sunset (with their offset), the time spans of time and sun conditions as bands, night
 shaded, and the runs of the last 24 hours as ticks. Automations on a rhythm (every 15 minutes) are listed apart, and
 those whose time is not known (a time helper without a value, no sun times). Times are read as times of the browser's day.
 On a phone the plan is an agenda sorted by time with the now divider.

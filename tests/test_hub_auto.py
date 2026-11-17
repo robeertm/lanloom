@@ -232,14 +232,14 @@ def test_timeline_newest_first_with_kinds_and_runs_and_24_hours_only():
     assert runs and runs[0]["entity"] in ("automation.echo", "automation.desk_on")
 
 
-def test_day_plan_places_times_helpers_sun_windows_and_lists_rhythms():
+def test_day_plan_places_times_helpers_sun_spans_and_lists_rhythms():
     p = hubauto.dayplan(ctx())
     items = {i["id"]: i for i in p["items"]}
     assert items["automation.desk_off"]["marks"] == [{"kind": "time", "at": "18:00", "wd": ["mon", "tue", "wed", "thu", "fri"], "helper": None}]
     dawn = items["automation.dawn"]["marks"]
     assert {"kind": "sun", "ev": "sunrise", "off": 1200, "ts": NOW + 3 * HOUR + 1200} in dawn
     assert {"kind": "time", "at": "07:05", "wd": None, "helper": "Wake"} in dawn
-    assert items["automation.hall_motion"]["windows"] == [{"kind": "sun", "from_ts": NOW + 12 * HOUR, "to_ts": NOW + 3 * HOUR,
+    assert items["automation.hall_motion"]["spans"] == [{"kind": "sun", "from_ts": NOW + 12 * HOUR, "to_ts": NOW + 3 * HOUR,
                                                            "after": "sunset", "before": "sunrise"}]
     assert [r["id"] for r in p["rhythm"]] == ["automation.dawn"] and p["rhythm"][0]["spec"]["k"] == "auto.ex.t.every_m"
     e = entry()
@@ -448,7 +448,7 @@ def test_demo_shows_every_part_of_the_tab():
     assert tab["totals"]["off"] == 1 and tab["totals"]["scripts"] == 3
     plan = hubauto.dayplan(c)
     kinds = {m["kind"] for i in plan["items"] for m in i["marks"]}
-    assert kinds == {"time", "sun"} and plan["rhythm"] and any(i["windows"] for i in plan["items"])
+    assert kinds == {"time", "sun"} and plan["rhythm"] and any(i["spans"] for i in plan["items"])
     assert hubauto.who(c)["conflicts"] and len(hubauto.timeline(c)) > 50
     assert len(hubauto.rooms(c)) >= 6
     h = hubauto.health(c)
