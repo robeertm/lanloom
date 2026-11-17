@@ -225,3 +225,9 @@ a.change__link:hover { background: var(--ll-surface-2); }
   .ov-card { padding: 2px 14px; }
   .ov-origin { max-width: 120px; }
 }
+@media (max-width: 400px) {
+  .topbar { gap: 8px; padding-left: 10px; padding-right: 10px; }
+  .topbar__right { gap: 4px; }
+  .rail-btn { width: 30px; height: 30px; }
+  .live-pill { padding: 0 8px; gap: 6px; }
+}

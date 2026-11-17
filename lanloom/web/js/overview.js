@@ -98,7 +98,7 @@
         const life = s.age_s != null ? t('ov.src.life', { age: LL.fmtAge(s.age_s) }) : t('srcstate.' + s.state + '.hint');
         const reason = s.state === 'failed' && s.key ? t(s.key) : (s.cadence_s ? t('ov.src.cadence', { c: LL.fmtAge(s.cadence_s) }) : '');
         return h('li', { class: 'ov-src ov-src--' + s.state },
-          h('span', { class: 'grade-chip ov-src__grade', dataset: { grade: s.state === 'fresh' ? s.grade : (s.state === 'stale' || s.state === 'failed' ? 'interrupted' : 'unknown') } }, h('i')),
+          h('span', { class: 'grade-chip ov-src__grade', dataset: { grade: s.state === 'fresh' ? (s.grade === 'unknown' ? 'periodic' : s.grade) : (s.state === 'stale' || s.state === 'failed' ? 'interrupted' : 'unknown') } }, h('i')),
           h('span', { class: 'ov-src__main' }, h('span', { class: 'ov-src__name' }, name), h('span', { class: 'ov-src__sub' }, [life, reason].filter(Boolean).join(' · '))),
           h('span', { class: 'chip ov-src__state chip--' + ({ fresh: 'ok', stale: 'warn', failed: 'danger' }[s.state] || 'muted') }, t('srcstate.' + s.state)));
       });
