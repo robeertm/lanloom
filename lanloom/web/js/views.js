@@ -327,7 +327,7 @@
       if (links.update) links.update(f);
     });
     const refresher = setInterval(async () => {
-      if (panel.hidden) { clearInterval(refresher); return; }
+      if (panel.hidden || !panel.isConnected) { clearInterval(refresher); unsub(); return; }   // closed, or the view was drawn anew
       if (document.hidden) return;                 // no requests for a tab nobody looks at
       try { const nd = await api('/api/component/' + encodeURIComponent(id)); d.series = nd.series; drawChart(); } catch (e) { /* ignore */ }
     }, 5000);
@@ -374,10 +374,12 @@
     const hide = !may ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
     // a leftover (hidden, or offline) can be removed for good; never this host or the gateway. A device that still
     // answers comes back with the next scan, as a new entry.
-    const forget = may && (dev.hidden || dev.status === 'down') && !dev.is_self && !dev.is_gateway ? h('button', { class: 'btn btn--danger-ghost btn--sm', type: 'button', onclick: async () => {
+    const forget = may && (dev.hidden || dev.status === 'down') && !dev.is_self && !dev.is_gateway ? h('button', { class: 'btn btn--danger-ghost btn--sm', type: 'button', onclick: async ev => {
       if (!await askForget(dev.title || dev.ip || dev.mac || '')) return;
       try {
         await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'DELETE' });
+        const card = ev.target.closest('.detail');
+        if (card) { card.hidden = true; card.classList.remove('is-open'); }               // its refresher stops with it
         LL.toast(t('device.forgotten'), 'ok');
         LL.deepLink(location.hash.replace('/' + encodeURIComponent(dev.id), ''), true);   // no link to a device that is gone
         LL.route();
@@ -629,7 +631,10 @@
     const here = id => '#/devices' + (id ? '/' + encodeURIComponent(id) : '') + LL.queryString();
     // a second interface has no card of its own on the map: its row opens the card of the device it belongs to
     const cardOf = id => { const d = data.devices.find(x => x.id === id); return d && d.merged_into ? d.merged_into.id : id; };
-    const openRow = id => { LL.deepLink(here(id)); openDetail(panel, cardOf(id), () => LL.deepLink(here(null))); };
+    // the list scrolls inside the main area: the card follows, so it opens in view however far down the row was
+    const follow = () => { const y = fr.main.scrollTop; panel.style.transform = y ? 'translateY(' + y + 'px)' : ''; };
+    fr.main.addEventListener('scroll', follow, { passive: true });
+    const openRow = id => { follow(); LL.deepLink(here(id)); openDetail(panel, cardOf(id), () => LL.deepLink(here(null))); };
     let render = function () {
       const s = q.value.toLowerCase();
       const rows = data.devices.filter(d => keep(d) && (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' ')].join(' ').toLowerCase().includes(s)));

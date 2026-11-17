@@ -13,6 +13,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 - The card of a **hidden device** opens again. It said "This element is no longer on the map", so a hidden device could not be shown again from its card. Hidden devices and second interfaces now open their card without connections.
 - A hidden entry never becomes the main entry of a joined group, so joining an old hidden entry with the live device no longer hides both from the map.
+- Device list: a card opened from a row far down the list opens in view (it opened at the top of the list, partly outside the window, on the desktop and on the phone).
+- A card that is closed or replaced by a new view stops asking the server for its data.
 
 ### Changed
 - The buttons at the foot of a card have a gap and wrap on narrow screens.
