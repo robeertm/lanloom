@@ -79,7 +79,7 @@ every value within a multiple of it, so a change that makes something much slowe
 | Live history (memory only) | 5, 10, 30, 60 minutes | 10 minutes |
 | Data paths per hour | 1, 2, 3, 7 days | 2 days |
 | Data paths per day | 31, 92, 183, 366 days | 31 days |
-| Availability and events | 35, 90, 180, 365 days | 35 days |
+| Availability and events | 35, 90, 180, 365 days (the availability slots, [details](AVAILABILITY.md); the traffic per minute behind the plots is kept 8 days) | 35 days |
 | Nightly reports | 7, 14, 30, 90, 365 days | 30 days |
 | Audit log | 30 days to 10 years | 1 year |
 | Scan history | last 50, 200, 1000 scans | last 200 |

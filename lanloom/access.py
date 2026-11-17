@@ -141,6 +141,10 @@ RULES = {
     ("GET", "/api/topology"): R(V),
     ("GET", "/api/map"): R(V),
     ("GET", "/api/component/{comp_id:path}"): R(V),
+    ("GET", "/api/stability"): R(V),
+    ("GET", "/api/availability/{subject:path}"): R(V),
+    ("GET", "/api/traffic/{comp_id:path}"): R(V),
+    ("GET", "/api/maintenance/{comp_id:path}"): R(V),
 
     # ---------------------------------------------------------------- integrations (credentials: admin)
     ("GET", "/api/integrations"): R(O),

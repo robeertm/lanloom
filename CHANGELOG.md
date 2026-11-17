@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.28.0] – 2026-11-17
+
+### Added
+- **Availability over time**: once a minute Lanloom's watcher books whether each device and each connection to a hub, broker, controller or adapter answered into **5-minute slots**, kept for 35 days (Settings › Storage › *Availability and events*: 35 to 365 days). A slot without a look is *unknown*, never "down": nothing is booked while Lanloom is not running or still settling in after a start, and not when none of three or more devices answers at once (Lanloom's own network is the likelier cause). A *gap* is a run of slots with a failed look (two runs one good slot apart are one flapping gap); the *typical repair time* is the mean length of the gaps that ended; three or more gaps in 7 days make a device *wobbly*.
+- **Stability list** (*Devices › List | Stability*, `#/devices?view=stability`, command *Open Stability*): five key figures, the wobbly candidates, and one row per device and connection - the worst first - with 35 daily bars, availability over 24 hours and 7 days, gaps and repair time; the search box filters, a click opens the card; a phone layout.
+- **Traffic plot per node**: the card has *Live* plus **1 h, 6 h, 24 h and 7 days** (bytes per minute per connection of the map, kept 8 days), a full-screen view (`Esc` leaves) and exact values for the minute under the pointer; an empty range says so instead of drawing a flat line.
+- **Card of a device, extended**: an *Availability* section (24 hours as 288 blocks, shares over 24 hours / 7 / 35 days, gaps of the last week, longest gap, 35 daily bars, the last gaps), *Connections* by name with the kind and the live rate in both directions (a device at the other end links to its card), and **Simulate maintenance** - what would lose its way if the device were switched off, read from the known topology; nothing is switched and nothing is sent. Every section folds, and the choice survives the live updates and other cards.
+- **Hover window on the map**: resting on a tile shows the traffic of the last hour and the availability of the last 24 hours (mouse and pen only).
+- Command palette: *Open Stability*, and the device actions *Show availability*, *Show traffic history* and *Simulate maintenance* (each opens the card at that section).
+- Nightly report section **Availability**: devices and connections without a gap over 7 days, the gaps in all, the typical repair time and every wobbly device as a point to look at.
+- Routes `GET /api/stability`, `/api/availability/{id}`, `/api/traffic/{id}` and `/api/maintenance/{id}` (all read-only, viewer role). Demo network: 35 days of availability with a wobbly tablet, a camera with a long night, a connection that dropped and a time Lanloom itself was not running, and 8 days of traffic with a day rhythm. Guide: [docs/AVAILABILITY.md](docs/AVAILABILITY.md).
+
+### Changed
+- The card's traffic section is titled *Traffic* (it holds the live chart and the history); the component card's "Connections" list shows names and rates.
+- The availability and the minute traffic count in Settings › Storage under *Availability and events*, and are removed with a device when it is forgotten.
+
 ## [1.27.0] – 2026-11-17
 
 ### Added

@@ -94,6 +94,13 @@ the filter. See [DISCOVERY.md](../DISCOVERY.md).
 
 The **Devices | Inventory** switch at the top opens the [inventory](#inventory) of the same devices.
 
+The **List | Stability** switch under the search box shows how steady each device and connection was instead of what it
+is: five key figures (checked, without a gap, gaps in 7 days, typical repair time, wobbly), the wobbly candidates, and one
+row each with 35 daily bars, availability over 24 hours and 7 days, gaps and repair time, the worst first
+(`#/devices?view=stability`). A click opens the card of the device with its availability, traffic plot (1 h, 6 h, 24 h,
+7 days, full screen), connections with live rates and *Simulate maintenance*; its sections fold and keep their state.
+See [AVAILABILITY.md](../AVAILABILITY.md).
+
 <a id="inventory"></a>
 ### Inventory
 

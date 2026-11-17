@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import adapter_inventory, classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, zones as zones_mod
+from . import adapter_inventory, availability as availability_mod, classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
 from .crypto import Vault
 from .scan import protect as protect_mod
 from .store import Store
@@ -131,6 +131,8 @@ class Core:
         self._merge_cache = None           # (key, hubmerge.match result)
         self._radio_cache: dict = {}       # integration id -> (key, monotonic time, radio view)
         self.paths = datapaths.DataPaths(store, self.geo, self.settings)
+        self.availability = availability_mod.Availability(store)     # 5-minute slots per device/connection (S2)
+        self.traffic_log = trafficlog_mod.TrafficLog(store)           # bytes per minute per trace (plot ranges up to 7 days)
         self.ip6_to_device: dict = {}
         self._nf_lan = (0.0, [])           # (ts, detected local networks) for the NetFlow direction check
         self.netflow = netflow.Collector(self.paths, self._netflow_device, self._netflow_lan, self._netflow_skip)
@@ -308,6 +310,11 @@ class Core:
                 pass
         self._tasks.clear()
         self._source_tasks.clear()
+        for part in (self.availability, self.traffic_log):
+            try:
+                part.flush()
+            except Exception:
+                log.exception("history flush at stop failed")
 
     # ------------------------------------------------------------------ inventory
     def _refresh_index(self) -> None:
@@ -610,6 +617,7 @@ class Core:
         ok = self.store.execute("DELETE FROM devices WHERE id=?", (device_id,)).rowcount > 0
         if ok:
             self.paths.forget_device(device_id)
+            self.availability.forget("dev:" + device_id)
         self.store.execute("DELETE FROM phys_manual WHERE device_id=? OR parent_id=?", (device_id, device_id))
         self.inventory.forget(device_id)
         self._manual_ver += 1
@@ -1722,6 +1730,8 @@ class Core:
             self.ring.prune(now)
         try:
             self.paths.maybe_flush(now)
+            self.availability.maybe_flush(now)
+            self.traffic_log.maybe_flush(now)
         except Exception:
             log.exception("data paths flush failed")
         for trace in list(self.spread):
@@ -1741,6 +1751,7 @@ class Core:
             if n1:
                 dots.append([trace, 1, n1])
             self.ring.push(trace, now, b0 / max(dt, 0.2), b1 / max(dt, 0.2))
+            self.traffic_log.book(trace, b0, b1, now)
         for (trace, direction), r in self.quant.rates(now).items():
             rates.setdefault(trace, [0, 0])[direction] = round(r)
         from . import mapmodel

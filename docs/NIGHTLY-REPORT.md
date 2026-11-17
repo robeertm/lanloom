@@ -18,6 +18,7 @@ At the top one line: **All quiet**, or **N things need a look**. Below it one se
 | Internet | outages of the router's internet port (from SNMP counters of the gateway) with start, end and length; a switch to another uplink when an adapter reports one | an outage lasted a minute or longer, or the line is still down |
 | Devices | new devices, devices not seen for a day, devices that went offline and came back (with times) | a new device appeared, a device is gone for a day, network equipment or a server is still offline |
 | Connections | availability of each connection (hub, broker, SNMP, controller, adapters) over the night | a connection has not answered for 30 minutes and is still down |
+| Availability | only once the history exists ([details](AVAILABILITY.md#in-the-nightly-report)): how many devices and connections had no gap in the last 7 days, the gaps in all, the typical repair time, and every wobbly device | a device or connection had three or more gaps in 7 days |
 | Sign-ins | connections whose account is refused | the sign-in is refused right now |
 | Counter check | only when hours were compared: the router's uplink against NetFlow and this host's interfaces against its connections ([details](PERFORMANCE.md#counter-check)) | traffic was counted twice or not at all in at least one hour |
 | Data paths | data sent to the internet by country in the last 24 hours, and the calm hints of the [Data paths](DATA-PATHS.md) tab | every hint (new country, unusual upload, network that should not reach the internet) |

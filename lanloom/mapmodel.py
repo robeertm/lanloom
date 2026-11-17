@@ -569,6 +569,20 @@ def cached_build(core, view: str) -> dict:
     return result
 
 
+def component_traces(core, comp_id: str):
+    """[(trace id, flip)] of the connections of one component (flip = the component is the second end), None if unknown."""
+    view = cached_build(core, "overview")
+    net_view = cached_build(core, "network")
+    if not any(c["id"] == comp_id for c in view["components"] + net_view["components"]):
+        return None
+    out, seen = [], set()
+    for t in view["traces"] + net_view["traces"]:
+        if comp_id in (t["a"], t["b"]) and t["id"] not in seen:
+            seen.add(t["id"])
+            out.append((t["id"], t["a"] != comp_id))
+    return out
+
+
 def component_detail(core, comp_id: str) -> dict:
     now = time.time()
     view = cached_build(core, "overview")
@@ -590,6 +604,13 @@ def component_detail(core, comp_id: str) -> dict:
                            "points": [[p[0], p[2], p[1]] if flip else list(p) for p in s]})
     out = {"component": comp, "traces": traces, "series": series, "generated": now,
            "q": core.quant.q, "ledger": {t: core.quant.ledger.get(t) for t in seen if core.quant.ledger.get(t)}}
+    comps = {c["id"]: c for c in view["components"] + net_view["components"]}
+    peers = {}
+    for t in traces:                     # who is at the other end of each connection (the card lists them by name)
+        other = comps.get(t["b"] if t["a"] == comp_id else t["a"])
+        if other:
+            peers[other["id"]] = {"title": other.get("title") or "", "kind": other.get("kind") or "", "device": other["id"].startswith("d-")}
+    out["peers"] = peers
     dev = core.store.device(comp_id)
     if dev:
         out["device"] = core.device_view(dev)

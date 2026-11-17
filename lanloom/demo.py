@@ -658,11 +658,16 @@ class Demo:
         topo_sent = 0
         live_sent = 0
         paths_sent = time.time()
+        history_seeded = False
         while True:
             await asyncio.sleep(1.0)
             if not core.store.one("SELECT id FROM devices LIMIT 1"):
                 continue
             now = time.time()
+            if not history_seeded:
+                history_seeded = True
+                from . import demo_history
+                demo_history.seed(core, now)              # availability and traffic history of the sample network (only when empty)
             el = now - t0
             ids = {row["kind"]: row["id"] for row in core.store.query("SELECT id, kind FROM integrations")}
             for key in ["host"] + ["int:%d" % i for i in ids.values()]:

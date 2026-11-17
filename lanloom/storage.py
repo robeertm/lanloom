@@ -42,7 +42,7 @@ DEFAULTS = {"live_min": 10, "paths_hours": 49, "paths_days": 31, "availability_d
 AREAS = (
     ("inventory", ("devices", "phys_manual", "integrations", "secrets", "settings", "meta")),
     ("paths", ("paths_hour", "paths_day", "paths_seen")),
-    ("availability", ("events",)),
+    ("availability", ("events", "avail_day", "traffic_min")),
     ("reports", ("reports", "report_marks")),
     ("audit", ("audit",)),
     ("scans", ("scans",)),
@@ -140,6 +140,7 @@ class Storage:
         self.core.ring.resize(int(r["live_min"]) * 60)
         self.core.paths.keep_hours = int(r["paths_hours"])
         self.core.paths.keep_days = int(r["paths_days"])
+        self.core.availability.keep_days = int(r["availability_days"])
 
     # ------------------------------------------------------------------ sizes
     def _page_sizes(self) -> Optional[dict]:
@@ -297,6 +298,11 @@ class Storage:
                 self.core.paths.flush(now)
             except Exception:
                 log.exception("data paths flush before clean-up failed")
+            for part in (self.core.availability, self.core.traffic_log):
+                try:
+                    part.flush(now)
+                except Exception:
+                    log.exception("history flush before clean-up failed")
             hour = int(now // 3600)
             with self.store.transaction() as tx:
                 removed["paths"] = (tx._db.execute("DELETE FROM paths_hour WHERE hour < ?", (hour - int(r["paths_hours"]),)).rowcount

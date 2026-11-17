@@ -251,9 +251,13 @@
     // live chart
     const chart = h('canvas', { class: 'spark', width: '360', height: '96', 'aria-label': t('detail.traffic') });
     const chartLegend = h('div', { class: 'spark-legend muted' });
-    if (d.series && d.series.length) {
-      sections.push(section(t('detail.traffic'), h('div', { class: 'spark-wrap' }, chart, chartLegend)));
+    if ((d.series && d.series.length) || (LL.trafficPlot && (d.traces || []).length)) {
+      const liveBox = h('div', { class: 'spark-wrap' }, chart, chartLegend);
+      const trafficSec = section(t('detail.traffic'), LL.trafficPlot && (d.traces || []).length ? LL.trafficPlot(id, d.series && d.series.length ? liveBox : null, c.title) : liveBox);
+      trafficSec.dataset.sec = 'traffic';
+      sections.push(trafficSec);
     }
+    if (d.device && LL.availabilitySection) sections.push(LL.availabilitySection(id));
     if (d.hypervisor) sections.push(LL.hvHostSection(d.hypervisor));
     if (d.guest) sections.push(LL.hvGuestSection(d.guest));
     // the hub side of a merged device comes first: one component, network side and hub side
@@ -284,13 +288,16 @@
     if (d.hub_bridge) sections.push(LL.hubBridgeSection(d.hub_bridge));
     if (d.entities) sections.push(entitiesSection(d.entities));
     if (d.ifaces && Object.keys(d.ifaces).length) sections.push(section(t('detail.ifaces'), facts(Object.entries(d.ifaces).map(([n, v]) => [n, '↑ ' + LL.fmtRate(v[0]) + '  ↓ ' + LL.fmtRate(v[1])]))));
-    sections.push(section(t('detail.links'), h('ul', { class: 'link-list' }, d.traces.length ? d.traces.map(tr => h('li', {},
-      h('span', { class: 'trace-sw trace-sw--' + tr.kind }), t('board.trace.' + tr.kind), h('span', { class: 'muted' }, ' · ' + (tr.measured ? t('detail.measured') : t('detail.unmeasured'))))) : [h('li', { class: 'muted' }, t('detail.no_links'))])));
+    const links = LL.connectionsSection ? LL.connectionsSection(d, id) : section(t('detail.links'), h('ul', { class: 'link-list' }, d.traces.length ? d.traces.map(tr => h('li', {},
+      h('span', { class: 'trace-sw trace-sw--' + tr.kind }), t('board.trace.' + tr.kind), h('span', { class: 'muted' }, ' · ' + (tr.measured ? t('detail.measured') : t('detail.unmeasured'))))) : [h('li', { class: 'muted' }, t('detail.no_links'))]));
+    sections.push(links);
+    if (d.device && LL.maintenanceSection) sections.push(LL.maintenanceSection(id));
     if (foot) sections.push(foot);
     panel.replaceChildren(h('div', { class: 'detail__head' }, LL.kindIcon(c.kind), h('div', { class: 'detail__titles' }, h('h2', {}, c.title || '—'), h('div', { class: 'muted mono' }, c.subtitle || t('kind.' + c.kind))), close),
       h('div', { class: 'detail__chips' }, h('span', { class: 'chip' }, t('kind.' + c.kind)), statusEl, gradeEl,
         d.device && LL.aiExplainButton ? LL.aiExplainButton('device', { id: d.device.id }, { title: c.title }) : null),
       h('div', { class: 'detail__body' }, sections));
+    if (LL.foldSections) LL.foldSections(panel.querySelector('.detail__body'));     // sections fold; the choice survives live updates and other cards
     function drawChart() {
       if (!d.series || !d.series.length) return;
       const pts = {};
@@ -316,6 +323,7 @@
     const unsub = liveSubscribe(f => {
       const g = (f.grades || {})[id];
       if (g) { gradeEl.dataset.grade = g; gradeEl.lastChild.textContent = t('board.grade.' + g); }
+      if (links.update) links.update(f);
     });
     const refresher = setInterval(async () => {
       if (panel.hidden) { clearInterval(refresher); return; }
@@ -597,7 +605,7 @@
     // a second interface has no card of its own on the map: its row opens the card of the device it belongs to
     const cardOf = id => { const d = data.devices.find(x => x.id === id); return d && d.merged_into ? d.merged_into.id : id; };
     const openRow = id => { LL.deepLink(here(id)); openDetail(panel, cardOf(id), () => LL.deepLink(here(null))); };
-    function render() {
+    let render = function () {
       const s = q.value.toLowerCase();
       const rows = data.devices.filter(d => keep(d) && (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' ')].join(' ').toLowerCase().includes(s)));
       list.replaceChildren(...rows.map(d => h('button', { class: 'device-row' + (d.hidden ? ' is-hidden' : ''), type: 'button', onclick: () => openRow(d.id) },
@@ -606,12 +614,35 @@
         h('span', { class: 'status-dot status-dot--' + d.status, title: t('board.status.' + d.status) }))));
       if (!rows.length) list.replaceChildren(h('div', { class: 'empty-note' }, t('devices.none')));
       count.textContent = t('devices.count', { n: rows.length, total: data.devices.length });
-    }
+    };
     const count = h('span', { class: 'muted' });
-    q.addEventListener('input', render); showHidden.addEventListener('change', render);
+    // catalogue switch: the list of devices or the stability of each over 35 days (js/history.js)
+    let mode = LL.stabilityPanel && LL.query.get('view') === 'stability' ? 'stability' : 'list';
+    let stab = null;
+    const modeSwitch = LL.stabilityPanel ? h('div', { class: 'seg dev-mode', role: 'group', 'aria-label': t('stab.switch') }) : null;
+    function drawMode() {
+      if (!modeSwitch) return;
+      modeSwitch.replaceChildren(...[['list', 'stab.mode.list'], ['stability', 'stab.mode.stability']].map(([k, label]) => h('button', {
+        type: 'button', class: 'seg__btn' + (k === mode ? ' is-active' : ''), 'aria-pressed': k === mode ? 'true' : 'false',
+        onclick: () => { mode = k; LL.deepLink('#/devices' + (k === 'stability' ? '?view=stability' : '')); drawMode(); render(); } }, t(label))));
+    }
+    const baseRender = render;
+    render = function () {
+      showHidden.closest('label').hidden = mode === 'stability';
+      if (mode === 'stability') {
+        if (!stab) stab = LL.stabilityPanel({ filter: () => q.value.toLowerCase().trim(), onOpen: id => openRow(id) });
+        else stab.redraw();
+        list.replaceChildren(stab);
+        count.textContent = '';
+        return;
+      }
+      baseRender();
+    };
+    q.addEventListener('input', () => render()); showHidden.addEventListener('change', () => render());
     fr.main.append(h('div', { class: 'page page--wide' }, h('div', { class: 'page__head inv-head' }, h('h1', {}, t('nav.devices')), count, LL.inventorySwitch ? LL.inventorySwitch('devices') : null),
-      h('div', { class: 'toolbar' }, q, h('label', { class: 'check' }, showHidden, h('span', {}, t('devices.show_hidden'))),
+      h('div', { class: 'toolbar' }, q, modeSwitch, h('label', { class: 'check' }, showHidden, h('span', {}, t('devices.show_hidden'))),
         show ? h('a', { class: 'mf-chip is-on dev-filter', href: '#/devices', title: t('devices.filter.clear') }, t('devices.filter.' + show), h('span', { 'aria-hidden': 'true' }, ' ✕')) : null), list), panel);
+    drawMode();
     render();
     // deep link #/devices/<id> (answers of "Ask your network", the start page and the live rail link here): open that device's card
     const want = rest && rest[0] ? decodeURIComponent(rest[0]) : '';

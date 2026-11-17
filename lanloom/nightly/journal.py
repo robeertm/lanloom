@@ -124,6 +124,7 @@ class Watch:
         presence_ready = bool(core.cadence.get("presence") and core.cadence["presence"].last) or bool(core.demo)
         settled = presence_ready and now - self.started >= START_GRACE_S
         ids = set()
+        looks = []                                     # (device id, answers) of this round, booked into the availability slots
         groups = core.identity_groups() if hasattr(core, "identity_groups") else {"members": {}}
         for dev in core.store.devices():
             did = dev["id"]
@@ -147,6 +148,8 @@ class Watch:
                 continue
             before = self.dev.get(did)
             kind = dev.get("user_kind") or dev["kind"]
+            if not dev["data"].get("is_self"):
+                looks.append((did, status == "up"))
             if status == "up":
                 if before in ("down", "gone"):
                     self.journal.add("dev_back", {"id": did, "title": title, "kind": kind}, now)
@@ -172,7 +175,19 @@ class Watch:
                 self.dev.pop(did, None)
                 self.down_since.pop(did, None)
         self.known &= ids
+        self._book_looks(looks, now)
         return n
+
+    def _book_looks(self, looks: list, now: float) -> None:
+        """Availability slots: one look per device and round. When none of three or more devices answers, Lanloom's own
+        network is the likelier fault than all of them at once: nothing is booked then (the slot stays unknown)."""
+        avail = getattr(self.core, "availability", None)
+        if avail is None or not looks:
+            return
+        if len(looks) >= 3 and not any(up for _, up in looks):
+            return
+        for did, up in looks:
+            avail.sample("dev:" + did, up, now)
 
     # ------------------------------------------------------------------ connections (integrations)
     def _sources(self, now: float) -> int:
@@ -182,6 +197,9 @@ class Watch:
             if key not in names:
                 continue
             ok, reason = bool(st.get("ok")), st.get("key") or ""
+            avail = getattr(self.core, "availability", None)
+            if avail is not None and now - self.started >= START_GRACE_S:      # a source still connecting is not "down"
+                avail.sample("src:" + key, ok, now)
             before = self.src.get(key)
             if before is None:
                 self.src[key] = [ok, reason]
