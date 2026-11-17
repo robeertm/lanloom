@@ -1,0 +1,70 @@
+name: Bug report
+description: Something does not work as described or as expected.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never post secrets: no passwords, tokens, API keys, setup codes, passkeys, recovery codes. Do not post private addresses, host names or device names you do not want public.
+
+        For a security problem do not open an issue; see SECURITY.md and use a private security advisory instead.
+  - type: input
+    id: version
+    attributes:
+      label: Lanloom version
+      description: Shown under Settings > General > Updates, for example 1.29.1.
+      placeholder: "1.29.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is Lanloom installed?
+      options:
+        - One-line installer (compose)
+        - Compose file written by hand
+        - Plain container run
+        - NAS container manager
+        - Desktop container runtime
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host and architecture
+      description: For example "single-board computer, arm64" or "small server, amd64". No host names please.
+    validations:
+      required: false
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens?
+      description: What you see, in a few sentences. A screenshot helps; please hide addresses and names you do not want to share.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostic export or logs
+      description: |
+        Attach the diagnostic export as a file (drag it into this box): Settings > General > Diagnostic export. The export is redacted (no addresses, no names), but please look at the file before you attach it. If you paste log lines instead, remove everything you do not want public.
+    validations:
+      required: false

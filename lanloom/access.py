@@ -84,6 +84,7 @@ RULES = {
     ("PUT", "/api/security"): R(A, "security.policy", stepup=True),
     ("GET", "/api/audit"): R(A),
     ("GET", "/api/audit/export"): R(A),
+    ("POST", "/api/diagnostics"): R(A, "diagnostics.export"),
 
     # ---------------------------------------------------------------- backup and restore (admin; set-up page: set-up code)
     ("GET", "/api/backup"): R(A),

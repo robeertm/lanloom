@@ -12,8 +12,10 @@
   const DOCK_FROM = 1280;              // px: from here the rails sit beside the page instead of over it
   const ABOUT_OPEN_FROM = 1900;        // px: "About this view" is open by default from here (until the user chooses)
   const NOW_EVERY_MS = 5000;           // refresh of the "Right now" rail while it is shown
-  const MANUAL = 'https://github.com/robeertm/lanloom/blob/main/docs/manual/views.md';
-  const ABOUT_VIEWS = ['overview', 'map', 'network', 'paths', 'devices', 'firewall', 'reports', 'settings'];
+  const MANUAL = 'https://github.com/robeertm/lanloom/blob/main/docs/manual/';
+  // one manual page per view (docs/manual/<name>.md); a view without an entry here has the page of its own name (a test checks every page)
+  const MANUAL_PAGE = { paths: 'data-paths', reports: 'nightly-reports' };
+  const ABOUT_VIEWS = ['overview', 'map', 'network', 'paths', 'devices', 'firewall', 'reports', 'automations', 'settings'];
 
   // ------------------------------------------------------------------ remembered open states (survive live redraws)
   const openState = new Map();
@@ -113,7 +115,7 @@
     rails.about.replaceChildren(railHead('about', t('rail.about.title')),
       h('div', { class: 'rail__body about' }, h('h3', { class: 'about__title' }, t('about.' + v + '.title')), paras, tips,
         h('p', { class: 'about__keys muted' }, t('rail.keys')),
-        h('a', { class: 'btn btn--ghost btn--sm about__more', href: MANUAL + '#' + v, target: '_blank', rel: 'noopener noreferrer' }, t('rail.about.manual'))));
+        h('a', { class: 'btn btn--ghost btn--sm about__more', href: MANUAL + (MANUAL_PAGE[v] || v) + '.md', target: '_blank', rel: 'noopener noreferrer' }, t('rail.about.manual'))));
   }
 
   // ------------------------------------------------------------------ "Right now"

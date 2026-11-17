@@ -1,0 +1,204 @@
+# Troubleshooting
+
+Start here when something does not work. The page is ordered the way problems usually show up: first how to read what Lanloom tells you, then one section per source or adapter, then scanning, sign-in and the host.
+
+- [Read the status of a source](#read-the-status-of-a-source)
+- [The diagnostic export](#the-diagnostic-export)
+- [This host](#this-host) · [SNMP](#snmp) · [MQTT broker](#mqtt-broker) · [Switch controller](#switch-controller) · [Home-automation hub](#home-automation-hub)
+- [Device-family adapters](#device-family-adapters) · [AI services](#ai-services)
+- [Data paths and NetFlow](#data-paths-and-netflow)
+- [Scanning and devices](#scanning-and-devices)
+- [Sign-in and access](#sign-in-and-access)
+- [Install, update and backup](#install-update-and-backup)
+- [Still stuck?](#still-stuck)
+
+## Read the status of a source
+
+Every connection (Settings > General > Connections, and the *Sources* card on the [overview](manual/overview.md)) shows a calm state and, when it fails, a reason.
+
+| State | What it means | What to do |
+|---|---|---|
+| Fresh | data arrives in its usual rhythm | nothing |
+| Source waiting | just started, nothing has arrived yet | wait a minute; a hub takes up to ten minutes for its first full inventory |
+| No data yet | connected for a while, but nothing reported | the connection works but the device sends nothing Lanloom reads; check the account's rights |
+| Stale | data stopped coming | the device is off, rebooted, or the network path changed; Lanloom reconnects on its own with a growing pause of up to one minute |
+| Connection fails | the connection does not work; the reason is shown | find the reason in the section of the source below |
+| Off | switched off in the settings | switch it on again |
+
+The reasons share one vocabulary across the sources:
+
+| Reason | Usual cause | Fix |
+|---|---|---|
+| Settings incomplete or invalid | an address, port or field is empty or malformed | open the connection and fill every required field; the *Test* button names what is missing |
+| Not reachable | wrong address or port, device off, a firewall between Lanloom and the device | test from the Lanloom host, not from your own computer; with host networking the container uses the host's routes |
+| Connection refused | the address answers but nothing listens on that port | check the port and that the service is switched on |
+| No answer (timeout) | packets are dropped silently, or the device is very busy | check firewall rules between the networks; for SNMP also the allowed addresses of the agent |
+| Credentials were rejected / Account was rejected / token or key rejected | wrong secret, expired token, the account is not a local account | create a new token or account; secrets are never shown again, so enter them anew |
+| Access denied | the account is valid but lacks the rights to read | give it the view-only role of the device; never an administrator role |
+| TLS / certificate problem | the device uses its own certificate | tick *Accept a self-signed certificate* for that connection, or use a certificate your system trusts |
+| Unexpected answer | the address belongs to another kind of service, or the firmware answers in a form Lanloom does not know | check that the family and port fit the device; open an [adapter request or test report](../.github/ISSUE_TEMPLATE/adapter_request.yml) with the firmware version |
+| Connection closed | the device ended the session (restart, idle limit, too many sessions) | usually heals by itself; if it repeats, look at the session limits of the device |
+
+## The diagnostic export
+
+*Settings > General > Diagnostic export* (administrators) downloads one JSON file, `lanloom-diagnostics.json`, that you can attach to an issue.
+
+**What is in it:** Lanloom's version, the kind of installation (Python version, system, processor type, container yes or no), the switches of the configuration as on or off, counts (devices per kind and per state, accounts per role, reports), each source's family, state, reason key and a coarse age of its last sign of life, the last scans in numbers, the counters of events of the last day, and the state of the backup and of the update check.
+
+**What is not in it:** hardware and IP addresses, host, device, user, network, source and site names, controller or hub addresses, credentials, tokens, keys, notes, report texts. Sources are numbered ("snmp-1"), not named.
+
+**How it is kept clean:** the export only collects numbers, switches and fixed vocabulary. A second pass then replaces anything that still looks like a hardware address, an IP address, a mail address or a web address, and drops every text that is not a single plain word (letters, digits and a few signs); the number of such replacements is part of the file (`redaction.replaced`, normally `0`). The download is written to the audit log. Please still open the file before you share it.
+
+![Diagnostic export card](screenshots/diagnostics-light.png)
+
+An example of the shape:
+
+```json
+{
+  "format": "lanloom-diagnostics/1",
+  "version": "1.30.0",
+  "runtime": { "python": "3.12.4", "machine": "aarch64", "in_container": true },
+  "devices": { "total": 42, "per_kind": { "ap": 3, "router": 1, "unknown": 5 } },
+  "sources": [
+    { "source": "host", "state": "fresh", "reason": "", "last_sign_of_life": "under_1_min" },
+    { "source": "snmp-1", "family": "snmp", "state": "failed", "reason": "source.snmp.timeout", "last_sign_of_life": "never" }
+  ],
+  "redaction": { "replaced": 0 }
+}
+```
+
+## This host
+
+The built-in source that measures the TCP flows and interface counters of the host the container runs on. It needs no account.
+
+| Symptom | Cause and fix |
+|---|---|
+| *Running without byte counters* | the kernel's socket diagnostics are not available to the container; flows show without bytes. Use host networking, see [INSTALL.md](INSTALL.md#platforms) |
+| *Not available on this system* | no netlink socket diagnostics (for example a desktop container runtime). Run on a server with host networking; the rest of Lanloom still works |
+| Nothing moves in the map although traffic exists | only measured bytes are animated; with a bridge network the container sees none of the host's traffic. Use host networking |
+
+## SNMP
+
+Reads the system group and the interface counters of a router or switch every ten seconds. Read-only: only Get, GetNext and GetBulk requests exist in the code.
+
+| Reason | Cause and fix |
+|---|---|
+| No answer (timeout) | the agent is switched off, or it only answers listed addresses: allow the address of the Lanloom host; check that UDP port 161 passes the firewall |
+| Credentials were rejected | wrong community (v2c), or for v3 a wrong user, authentication or privacy passphrase, or a security level the user does not have. Lanloom supports MD5, SHA and SHA-256 authentication and AES-128 privacy; **DES is not supported**, change the user on the device |
+| Unexpected answer | the address is not an SNMP agent, or the version does not match |
+| The internet line shows no rates | Lanloom takes the router's counters from the SNMP connection of the gateway; connect the router itself, not only a switch behind it |
+| Nothing at all, although the agent answers | Lanloom does not try the default community `public` during a scan unless you tick the option in the scan dialog; enter your community in the connection |
+
+## MQTT broker
+
+Counts messages and bytes per topic group; payloads are read off the socket and discarded, and nothing can be published (no PUBLISH packet can be built).
+
+| Reason | Cause and fix |
+|---|---|
+| Not reachable / Connection refused | address or port wrong (1883 plain, 8883 TLS by convention); the broker listens only on localhost |
+| Credentials were rejected | user name or password wrong; give the account read access only |
+| Access denied | the broker's access list does not let this account subscribe to everything; allow subscribing to `#` (the root of all topics) for the account, or Lanloom sees nothing |
+| TLS / certificate problem | tick *Accept a self-signed certificate*, or fix the broker's certificate chain |
+| Connected but no topics | the account may subscribe but nothing is published right now, or retained messages only: those are counted apart from new traffic |
+
+## Switch controller
+
+Reads which client sits on which switch port or access point through a local JSON API with a view-only account. See [TOPOLOGY.md](TOPOLOGY.md).
+
+| Symptom | Cause and fix |
+|---|---|
+| Credentials were rejected | the account is not a local one, or it lacks view rights. Leave *Login style* on *Automatic*: Lanloom tries the console login first and the classic one when that is refused |
+| Access denied | the role cannot read the network application; use a view-only role of that application |
+| Nothing changes after adding it | the first lists arrive within a minute |
+| Devices the controller reports are missing | only devices that are also in the device list are placed; run a scan |
+| A device is in the wrong place | open its card: *Source* says who placed it there; a manual entry overrides every source |
+
+## Home-automation hub
+
+The bridge to a hub's WebSocket API; strictly read only. See [HUB-BRIDGE.md](HUB-BRIDGE.md).
+
+| Symptom | Cause and fix |
+|---|---|
+| Credentials were rejected | the long-lived access token is wrong or deleted; create a new one |
+| Access denied | the token lacks the rights for what you switched on. *Admin mode* needs a token of an administrator on the hub |
+| TLS / certificate problem | `https://` with the hub's own certificate: tick *Accept a self-signed certificate* |
+| Spared: too many requests | the bridge keeps its own budgets so it never loads the hub; it resumes by itself |
+| A lookup is paused | the hub answered an item with an error; it is retried after 24 hours, doubling up to a week. A changed configuration lifts the pause |
+| The hub does not support a request | an older hub version; the bridge does not send that request again in this session |
+| People, cameras, calendars are missing | they are dropped before anything is stored, unless you switch the group on; see the privacy section of [HUB-BRIDGE.md](HUB-BRIDGE.md#privacy) |
+
+## Device-family adapters
+
+The adapters of device families (controller, hypervisor, firewall; the list is in [COMPATIBILITY.md](COMPATIBILITY.md)) share one set of reasons. The guide of each family, linked from the compatibility page, has its own table with the exact menu names of that product.
+
+| Reason | Cause and fix |
+|---|---|
+| API key was rejected / API token was rejected | the key or token is wrong, deleted or expired; create a new one and enter it anew (secrets are never shown again) |
+| Account was rejected | user name or password wrong, or the account is not a local one |
+| Sign-in paused for a while after repeated attempts | Lanloom stops trying for about 15 minutes after repeated refusals so it cannot lock the account; check the secret first, then wait |
+| This account can change settings | Lanloom refuses an account that is able to write where it can check it; use a view-only role or a token with only read rights |
+| Access denied for this account | the role lacks the right to read; set every area to read-only, not to none |
+| The firewall does not accept API requests from this address | add the address of the Lanloom host to the API's allowed addresses on the device |
+| The API is switched off | switch the API on in the device's own settings |
+| Not reachable | check address and port; the Lanloom host must be allowed to reach the management interface (a firewall zone may only allow it from some networks) |
+| TLS / certificate problem | tick *Accept a self-signed certificate*, or bind the connection to the device's certificate fingerprint where the family offers it |
+| Devices are missing on the map | only devices that are also in Lanloom's device list are placed; run a scan and include the device's network |
+| Rules show a zone "?" | the account may not read zones; rules still show, zone names are missing |
+| A change through the executor is refused | by design: guests that keep the network running, wired clients (their network follows the switch port) and accounts that cannot write are refused; see the *Firewall* manual page |
+
+## AI services
+
+The keys of the messages (`lan_unreachable`, `auth`, `daily_limit`, `privacy`, ...) and what to do are listed in [integrations/ai.md](integrations/ai.md#troubleshooting).
+
+## Data paths and NetFlow
+
+See [DATA-PATHS.md](DATA-PATHS.md#setting-up-netflow--ipfix).
+
+| Symptom | Cause and fix |
+|---|---|
+| Only the host's own connections show | NetFlow is off by default; set it up under *Settings > NetFlow / IPFIX from your router* |
+| The receiver cannot be switched on | it needs at least one allowed exporter address; packets from any other address are dropped and counted |
+| No flows arrive | the router must export to the Lanloom host's address and the port (UDP 2055 by default); allow the port in a host firewall; with a bridge network publish `2055:2055/udp` |
+| Every device looks like the router | the router exports after address translation; export from the LAN side, before translation |
+| Long downloads appear late and in one piece | set the router's active timeout to about 60 seconds |
+| "Records wait for a template" | NetFlow v9 and IPFIX send the record description every few minutes; until it arrives, records cannot be read |
+
+## Scanning and devices
+
+| Symptom | Cause and fix |
+|---|---|
+| The scan finds nothing, or only the host | a desktop container runtime runs in bridge mode and cannot see the local network: there is no neighbour table, no mDNS, no SSDP. Run on a server with host networking ([INSTALL.md](INSTALL.md#platforms)). In bridge mode only TCP probes of a range you type in work |
+| A range is "never scanned" | public, carrier-grade NAT, larger than a /22, loopback and multicast ranges are refused, with the reason in *Settings > Network*. A network behind a router is only scanned after an administrator allows it |
+| Devices from another VLAN are missing | Lanloom only scans networks it can reach and that an administrator allowed; list them under *Settings > Network* |
+| Many devices are "unknown" | classification uses what a device reveals; open the card to see the reasons, then name or re-type the device yourself |
+| Phones appear with a different address every day | the device uses a private (random) hardware address; the overview calls it so under *New devices* |
+| A device appears twice | it has two interfaces; join them on the card (*One device, several interfaces* in [DISCOVERY.md](DISCOVERY.md#one-device-several-interfaces)) |
+| IPv6 devices are missing | scanning is IPv4 only; IPv6 neighbours are learned only where a source tells |
+| The scan seems slow | probing is rate-limited on purpose (about 40 new connections per second, 4 per host); a /24 takes 10 to 60 seconds |
+
+## Sign-in and access
+
+| Symptom | Cause and fix |
+|---|---|
+| "The request came from another site and was blocked" behind a reverse proxy | set `LANLOOM_TRUSTED_ORIGINS` to the public origin and `LANLOOM_TRUSTED_PROXIES` to the proxy's address ([INSTALL.md](INSTALL.md#behind-a-reverse-proxy)) |
+| Everybody is locked out after one person's wrong passwords | without `LANLOOM_TRUSTED_PROXIES` all sign-ins through a proxy share the proxy's address |
+| Passkeys cannot be added | passkeys need HTTPS (or `localhost`) and the same host name the browser uses |
+| Forgot the password | ask an admin for a reset link (*Settings > Users*); see [INSTALL.md](INSTALL.md#forgot-password) |
+| Lost the phone with the authenticator | use one of the ten recovery codes, then set the app up again ([ACCESS.md](ACCESS.md)) |
+| A page or button is missing | the role decides what is shown; the *About this view* rail and [ACCESS.md](ACCESS.md) list what each role may do |
+
+## Install, update and backup
+
+| Symptom | Cause and fix |
+|---|---|
+| Permission error when starting | run with `sudo` or add your user to the container runtime's group |
+| Data folder not writable (bind mount) | the folder must be writable by uid 10001; or keep the named volume |
+| Compose starts an older version after an update | an updater sidecar from before 1.17 left `:latest` on an older image; renew it once with `docker compose pull && docker compose --profile updater up -d` |
+| The Update button is missing | the updater sidecar is not running (`docker compose --profile updater up -d`) or the update check is switched off in the settings |
+| A backup cannot be restored: "made by a newer version" | update Lanloom to that version or newer first, then restore ([BACKUP.md](BACKUP.md#restore)) |
+| The nightly report did not come | Lanloom was off at the report time; it is made at the next start and says so ([NIGHTLY-REPORT.md](NIGHTLY-REPORT.md)) |
+| Everything is slow on a small host | see [PERFORMANCE.md](PERFORMANCE.md); lower the retention under *Settings > Storage* |
+
+## Still stuck?
+
+Open an issue with the matching form (bug, wish, adapter request or test report) and attach the diagnostic file. **Never post secrets**: no passwords, tokens, API keys, setup codes, passkeys or recovery codes. See [CONTRIBUTING.md](../CONTRIBUTING.md) and, for security problems, [SECURITY.md](../SECURITY.md).

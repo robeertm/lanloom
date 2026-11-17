@@ -1,0 +1,56 @@
+name: Test report
+description: Tell us what you tried with Lanloom and how it went, even when everything worked.
+title: "[Test] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never post secrets: no passwords, tokens, API keys, setup codes, passkeys, recovery codes. Do not post private addresses, host names or device names you do not want public.
+
+        A test report is welcome whether it worked or not: it shows which device families and firmware versions have been tried.
+  - type: input
+    id: version
+    attributes:
+      label: Lanloom version
+      description: Shown under Settings > General > Updates.
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host and architecture
+      description: For example "small server, amd64" or "single-board computer, arm64". No host names please.
+    validations:
+      required: true
+  - type: input
+    id: family
+    attributes:
+      label: Device family and firmware
+      description: The product line and its firmware or software version, if a device family was involved.
+    validations:
+      required: false
+  - type: textarea
+    id: checked
+    attributes:
+      label: What did you check?
+      description: For example the scan, a connection, the map, the firewall editor in simulation, a backup and restore.
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Everything worked
+        - Worked with small problems
+        - Partly worked
+        - Did not work
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything that stood out
+      description: Surprises, slow spots, texts that were unclear. If you attach a diagnostic export (Settings > General > Diagnostic export), it is redacted, but please look at it first.
+    validations:
+      required: false

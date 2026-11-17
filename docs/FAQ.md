@@ -1,5 +1,7 @@
 # FAQ
 
+Short answers. Something does not work? See [TROUBLESHOOTING.md](TROUBLESHOOTING.md). How a view works? See the [manual](manual/README.md). Which devices are supported? See [COMPATIBILITY.md](COMPATIBILITY.md).
+
 ### Why does Lanloom use host networking?
 To see your local network it needs the host's neighbour table, multicast announcements (mDNS, SSDP) and the host's own TCP byte counters. A container on a private bridge network sees none of that. Host networking opens no extra privileges: the container is unprivileged, read-only and has no capabilities. On desktop container runtimes host networking is limited, see [INSTALL.md](INSTALL.md).
 
@@ -77,6 +79,33 @@ A computer that is always on, with at least 4 GB of memory for a small model and
 
 ### Can the AI change my settings?
 No. It only reads and explains. Its firewall suggestions reach the draft only when you take them over, and then the firewall editor shows a preview, asks for your confirmation and, for real changes, a passkey signature. A suggested device kind counts only after you confirm it, and then only as a weak clue.
+
+### A connection shows "Stale" or "Connection fails". What now?
+*Stale* means data stopped coming; Lanloom reconnects on its own with a growing pause of up to one minute, so a device that rebooted heals by itself. *Connection fails* names a reason; the table in [TROUBLESHOOTING.md](TROUBLESHOOTING.md#read-the-status-of-a-source) lists every reason with its usual cause and fix, and each source and adapter has its own section there.
+
+### How do I report a problem?
+Open an issue with the matching form (bug, wish, adapter request or test report) and attach the diagnostic file from *Settings > General > Diagnostic export*. It holds counts, states and reason keys, no addresses, names or credentials; open it and look before you share it. Never post passwords, tokens, API keys or recovery codes. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#the-diagnostic-export).
+
+### The scan finds nothing. Why?
+Almost always because the container cannot see your network: a desktop container runtime runs without host networking, so there is no neighbour table and no mDNS or SSDP. Run Lanloom on a server (a small single-board computer or a NAS is fine) and keep host networking, or type your range in by hand and accept that only TCP probes work. More in [TROUBLESHOOTING.md](TROUBLESHOOTING.md#scanning-and-devices).
+
+### Why is a device missing or in the wrong network?
+Lanloom only scans networks it can reach and that an administrator allowed, never public ranges and never anything larger than a /22. Devices behind a router appear after you allow that network under *Settings > Network*. A device in the wrong place can be corrected on its card with a manual entry, which overrides every source.
+
+### Which devices and firmware versions are supported?
+The generic sources (this host, SNMP, MQTT, a hub's WebSocket API, a switch controller) work with any device that speaks the protocol. Device families with their own adapter and the versions they were checked against are in the matrix of [COMPATIBILITY.md](COMPATIBILITY.md). A family that is not listed can be requested with the adapter request form.
+
+### Does a read-only account really protect my devices?
+Lanloom refuses accounts that can change settings where it can check it (device-family adapters) and has no code path that writes in the generic sources. Still use the least rights the device offers and prefer tokens to passwords, see [SECURITY-MODEL.md](SECURITY-MODEL.md).
+
+### Can I run it behind a reverse proxy or below a sub-path?
+Yes. Set `LANLOOM_TRUSTED_ORIGINS` and `LANLOOM_TRUSTED_PROXIES`, and `LANLOOM_BASE_PATH` for a sub-path, as described in [INSTALL.md](INSTALL.md#behind-a-reverse-proxy). The message "The request came from another site and was blocked" means the proxy's public address is not in `LANLOOM_TRUSTED_ORIGINS`.
+
+### How do I remove a device that is gone?
+Forget it on its card (operators), or see the *Probably gone* rows of the [inventory](manual/inventory.md), which can be decommissioned. Devices without a sign of life for a while are marked automatically.
+
+### Where is the manual?
+In [docs/manual/](manual/README.md): one page per view with its purpose, what you see, how to use it, its limits and what it does with your data. The *About this view* rail (key `I`) links to the page of the open view.
 
 ## How does Lanloom know which device is on which switch port?
 

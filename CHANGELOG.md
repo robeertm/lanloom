@@ -31,6 +31,17 @@ All notable changes to this project are documented here. The format follows [Kee
 - More hub states read in plain words (paused, standby, heating, cooling, above/below the horizon, opening, closing, jammed, detected, clear).
 - Performance budget: `automations_ms` (list, who switches what, timeline and day plan with as many automations as devices and 20,000 state changes).
 
+## [1.31.0] – 2026-11-17
+
+### Added
+- **Manual with one page per view** under `docs/manual/` (overview, map, network, data paths, devices, inventory, firewall, nightly reports, automations, settings, AI), every page built the same way: purpose, what you see, how to use it, limits, privacy, see also. `docs/manual/README.md` is the index; `views.md` keeps the rails, keys, live state and deep links. The *About this view* rail now links to the page of the open view instead of one long page. The Automations tab now has its *About this view* text (English and German) as well.
+- **Troubleshooting** (`docs/TROUBLESHOOTING.md`): how to read the state of a source, a table of every reason with its usual cause and fix, one section for each source (this host, SNMP, MQTT, switch controller, home-automation hub), a shared table for the device-family adapters (each guide keeps its own product table), AI services, data paths and NetFlow, scanning and devices, sign-in, install, update and backup.
+- **Diagnostic export** (*Settings > General*, administrators): one JSON file with the version, the kind of installation, counts, the state and reason key of every connection and the last scans, for attaching to an issue. It holds no addresses, names, credentials or notes (connections are numbered, not named); a second pass replaces anything that still looks like a hardware address, IP address, mail address or web address, and the number of replacements is in the file. Each download is written to the audit log. Route `POST /api/diagnostics` (admin).
+- **Compatibility matrix** in `docs/COMPATIBILITY.md`: family by stage (read, write) by checked firmware, with how each version was checked and the "no affiliation or endorsement" line.
+- **Issue forms** (`.github/ISSUE_TEMPLATE/`): bug, wish, adapter request (which data, which firmware) and test report; each starts with the notice never to post secrets; blank issues are off and no foreign channel is linked.
+- FAQ: answers for stale or failing connections, reporting a problem, an empty scan, missing devices, supported firmware, read-only accounts, reverse proxies and removing devices.
+- Tests: a link checker over every Markdown file (relative links, images, anchors), checks that every view has its manual page and that the rail points to it, that every adapter family has its matrix row and troubleshooting section, and that the issue forms are complete; tests of the diagnostic export against every value of the demo inventory.
+
 ## [1.29.1] – 2026-11-17
 
 ### Fixed

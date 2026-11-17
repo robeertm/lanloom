@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 
 @dataclass
@@ -42,6 +43,14 @@ def register(app: FastAPI, c: Ctx) -> None:
             return c.err(str(exc), 409)
         c.note(request, detail={"removed": result["removed"], "freed": result["freed"], "vacuum": result["vacuum"]})
         return result
+
+    @app.post("/api/diagnostics")
+    async def diagnostics(request: Request):
+        """The redacted diagnostic file (lanloom/diagnostics.py); the download is written to the audit log."""
+        from . import diagnostics as diag
+        doc = await asyncio.to_thread(diag.build, st)
+        c.note(request, detail={"replaced": doc["redaction"]["replaced"]})
+        return JSONResponse(doc, headers={"Cache-Control": "no-store"})
 
     @app.get("/api/selfcheck/counters")
     async def counter_check():

@@ -1,6 +1,24 @@
 # Compatibility
 
-Which device families Lanloom can read from and which changes it can make through the optional executor service. Every family is built in; there is no way to load an adapter from elsewhere. Requests for a family are welcome as issues, see [CONTRIBUTING.md](../CONTRIBUTING.md).
+Which device families Lanloom can read from and which changes it can make through the optional executor service. Every family is built in; there is no way to load an adapter from elsewhere. Requests for a family are welcome as issues, see [CONTRIBUTING.md](../CONTRIBUTING.md); problems with an existing one are covered in [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
+## At a glance
+
+Family by stage by checked firmware. **Read** is stage A (Lanloom only reads); **Write** is stage B or B* through the optional executor (see *Stages* below); "none" means no write path exists for that family. The last column says how the versions were checked; it is not a promise for versions that are not listed.
+
+| Family | Read | Write | Checked firmware and versions | How it was checked |
+|---|---|---|---|---|
+| This host | yes | none | Linux kernels with socket diagnostics | automatic tests; a desktop container runtime lacks the interface and reports it |
+| SNMP v2c / v3 | yes | none (Get, GetNext, GetBulk only) | protocol level: v2c, v3 with MD5, SHA, SHA-256 and AES-128; not tied to a firmware | automatic protocol tests with stand-ins |
+| MQTT 3.1.1 broker | yes | none (cannot publish) | brokers speaking MQTT 3.1.1 | protocol tests with a stand-in broker |
+| Switch controller (local JSON API) | yes | none | console and classic API layouts | automatic adapter tests with stand-ins |
+| Home-automation hub (WebSocket API) | yes | none (cannot call services) | releases with the documented WebSocket API | protocol tests with a stand-in hub |
+| Sample network (built in) | yes | yes, B | – | simulation, tests |
+| UniFi Network | yes | yes, B (wireless clients: network, fixed address, name) | classic API: Network 11.0; integration API: 9.3, 10.0, 10.1; write: self-hosted 10.0.162 | 11.0 on a live console (read); published specifications; adapter tests; self-hosted application (write) |
+| Proxmox VE | yes | yes, B and B* (guests only, executor only) | 9.2 and 7.3 (schema); 8.2 (adapter tests) | published API schema, adapter tests, stateful stand-in; no real host yet for writing |
+| Sophos Firewall | yes | none yet | SFOS 19.0, 20.0, 21.0, 21.5, 22.0 | published API reference of each release; the free home edition reads the same |
+
+Reading a new firmware version usually works without a change, because Lanloom reads documented fields and ignores what it does not know. If a family stops working after a firmware update, open a [test report or an adapter request](../.github/ISSUE_TEMPLATE) with the version and the diagnostic file ([TROUBLESHOOTING.md](TROUBLESHOOTING.md#the-diagnostic-export)). Writing is only ever offered for versions listed here.
 
 ## Generic sources (every vendor)
 

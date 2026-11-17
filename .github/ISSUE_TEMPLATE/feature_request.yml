@@ -1,0 +1,39 @@
+name: Feature request
+description: An idea that would make Lanloom more useful to you.
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never post secrets: no passwords, tokens, API keys, setup codes, passkeys, recovery codes. Do not post private addresses, host names or device names you do not want public.
+
+        Every issue is read. Ideas that fit the project are planned and built by the maintainer; pull requests are read but not merged (see CONTRIBUTING.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem do you want to solve?
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like Lanloom to do?
+      description: Describe the result you want to see, not necessarily how it is built.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Other ways you solve it today, or other ways it could work.
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Lanloom version
+      description: Optional. Shown under Settings > General > Updates.
+    validations:
+      required: false

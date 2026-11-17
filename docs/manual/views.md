@@ -1,184 +1,14 @@
-# The views of Lanloom
+# Around the views
 
-This page explains every view of the app and the parts around it: the *Right now* rail, the *About this view* rail, the
-live state in the header and the deep links. The *About this view* rail (key `I`) shows a short version of each section
-and links here.
+This page explains the parts of the app that surround the views: the *Right now* rail, the *About this view* rail, the
+live state in the header, the deep links and the keys. Each view has its own page, listed in the
+[manual](README.md):
 
-- [Overview](#overview)
-- [Map](#map)
-- [Network](#network)
-- [Data paths](#paths)
-- [Devices](#devices) · [Inventory](#inventory)
-- [Firewall](#firewall)
-- [Nightly report](#reports)
-- [Settings](#settings)
-- [Right now](#right-now) · [About this view](#about-this-view) · [Live state and live grade](#live-state) · [Deep links and the back key](#deep-links) · [Keys](#keys)
+[Overview](overview.md) · [Map](map.md) · [Network](network.md) · [Devices](devices.md) · [Inventory](inventory.md) ·
+[Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Settings](settings.md) ·
+[AI](ai.md)
 
-<a id="overview"></a>
-## Overview
-
-The start page. It answers one question in three seconds: how is the network doing?
-
-![Overview, light theme](../screenshots/overview-light.png)
-
-- **Health banner.** "All good", "One thing to look at", "N things need a look" or "Something is down", with one line
-  of counts (devices online, sources fresh, internet). The level is the most serious entry of the *Noteworthy* list.
-- **Last 24 hours.** One strip with a five-minute step: green is calm, blue a hint, amber a warning, red a fault. Hover
-  a coloured part to see when it began. Lanloom keeps this look back in memory; after a restart it fills up again over
-  the day.
-- **Key figures.** Devices on the map, devices online (offline ones are linked), new since yesterday, fresh sources,
-  the internet line (state, measured rates or the last outage) and the data paths of the day (bytes and the top
-  countries). Each figure is a link: devices, the device list filtered to new or offline devices, the live grade dialog,
-  the internet component on the map, the data paths view.
-- **Cards.** *Noteworthy* (one line and one sub line per issue, each linked to where it can be looked at),
-  *Nightly report* (the latest report, open points, unread reports), *New devices* (with "first seen" and the origin of
-  the address: registered maker, private or random address, unregistered address, only an IP address), *Not yet certain*
-  (devices whose type Lanloom guesses), *Sources* (every connection with its calm state, its last sign of life and its
-  usual rhythm).
-
-### Calm states of a source
-
-A source never shows an error text just because it has nothing yet:
-
-| State | Meaning |
-|---|---|
-| Fresh | data arrives in its usual rhythm |
-| Source waiting | just started, nothing has arrived yet |
-| No data yet | connected for a while, but it has not reported anything |
-| Stale | data stopped coming (older than its rhythm allows) |
-| Connection fails | the connection does not work; the reason is shown |
-| Off | switched off in the settings |
-
-### What counts as noteworthy
-
-- the internet line is down (router counters);
-- a router, switch, access point, server, storage, hub or broker that used to answer does not answer any more;
-- a connection fails, or stopped delivering;
-- devices that joined since yesterday and that Lanloom cannot place (type unclear, private or random address, no
-  registered maker);
-- the latest nightly report has open points and is unread.
-
-Features add their own entries (for example open incidents) through `lanloom.overview.register_note`; the start page
-adds figures and cards through `Lanloom.registerOverviewTile` and `Lanloom.registerOverviewCard`.
-
-The page redraws itself every ten seconds. Whatever you folded or unfolded – a card, "Show more" – stays as you left it.
-
-<a id="map"></a>
-## Map
-
-Your network drawn like a circuit board: every device is a component, every connection a trace. Moving dots are measured
-bytes; nothing is animated that was not measured. The chips above the board filter by **area** (one zone of the board;
-the internet edge stays for orientation) or show **problems only** (components that are down or whose data stopped).
-Click a component to open its card.
-
-![Map filtered to one area](../screenshots/map-filter-light.png)
-
-<a id="network"></a>
-## Network
-
-The same devices, ordered by how they are physically connected: which switch port or access point each one hangs on,
-from the controller, LLDP, address tables or your own entry. The area chips work here as well. See
-[TOPOLOGY.md](../TOPOLOGY.md).
-
-<a id="paths"></a>
-## Data paths
-
-Where your data went: countries and devices over 24 hours, 7 or 30 days. See [DATA-PATHS.md](../DATA-PATHS.md).
-
-<a id="automations"></a>
-## Automations
-
-With a hub connected: every automation and script of the hub in plain words (When → Only if → Then, written by fixed
-rules, without AI), its flow with the live state of every entity, findings from Lanloom's own rules (missing or
-unavailable entities, runaways, conflicts, self-starts, dropped starts, long silence) and its last runs; the dependency
-board of any entity (sources left, consumers right, a dot travels when an automation runs); *Who switches what* with
-conflicts; the timeline of the last 24 hours (people only as "a person"); the day plan with a now line; devices per room;
-the hub's health. Read only. See [AUTOMATIONS.md](../AUTOMATIONS.md).
-
-<a id="devices"></a>
-## Devices
-
-Every device with type, certainty, maker, model and services; search by name, address, maker or service. From the start
-page the list can open filtered (`#/devices?show=new`, `?show=unsure`, `?show=offline`); the chip above the list removes
-the filter. See [DISCOVERY.md](../DISCOVERY.md).
-
-The **Devices | Inventory** switch at the top opens the [inventory](#inventory) of the same devices.
-
-The **List | Stability** switch under the search box shows how steady each device and connection was instead of what it
-is: five key figures (checked, without a gap, gaps in 7 days, typical repair time, wobbly), the wobbly candidates, and one
-row each with 35 daily bars, availability over 24 hours and 7 days, gaps and repair time, the worst first
-(`#/devices?view=stability`). A click opens the card of the device with its availability, traffic plot (1 h, 6 h, 24 h,
-7 days, full screen), connections with live rates and *Simulate maintenance*; its sections fold and keep their state.
-See [AVAILABILITY.md](../AVAILABILITY.md).
-
-<a id="inventory"></a>
-### Inventory
-
-Purpose, room, owner, purchase and warranty, firmware and the end of its updates for every device, and what became of
-it: active, missing, probably gone, decommissioned (`#/inventory`, filters such as `#/inventory?state=missing`).
-
-![Inventory, light theme](../screenshots/inventory-light.png)
-
-- **Quick filters** (with counts) and a search over every field; sort by clicking a column header.
-- **Click a row** to edit it (operators); *Select* edits many devices at once (own fields only).
-- **Probably gone** rows give the reasons and offer *Decommission* and *Still here*; unconfirmed automatic entries
-  are marked *Automatic* and disappear after seven days without a sign of life unless confirmed.
-- **Chips** show the warranty and the end of updates (from an offline table, advisory) in calm colours.
-- On a phone the table becomes cards. Everything, with the rules and the settings, is in [INVENTORY.md](../INVENTORY.md).
-
-<a id="firewall"></a>
-## Firewall
-
-Zones, networks and rules, read from your controller; changes as a draft with a dry run. See
-[FIREWALL-EDITOR.md](../FIREWALL-EDITOR.md).
-
-![Device sheet: network, name and fixed address](../screenshots/firewall-device-light.png)
-
-- **What you see.** Every zone with its networks and the devices in them; a pin marks a fixed address. A live
-  controller source is read only; the simulation (sample network) and the external executor can be changed.
-- **How to change.** Switch to *Change*. Drag a device onto another network, or tap or click it to open its sheet:
-  *Move to …*, *Name*, *Fixed address* - only what the connected controller can change is offered. The changes collect
-  in the draft bar (one chip per device); *Preview* shows every field old → new, the warnings and what blocks.
-- **Checks.** A fixed address must lie inside the device's network, must not be the network's own address or its
-  gateway and must not belong to another device. A device connected by cable cannot be moved by a client setting (its
-  network follows the switch port), and a device whose network is unknown while it is offline can only be renamed.
-- **Who may.** Operators prepare drafts and previews; applying needs an admin, and with the external executor a passkey
-  signature per change. Every draft is in the audit log; changes on a real controller appear in the nightly report
-  under *Changes written*.
-- **Guests of a hypervisor.** With a hypervisor behind the editor (the simulation has a sample one) the *Guests* card
-  starts or shuts down a guest, moves a network card to another bridge or VLAN (*Change …*) and switches the guest's
-  firewall and its rules; a new rule is appended and marked as Lanloom's own. Guests that keep the network running (name
-  server, gateway, Lanloom itself, hub or controller, or tagged `lanloom-protect`) show a lock and the reason, and offer
-  no stop, card or rule changes. Start, shutdown and the firewall switch need their own tick in the preview.
-- **On the phone.** Tap a device: the sheet opens from the bottom; *Move to …* leads to the list of networks.
-- **From the search** (`Ctrl K`): *Change a device (network, name, fixed address) …*, or a device hit → *Move to … /
-  change*; *Change a guest (start, shut down, network card, firewall) …* opens the *Guests* card.
-
-<a id="reports"></a>
-## Nightly report
-
-A short report of every night with points to tick off. Each report has its own address (`#/reports/2026-11-16`). See
-[NIGHTLY-REPORT.md](../NIGHTLY-REPORT.md).
-
-<a id="settings"></a>
-## Settings
-
-Scanning, connections, appearance, notifications, users, security, backup and AI. See [INSTALL.md](../INSTALL.md),
-[ACCESS.md](../ACCESS.md), [NOTIFICATIONS.md](../NOTIFICATIONS.md) and [BACKUP.md](../BACKUP.md).
-
-**Network** (every role to look, operators set protection classes, administrators allow scans across a router): the
-networks and VLANs Lanloom knows with their reach, the scan protection list and what can be connected to which device.
-See [DISCOVERY.md](../DISCOVERY.md).
-
-![Networks and VLANs](../screenshots/network-zones-light.png)
-
-![Scan protection](../screenshots/network-protect-light.png)
-
-![What can be connected](../screenshots/network-connect-light.png)
-
-**Notifications** (every role): your own rules per event, quiet hours, push on this device, the planned maintenance and
-the history of what the rules did. Operators plan maintenance; administrators set the shared limits, the
-protected networks and the heartbeat.
+- [Right now](#right-now) · [About this view](#about-this-view) · [Live state and live grade](#live-state-and-live-grade) · [Deep links and the back key](#deep-links-and-the-back-key) · [Keys](#keys)
 
 <a id="right-now"></a>
 ## Right now
@@ -186,7 +16,7 @@ protected networks and the heartbeat.
 Key `L`, the pulse button in the header, or the command "Show or hide Right now" in the search (`Ctrl K`). Four
 sections, each foldable:
 
-- **Noteworthy** – the same list as on the start page;
+- **Noteworthy** – the same list as on the [start page](overview.md);
 - **Active conversations** – the traces with measured traffic right now, busiest first, with their rate;
 - **Changes** – what the event journal recorded in the last six hours: devices that stopped answering or came back, new
   devices, connections that failed or recovered, internet outages, Lanloom's own start;
@@ -199,8 +29,9 @@ The rail refreshes every five seconds while it is shown and rests while the tab 
 <a id="about-this-view"></a>
 ## About this view
 
-Key `I`, the *i* button, or the command in the search. A short explanation of the open view and a link to this page. On
-screens of 1900 pixels and wider it is open until you close it; Lanloom remembers your choice in this browser.
+Key `I`, the *i* button, or the command in the search. A short explanation of the open view and a link to its page in
+the [manual](README.md). On screens of 1900 pixels and wider it is open until you close it; Lanloom remembers your choice
+in this browser.
 
 On screens narrower than 1280 pixels both rails slide over the page instead of sitting beside it; on a phone they fill
 the screen and close with the ✕ button or `Esc`.
@@ -226,16 +57,19 @@ two seconds or more, times such as "seen 5 s ago" may look shifted by that much.
 
 | Address | Opens |
 |---|---|
-| `#/overview` | the start page |
-| `#/map`, `#/network` | the board |
+| `#/overview` | the [start page](overview.md) |
+| `#/map`, `#/network` | the board ([map](map.md), [network](network.md)) |
 | `#/map/<component>` | the board with the card of that component (the page switches to the other board if needed) |
 | `#/map?zone=<area>`, `#/map?only=problems` | the board filtered |
-| `#/devices/<device>` | the device list with that device's card |
+| `#/devices/<device>` | the [device list](devices.md) with that device's card |
 | `#/devices?show=new` | the device list filtered (`new`, `unsure`, `offline`) |
-| `#/reports/<day>` | that nightly report |
-| `#/firewall/device/<address>` | the firewall editor in change mode with the sheet of that device |
+| `#/devices?view=stability` | the stability list |
+| `#/inventory`, `#/inventory?state=missing` | the [inventory](inventory.md), optionally filtered |
+| `#/reports/<day>` | that [nightly report](nightly-reports.md) |
+| `#/automations?view=<view>` | the [Automations](automations.md) tab (`list`, `who`, `timeline`, `plan`, `rooms`, `health`) |
+| `#/firewall/device/<address>` | the [firewall editor](firewall.md) in change mode with the sheet of that device |
 | `#/firewall/pick` | the firewall editor with a searchable list of the devices that can be changed |
-| `#/settings/<page>` | a settings page |
+| `#/settings/<page>` | a [settings](settings.md) page |
 
 Opening a card, a report or a filter changes the address, so the back key closes the card or returns to the report or
 filter you had before.

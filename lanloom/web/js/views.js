@@ -743,10 +743,29 @@
         try { updateState = await api('/api/update/check', { method: 'POST', body: {} }); LL.msg(updMsg, updateState.available ? t('update.available', { v: updateState.latest }) : (updateState.error ? t('update.check_failed') : t('update.current')), updateState.available ? 'ok' : 'info'); if (updateState.available) openUpdate(); }
         catch (e) { LL.msg(updMsg, LL.errText(e), 'error'); }
       } }, t('update.check_now')))]));
+    page.append(diagnosticsCard());
     page.append(card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy'))]));
     fr.main.append(page);
     if (rest && rest[0] === 'reports' && reportCard) setTimeout(() => reportCard.scrollIntoView({ block: 'start' }), 30);
     return fr;
+  }
+  // Settings > General > Diagnostic export: one redacted JSON file for an issue (lanloom/diagnostics.py); the download is audited
+  function diagnosticsCard() {
+    const msg = h('div', { class: 'msg' });
+    const btn = h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => {
+      LL.msg(msg, '');
+      btn.disabled = true;
+      try {
+        const doc = await api('/api/diagnostics', { method: 'POST', body: {} });
+        const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2) + '\n'], { type: 'application/json' }));
+        const a = h('a', { href: url, download: 'lanloom-diagnostics.json', class: 'sr-only' });
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        LL.msg(msg, t('diag.done', { n: (doc.redaction && doc.redaction.replaced) || 0 }), 'ok');
+      } catch (e) { LL.msg(msg, LL.errText(e), 'error'); }
+      btn.disabled = false;
+    } }, t('diag.button'));
+    return card(t('diag.title'), [h('p', { class: 'muted' }, t('diag.text')), h('p', { class: 'muted fineprint' }, t('diag.never')), msg, h('div', { class: 'btn-row' }, btn)]);
   }
   function card(title, kids) { return h('section', { class: 'card settings-card' }, h('h2', {}, title), kids); }
   LL.settingsCard = card;
