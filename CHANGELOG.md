@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.21.1] – 2026-11-17
+
+1.20.0 and 1.21.0 were not released on their own; their changes are part of this version.
+
+### Fixed
+- English texts of the start page, the rails and the live grade dialog use English quotation marks.
+
+### Changed
+- Performance budget: a budget check that lands over its limit on a busy machine is measured once more with a fresh calibration before it fails; the limits are unchanged.
+
 ## [1.21.0] – 2026-11-17
 
 ### Added
