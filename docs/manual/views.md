@@ -85,6 +85,16 @@ from the controller, LLDP, address tables or your own entry. The area chips work
 
 Where your data went: countries and devices over 24 hours, 7 or 30 days. See [DATA-PATHS.md](../DATA-PATHS.md).
 
+<a id="automations"></a>
+## Automations
+
+With a hub connected: every automation and script of the hub in plain words (When → Only if → Then, written by fixed
+rules, without AI), its flow with the live state of every entity, findings from Lanloom's own rules (missing or
+unavailable entities, runaways, conflicts, self-starts, dropped starts, long silence) and its last runs; the dependency
+board of any entity (sources left, consumers right, a dot travels when an automation runs); *Who switches what* with
+conflicts; the timeline of the last 24 hours (people only as "a person"); the day plan with a now line; devices per room;
+the hub's health. Read only. See [AUTOMATIONS.md](../AUTOMATIONS.md).
+
 <a id="devices"></a>
 ## Devices
 

@@ -43,7 +43,7 @@ from collections import OrderedDict
 
 from .. import hub_privacy as privacy
 from . import hub_deps as deps
-from . import hub_radio
+from . import hub_flow, hub_radio
 from ._common import SourceError, StatusTracker, clip, emit_event, now, run_with_backoff, short_test
 from ._ws import WebSocket, WsClosed, WsError, make_ssl_context
 
@@ -123,6 +123,7 @@ HISTORY_FRESH_S = {"24h": 300.0, "7d": 1800.0, "30d": 3600.0}
 HISTORY_SPAN_S = {"24h": 86400.0, "7d": 7 * 86400.0, "30d": 30 * 86400.0}
 MAX_HISTORY_POINTS = 50000
 MAX_HISTORY_CACHE = 64
+SUN_ENTITY = "sun.sun"           # its next rise and set place sun triggers on the day plan
 IDLE_S = 5.0                     # nothing due: look again after this long
 
 
@@ -187,6 +188,26 @@ def _state_row(state, attrs: dict) -> list:
     dc = attrs.get("device_class")
     return [state, clip(attrs.get("unit_of_measurement"), 32), clip(attrs.get("friendly_name")),
             clip(dc, 32) if isinstance(dc, str) and DC_RX.match(dc) else None]
+
+
+def sun_times(attrs: dict) -> dict | None:
+    """Next sunrise and sunset of the hub's sun entity (Unix seconds) - nothing else of it."""
+    out = {"rise": _ts(attrs.get("next_rising")), "set": _ts(attrs.get("next_setting"))}
+    return out if out["rise"] or out["set"] else None
+
+
+def entry_health(entries_raw) -> list:
+    """Integration entries counted per domain and state (``loaded``, ``setup_error``, ``setup_retry`` ...); titles,
+    ids and options of the entries are never kept, disabled entries are left out."""
+    count = {}
+    for e in entries_raw or []:
+        if not isinstance(e, dict) or e.get("disabled_by"):
+            continue
+        dom, state = e.get("domain"), e.get("state")
+        if not isinstance(dom, str) or not DC_RX.match(dom) or not isinstance(state, str) or not DC_RX.match(state):
+            continue
+        count[(dom, state)] = count.get((dom, state), 0) + 1
+    return [{"domain": d, "state": s, "n": n} for (d, s), n in sorted(count.items())][:MAX_AREAS]
 
 
 def _ts(value):
@@ -277,6 +298,7 @@ class Hub:
         self._tokens = float(self.state_rate)
         self._tokens_t = clock()
         self._trackers: dict[str, dict] = {}  # device_tracker entity -> {"mac", "ip"} (never state or place)
+        self._sun: dict | None = None         # next sunrise and sunset (the day plan of the Automations tab)
         self._items: dict[str, dict] = {}     # automation/script entity -> {"id", "mode", "last", "state"}
         self._ctx: OrderedDict = OrderedDict()   # run context id -> (automation/script entity, monotonic time)
         self._runs: dict[str, list] = {}      # automation/script entity -> [count since last frame, last time]
@@ -453,6 +475,8 @@ class Hub:
                 self._states[eid] = _state_row(state, attrs)
             if privacy.domain_of(eid) in ITEM_DOMAINS:
                 self._note_item(eid, state, attrs)
+            if eid == SUN_ENTITY:
+                self._sun = sun_times(attrs)
         if old is not None and new is not None and old.get("state") == new.get("state"):
             return                           # attribute-only change: not a state change
         if eid in self._pending or len(self._pending) < MAX_PENDING:
@@ -523,6 +547,8 @@ class Hub:
             states[eid] = _state_row(clip(s.get("state")), attrs)
             if privacy.domain_of(eid) in ITEM_DOMAINS:
                 items[eid] = attrs
+            if eid == SUN_ENTITY:
+                self._sun = sun_times(attrs)
         self._states, self._trackers = states, trackers
         self._idle_until = 0.0
         self.private_dropped += dropped
@@ -555,6 +581,8 @@ class Hub:
         snap = build_snapshot(self._states, devices_raw, entities_raw, areas_raw, entries_raw=entries_raw,
                               trackers=self._trackers, items=self._items, show=self.show)
         snap["admin"] = self.admin_mode
+        if self._sun:
+            snap["sun"] = dict(self._sun)
         return snap
 
     # ------------------------------------------------------------ admin mode: dependencies and traces
@@ -618,6 +646,7 @@ class Hub:
             return
         cfg = result.get("config") if isinstance(result, dict) and isinstance(result.get("config"), dict) else result
         refs = deps.refs_from_config(cfg if isinstance(cfg, dict) else {}, self._known())
+        refs["flow"] = hub_flow.flow_from_config(cfg if isinstance(cfg, dict) else {}, self.show)
         refs["fp"] = deps.fingerprint(cfg)
         refs["t"] = now()
         old = self._refs.get(eid)
@@ -692,6 +721,8 @@ class Hub:
             entry = {r: list((refs or {}).get(r, ())) for r in deps.ROLES}
             entry["text"] = list((refs or {}).get("text", ()))
             entry["related"] = list((rel or {}).get("ids", ()))
+            if (refs or {}).get("flow") is not None:
+                entry["flow"] = refs["flow"]
             (autos if eid.startswith("automation.") else scripts)[eid] = entry
         return {"type": "hub_deps", "source": SOURCE, "t": now(), "automations": autos, "scripts": scripts,
                 "cycles": [list(c) for c in self._cycles],
@@ -998,6 +1029,8 @@ def build_snapshot(states: dict, devices_raw, entities_raw, areas_raw, entries_r
                                key=lambda x: (x["mac"] or "", x["ip"] or ""))[:MAX_ENTITIES],
             "automations": [dict(v, entity_id=k) for k, v in sorted((items or {}).items()) if k.startswith("automation.")],
             "scripts": [dict(v, entity_id=k) for k, v in sorted((items or {}).items()) if k.startswith("script.")]}
+    if entries_raw is not None:
+        snap["entries"] = entry_health(entries_raw)
     if devices_raw is None or entities_raw is None:
         snap["limited"] = True               # registries not readable with this token
     return snap

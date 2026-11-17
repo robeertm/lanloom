@@ -60,7 +60,7 @@
   // ------------------------------------------------------------------ app frame (header + nav)
   function frame(app, active, content) {
     const tabs = [['overview', 'nav.overview'], ['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports'], ['settings', 'nav.settings']];
-    if (LL.state && (LL.state.hubs || []).length) tabs.splice(5, 0, ['sensors', 'nav.sensors']);   // the hub's sensors, only with a hub connection
+    if (LL.state && (LL.state.hubs || []).length) tabs.splice(5, 0, ['sensors', 'nav.sensors'], ['automations', 'nav.automations']);   // the hub's sensors and automations, only with a hub connection
     const nav = h('nav', { class: 'tabs', 'aria-label': t('nav.label') }, tabs.map(([k, label]) =>
       h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null,
         title: t(label), 'aria-label': t(label) },   // narrow screens show only the icon
@@ -77,7 +77,7 @@
       const order = ['auto', 'light', 'dark']; const next = order[(order.indexOf(LL.theme()) + 1) % 3]; LL.setTheme(next); LL.toast(t('theme.' + next));
     } });
     themeBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>';
-    const header = h('header', { class: 'topbar' },
+    const header = h('header', { class: 'topbar' + (tabs.length > 8 ? ' topbar--many' : '') },   // ten tabs with a hub: narrower steps
       h('a', { class: 'topbar__brand', href: '#/map' }, LL.logo(26), h('span', { class: 'brand-name' }, 'Lanloom'),
         LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
       nav, h('div', { class: 'topbar__right' }, LL.paletteButton ? LL.paletteButton() : null, LL.aiAskButton ? LL.aiAskButton() : null, updateBtn, reconnectBtn, gradePill,
@@ -124,6 +124,7 @@
     network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1"/><rect x="2.5" y="16.5" width="6" height="5" rx="1"/><rect x="15.5" y="16.5" width="6" height="5" rx="1"/><path d="M12 7.5v4.5M5.5 16.5V12h13v4.5"/></svg>',
     devices: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/></svg>',
     sensors: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l2.5-6 4 12 2.5-6H21"/></svg>',
+    automations: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><rect x="15" y="9" width="6" height="6" rx="1.5"/><path d="M7 6h3a2 2 0 0 1 2 2v2.5a1.5 1.5 0 0 0 1.5 1.5H15M7 18h3a2 2 0 0 0 2-2v-2.5"/></svg>',
     settings: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>'
   };
 

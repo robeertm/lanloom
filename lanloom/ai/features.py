@@ -366,7 +366,7 @@ def _report(f: Facts, core) -> None:
     f.add("")
 
 
-PRIVATE_SECTIONS = ("hub", "hub_radio")    # report sections the AI sees only as their summary line (counts, no names)
+PRIVATE_SECTIONS = ("hub", "hub_radio", "auto")    # report sections the AI sees only as their summary line (counts, no names)
 
 
 def report_lines(rep: dict, reports, limit: int = 30, points_first: bool = True) -> list:

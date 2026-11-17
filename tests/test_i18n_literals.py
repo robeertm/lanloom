@@ -274,6 +274,7 @@ TOFIXED_GEOMETRY = {
     "endmarks.js": (8, "CSS transform and SVG line coordinates"),
     "textfmt.js": (1, "fallback of the number formatter when Intl is missing"),
     "board.js": (1, "rounding of board coordinates (num helper)"),
+    "automations.js": (1, "CSS left/width percentages of the day plan"),
 }
 
 

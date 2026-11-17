@@ -24,6 +24,7 @@ from . import contrib
 from .contrib import REGISTRY, Contribution, Ctx, register  # noqa: F401 - public register for later features
 from . import hubsection  # noqa: F401,E402 - registers the hub bridge section
 from . import radiosection  # noqa: F401,E402 - registers the radio and batteries section of the hub bridge
+from . import autosection  # noqa: F401,E402 - registers the automations section of the hub bridge
 from .journal import Journal, Watch
 
 log = logging.getLogger("lanloom")

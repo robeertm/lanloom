@@ -745,7 +745,7 @@ class Demo:
                 if hub_sent == 0 or now - hub_sent > 600:
                     core.on_event(key, hid, self._snapshot(now))
                     if hub_sent == 0:
-                        for frame in demo_hub.history_frames(now, rng):
+                        for frame in demo_hub.history_frames(now, rng) + demo_hub.change_frames(now):
                             core.on_event(key, hid, frame)
                     core.on_event(key, hid, demo_hub.deps_frame(now))
                     hub_sent = now
@@ -766,7 +766,7 @@ class Demo:
                 if rng.random() < 0.3:
                     eid = rng.choice(["light.living_room_2", "light.hallway_2", "switch.kitchen_3", "switch.office_3"])
                     ev = {"type": "hub_state", "entity_id": eid, "state": rng.choice(["on", "off"]), "t": now}
-                    by = demo_hub.by_for(eid, rng)
+                    by = demo_hub.by_for(eid, rng, ev["state"])
                     if by:
                         ev["by"] = by
                     core.on_event(key, hid, ev)

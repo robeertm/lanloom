@@ -211,6 +211,8 @@ def test_every_key_the_code_names_exists():
         "backup.lan": "host name of a sample device (demo.py)",
         "backup.json": "file name of the updater's record of an update (updater/engine.py)",
         "storage.local": "host name of a sample device (demo.py)",
+        "notify.family_phones": "action name in a sample automation of the demo hub (demo_hub.py)",
+        "notify.notify": "action name in a sample automation of the demo hub (demo_hub.py)",
         "counters.json": "file name of the executor's signature counters (firewall/runner.py)",
     }
     # audit log action names ("auth.login", "users.invite" ...) are identifiers stored in the log; their labels are audit.action.<name>

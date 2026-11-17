@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.30.0] – 2026-11-17
+
+### Added
+- **Automations tab** (with a home-automation hub connected, also on the phone): every automation and script of the hub, read only. Guide: [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md).
+  - **List** with five tiles (automations on/off, with a finding, conflicts in 24 hours, hub health, scripts), search over names, rooms and every entity an automation uses, filters for room, state and finding.
+  - **In plain words**: each automation as one sentence plus *When* (one of them is enough), *Only if* (all must hold) and *Then*, with nested choices, waits and repeats - written by fixed rules from the configuration, without AI, in every language of the app.
+  - **Flow** in three columns (When → Only if → Then) with the action called and the live state of every entity, **findings**, runs per hour over 24 hours and, in admin mode, the last runs from the hub.
+  - **Findings** from Lanloom's own rules: a missing entity (renamed or removed), an unavailable entity, a runaway (60 runs within one hour), a conflict (two automations setting one entity to opposite states within 60 seconds), a script loop, an automation that switches what starts it, a `single` automation that drops starts while it waits, one that has not run for 30 days, a paused lookup.
+  - **Dependency board** of any entity: sources on the left (automations and scripts with the verb they use, by hand, by itself), consumers on the right; for an automation what starts and checks it and what it switches. A dot travels along the traces whenever an automation runs (live frame `autoruns`; a flash with reduced motion).
+  - **Who switches what**: per entity the causes of the last 24 hours (an automation or script, a person - never who - or the device itself) and the automations configured to switch it; conflicts on top.
+  - **Timeline** of the last 24 hours (filters for automations, people, devices), **day plan** from 00:00 to 24:00 with a moving now line (time triggers, time helpers, sun triggers with their offset placed with the hub's next sunrise and sunset, windows of time and sun conditions, night shaded, runs as ticks; an agenda on the phone), **rooms** with the devices and their live state, and **hub health**: integrations that cannot start or keep retrying, unavailable entities per domain and per integration, silent radio devices - bundled, never healed.
+- Nightly report section **Automations** (one per hub connection, only when there is something to judge): missing entities, conflicts of the night, integrations with errors and unavailable entities per domain as points; self-starts, dropped starts and long silence as notes. The AI features see it only as its summary.
+- Command palette: *Go to Automations*, typed *Who switches what*, *Timeline*, *Day plan*, *Rooms*, *Hub health*, *Show automations with findings*; *Open in Automations* on an automation hit, *Show dependencies* on automation and entity hits.
+- Routes `GET /api/hub/{id}/auto`, `…/auto/item/{entity_id}`, `…/auto/board/{entity_id}`, `…/auto/who`, `…/auto/timeline`, `…/auto/plan`, `…/auto/rooms`, `…/auto/health` (all read only, viewer role).
+- Demo network: 17 automations and 3 scripts on the sample hub that show every part (a conflict on one plug, a runaway that starts itself, missing and unavailable entities, a script loop, choices, waits, time, helper, sun and rhythm triggers), two integrations with errors and a day of switching with causes.
+
+### Changed
+- The bridge keeps the **structure of each flow** besides the entity ids per role: per step its kind, entity ids (never private ones), state words from a fixed list (anything else becomes "some value"), times of day, thresholds, durations, weekdays, sun events with offset and the name of the action called. Aliases, descriptions, trigger ids, templates, service data, message targets, event data and variables are still dropped before anything is stored; a trigger on a person becomes "someone arrives or leaves" without an id.
+- The bridge counts the integration entries per domain and state (titles are not kept) and keeps the sun entity's next rise and set; the sun times never leave Lanloom (export, diagnostics and AI drop them).
+- Header with a hub connected (ten tabs): labels only up to 2000 px, icons only up to 1640 px; the phone's bottom bar shows icons only instead of labels cut to a few letters.
+- More hub states read in plain words (paused, standby, heating, cooling, above/below the horizon, opening, closing, jammed, detected, clear).
+- Performance budget: `automations_ms` (list, who switches what, timeline and day plan with as many automations as devices and 20,000 state changes).
+
 ## [1.29.1] – 2026-11-17
 
 ### Fixed

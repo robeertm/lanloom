@@ -20,7 +20,7 @@ Type a few words; **every word has to match**. A word that starts a word of the 
 
 | Group | What | Where it is matched |
 | --- | --- | --- |
-| Views and commands | every view, the settings pages, light/dark, colour themes, rate unit, update check, *Change a device (network, name, fixed address) …*, *Change a guest (start, shut down, network card, firewall) …*, *Open Stability*, *Open Inventory*, *Show devices that need attention*, *Show missing devices*, *Show warranties that end soon*, *Show devices whose updates end* | in the page |
+| Views and commands | every view, the settings pages, light/dark, colour themes, rate unit, update check, *Change a device (network, name, fixed address) …*, *Change a guest (start, shut down, network card, firewall) …*, *Open Stability*, *Go to Automations* (typed: *Who switches what*, *Timeline*, *Day plan*, *Rooms*, *Hub health*, *Show automations with findings*), *Open Inventory*, *Show devices that need attention*, *Show missing devices*, *Show warranties that end soon*, *Show devices whose updates end* | in the page |
 | Devices | name, address, hardware address, kind, host names, maker and model, and what you wrote down in the inventory (room, purpose, person, shop) | the server |
 | Virtual machines and containers | name, id, addresses, host (from a hypervisor connection) | the server |
 | Services | which device offers which service, with the port | the server |
@@ -50,8 +50,8 @@ Operators: `>` `>=` `<` `<=` `=` (also `≥` and `≤`). A unit is compared when
 | Hit | Actions |
 | --- | --- |
 | Device, virtual machine, service | Open (the card of the device), Copy address; for a device also *Move to … / change* (operators: opens the firewall editor with its sheet - network, name, fixed address) |
-| Entity | Open the sensor page, Show the hub card, Copy ID |
-| Automation | Show the hub card, Copy ID |
+| Entity | Open the sensor page, Show the hub card, Show dependencies (the board of the Automations tab), Copy ID |
+| Automation | Open in Automations, Show the hub card, Show dependencies, Copy ID |
 
 An action exists only when something registered it, so an action for a view Lanloom does not have yet is never shown. Later features add theirs (for example a chain-of-outage view adds its own action to devices).
 

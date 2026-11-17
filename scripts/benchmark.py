@@ -138,6 +138,35 @@ def rss() -> int:
     return 0
 
 
+def hub_entry(n: int, now: float) -> dict:
+    """A hub connection with n automations (each with a flow), 4n entities and 20000 state changes with their cause (the
+    Automations tab, H3)."""
+    from lanloom import hubbridge
+    from lanloom.sources import hub_flow
+    entry = hubbridge.new_entry(None)
+    ents = [{"entity_id": "%s.e%d" % (("light", "switch", "sensor", "binary_sensor")[i % 4], i), "device_id": "d%d" % (i // 4),
+             "name": "Entity %d" % i, "state": "on", "unit": None, "domain": "light", "area": "a%d" % (i % 12), "dc": None, "cat": None,
+             "platform": "sample", "ls": False} for i in range(4 * n)]
+    autos = [{"entity_id": "automation.a%d" % i, "id": str(i), "mode": "single", "last": now - i * 60, "state": "on"} for i in range(n)]
+    snap = {"type": "hub_snapshot", "t": now, "admin": True, "areas": [{"id": "a%d" % i, "name": "Room %d" % i} for i in range(12)],
+            "devices": [{"id": "d%d" % i, "name": "Device %d" % i, "area": "a%d" % (i % 12), "service": False} for i in range(n)],
+            "entities": ents + [{"entity_id": a["entity_id"], "name": "Automation %s" % a["id"], "state": "on", "domain": "automation"} for a in autos],
+            "automations": autos, "scripts": [], "trackers": [], "entries": [{"domain": "sample", "state": "loaded", "n": 3}]}
+    hubbridge.book(entry, snap, now)
+    flows = {}
+    for i in range(n):
+        cfg = {"triggers": [{"trigger": "state", "entity_id": "binary_sensor.e%d" % (4 * i + 3), "to": "on"}, {"trigger": "time", "at": "%02d:%02d" % (i % 24, i % 60)}],
+               "conditions": [{"condition": "numeric_state", "entity_id": "sensor.e%d" % (4 * i + 2), "below": 20}],
+               "actions": [{"action": "light.turn_on", "target": {"entity_id": "light.e%d" % (4 * ((i + 1) % n))}}, {"delay": 30},
+                           {"action": "switch.turn_off", "target": {"entity_id": "switch.e%d" % (4 * i + 1)}}]}
+        flows["automation.a%d" % i] = {"trigger": [], "condition": [], "action": [], "text": [], "related": [], "flow": hub_flow.flow_from_config(cfg)}
+    hubbridge.book(entry, {"type": "hub_deps", "t": now, "automations": flows, "scripts": {}, "cycles": [], "blocked": []}, now)
+    for k in range(20000):
+        hubbridge.book(entry, {"type": "hub_state", "entity_id": "light.e%d" % (4 * (k % n)), "state": "on" if k % 2 else "off",
+                               "t": now - 86000 + k * 4, "by": "automation.a%d" % (k % n)}, now)
+    return entry
+
+
 def measure(n: int, runs: int = 5, data_dir: Path = None) -> dict:
     keep = data_dir is not None
     tmp = None
@@ -205,6 +234,13 @@ def measure(n: int, runs: int = 5, data_dir: Path = None) -> dict:
     res["heap_mb"] = round((tracemalloc.get_traced_memory()[0] - base_heap) / 1e6, 1)
     tracemalloc.stop()
     res["rss_mb"] = round(rss() / 1e6, 1)
+    from lanloom import hubauto
+    hub = hub_entry(n, now)       # Automations tab (H3): list, who switches what, timeline, day plan (outside the heap measure)
+
+    def auto_tab():
+        ctx = hubauto.Ctx(hub, now)
+        dumps(hubauto.tab(ctx)), dumps(hubauto.who(ctx)), dumps(hubauto.timeline(ctx)), dumps(hubauto.dayplan(ctx))
+    res["automations_ms"] = timed(auto_tab, max(2, runs // 2))
     res["db_mb"] = round(os.stat(data_dir / "lanloom.db").st_size / 1e6, 2)
     store.close()
     if not keep and tmp is not None:
@@ -213,7 +249,7 @@ def measure(n: int, runs: int = 5, data_dir: Path = None) -> dict:
 
 
 COLS = ("devices", "start_ms", "tick_ms", "cpu_live_pct", "map_overview_ms", "map_network_ms", "devices_ms", "devices_cold_ms", "component_first_ms", "component_ms",
-        "paths_24h_ms", "paths_30d_ms", "storage_ms", "search_ms", "overview_ms", "inventory_ms", "map_kb", "heap_mb", "rss_mb", "db_mb")
+        "paths_24h_ms", "paths_30d_ms", "storage_ms", "search_ms", "overview_ms", "inventory_ms", "automations_ms", "map_kb", "heap_mb", "rss_mb", "db_mb")
 
 
 def main(argv=None) -> int:

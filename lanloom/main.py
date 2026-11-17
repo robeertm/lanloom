@@ -669,6 +669,32 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             key = str(exc)
             return err(key, {"hub.err.missing": 404, "hub.err.entity": 404, "hub.err.busy": 429}.get(key, 409))
 
+    # ------------------------------------------------------------------ Automations tab (read only)
+    @app.get("/api/hub/{integ_id}/auto")
+    async def hub_auto_tab(integ_id: int):
+        view = state.core.hub_auto(integ_id, "tab")
+        return view if view is not None else err("hub.err.missing", 404)
+
+    @app.get("/api/hub/{integ_id}/auto/item/{entity_id}")
+    async def hub_auto_item(integ_id: int, entity_id: str):
+        view = state.core.hub_auto(integ_id, "item", entity_id)
+        return view if view is not None else err("auto.err.item", 404)
+
+    @app.get("/api/hub/{integ_id}/auto/board/{entity_id}")
+    async def hub_auto_board(integ_id: int, entity_id: str):
+        view = state.core.hub_auto(integ_id, "board", entity_id)
+        return view if view is not None else err("hub.err.entity", 404)
+
+    def _auto_part(part):
+        async def handler(integ_id: int):
+            view = state.core.hub_auto(integ_id, part)
+            return view if view is not None else err("hub.err.missing", 404)
+        handler.__name__ = "hub_auto_" + part
+        return handler
+
+    for _part in ("who", "timeline", "plan", "rooms", "health"):
+        app.get("/api/hub/{integ_id}/auto/" + _part)(_auto_part(_part))
+
     @app.post("/api/hub/{integ_id}/match")
     async def hub_match(integ_id: int, request: Request):
         data = await body(request)
@@ -1184,7 +1210,7 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/history.js", "css/history.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/history.js", "css/history.css", "js/automations.js", "css/automations.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

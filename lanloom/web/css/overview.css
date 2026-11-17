@@ -204,6 +204,26 @@ a.change__link:hover { background: var(--ll-surface-2); }
   .theme-btn { display: none; }
   .tab { padding: 0 9px; }
 }
+/* ten tabs (a hub adds Sensors and Automations): labels only up to 2000 px, icons only up to 1640 px; on a phone the bottom
+   bar shows icons only (ten labels would be cut to a few letters; the name is the title of the tab) */
+@media (max-width: 700px) {
+  .topbar--many .tab__label, .topbar--many .tab--short .tab__short { display: none; }
+  .topbar--many .tab__icon svg { width: 22px; height: 22px; }
+}
+@media (min-width: 1701px) and (max-width: 2000px) {
+  .topbar--many { gap: 16px; }
+  .topbar--many .tab__icon { display: none; }
+  .topbar--many .tab { padding: 0 10px; }
+}
+@media (min-width: 1401px) and (max-width: 1640px) {
+  .topbar--many .tab__icon { display: inline-flex; }
+  .topbar--many .tab__label { display: none; }
+  .topbar--many .tab { padding: 0 12px; }
+}
+@media (min-width: 1641px) and (max-width: 1700px) {
+  .topbar--many .tab { padding: 0 8px; }
+  .topbar--many .tabs { gap: 0; }
+}
 @media (max-width: 1400px) {
   .ov-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

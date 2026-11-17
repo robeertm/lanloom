@@ -32,7 +32,7 @@ exactly its fields, and checks every value:
 | `auth` | access token | at connect |
 | `get_states`, `get_config` | – | every 10 minutes, connection test |
 | `config/device_registry/list`, `config/entity_registry/list`, `config/area_registry/list` | – | every 10 minutes |
-| `config_entries/get` | – | every 10 minutes (which integration a device belongs to) |
+| `config_entries/get` | – | every 10 minutes (which integration a device belongs to, and the state of each integration - counted per domain, titles are not kept) |
 | `subscribe_events` | `state_changed`, `automation_triggered` or `script_started` | at connect |
 | `automation/config`, `script/config` | the entity id (only `automation.*` / `script.*`) | admin mode, within a budget |
 | `search/related` | item type `automation`/`script` and its entity id | admin mode, within a budget |
@@ -45,9 +45,11 @@ attempt is refused and counted ("No message outside the allow-list was attempted
 source code of the bridge for this on every build. A message type the hub does not know (an older version) is not
 asked again in that session.
 
-From configurations Lanloom keeps **only entity ids**, per role (trigger, condition, action; ids that only appear
-inside a template are marked as weaker). Aliases, descriptions, templates, values and service data are discarded
-right away. From traces it keeps the start and end time, the result, the last step and the step path of the newest
+From configurations Lanloom keeps **entity ids** per role (trigger, condition, action; ids that only appear inside a
+template are marked as weaker) and the **structure of the flow** for the [Automations tab](AUTOMATIONS.md): per step its
+kind, entity ids, state words from a fixed list, times of day, thresholds, durations, weekdays, sun events and the name
+of the action called. Aliases, descriptions, trigger ids, templates, values, service data, message targets and event
+data are discarded right away ([details](AUTOMATIONS.md#privacy)). From traces it keeps the start and end time, the result, the last step and the step path of the newest
 run – never variables, trigger descriptions or error texts (only "error: yes/no").
 
 ## Sparing the hub
@@ -82,7 +84,8 @@ Off by default, dropped inside the bridge before anything is stored:
   ("home"), a place, coordinates or its name.
 - Events carry the entity id, its state and the time. When an automation or script caused a change, the event names
   it; when a person did, it only says `user`. Service data, user ids and context ids never leave the bridge.
-- Of attributes only the unit, the name and the device class (battery, timestamp, temperature, ...) are kept.
+- Of attributes only the unit, the name and the device class (battery, timestamp, temperature, ...) are kept; of the sun
+  entity its next rise and set (for the day plan of the Automations tab; never on any way out of Lanloom).
 - Hub data lives in memory only. It is never written to the database, so backups never contain it.
 - Every way out of Lanloom applies the filter again, whatever you switched on for the map: the AI features see the
   home-automation section of the nightly report only as its summary (counts), and "Explain" on one of its notes hides
@@ -168,6 +171,11 @@ opens its sensor page first.
 
 ![Sensor page with the minimum-to-maximum band](screenshots/sensor-page-dark.png)
 
+## Automations tab
+
+Every automation and script in plain words, with findings, a dependency board, who switches what, a timeline, the day
+plan, devices per room and the hub's health - all read only. See [AUTOMATIONS.md](AUTOMATIONS.md).
+
 ## Nightly report
 
 The section *Home automation* (one per hub connection) appears when the hub is connected. It lists runaway
@@ -190,4 +198,5 @@ with their network device. Like the home-automation section, the AI features see
 | `POST /api/hub/{id}/traces/{entity_id}` | operator | ask the bridge for the last runs (admin mode; audit action `hub.traces`) |
 | `GET /api/hub/{id}/sensors` | viewer | the Sensors tab: entities, rooms, devices, on site, radio networks, health, state changes per integration |
 | `GET /api/hub/{id}/entity/{entity_id}?range=1h\|24h\|7d\|30d` | viewer | the sensor page: thinned-out numbers (`points`: time, min, mean, max) or states (`segments`: start, end, state), summary and source; longer ranges ask the hub within its budget (429 when it is used up) |
+| `GET /api/hub/{id}/auto…` | viewer | the Automations tab: list, one automation, board, who switches what, timeline, day plan, rooms, health ([AUTOMATIONS.md](AUTOMATIONS.md#api)) |
 | `POST /api/hub/{id}/match` | operator | `{"device", "hub_device", "action": "split"\|"join"\|"reset"}`: take a match apart, confirm a suggestion, forget the choice (audit action `hub.match`) |

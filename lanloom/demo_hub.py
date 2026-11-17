@@ -8,44 +8,185 @@ import time
 
 from .sources import hub as hub_src
 
-# entity id, name, mode, config id (None: no traces), runs per hour, what it reads / switches
-AUTOMATIONS = [
-    ("automation.hallway_light_on_motion", "Hallway light on motion", "restart", "1001", 14,
-     {"trigger": ["binary_sensor.hallway_4"], "condition": ["sensor.hallway_1"], "action": ["light.hallway_2"]}),
-    ("automation.garden_irrigation", "Garden irrigation at dawn", "single", "1002", 0.05,
-     {"trigger": [], "condition": ["sensor.garden_1"], "action": ["script.irrigation_cycle"]}),
-    ("automation.kitchen_climate", "Kitchen climate", "queued", "1003", 3,
-     {"trigger": ["sensor.kitchen_1"], "condition": [], "action": ["switch.kitchen_3"]}),
-    ("automation.office_power_saver", "Office power saver", "single", "1004", 0.5,
-     {"trigger": ["binary_sensor.office_4"], "condition": [], "action": ["switch.office_3", "light.office_2"]}),
-    ("automation.window_open_heating_off", "Window open: heating off", "single", "1005", 1,
-     {"trigger": ["binary_sensor.living_room_4", "binary_sensor.bedroom_4"], "condition": [], "action": ["switch.living_room_3"]}),
-    ("automation.garage_door_reminder", "Garage door reminder", "single", None, 0.1,
-     {"trigger": ["binary_sensor.garage_4"], "condition": [], "action": []}),
-    ("automation.living_room_scene_sync", "Living room scene sync", "parallel", "1007", 96,
-     {"trigger": ["light.living_room_2"], "condition": [], "action": ["light.living_room_6", "light.living_room_2"]}),
+def _state(eid, to=None, for_=None, **kw):
+    t = dict({"trigger": "state", "entity_id": eid}, **kw)
+    if to is not None:
+        t["to"] = to
+    if for_:
+        t["for"] = for_
+    return t
+
+
+def _call(svc, *eids, **data):
+    step = {"action": svc}
+    if eids:
+        step["target"] = {"entity_id": list(eids)}
+    if data:
+        step["data"] = data
+    return step
+
+
+# Configurations as the hub returns them (fictional). The bridge keeps only their structure (sources/hub_flow.py);
+# aliases, descriptions and service data below are there to prove that they are dropped.
+CONFIGS = {
+    "automation.hallway_light_on_motion": {
+        "alias": "Hallway light on motion", "description": "dim at night",
+        "triggers": [_state("binary_sensor.hallway_4", "on")],
+        "conditions": [{"condition": "numeric_state", "entity_id": "sensor.hallway_1", "below": 20}],
+        "actions": [_call("light.turn_on", "light.hallway_2", brightness_pct=40), {"delay": "0:02:00"},
+                    _call("light.turn_off", "light.hallway_2")]},
+    "automation.garden_irrigation": {
+        "triggers": [{"trigger": "sun", "event": "sunrise", "offset": "-00:30:00"}],
+        "conditions": [{"condition": "numeric_state", "entity_id": "sensor.garden_1", "below": 40}],
+        "actions": [{"action": "script.irrigation_cycle"}]},
+    "automation.kitchen_climate": {
+        "triggers": [{"trigger": "numeric_state", "entity_id": "sensor.kitchen_1", "above": 24}],
+        "actions": [_call("switch.turn_on", "switch.kitchen_3"),
+                    {"wait_for_trigger": [{"trigger": "numeric_state", "entity_id": "sensor.kitchen_1", "below": 22}],
+                     "timeout": "1:00:00"},
+                    _call("switch.turn_off", "switch.kitchen_3")]},
+    "automation.office_power_saver": {
+        "triggers": [_state("binary_sensor.office_4", "off", "0:15:00")],
+        "conditions": [{"condition": "time", "after": "18:00:00", "before": "07:00:00"}],
+        "actions": [_call("switch.turn_off", "switch.office_3"), _call("light.turn_off", "light.office_2")]},
+    "automation.window_open_heating_off": {
+        "triggers": [_state(["binary_sensor.living_room_4", "binary_sensor.bedroom_4"], "on", {"minutes": 1})],
+        "actions": [_call("switch.turn_off", "switch.living_room_3")]},
+    "automation.living_room_scene_sync": {
+        "triggers": [_state("light.living_room_2")],
+        "actions": [_call("light.turn_on", "light.living_room_6"), _call("light.toggle", "light.living_room_2")]},
+    "automation.morning_lights": {
+        "triggers": [{"trigger": "time", "at": "06:30:00", "weekday": ["mon", "tue", "wed", "thu", "fri"]},
+                     {"trigger": "time", "at": "input_datetime.weekend_wake_up", "weekday": ["sat", "sun"]}],
+        "actions": [_call("light.turn_on", "light.kitchen_2", "light.hallway_2"),
+                    {"choose": [{"conditions": [{"condition": "numeric_state", "entity_id": "sensor.living_room_1", "below": 19}],
+                                 "sequence": [_call("switch.turn_on", "switch.living_room_3")]}],
+                     "default": [{"action": "notify.family_phones", "data": {"message": "Good morning"}}]}]},
+    "automation.evening_blinds": {
+        "triggers": [{"trigger": "sun", "event": "sunset", "offset": "00:15:00"}],
+        "actions": [_call("cover.close_cover", "cover.ip_blind")]},
+    "automation.night_mode": {
+        "triggers": [{"trigger": "time", "at": "23:00:00"}],
+        "actions": [{"action": "scene.turn_on", "target": {"entity_id": "scene.night_dimmed"}},
+                    _call("light.turn_off", "light.living_room_2", "light.living_room_6")]},
+    "automation.desk_focus": {
+        "triggers": [_state("binary_sensor.mesh_motion_office", "on")],
+        "actions": [_call("switch.turn_on", "switch.office_3"), {"delay": {"minutes": 10}}]},
+    "automation.old_doorbell": {
+        "triggers": [_state("binary_sensor.front_door_bell", "on")],
+        "actions": [_call("media_player.play_media", "media_player.wlan_speaker_1", media_content_id="chime")]},
+    "automation.vacuum_on_weekdays": {
+        "triggers": [{"trigger": "time", "at": "10:00:00", "weekday": ["mon", "wed", "fri"]}],
+        "conditions": [{"condition": "state", "entity_id": "lock.subghz_lock", "state": "locked"}],
+        "actions": [_call("vacuum.start", "vacuum.wlan_vacuum_1"), {"delay": "1:30:00"},
+                    _call("vacuum.return_to_base", "vacuum.wlan_vacuum_1")]},
+    "automation.fridge_too_warm": {
+        "triggers": [{"trigger": "numeric_state", "entity_id": "sensor.ble_fridge", "above": 8, "for": "0:10:00"}],
+        "actions": [{"action": "notify.notify", "data": {"message": "Fridge {{ states('sensor.ble_fridge') }}"}}]},
+    "automation.battery_check": {
+        "triggers": [{"trigger": "time_pattern", "minutes": "/30"}],
+        "conditions": [{"condition": "numeric_state", "entity_id": "sensor.mesh_remote_living_battery", "below": 10}],
+        "actions": [{"action": "persistent_notification.create", "data": {"message": "Battery low"}}]},
+    "automation.garden_light_on_motion": {
+        "mode": "single",
+        "triggers": [_state("binary_sensor.garden_4", "on")],
+        "conditions": [{"condition": "sun", "after": "sunset", "before": "sunrise", "before_offset": "-00:20:00"}],
+        "actions": [_call("light.turn_on", "light.garden_2"), {"delay": "0:05:00"}, _call("light.turn_off", "light.garden_2")]},
+    "automation.holiday_lights": {
+        "triggers": [{"trigger": "sun", "event": "sunset", "id": "dusk"}, {"trigger": "time", "at": "23:30:00", "id": "late"}],
+        "actions": [{"if": [{"condition": "trigger", "id": "dusk"}], "then": [_call("switch.turn_on", "switch.garden_3")],
+                     "else": [_call("switch.turn_off", "switch.garden_3")]}]},
+    "script.irrigation_cycle": {
+        "sequence": [_call("switch.turn_on", "switch.garden_3"), {"delay": "0:20:00"}, _call("switch.turn_off", "switch.garden_3"),
+                     {"action": "script.irrigation_check"}]},
+    "script.irrigation_check": {
+        "sequence": [{"condition": "numeric_state", "entity_id": "sensor.garden_1", "below": 30}, {"action": "script.irrigation_cycle"}]},
+    "script.good_night": {
+        "sequence": [_call("light.turn_off", "light.living_room_2", "light.kitchen_2"), _call("switch.turn_off", "switch.office_3"),
+                     {"repeat": {"count": 2, "sequence": [_call("light.toggle", "light.hallway_2"), {"delay": 1}]}}]},
+}
+
+
+class _Everything:
+    def __contains__(self, _x):
+        return True
+
+
+def _refs(eid):
+    from .sources import hub_deps
+    return {k: v for k, v in hub_deps.refs_from_config(CONFIGS.get(eid) or {}, _Everything()).items() if k != "text"}
+
+
+# entity id, name, mode, config id (None: no traces), runs per hour, what it reads / switches, state, last run (days ago)
+_AUTO_DEFS = [
+    ("automation.hallway_light_on_motion", "Hallway light on motion", "restart", "1001", 14, "on", None),
+    ("automation.garden_irrigation", "Garden irrigation at dawn", "single", "1002", 0.05, "on", None),
+    ("automation.kitchen_climate", "Kitchen climate", "queued", "1003", 3, "on", None),
+    ("automation.office_power_saver", "Office power saver", "single", "1004", 0.5, "on", None),
+    ("automation.window_open_heating_off", "Window open: heating off", "single", "1005", 1, "on", None),
+    ("automation.garage_door_reminder", "Garage door reminder", "single", None, 0.1, "on", None),
+    ("automation.living_room_scene_sync", "Living room scene sync", "parallel", "1007", 96, "on", None),
+    ("automation.morning_lights", "Morning lights", "single", "1008", 0, "on", 0.4),
+    ("automation.evening_blinds", "Close the blinds after sunset", "single", "1009", 0, "on", 0.8),
+    ("automation.night_mode", "Night mode", "single", "1010", 0, "on", 0.6),
+    ("automation.desk_focus", "Desk focus", "restart", "1011", 2, "on", None),
+    ("automation.old_doorbell", "Old doorbell chime", "single", "1012", 0, "on", 64),
+    ("automation.vacuum_on_weekdays", "Vacuum on weekdays", "single", "1013", 0, "on", 2.2),
+    ("automation.fridge_too_warm", "Fridge too warm", "single", "1014", 0, "on", 9),
+    ("automation.battery_check", "Battery check", "single", "1015", 2, "on", None),
+    ("automation.garden_light_on_motion", "Garden light on motion", "single", "1016", 1, "on", None),
+    ("automation.holiday_lights", "Holiday lights", "single", "1017", 0, "off", 300),
 ]
+AUTOMATIONS = [(e, n, m, c, r, _refs(e)) for e, n, m, c, r, _s, _d in _AUTO_DEFS]
+STATE = {e: s for e, _n, _m, _c, _r, s, _d in _AUTO_DEFS}
+LAST_DAYS = {e: d for e, _n, _m, _c, _r, _s, d in _AUTO_DEFS if d is not None}
 SCRIPTS = [
-    ("script.irrigation_cycle", "Irrigation cycle", "single", {"action": ["switch.garden_3", "script.irrigation_check"]}),
-    ("script.irrigation_check", "Irrigation check", "single", {"action": ["sensor.garden_1", "script.irrigation_cycle"]}),
-    ("script.good_night", "Good night", "single", {"action": ["light.living_room_2", "light.kitchen_2", "switch.office_3"]}),
+    ("script.irrigation_cycle", "Irrigation cycle", "single", _refs("script.irrigation_cycle")),
+    ("script.irrigation_check", "Irrigation check", "single", _refs("script.irrigation_check")),
+    ("script.good_night", "Good night", "single", _refs("script.good_night")),
 ]
 LOOP = ["script.irrigation_check", "script.irrigation_cycle"]
 BLOCKED = "automation.garage_door_reminder"
+# integration entries of the sample hub (domain, state, count): one that cannot connect, one that retries
+ENTRIES = [("sample_hub", "loaded", 1), ("sample_wlan", "loaded", 4), ("sample_mesh", "loaded", 1), ("sample_subghz", "loaded", 1),
+           ("sample_thread", "loaded", 1), ("sample_ipstd", "loaded", 1), ("sample_ble", "loaded", 2), ("sample_weather", "setup_retry", 1),
+           ("sample_cloud_camera", "setup_error", 1), ("sample_backup", "not_loaded", 1)]
+# who switches what in the sample: (entity, cause, state, seconds after the start of the hour); the power saver and the
+# desk focus switch the office plug in opposite directions a few seconds apart (a conflict)
+CHANGE_PATTERN = [
+    ("switch.office_3", "automation.desk_focus", "on", 600), ("switch.office_3", "automation.office_power_saver", "off", 640),
+    ("light.hallway_2", "automation.hallway_light_on_motion", "on", 900), ("light.hallway_2", "automation.hallway_light_on_motion", "off", 1020),
+    ("light.living_room_2", "user", "on", 1500), ("light.living_room_6", "automation.living_room_scene_sync", "on", 1501),
+    ("switch.kitchen_3", "automation.kitchen_climate", "on", 2100), ("switch.kitchen_3", None, "off", 2700),
+    ("binary_sensor.hallway_4", None, "on", 899), ("binary_sensor.office_4", None, "off", 3000),
+    ("switch.garden_3", "script.irrigation_cycle", "on", 3300),
+]
 
 
 def items() -> tuple[list, list]:
-    autos = [{"entity_id": e, "id": cid, "mode": mode, "last": None, "state": "on"} for e, _n, mode, cid, _r, _x in AUTOMATIONS]
+    autos = [{"entity_id": e, "id": cid, "mode": mode, "last": None, "state": STATE[e]} for e, _n, mode, cid, _r, _x in AUTOMATIONS]
     scripts = [{"entity_id": e, "id": e.split(".", 1)[1], "mode": mode, "last": None, "state": "off"} for e, _n, mode, _x in SCRIPTS]
     return autos, scripts
+
+
+RENAME = {"binary_sensor.hallway_4": ("Hallway motion", "motion"), "binary_sensor.office_4": ("Office presence", "occupancy"),
+          "binary_sensor.garden_4": ("Garden motion", "motion")}
+
+
+def sun_times(now: float) -> dict:
+    """Sample sunrise 07:12 and sunset 16:38 local time (the next ones after ``now``)."""
+    lt = time.localtime(now)
+    midnight = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+    rise, sset = midnight + 7 * 3600 + 12 * 60, midnight + 16 * 3600 + 38 * 60
+    return {"rise": rise + (86400 if rise < now else 0), "set": sset + (86400 if sset < now else 0)}
 
 
 def extend_snapshot(snap: dict, now: float) -> dict:
     """Automations/scripts as entities and items, hardware addresses of three devices, tracker count."""
     autos, scripts = items()
     for i, (eid, name, *_rest) in enumerate(AUTOMATIONS):
-        autos[i]["last"] = now - 60 * (i * 7 + 3)
-        snap["entities"].append({"entity_id": eid, "device_id": None, "name": name, "state": "on", "unit": None,
+        autos[i]["last"] = now - LAST_DAYS[eid] * 86400 if eid in LAST_DAYS else now - 60 * (i * 7 + 3)
+        snap["entities"].append({"entity_id": eid, "device_id": None, "name": name, "state": STATE[eid], "unit": None,
                                  "domain": "automation", "area": None})
     for eid, name, *_rest in SCRIPTS:
         snap["entities"].append({"entity_id": eid, "device_id": None, "name": name, "state": "off", "unit": None,
@@ -55,6 +196,18 @@ def extend_snapshot(snap: dict, now: float) -> dict:
     snap["entities"].extend(entities)
     snap["automations"], snap["scripts"] = autos, scripts
     snap["trackers"] = trackers
+    for e in snap["entities"]:                    # the window contacts of the rooms, two of them motion sensors
+        if e.get("domain") == "binary_sensor" and not e.get("dc"):
+            e["dc"] = "window"
+        if e["entity_id"] in RENAME:
+            e["name"], e["dc"] = RENAME[e["entity_id"]]
+    snap["entities"].append({"entity_id": "input_datetime.weekend_wake_up", "device_id": None, "name": "Weekend wake-up",
+                             "state": "08:15:00", "unit": None, "domain": "input_datetime", "area": None, "dc": None, "cat": None,
+                             "platform": "input_datetime", "ls": False})
+    snap["entities"].append({"entity_id": "sun.sun", "device_id": None, "name": "Sun", "state": "below_horizon", "unit": None,
+                             "domain": "sun", "area": None, "dc": None, "cat": None, "platform": "sun", "ls": False})
+    snap["entries"] = [{"domain": d, "state": st, "n": n} for d, st, n in ENTRIES]
+    snap["sun"] = sun_times(now)
     snap["admin"] = True
     return snap
 
@@ -260,13 +413,36 @@ def history_frames(now: float, rng: random.Random) -> list:
     return frames
 
 
+def flow(eid: str) -> dict | None:
+    from .sources import hub_flow
+    return hub_flow.flow_from_config(CONFIGS[eid]) if eid in CONFIGS else None
+
+
 def deps_frame(now: float) -> dict:
-    autos = {e: dict({r: list(x.get(r, [])) for r in ("trigger", "condition", "action")}, text=[], related=list(x.get("action", [])))
+    autos = {e: dict({r: list(x.get(r, [])) for r in ("trigger", "condition", "action")}, text=[], related=list(x.get("action", [])),
+                     flow=flow(e))
              for e, _n, _m, _c, _r, x in AUTOMATIONS if e != BLOCKED}
-    scripts = {e: {"trigger": [], "condition": [], "action": list(x["action"]), "text": [], "related": []} for e, _n, _m, x in SCRIPTS}
+    scripts = {e: {"trigger": [], "condition": [], "action": list(x["action"]), "text": [], "related": [], "flow": flow(e)}
+               for e, _n, _m, x in SCRIPTS}
     return {"type": "hub_deps", "source": "hub", "t": now - 240, "automations": autos, "scripts": scripts, "cycles": [list(LOOP)],
             "blocked": [{"key": "c:" + BLOCKED, "kind": "config", "entity_id": BLOCKED, "until": now + 20 * 3600, "n": 1,
                          "code": "source.hub.request_failed"}]}
+
+
+def change_frames(now: float, hours: int = 24) -> list:
+    """State changes with their cause over the last hours (who switches what, the timeline), on a fixed pattern."""
+    out = []
+    for h in range(hours, 0, -1):
+        base = (int(now // 3600) - h) * 3600
+        night = 1 <= time.localtime(base).tm_hour <= 5
+        for eid, by, state, off in CHANGE_PATTERN:
+            if night and by not in ("automation.office_power_saver", "automation.desk_focus"):
+                continue
+            ev = {"type": "hub_state", "source": "hub", "entity_id": eid, "state": state, "t": base + off}
+            if by:
+                ev["by"] = by
+            out.append(ev)
+    return out
 
 
 def bridge_frame(now: float) -> dict:
@@ -305,9 +481,15 @@ def traces(entity_id: str, now: float) -> dict | None:
     return {"type": "hub_traces", "source": "hub", "t": now, "entity_id": entity_id, "runs": runs, "steps": steps}
 
 
-def by_for(entity_id: str, rng: random.Random) -> str | None:
-    """Who caused a demo state change: an automation switching what it controls, sometimes a person."""
-    for eid, _n, _m, _c, _r, x in AUTOMATIONS:
-        if entity_id in x.get("action", []) and rng.random() < 0.7:
-            return eid
-    return "user" if rng.random() < 0.1 else None
+# who switches the sample entities in the live demo: one owner each, so the only conflict is the curated one (desk focus
+# switches the office plug on, the power saver off)
+OWNERS = {"light.hallway_2": {"on": "automation.hallway_light_on_motion", "off": "automation.hallway_light_on_motion"},
+          "switch.kitchen_3": {"on": "automation.kitchen_climate", "off": None},
+          "switch.office_3": {"on": "automation.desk_focus", "off": "automation.office_power_saver"},
+          "light.living_room_2": {"on": "user", "off": "user"}}
+
+
+def by_for(entity_id: str, rng: random.Random, state: str | None = None) -> str | None:
+    """Who caused a demo state change (see ``OWNERS``); now and then the device itself."""
+    owner = OWNERS.get(entity_id) or {}
+    return owner.get(state) if rng.random() < 0.85 else None

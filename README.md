@@ -252,6 +252,25 @@ Devices the hub also knows are drawn as one component with a network side and a 
 </tr>
 </table>
 
+### Automations in plain words
+
+The Automations tab explains every automation and script of the hub in plain words (When → Only if → Then, written by fixed rules, without AI, in every language of the app), shows its flow with the live state of every entity and checks it: missing or unavailable entities, runaways, two automations switching one entity in opposite directions, automations that start themselves or drop starts, and those that have not run for 30 days. The dependency board shows what sets an entity and what reads it, with a dot travelling whenever an automation runs; *Who switches what* names the cause of every change (an automation, a person - never who - or the device itself), the timeline covers the last 24 hours, the day plan puts every fixed time and sun trigger on today's axis with a now line, the rooms view lists devices with their live state, and *Hub health* bundles integrations with errors and unavailable entities - read only, nothing is ever healed or switched. See [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md).
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/automations-light.png" width="100%" alt="The list of automations with tiles and findings"><br><sub>Every automation with its findings</sub></td>
+<td width="50%"><img src="docs/screenshots/automations-item-dark.png" width="100%" alt="One automation in plain words with its flow"><br><sub>In plain words: When, Only if, Then</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/automations-plan-light.png" width="100%" alt="The day plan with time and sun triggers and the now line"><br><sub>The day plan with the now line</sub></td>
+<td width="50%"><img src="docs/screenshots/automations-board-dark.png" width="100%" alt="The dependency board of an entity: what sets it"><br><sub>Dependency board; a dot runs when an automation fires</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/automations-phone-dark.png" width="200" alt="The list of automations on the phone"><br><sub>On the phone</sub></td>
+<td width="50%"><img src="docs/screenshots/automations-plan-phone-light.png" width="200" alt="The day plan on the phone as an agenda"><br><sub>The day plan as an agenda</sub></td>
+</tr>
+</table>
+
 ### Backup and moving to another host
 
 Settings › Backup saves the whole configuration into one file encrypted with your passphrase (Argon2id, AES-256-GCM): accounts and second factors, connections with their credentials, every name you set, "connected via" entries, drafts, settings and the audit log, optionally history. Automatic backups run on a schedule into the data volume, keep as many files as you choose, and the nightly report says when the newest one is too old. A restore shows first what it replaces, ends every session and works on a new host too, from the first-start page and across architectures (amd64 ↔ arm64). See [docs/BACKUP.md](docs/BACKUP.md).
@@ -535,6 +554,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/INVENTORY.md](docs/INVENTORY.md): inventory and life cycle: own fields, states, why a device is "probably gone", provisional entries, warranty and end of updates, the offline table, roles
 - [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces, networks and VLANs, devices without an address, scan protection, what can be connected
 - [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md): the home-automation bridge: what is read, admin mode, sparing the hub, privacy filter
+- [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md): the Automations tab: plain words, flow, findings, dependency board, who switches what, timeline, day plan, rooms, hub health
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md): hardware requirements with measured values, storage and retention, the nightly clean-up, the counter check, the frame budget of the map

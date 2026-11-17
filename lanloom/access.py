@@ -160,6 +160,14 @@ RULES = {
     ("GET", "/api/hub/{integ_id}/sensors"): R(V),
     ("GET", "/api/hub/{integ_id}/entity/{entity_id}"): R(V),       # history: within the bridge's own budget
     ("POST", "/api/hub/{integ_id}/match"): R(O, "hub.match"),
+    ("GET", "/api/hub/{integ_id}/auto"): R(V),                     # the Automations tab: everything read only
+    ("GET", "/api/hub/{integ_id}/auto/item/{entity_id}"): R(V),
+    ("GET", "/api/hub/{integ_id}/auto/board/{entity_id}"): R(V),
+    ("GET", "/api/hub/{integ_id}/auto/who"): R(V),
+    ("GET", "/api/hub/{integ_id}/auto/timeline"): R(V),
+    ("GET", "/api/hub/{integ_id}/auto/plan"): R(V),
+    ("GET", "/api/hub/{integ_id}/auto/rooms"): R(V),
+    ("GET", "/api/hub/{integ_id}/auto/health"): R(V),
 
     # ---------------------------------------------------------------- notifications (own rules for everyone)
     ("GET", "/api/notify"): R(V),

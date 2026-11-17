@@ -116,7 +116,8 @@ def outbound(snapshot: dict | None) -> dict:
     """The hub data for any way out of Lanloom (export, diagnostics, AI): private domains removed whatever the user
     switched on for the map, tracker links removed, free-text names of people-related things removed."""
     snap = snapshot if isinstance(snapshot, dict) else {}
-    out = {k: v for k, v in snap.items() if k not in ("entities", "trackers", "devices")}
+    # the sun's rise and set times give away roughly where the home is: never on the way out
+    out = {k: v for k, v in snap.items() if k not in ("entities", "trackers", "devices", "sun")}
     out["entities"] = [e for e in snap.get("entities") or [] if isinstance(e, dict) and domain_of(e.get("entity_id")) not in PRIVATE_DOMAINS]
     out["devices"] = [{k: v for k, v in d.items() if k != "macs"} for d in snap.get("devices") or [] if isinstance(d, dict)]
     return out

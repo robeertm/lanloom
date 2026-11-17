@@ -203,8 +203,12 @@ def test_dependencies_keep_only_entity_ids_per_role(admin_run):
     assert "person.alice" not in hall["related"] and "light.hall" in hall["related"]
     assert frame["cycles"] == [["script.a", "script.b"], ["script.self"]]
     assert [(b["entity_id"], b["kind"]) for b in frame["blocked"]] == [("automation.broken", "config")]
+    # the flow keeps the structure only: kinds, entity ids, the name of the action called - no alias, template or data
+    assert hall["flow"] == {"trigger": [{"k": "state", "e": ["binary_sensor.motion"]}], "condition": [{"k": "tpl", "tpl": True}],
+                            "action": [{"k": "call", "svc": "light.turn_on", "e": ["light.hall"]}]}
+    assert frame["scripts"]["script.self"]["flow"]["action"] == [{"k": "call", "svc": "logbook.log", "e": ["script.self"]}]
     blob = json.dumps(frame)
-    for word in ("turn_on", "value_template", "is_state", "message", "alias", "Hall light"):
+    for word in ("value_template", "is_state", "message", "alias", "Hall light", "\"x\""):
         assert word not in blob
 
 

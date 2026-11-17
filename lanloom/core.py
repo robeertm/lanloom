@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import adapter_inventory, availability as availability_mod, classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
+from . import adapter_inventory, availability as availability_mod, classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubauto, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
 from .crypto import Vault
 from .scan import protect as protect_mod
 from .store import Store
@@ -1180,6 +1180,50 @@ class Core:
                 "health": hubmerge.health(snap, radio),
                 "events": [{"platform": p, "per_min": n} for p, n in hubbridge.events_per_integration(entry, now)[:20]]}
 
+    def hub_auto(self, integ_id: int, part: str, entity_id: Optional[str] = None) -> Optional[dict]:
+        """The Automations tab (see hubauto): ``tab``, ``item``, ``who``, ``timeline``, ``plan``, ``rooms``, ``board``,
+        ``health``. None when the connection does not exist (or the item is unknown); read only."""
+        if integ_id not in self.hub_ids():
+            return None
+        now = time.time()
+        entry = self.hub.get(integ_id) or {}
+        ctx = hubauto.Ctx(entry, now)
+        head = {"integration": integ_id, "name": next((i["name"] for i in self.integrations() if i["id"] == integ_id), ""),
+                "connected": bool(ctx.snap), "admin": ctx.admin, "t": ctx.snap.get("t"), "now": now}
+        if part == "tab":
+            return dict(head, **hubauto.tab(ctx, self.hub_radio(integ_id, now)))
+        if part == "item":
+            got = hubauto.detail(ctx, entity_id or "")
+            return dict(head, **got) if got else None
+        if part == "board":
+            got = hubauto.board(ctx, entity_id or "")
+            return dict(head, **got) if got else None
+        if part == "who":
+            return dict(head, **hubauto.who(ctx))
+        if part == "timeline":
+            return dict(head, events=hubauto.timeline(ctx))
+        if part == "plan":
+            return dict(head, **hubauto.dayplan(ctx))
+        if part == "rooms":
+            radio = self.hub_radio(integ_id, now)
+            merge = self.hub_merge()
+            net_of = {k.split(":", 1)[1]: v for k, v in merge["by_hub"].items() if k.startswith("%d:" % integ_id)}
+            return dict(head, rooms=hubauto.rooms(ctx, radio["state"], net_of))
+        if part == "health":
+            return dict(head, **hubauto.health(ctx, self.hub_radio(integ_id, now)))
+        return None
+
+    def _hub_autoruns(self) -> list:
+        """Automation/script runs since the last live frame (the board of the Automations tab draws a dot for each)."""
+        out = []
+        for integ_id, entry in self.hub.items():
+            pend = entry.get("run_pending")
+            if not pend:
+                continue
+            entry["run_pending"] = {}
+            out.extend([integ_id, eid, min(int(n), 20)] for eid, n in pend.items())
+        return out[:200]
+
     async def hub_history(self, integ_id: int, entity_id: str, rng: str) -> dict:
         """One entity's course for the sensor page: 1 h from the live ring, longer ranges from the hub on request."""
         if integ_id not in self.hub_ids():
@@ -1772,6 +1816,9 @@ class Core:
         rings = self._hub_rings()
         if rings:
             frame["rings"] = rings
+        autoruns = self._hub_autoruns()
+        if autoruns:
+            frame["autoruns"] = autoruns
         self.last_frame = frame
         self.overview.maybe_sample(now)
         return frame

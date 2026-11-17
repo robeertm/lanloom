@@ -10,6 +10,7 @@ something ran overnight and spot a runaway automation (``BUSY_PER_HOUR`` runs wi
 from __future__ import annotations
 
 import time
+from collections import deque
 
 from . import hub_privacy as privacy
 from . import hubsensors
@@ -22,6 +23,10 @@ MAX_TRACES = 50
 EVENT_MINUTES = 10            # state changes per integration, one-minute buckets
 MAX_RING_PENDING = 2000
 TOP = 10
+CHANGE_KEEP_S = 86400         # who switched what: state changes of the last 24 hours (entity, state, cause)
+MAX_CHANGES = 20000
+MAX_RUN_LOG = 20000           # automation/script runs of the last 24 hours (the timeline)
+MAX_RUN_PENDING = 2000
 
 
 def new_entry(live_cadence) -> dict:
@@ -53,6 +58,13 @@ def book(entry: dict, ev: dict, now: float | None = None) -> None:
         by = ev.get("by")
         if by and (eid in entry["by"] or len(entry["by"]) < MAX_BY):
             entry["by"][eid] = (by, ev.get("t") or now)
+        if privacy.valid_entity_id(eid) and not privacy.is_private(eid) and t >= now - CHANGE_KEEP_S:
+            ch = entry.get("changes")
+            if ch is None:
+                ch = entry["changes"] = deque(maxlen=MAX_CHANGES)
+            ch.append((t, eid, ev.get("state"), by if isinstance(by, str) and (by == "user" or privacy.valid_entity_id(by)) else None))
+            while ch and ch[0][0] < now - CHANGE_KEEP_S:
+                ch.popleft()
     elif etype == "hub_triggers":
         for eid, r in (ev.get("runs") or {}).items():
             if not privacy.valid_entity_id(eid) or not isinstance(r, dict):
@@ -61,11 +73,21 @@ def book(entry: dict, ev: dict, now: float | None = None) -> None:
             bucket = int((r.get("last") or now) // HOUR)
             rec["hours"][bucket] = rec["hours"].get(bucket, 0) + int(r.get("n") or 0)
             rec["last"] = r.get("last") or now
+            n = int(r.get("n") or 0)
+            if n > 0:
+                log = entry.get("run_log")
+                if log is None:
+                    log = entry["run_log"] = deque(maxlen=MAX_RUN_LOG)
+                log.append((float(r.get("last") or now), eid, n))
+                pend = entry.setdefault("run_pending", {})
+                if eid in pend or len(pend) < MAX_RUN_PENDING:
+                    pend[eid] = pend.get(eid, 0) + n
             oldest = int(now // HOUR) - KEEP_HOURS
             for b in [b for b in rec["hours"] if b < oldest]:
                 rec["hours"].pop(b, None)
     elif etype == "hub_deps":
         entry["deps"] = ev
+        entry.pop("auto_cache", None)
     elif etype == "hub_traces":
         eid = ev.get("entity_id")
         if privacy.valid_entity_id(eid):
