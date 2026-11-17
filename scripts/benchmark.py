@@ -13,7 +13,7 @@ and live traffic on every device's trace. Measured in this process:
     paths         GET /api/paths for 24 h and 30 days
     storage       GET /api/storage
     tick          one second of the live loop (frame building), CPU share = tick time / 1 s
-    rss           resident memory after everything (process, Linux) and Python heap of the core (tracemalloc)
+    rss           resident memory after everything (process, from /proc) and Python heap of the core (tracemalloc)
 
 Times are medians of several runs in milliseconds. CPU speed differs between hosts: compare results only on the same
 machine, or as a ratio to ``calib_ms`` (a fixed pure-Python workload measured in the same run; the budget tests in

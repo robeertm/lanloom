@@ -2,7 +2,9 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
-## [1.18.0] – 2026-11-17
+## [1.18.1] – 2026-11-17
+
+1.18.0 was not released on its own; its changes are part of this version.
 
 ### Added
 - **Settings › Storage** (administrators): how much space each kind of data takes (inventory, data paths, availability and events, nightly reports, audit log, scan history, accounts) with a bar and a table, the database file, free space inside it, stored backups, free disk space, the growth per day, and what Lanloom holds in memory.

@@ -58,7 +58,7 @@ SAMPLE_BYTES = 24                # one live-ring sample in memory (three doubles
 
 
 def process_rss() -> Optional[int]:
-    """Resident memory of this process in bytes (Linux), else None."""
+    """Resident memory of this process in bytes (from /proc), else None."""
     try:
         with open("/proc/self/status", encoding="ascii", errors="replace") as fh:
             for line in fh:
