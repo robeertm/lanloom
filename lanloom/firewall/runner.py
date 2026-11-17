@@ -187,6 +187,10 @@ class Runner:
                 extra = self.adapter.lockout(state, st) if hasattr(self.adapter, "lockout") else None
                 if extra:
                     raise model.Refused(extra)
+            # family rules over the whole plan (e.g. rule positions that move when a rule comes or goes)
+            extra = self.adapter.plan_lockout(state, plan["steps"]) if hasattr(self.adapter, "plan_lockout") else None
+            if extra:
+                raise model.Refused(extra)
         except model.Refused as exc:
             return self._refuse(plan, exc)
         self.active = pid

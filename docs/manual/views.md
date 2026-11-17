@@ -128,9 +128,14 @@ Zones, networks and rules, read from your controller; changes as a draft with a 
 - **Who may.** Operators prepare drafts and previews; applying needs an admin, and with the external executor a passkey
   signature per change. Every draft is in the audit log; changes on a real controller appear in the nightly report
   under *Changes written*.
+- **Guests of a hypervisor.** With a hypervisor behind the editor (the simulation has a sample one) the *Guests* card
+  starts or shuts down a guest, moves a network card to another bridge or VLAN (*Change …*) and switches the guest's
+  firewall and its rules; a new rule is appended and marked as Lanloom's own. Guests that keep the network running (name
+  server, gateway, Lanloom itself, hub or controller, or tagged `lanloom-protect`) show a lock and the reason, and offer
+  no stop, card or rule changes. Start, shutdown and the firewall switch need their own tick in the preview.
 - **On the phone.** Tap a device: the sheet opens from the bottom; *Move to …* leads to the list of networks.
 - **From the search** (`Ctrl K`): *Change a device (network, name, fixed address) …*, or a device hit → *Move to … /
-  change*.
+  change*; *Change a guest (start, shut down, network card, firewall) …* opens the *Guests* card.
 
 <a id="reports"></a>
 ## Nightly report

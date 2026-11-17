@@ -1,6 +1,6 @@
 # Firewall editor
 
-The **Firewall** tab shows which zone and network every device sits in and what each zone may reach. In **Change** mode you can move a device to another network, give it a fixed address or a new name, see in plain words what that means, and apply it as one signed change.
+The **Firewall** tab shows which zone and network every device sits in and what each zone may reach. In **Change** mode you can move a device to another network, give it a fixed address or a new name, start or shut down a guest of a hypervisor, move its network card to another bridge or VLAN and adjust its firewall, see in plain words what that means, and apply it as one signed change.
 
 > ## ⚠️ Read this before you let it write to a real controller
 >
@@ -10,6 +10,7 @@ The **Firewall** tab shows which zone and network every device sits in and what 
 > - **Private (changing) hardware addresses defeat per-device rules.** Phones and tablets often use a random address per network. A move that is tied to the address does not last. The preview asks you to switch that off on the device first.
 > - **Things that use a device by its address break.** Automations, printers set up by address and similar links have to be updated. The preview lists known dependencies, but only those the controller state reports.
 > - **A new fixed address takes effect later, a removed one can change the address.** A device picks up a fixed address when it renews its address (reconnect or restart it); without a fixed address it may get a different one later, and whatever reaches it by address loses it.
+> - **Stopping a guest interrupts its services.** Lanloom shuts a guest down cleanly and never pulls the plug, but whatever the guest serves is gone until it starts again. Moving a guest's network card to another bridge or VLAN cuts its connection until it has an address in the new network. Guests that keep the network running (Lanloom itself, the executor, the name server, the gateway, a hub or controller) are refused - but Lanloom only knows what it can see. Tag guests that must never be touched with `lanloom-protect`.
 > - **The executor holds controller credentials.** Use a dedicated local account with the least rights your controller offers, never an owner account, and keep its options file readable only by the executor. The executor can connect only to the app and to its controller (connection guard).
 > - **Use at your own risk.** Keep local console access to your controller; Lanloom never writes without your passkey. This is no legal advice and no warranty.
 
@@ -47,6 +48,16 @@ In **Change** mode, drag a device onto another network, or tap or click it (phon
 Only what the connected controller can change is offered (its capability list); nothing is shown greyed out. The changes collect in the draft bar at the bottom, one chip per device; **Preview** shows every field old → new, and moving and changing the same device in one draft becomes one step. Known devices that are offline right now but carry settings of their own (name, fixed address, network override) are listed too, so they can be renamed or get their address before they come back.
 
 The command palette (Ctrl K) has *Change a device (network, name, fixed address) …*, and a device found there offers *Move to … / change*; both open this sheet. Changing needs the **Operator** role (drafts and previews); applying needs an **Admin** with a passkey. Every draft change is written to the audit log.
+
+### Changing a guest: start, shut down, network card, firewall
+
+With a hypervisor family behind the editor (the simulation has a sample hypervisor next to the sample network; for real writes see the guide of the hypervisor family listed in [COMPATIBILITY.md](COMPATIBILITY.md)), **Change** mode adds a **Guests** card:
+
+- **Start** / **Shut down** - a clean shutdown with a time limit; a guest that does not shut down keeps running and the plan is rolled back. Both need their own confirmation in the preview.
+- **Network card** - *Change …* opens a sheet with the bridge (bridges of the guest's node and virtual networks of the cluster), the VLAN tag (empty = none) and the card's firewall flag. A VLAN the bridge does not allow, a bridge the node does not have and a VLAN on a virtual network that carries its own are refused right in the preview.
+- **Firewall** - switch the guest's own firewall on or off (own confirmation), switch a rule on or off, change a plain rule (direction, action, protocol, ports, source, comment), add a rule (appended at the end, marked as Lanloom's own) or remove one Lanloom created.
+
+Guests that keep the network running show a lock chip with the reason (name server, runs Lanloom, gateway, …) and no stop, card or rule controls; templates, guests locked or protected on the host and guests run by the cluster's high-availability manager show no controls either. The same rules are checked again by the executor right before it writes. One change per guest object and plan; a new or removed rule is the only rule change of its guest in a plan. The command palette has *Change a guest (start, shut down, network card, firewall) …*, which opens this card.
 
 The nightly report has a section **Changes written**: what the executor changed on the controller since the last report (done, undone, refused), with a point for each change that was put back on its own or could not be put back. It appears when an external executor is set up; rehearsals on the sample network never appear.
 
@@ -113,6 +124,7 @@ The write half of an adapter subclasses `lanloom.firewall.adapter.ControllerAdap
 | `settle(steps)` | wait until provisioning finished |
 | `probe(steps)` | `{"global_ok": bool, "missing": [ids not as planned]}` |
 | `lockout(state, step)` | extra lockout rule of the family (the neutral rules always run) |
+| `plan_lockout(state, steps)` | the same over the whole plan (rules that depend on several steps) |
 | `endpoints()` | host names or addresses the adapter connects to; the executor's connection guard allows nothing else |
 
 Every request of a write half goes through one send path with a field-exact allow-list (method, path pattern, body fields, allowed values), checked below the adapter. See `SimulatedController` in `lanloom/firewall/adapter.py` for a complete reference and `tests/test_plan_v2.py` for stand-ins that fail on purpose.

@@ -129,6 +129,197 @@
     if (net) out.push(net);
     return out;
   };
+  // ------------------------------------------------------------------ guest changes (firewall editor, change mode)
+  // ctx: {change: bool, can(key), ops: draft guest changes {key: {kind, object, after}}, critical: {guest id: reason},
+  //       bridges: {guest id: [names]}, setOp(kind, object, after|null), dropOp(key)}. Controls appear only for what the
+  //       executor can do (capability keys); nothing is offered greyed out. Critical guests show why they stay as they are.
+  const opKey = (kind, obj) => kind + '|' + obj;
+  const RULE_ACTIONS = ['allow', 'block', 'reject'];
+  function valText(field, v) {
+    if (v === '' || v == null) return t('fw.preview.none_value');
+    if (typeof v === 'boolean') return t(v ? 'fw.state.on' : 'fw.state.off');
+    if (field === 'status') return t('hv.status.' + v);
+    if (field === 'action') return t('fw.pol.action.' + v);
+    if (field === 'direction') return t('hv.dir.' + v);
+    if (field === 'proto') return v === 'any' ? t('hv.any') : String(v).toUpperCase();
+    return String(v);
+  }
+  LL.hvValText = valText;
+
+  function nicDialog(g, n, ctx) {
+    const op = ctx.ops[opKey('guest.nic', n.id)];
+    const cur = Object.assign({ bridge: n.bridge, vlan: n.vlan, firewall: !!n.firewall }, op ? op.after : {});
+    const names = (ctx.bridges[g.id] || []).slice();
+    if (n.bridge && !names.includes(n.bridge)) names.unshift(n.bridge);
+    const canB = ctx.can('guest.nic');
+    const bridgeSel = h('select', { class: 'input' }, names.map(b => h('option', { value: b, selected: b === cur.bridge }, b)));
+    const vlanIn = h('input', { type: 'number', class: 'input mono', min: '1', max: '4094', inputmode: 'numeric', value: cur.vlan != null ? String(cur.vlan) : '', placeholder: t('hv.nic.vlan_none') });
+    const fwCb = h('input', { type: 'checkbox', checked: !!cur.firewall });
+    const msg = h('div', { class: 'msg' });
+    const body = h('div', { class: 'fw-dev hv-dlg' },
+      h('p', { class: 'muted fw-dev__lead' }, t('hv.nic.lead', { node: g.node || '—', model: n.model || '—' })),
+      LL.field(t('hv.f.bridge'), bridgeSel, t('hv.nic.bridge_hint')),
+      LL.field(t('hv.f.vlan'), vlanIn, t('hv.nic.vlan_hint')),
+      h('label', { class: 'check' }, fwCb, h('span', {}, t('hv.nic.firewall'))),
+      g.status === 'running' ? h('p', { class: 'msg msg--info' }, t('hv.nic.running_hint')) : null, msg);
+    const save = h('button', { class: 'btn btn--primary btn--block', type: 'button', disabled: !canB, onclick: async () => {
+      const raw = vlanIn.value.trim();
+      const vlan = raw === '' ? null : Number(raw);
+      if (vlan !== null && !(Number.isInteger(vlan) && vlan >= 1 && vlan <= 4094)) { LL.msg(msg, t('hv.nic.vlan_invalid'), 'error'); return; }
+      const after = {};
+      if (bridgeSel.value !== n.bridge) after.bridge = bridgeSel.value;
+      if (vlan !== n.vlan) after.vlan = vlan;
+      if (fwCb.checked !== !!n.firewall) after.firewall = fwCb.checked;
+      dlg.close();
+      await ctx.setOp('guest.nic', n.id, Object.keys(after).length ? after : null);
+    } }, t('fw.dev.stage'));
+    const dlg = LL.dialog(t('hv.nic.title', { guest: g.name, nic: n.name }), body, save);
+    dlg.el.classList.add('modal--sheet');
+    setTimeout(() => vlanIn.focus(), 30);
+  }
+
+  function ruleDialog(g, r, ctx) {
+    const isNew = !r;
+    const op = r ? ctx.ops[opKey('guest.fw_rule', r.id)] : null;
+    const cur = Object.assign(r ? { direction: r.direction, action: r.action, proto: r.proto || 'any', ports: r.ports || '', source: r.source || '', name: r.name || '', enabled: !!r.enabled }
+      : { direction: 'in', action: 'allow', proto: 'tcp', ports: '', source: '', name: '', enabled: true }, op ? op.after : {});
+    const sel = (opts, val, label) => h('select', { class: 'input' }, opts.map(o => h('option', { value: o, selected: o === val }, label(o))));
+    const dirSel = sel(['in', 'out'], cur.direction, o => t('hv.dir.' + o));
+    const actSel = sel(RULE_ACTIONS, cur.action, o => t('fw.pol.action.' + o));
+    const protoSel = sel(['any', 'tcp', 'udp', 'icmp'], cur.proto, o => o === 'any' ? t('hv.any') : o.toUpperCase());
+    const portsIn = h('input', { type: 'text', class: 'input mono', maxlength: '64', autocomplete: 'off', spellcheck: 'false', value: cur.ports, placeholder: '443, 8000-8100' });
+    const srcIn = h('input', { type: 'text', class: 'input mono', maxlength: '64', autocomplete: 'off', spellcheck: 'false', value: cur.source, placeholder: t('hv.rule.source_ph') });
+    const nameIn = h('input', { type: 'text', class: 'input', maxlength: '64', autocomplete: 'off', value: cur.name });
+    const onCb = h('input', { type: 'checkbox', checked: !!cur.enabled });
+    const syncPorts = () => { const p = ['tcp', 'udp'].includes(protoSel.value); portsIn.disabled = !p; if (!p) portsIn.value = ''; };
+    protoSel.addEventListener('change', syncPorts); syncPorts();
+    const msg = h('div', { class: 'msg' });
+    const body = h('div', { class: 'fw-dev hv-dlg' },
+      h('p', { class: 'muted fw-dev__lead' }, t(isNew ? 'hv.rule.lead_new' : 'hv.rule.lead_edit', { guest: g.name })),
+      h('div', { class: 'hv-dlg__pair' }, LL.field(t('hv.col.direction'), dirSel), LL.field(t('hv.col.action'), actSel)),
+      h('div', { class: 'hv-dlg__pair' }, LL.field(t('fw.col.proto'), protoSel), LL.field(t('hv.col.ports'), portsIn)),
+      LL.field(t('hv.rule.source'), srcIn, t('hv.rule.source_hint')),
+      LL.field(t('hv.rule.name'), nameIn, isNew ? t('hv.rule.name_hint') : null),
+      h('label', { class: 'check' }, onCb, h('span', {}, t('hv.rule.enabled'))), msg);
+    const save = h('button', { class: 'btn btn--primary btn--block', type: 'button', onclick: async () => {
+      const want = { direction: dirSel.value, action: actSel.value, proto: protoSel.value, ports: portsIn.value.replace(/\s+/g, ''), source: srcIn.value.replace(/\s+/g, ''), name: nameIn.value.trim(), enabled: onCb.checked };
+      if (want.ports && !/^\d{1,5}(-\d{1,5})?(,\d{1,5}(-\d{1,5})?)*$/.test(want.ports)) { LL.msg(msg, t('hv.rule.ports_invalid'), 'error'); return; }
+      if (want.source && !/^[A-Za-z0-9_:.,/+!-]+$/.test(want.source)) { LL.msg(msg, t('hv.rule.source_invalid'), 'error'); return; }
+      dlg.close();
+      if (isNew) { await ctx.setOp('guest.fw_rule_create', null, Object.assign({ guest: g.id }, want)); return; }
+      const after = {};
+      Object.keys(want).forEach(k => { const was = k === 'source' ? (r.source || '') : k === 'enabled' ? !!r.enabled : (r[k] == null ? '' : r[k]); if (want[k] !== was) after[k] = want[k]; });
+      await ctx.setOp('guest.fw_rule', r.id, Object.keys(after).length ? after : null);
+    } }, t('fw.dev.stage'));
+    const dlg = LL.dialog(t(isNew ? 'hv.rule.title_new' : 'hv.rule.title_edit', { guest: g.name }), body, save);
+    dlg.el.classList.add('modal--sheet');
+    setTimeout(() => (isNew ? portsIn : nameIn).focus(), 30);
+  }
+
+  function guestRow(s, g, ctx) {
+    const crit = ctx.critical[g.id];
+    const nics = (s.guest_nics || []).filter(n => n.guest === g.id).sort((a, b) => a.name < b.name ? -1 : 1);
+    const rules = (s.guest_rules || []).filter(r => r.owner === g.id).sort((a, b) => (a.pos || 0) - (b.pos || 0));
+    const pOp = ctx.ops[opKey('guest.power', g.id)], fOp = ctx.ops[opKey('guest.firewall', g.id)];
+    const status = pOp ? pOp.after.status : g.status;
+    const fwOn = fOp ? fOp.after.firewall : g.firewall;
+    const locked = !!(g.template || g.lock || g.protected);
+    const why = g.template ? 'hv.edit.why_template' : g.lock ? 'hv.edit.why_locked' : g.protected ? 'hv.edit.why_protected' : null;
+    const btn = (label, onclick, cls) => h('button', { class: 'btn btn--sm ' + (cls || 'btn--ghost'), type: 'button', onclick }, label);
+    const tools = [];
+    if (ctx.change && !g.template && !g.lock) {
+      if (ctx.can('guest.power') && !(g.ha && g.ha !== 'ignored')) {
+        if (pOp) tools.push(btn(t('hv.edit.undo'), () => ctx.dropOp(opKey('guest.power', g.id))));
+        else if (g.status === 'stopped') tools.push(btn(t('hv.edit.start'), () => ctx.setOp('guest.power', g.id, { status: 'running' })));
+        else if (g.status === 'running' && !crit && !g.protected) tools.push(btn(t('hv.edit.shutdown'), () => ctx.setOp('guest.power', g.id, { status: 'stopped' })));
+      }
+      if (ctx.can('guest.firewall') && g.firewall != null && !g.protected) {
+        if (fOp) tools.push(btn(t('hv.edit.undo_fw'), () => ctx.dropOp(opKey('guest.firewall', g.id))));
+        else if (!(crit && !g.firewall)) tools.push(btn(t(g.firewall ? 'hv.edit.fw_off' : 'hv.edit.fw_on'), () => ctx.setOp('guest.firewall', g.id, { firewall: !g.firewall })));
+      }
+    }
+    const head = h('div', { class: 'hv-edit__head' },
+      h('div', { class: 'hv-edit__who' },
+        h('span', { class: 'hv-dot hv-dot--' + (status === 'running' ? 'on' : status === 'paused' ? 'warn' : 'off'), 'aria-hidden': 'true' }),
+        h('strong', {}, g.name), h('span', { class: 'muted mono' }, String(g.vmid)),
+        h('span', { class: 'muted' }, [t(g.kind === 'vm' ? 'hv.kind.vm' : 'hv.kind.lxc'), g.node, (g.ips || [])[0]].filter(Boolean).join(' · '))),
+      h('div', { class: 'hv-edit__chips' },
+        pOp ? h('span', { class: 'chip chip--accent' }, t('hv.edit.planned_power', { status: valText('status', pOp.after.status) }))
+          : h('span', { class: 'chip ' + (g.status === 'running' ? 'chip--ok' : 'chip--muted') }, valText('status', g.status)),
+        g.firewall != null ? h('span', { class: 'chip ' + (fOp ? 'chip--accent' : fwOn ? 'chip--ok' : 'chip--muted') }, t('hv.edit.fw_chip', { state: valText('', !!fwOn) })) : null,
+        crit ? h('span', { class: 'chip chip--warn', title: t('hv.edit.critical_hint') }, svgLock(), t(crit)) : null,
+        why ? h('span', { class: 'chip chip--muted' }, t(why)) : null),
+      tools.length ? h('div', { class: 'hv-edit__tools' }, tools) : null);
+    const nicLines = nics.map(n => {
+      const op = ctx.ops[opKey('guest.nic', n.id)];
+      const now = Object.assign({ bridge: n.bridge, vlan: n.vlan, firewall: !!n.firewall }, op ? op.after : {});
+      const canNic = ctx.change && ctx.can('guest.nic') && !crit && !locked;
+      return h('li', { class: 'hv-edit__nic' + (op ? ' is-planned' : '') },
+        h('span', { class: 'mono hv-edit__slot' }, n.name),
+        h('span', { class: 'hv-edit__val' }, h('span', { class: 'muted' }, t('hv.f.bridge') + ' '), h('span', { class: 'mono' }, now.bridge || '—')),
+        h('span', { class: 'hv-edit__val' }, h('span', { class: 'muted' }, t('hv.f.vlan') + ' '), h('span', { class: 'mono' }, now.vlan != null ? String(now.vlan) : (n.trunks && n.trunks.length ? t('hv.trunk', { vlans: n.trunks.join(', ') }) : '—'))),
+        h('span', { class: 'hv-edit__val' }, h('span', { class: 'muted' }, t('hv.col.firewall') + ' '), valText('', !!now.firewall)),
+        op ? h('span', { class: 'chip chip--accent' }, t('hv.edit.planned')) : null,
+        canNic ? h('span', { class: 'hv-edit__tools' }, op ? btn(t('hv.edit.undo'), () => ctx.dropOp(opKey('guest.nic', n.id))) : null,
+          btn(t('hv.edit.change'), () => nicDialog(g, n, ctx))) : null);
+    });
+    const creates = Object.values(ctx.ops).filter(o => o.kind === 'guest.fw_rule_create' && o.after.guest === g.id);
+    const ruleLines = rules.map(r => {
+      const op = ctx.ops[opKey('guest.fw_rule', r.id)], del = ctx.ops[opKey('guest.fw_rule_delete', r.id)];
+      const now = Object.assign({}, r, op ? op.after : {});
+      const canRule = ctx.change && ctx.can('guest.fw_rule') && !crit && !locked;
+      const act = r.action === 'group' ? t('hv.rule.group', { name: r.group }) : t('fw.pol.action.' + (RULE_ACTIONS.includes(now.action) ? now.action : 'other'));
+      const tools2 = [];
+      if (canRule && (op || del)) tools2.push(btn(t('hv.edit.undo'), () => ctx.dropOp(opKey(del ? 'guest.fw_rule_delete' : 'guest.fw_rule', r.id))));
+      else if (canRule) {
+        tools2.push(btn(t(now.enabled ? 'hv.edit.rule_off' : 'hv.edit.rule_on'), () => ctx.setOp('guest.fw_rule', r.id, { enabled: !r.enabled })));
+        if (r.plain) tools2.push(btn(t('hv.edit.change'), () => ruleDialog(g, r, ctx)));
+        if (r.own && ctx.can('guest.fw_rule_delete')) tools2.push(btn(t('hv.edit.rule_remove'), () => ctx.setOp('guest.fw_rule_delete', r.id, {}), 'btn--ghost hv-danger'));
+      }
+      return h('li', { class: 'hv-edit__rule' + (now.enabled ? '' : ' is-off') + (op || del ? ' is-planned' : '') + (del ? ' is-gone' : '') },
+        h('span', { class: 'hv-edit__dir' }, t('hv.dir.' + (now.direction || 'in'))),
+        h('span', { class: 'fw-rule__act fw-rule__act--' + (RULE_ACTIONS.includes(now.action) ? now.action : 'other') }, act),
+        h('span', { class: 'mono hv-edit__what' }, [now.macro || null, now.proto && now.proto !== 'any' ? String(now.proto).toUpperCase() : null, now.ports || now.dport || null].filter(Boolean).join(' ') || t('hv.any'),
+          h('span', { class: 'muted' }, ' ← ' + (now.source || t('hv.any')))),
+        h('span', { class: 'hv-edit__name' }, now.name || r.comment || ''),
+        r.own ? h('span', { class: 'chip chip--muted' }, t('hv.edit.own')) : null,
+        op || del ? h('span', { class: 'chip chip--accent' }, t(del ? 'hv.edit.planned_gone' : 'hv.edit.planned')) : null,
+        tools2.length ? h('span', { class: 'hv-edit__tools' }, tools2) : null);
+    }).concat(creates.map(o => h('li', { class: 'hv-edit__rule is-planned is-new' },
+      h('span', { class: 'hv-edit__dir' }, t('hv.dir.' + o.after.direction)),
+      h('span', { class: 'fw-rule__act fw-rule__act--' + o.after.action }, t('fw.pol.action.' + o.after.action)),
+      h('span', { class: 'mono hv-edit__what' }, [o.after.proto && o.after.proto !== 'any' ? o.after.proto.toUpperCase() : null, o.after.ports || null].filter(Boolean).join(' ') || t('hv.any'),
+        h('span', { class: 'muted' }, ' ← ' + (o.after.source || t('hv.any')))),
+      h('span', { class: 'hv-edit__name' }, o.after.name || ''),
+      h('span', { class: 'chip chip--accent' }, t('hv.edit.planned_new')),
+      h('span', { class: 'hv-edit__tools' }, btn(t('hv.edit.undo'), () => ctx.dropOp(opKey(o.kind, o.object))))))); 
+    const addRule = ctx.change && ctx.can('guest.fw_rule_create') && !crit && !locked && !creates.length
+      ? btn(t('hv.edit.rule_add'), () => ruleDialog(g, null, ctx)) : null;
+    return h('li', { class: 'hv-edit' + (crit ? ' is-critical' : ''), dataset: { guest: g.id } }, head,
+      nicLines.length ? h('ul', { class: 'hv-edit__nics', 'aria-label': t('hv.nics.title') }, nicLines) : null,
+      ruleLines.length || addRule ? h('div', { class: 'hv-edit__rules' },
+        h('div', { class: 'hv-edit__sub' }, h('span', {}, t('hv.edit.rules', { n: rules.length + creates.length })), g.firewall === false && rules.length ? h('span', { class: 'muted' }, ' · ' + t('hv.edit.rules_inactive')) : null, addRule),
+        ruleLines.length ? h('ul', {}, ruleLines) : null) : null);
+  }
+  function svgLock() { const sp = h('span', { class: 'hv-lock', 'aria-hidden': 'true' }); sp.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'; return sp; }
+
+  LL.hvEditCards = function (s, ctx) {
+    const gs = (s.guests || []).filter(g => !g.template).slice().sort((a, b) => (a.vmid || 0) - (b.vmid || 0));
+    const out = [];
+    if (gs.length) {
+      const anyCrit = gs.some(g => ctx.critical[g.id]);
+      out.push(h('section', { class: 'card fw-extra hv-card hv-editcard', id: 'fw-guests' },
+        h('h2', {}, t('hv.edit.title', { n: gs.length })),
+        h('p', { class: 'muted fw-hint' }, t(ctx.change ? 'hv.edit.lead_change' : 'hv.edit.lead_view')),
+        anyCrit ? h('p', { class: 'callout callout--warn hv-edit__crit' }, h('span', {}, svgLock(), ' ', t('hv.edit.critical_hint'))) : null,
+        h('ul', { class: 'hv-edit__list' }, gs.map(g => guestRow(s, g, ctx)))));
+    }
+    if (s.findings && s.findings.length) out.push(card(t('hv.findings.title'), t('hv.findings.lead'), findingList(s.findings)));
+    const net = networkCard(s);
+    if (net) out.push(net);
+    return out;
+  };
+
   LL.hvMeta = function (s) {
     const c = s.controller || {};
     return [c.cluster ? t('hv.meta.cluster', { name: c.cluster }) : null, c.nodes ? t('hv.meta.nodes', { n: c.nodes }) : null].filter(Boolean);

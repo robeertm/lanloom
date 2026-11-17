@@ -147,9 +147,40 @@ SSID_FIELDS = {"name": _text(32), "network": _ident, "bands": _bands, "security"
                "hidden": _bool, "enabled": _bool}
 FORWARD_FIELDS = {"name": _text(), "proto": _enum("tcp", "udp", "tcp_udp"), "wan_port": _ports, "dst_ip": _ip,
                   "dst_port": _ports, "enabled": _bool}
-GUEST_NIC_FIELDS = {"bridge": _ident, "vlan": _vlan_or_none}
-GUEST_RULE_FIELDS = {"name": _text(), "direction": _enum("in", "out"), "action": _enum("allow", "block", "reject"),
-                     "proto": _enum("any", "tcp", "udp", "icmp"), "ports": _ports, "source": _text(64, empty=True),
+_BRIDGE = re.compile(r"\A[A-Za-z][A-Za-z0-9_.-]{0,31}\Z")
+
+
+def _bridge(v):
+    """A hypervisor bridge or virtual network name (vmbr0, things): no spaces, no separators of a config line."""
+    if not isinstance(v, str) or not _BRIDGE.match(v):
+        raise FieldError("bridge")
+
+
+_RULE_SOURCE = re.compile(r"\A(?:[0-9A-Fa-f:.,/+!-]|[A-Za-z0-9_])*\Z")
+
+
+def _rule_source(v):
+    """Source of a guest firewall rule: empty (any), addresses/networks (comma list), or a named alias/set (+name)."""
+    if not isinstance(v, str) or len(v) > 64 or not _RULE_SOURCE.match(v):
+        raise FieldError("source")
+    if v:
+        for part in v.split(","):
+            if not part:
+                raise FieldError("source")
+            name = part[1:] if part.startswith("+") else None
+            if name is not None:
+                if not re.match(r"\A[A-Za-z][A-Za-z0-9_-]{0,31}\Z", name):
+                    raise FieldError("source")
+                continue
+            try:
+                ipaddress.ip_network(part.lstrip("!"), strict=False)
+            except ValueError:
+                raise FieldError("source")
+
+
+GUEST_NIC_FIELDS = {"bridge": _bridge, "vlan": _vlan_or_none, "firewall": _bool}
+GUEST_RULE_FIELDS = {"name": _text(64, empty=True), "direction": _enum("in", "out"), "action": _enum("allow", "block", "reject"),
+                     "proto": _enum("any", "tcp", "udp", "icmp"), "ports": _ports, "source": _rule_source,
                      "enabled": _bool}
 
 
@@ -194,8 +225,13 @@ KINDS = dict([
     _k("forward.update", "port_forwards", FORWARD_FIELDS),
     _k("forward.delete", "port_forwards", FORWARD_FIELDS, verb="delete", inverse="forward.create"),
     _k("guest.power", "guests", {"status": _enum("running", "stopped")}, confirm=True),
+    _k("guest.firewall", "guests", {"firewall": _bool}, confirm=True),
     _k("guest.nic", "guest_nics", GUEST_NIC_FIELDS),
     _k("guest.fw_rule", "guest_rules", GUEST_RULE_FIELDS),
+    # a new guest rule names its guest (``guest``, the neutral guest id) - the only create whose object hangs below another
+    _k("guest.fw_rule_create", "guest_rules", dict(GUEST_RULE_FIELDS, guest=_ident), verb="create",
+       required=("guest", "direction", "action", "enabled"), inverse="guest.fw_rule_delete"),
+    _k("guest.fw_rule_delete", "guest_rules", dict(GUEST_RULE_FIELDS, guest=_ident), verb="delete", inverse="guest.fw_rule_create"),
     _k("host.bridge", "bridges", {"vlan_aware": _bool, "ports": _vlans}),
 ])
 

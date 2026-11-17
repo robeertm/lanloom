@@ -1,4 +1,4 @@
-"""Proxmox VE family (local API), read half only (stage A).
+"""Proxmox VE family (local API): read half (stage A) and the executor's write half for guests (stage B).
 
 Product names are used only to identify compatible products. No affiliation or endorsement: Lanloom is not
 affiliated with, endorsed or sponsored by their owners; all trademarks belong to their owners.
@@ -11,6 +11,11 @@ the last hour of traffic per guest. It never writes: GET only, no sign-in (the t
 
 Before a token is used its rights are checked (``/access/permissions``): a token that can change anything is
 refused - a read-only token is the rule.
+
+The write half (``write.py``) runs only in the executor service, with an API token of its own that the app never
+sees, and changes guests only: bridge, VLAN tag and firewall flag of a network card, the guest's own firewall and its
+rules, start and clean shutdown - with lockout rules for the guests that keep the network and Lanloom running
+(``lanloom/firewall/guests.py``). See docs/integrations/proxmox.md.
 """
 from .. import IntegrationManifest
 
@@ -20,11 +25,17 @@ CAPABILITIES = {
     "family": "proxmox",
     "api": {"kind": "official-local", "version": ""},
     "read": list(READ_AREAS),
-    "write": {},                       # stage A: reading only; guest power, NICs and guest rules come with stage B
+    "write": {"guest.nic": "B", "guest.fw_rule": "B", "guest.fw_rule_create": "B", "guest.fw_rule_delete": "B",
+              "guest.firewall": "B*", "guest.power": "B*"},
     "rollback": {"device_native": False, "object_snapshot": True},
     "limits": {"objects_per_plan": 10},
-    "lockout": ["own_guest", "node_bridge", "mgmt_network"],
+    "lockout": ["own_guest", "node_bridge", "mgmt_network", "self_path"],
 }
+# What the executor's write half can do (stage B, guests only). Host networking, the datacenter and node firewall and
+# creating guests are no write key here (host bridges and guest creation would be stage C, refused in this release).
+WRITE_CAPABILITIES = dict(CAPABILITIES, read=["inventory", "guests", "bridges", "networks", "firewall"])
+# The read half itself never writes: what it publishes carries no write keys (the editor takes them from the executor).
+READ_CAPABILITIES = dict(CAPABILITIES, write={})
 
 # Plain settings and read-only credentials of the read half (the integration dialog builds its form from these).
 FORM = (
@@ -39,9 +50,11 @@ MANIFEST = IntegrationManifest(
     label="Proxmox VE (local API)",
     capabilities=CAPABILITIES,
     read="lanloom.integrations.proxmox.read:ProxmoxReader",
+    write="lanloom.integrations.proxmox.write:ProxmoxWriter",
     docs="docs/integrations/proxmox.md",
     config_fields=("url", "token_id", "allow_self_signed"),
     secret_fields=("token_secret",),
+    write_secret_fields=("write_token_secret",),
     form=FORM,
     report="lanloom.integrations.proxmox.report:night_section",
     detect=({"port": 8006}, {"port": 8006, "title": "proxmox"}),   # identifier: default API port and web page title

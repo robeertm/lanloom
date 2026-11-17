@@ -100,7 +100,7 @@ def test_editor_shows_the_live_configuration_read_only(env, booked):
     ed.live = booked.live_configs
     booked.on_event("int:1", 1, make_event())
     v = ed.view(USER, "192.168.50.20", source="int:1")
-    assert v["mode"] == "live" and v["source"] == "int:1" and v["draft"] == {"moves": {}, "edits": {}, "t": 0, "undo_of": None}
+    assert v["mode"] == "live" and v["source"] == "int:1" and v["draft"] == {"moves": {}, "edits": {}, "ops": {}, "t": 0, "undo_of": None}
     assert v["capabilities"]["write"] == {} and v["capabilities"]["confirm"] == [] and "ports" in v["capabilities"]["read"]
     assert v["live"]["name"] == "Hall console" and v["live"]["family"] == "unifi" and v["live"]["version"] == "11.0.1"
     assert v["live"]["apis"] == ["classic", "official"] and v["targets"] == {} and v["history"] == [] and v["running"] is None

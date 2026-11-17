@@ -217,7 +217,7 @@ def test_draft_preview_apply_and_undo_of_client_settings(c):
     assert named["name_new"] == "Washer" and named["fixed_ip"] == "192.168.60.90"
     devs = {x["id"]: x for x in v["state"]["devices"]}
     assert devs["d19"]["name"] == "Washer" and devs["d19"]["fixed_ip"] == "192.168.60.90"
-    assert v["draft"] == {"moves": {}, "edits": {}, "t": 0, "undo_of": None}
+    assert v["draft"] == {"moves": {}, "edits": {}, "ops": {}, "t": 0, "undo_of": None}
     d = c.post("/api/firewall/undo", json={"plan": job["plan"]}, headers=HDR).json()
     assert d["edits"] == {"d19": {"name": "Washer plug", "fixed_ip": "192.168.60.60"}} and d["moves"] == {"d20": "n_smart"}
     entries = c.get("/api/audit?limit=20").json()["entries"]

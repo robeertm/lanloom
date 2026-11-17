@@ -20,7 +20,7 @@ Type a few words; **every word has to match**. A word that starts a word of the 
 
 | Group | What | Where it is matched |
 | --- | --- | --- |
-| Views and commands | every view, the settings pages, light/dark, colour themes, rate unit, update check, *Change a device (network, name, fixed address) …*, *Open Inventory*, *Show devices that need attention*, *Show missing devices*, *Show warranties that end soon*, *Show devices whose updates end* | in the page |
+| Views and commands | every view, the settings pages, light/dark, colour themes, rate unit, update check, *Change a device (network, name, fixed address) …*, *Change a guest (start, shut down, network card, firewall) …*, *Open Inventory*, *Show devices that need attention*, *Show missing devices*, *Show warranties that end soon*, *Show devices whose updates end* | in the page |
 | Devices | name, address, hardware address, kind, host names, maker and model, and what you wrote down in the inventory (room, purpose, person, shop) | the server |
 | Virtual machines and containers | name, id, addresses, host (from a hypervisor connection) | the server |
 | Services | which device offers which service, with the port | the server |

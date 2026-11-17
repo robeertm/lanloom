@@ -12,9 +12,9 @@ import threading
 import time
 from pathlib import Path
 
-from . import model
+from . import guests, model
 from . import steps as stepkinds
-from .adapter import SimulatedController
+from .adapter import SimulatedController, with_sample_hypervisor
 from .canon import digest
 from ..updates import is_older as _older
 from .signature import Invalid, b64u, cose_to_xy, key_fingerprint, verify_assertion
@@ -61,12 +61,15 @@ class Editor:
         self.live = None           # callable -> fresh configurations read by family adapters (set by the app)
         self.journal = None        # event journal of the nightly report (set by the app)
         self.notify = None         # notification rules (set by the app)
+        self.identity = None       # callable -> ({address: reason}, {mac hash: reason}): what the app knows about the
+                                   # network (its own address, name servers, gateway, hub/controller); critical guests
 
     # ------------------------------------------------------------------ simulation
     def sim(self):
         if self._sim is None:
             saved = self.store.get_setting("fw_sim_state", None)
-            self._sim = SimulatedController(state=saved if isinstance(saved, dict) and saved.get("devices") else None,
+            self._sim = SimulatedController(state=with_sample_hypervisor(saved) if isinstance(saved, dict) and saved.get("devices") else None,
+                                            hypervisor=True,
                                             persist=lambda s: self.store.set_setting("fw_sim_state", s),
                                             settle_s=float(_env_int("LANLOOM_FW_SIM_SETTLE_S", 3)))
         return self._sim
@@ -105,18 +108,20 @@ class Editor:
     def _draft_key(self, user) -> str:
         return "fw_draft:%s" % user["id"]
 
-    EMPTY = {"moves": {}, "edits": {}, "t": 0, "undo_of": None}
+    EMPTY = {"moves": {}, "edits": {}, "ops": {}, "t": 0, "undo_of": None}
 
     def draft(self, user) -> dict:
         d = self.store.get_setting(self._draft_key(user), None)
         if not isinstance(d, dict) or time.time() - d.get("t", 0) > DRAFT_TTL_S:
-            return dict(self.EMPTY, moves={}, edits={})
+            return dict(self.EMPTY, moves={}, edits={}, ops={})
         d.setdefault("edits", {})             # drafts of earlier releases carried moves only
+        d.setdefault("ops", {})               # ... and no guest changes
         return d
 
-    def set_draft(self, user, moves: dict, undo_of=None, edits: dict = None) -> dict:
-        """Moves {device: network} and edits {device: {"name"?, "fixed_ip"?}}. ``edits=None`` keeps the edits of the
-        current draft (a client that only sends moves, as earlier releases did, does not lose them)."""
+    def set_draft(self, user, moves: dict, undo_of=None, edits: dict = None, ops=None) -> dict:
+        """Moves {device: network}, edits {device: {"name"?, "fixed_ip"?}} and guest changes {key: {"kind", "object",
+        "after"}} (see ``guests.clean_ops``). ``edits=None`` / ``ops=None`` keep those of the current draft (a client
+        that only sends moves, as earlier releases did, does not lose them)."""
         st = self.state()
         if st is None:
             raise model.Refused("fw.err.no_state")
@@ -127,7 +132,8 @@ class Editor:
                 clean[dev_id] = net_id
         prev = self.draft(user)
         ed = model.clean_edits(st, prev.get("edits") if edits is None else edits)
-        n = len(set(clean) | set(ed))
+        gops = guests.clean_ops(st, prev.get("ops") if ops is None else ops)
+        n = len(set(clean) | set(ed)) + len(gops)
         if n > model.MAX_OBJECTS:
             raise model.Refused("fw.block.too_many", n=n, max=model.MAX_OBJECTS)
         from ..integrations import capabilities as capmod
@@ -139,14 +145,18 @@ class Editor:
                 probe = {"kind": "client.set", "object": dev_id, "before": {f: model._cur(devs[dev_id], f)}, "after": {f: v}}
                 if capmod.stage_for(caps, probe) is None:
                     raise model.Refused("fw.block.capability", kind="client.set." + f)
-        busy = bool(clean or ed)
-        d = {"moves": clean, "edits": ed, "t": int(prev.get("t") or time.time()) if busy else 0,
+        for step in gops.values():
+            if capmod.stage_for(caps, step) is None:
+                raise model.Refused("fw.block.capability", kind=step["kind"])
+        busy = bool(clean or ed or gops)
+        d = {"moves": clean, "edits": ed, "ops": {k: {"kind": v["kind"], "object": v["object"], "after": v["after"]} for k, v in gops.items()},
+             "t": int(prev.get("t") or time.time()) if busy else 0,
              "undo_of": undo_of if undo_of is not None else (prev.get("undo_of") if busy else None)}
         self.store.set_setting(self._draft_key(user), d)
         return d
 
     def clear_draft(self, user) -> None:
-        self.store.set_setting(self._draft_key(user), dict(self.EMPTY, moves={}, edits={}))
+        self.store.set_setting(self._draft_key(user), dict(self.EMPTY, moves={}, edits={}, ops={}))
 
     def live_sources(self) -> list:
         try:
@@ -169,7 +179,7 @@ class Editor:
             from ..integrations import capabilities as capmod
             st = entry["state"]
             return {"mode": "live", "source": source, "sources": sources, "state": st, "targets": {},
-                    "draft": dict(self.EMPTY, moves={}, edits={}), "quiet": self.is_quiet(), "quiet_hours": self.quiet_hours,
+                    "draft": dict(self.EMPTY, moves={}, edits={}, ops={}), "quiet": self.is_quiet(), "quiet_hours": self.quiet_hours,
                     "executor": self.executor_status(), "running": None, "history": [], "max_objects": model.MAX_OBJECTS,
                     "requester": next((d["id"] for d in st.get("devices") or [] if d.get("ip") == client_ip), None),
                     "capabilities": capmod.public(dict(entry["caps"], write={})),     # a live source is shown, never written
@@ -184,7 +194,24 @@ class Editor:
             out["state"] = st
             out["targets"] = {d["id"]: model.drop_targets(st, d) for d in st.get("devices") or []}
             out["requester"] = next((d["id"] for d in st.get("devices") or [] if d.get("ip") == client_ip), None)
+            if st.get("guests"):
+                crit = self.critical(st)
+                out["guests"] = {"critical": crit, "bridges": {g["id"]: sorted(guests.target_bridges(st, g)) for g in st["guests"]
+                                                              if not g.get("template")}}
         return out
+
+    def critical(self, st: dict) -> dict:
+        """{guest id: reason}: guests that keep the network or Lanloom running (see ``guests.critical_guests``), from
+        what the app knows; the simulation adds the sample's own name server and broker."""
+        addrs, macs = {}, {}
+        if self.identity:
+            try:
+                addrs, macs = self.identity()
+            except Exception:
+                addrs, macs = {}, {}
+        if self.mode == "simulation":
+            addrs = dict((st.get("hints") or {}).get("critical_addresses") or {}, **addrs)
+        return guests.critical_guests(st, addrs, macs)
 
     def public_capabilities(self) -> dict:
         from ..integrations import capabilities as capmod
@@ -199,8 +226,23 @@ class Editor:
         if st is None:
             raise model.Refused("fw.err.no_state")
         d = self.draft(user)
-        return model.preview(st, d.get("moves") or {}, requester_ip=client_ip, quiet=self.is_quiet(),
-                             edits=model.clean_edits(st, d.get("edits")))
+        pv = model.preview(st, d.get("moves") or {}, requester_ip=client_ip, quiet=self.is_quiet(),
+                           edits=model.clean_edits(st, d.get("edits")))
+        gops = guests.clean_ops(st, d.get("ops"))
+        if gops:
+            g = guests.preview(st, gops, self.critical(st))
+            pv["steps"] = pv["steps"] + g["steps"]
+            pv["changes"] = pv["changes"] + g["changes"]
+            pv["warnings"] = pv["warnings"] + g["warnings"]
+            pv["blocks"] = pv["blocks"] + g["blocks"]
+            pv["confirm"] = pv["confirm"] + g["confirm"]
+            pv["costs"] = {"objects": len(pv["steps"])}
+            if len(pv["steps"]) > model.MAX_OBJECTS and not any(b[0] == "fw.block.too_many" for b in pv["blocks"]):
+                pv["blocks"].append(["fw.block.too_many", {"n": len(pv["steps"]), "max": model.MAX_OBJECTS}])
+            if self.is_quiet() and g["steps"] and "quiet" not in pv["confirm"]:
+                pv["warnings"].append(["fw.warn.quiet", {}])
+                pv["confirm"].append("quiet")
+        return pv
 
     def make_plan(self, user, client_ip: str, confirmed: list, rp_id: str) -> dict:
         pv = self.preview(user, client_ip)
@@ -259,10 +301,13 @@ class Editor:
         job = next((j for j in self.history() if j["plan"] == plan_id), None)
         if not job or job.get("status") != "done" or not job.get("inverse") or not job.get("undo_until") or time.time() > job["undo_until"]:
             raise model.Refused("fw.err.undo_gone")
-        if any(s.get("kind") not in ("move", "client.set") for s in job["inverse"]):
-            raise model.Refused("fw.err.undo_gone")      # only moves and client settings are drafted in the editor
-        moves, edits = {}, {}
+        if any(s.get("kind") not in ("move", "client.set") + guests.GUEST_KINDS for s in job["inverse"]):
+            raise model.Refused("fw.err.undo_gone")      # only moves, client settings and guest changes are drafted here
+        moves, edits, ops = {}, {}, {}
         for s in job["inverse"]:
+            if s["kind"] in guests.GUEST_KINDS:
+                ops[guests.op_key(s["kind"], s["object"])] = {"kind": s["kind"], "object": s["object"], "after": s["after"]}
+                continue
             if s["kind"] == "move":
                 moves[s["device"]] = s["after"]["network"]
                 continue
@@ -272,7 +317,7 @@ class Editor:
             fields = {f: after[f] for f in model.EDIT_FIELDS if f in after}
             if fields:
                 edits[s["object"]] = fields
-        return self.set_draft(user, moves, undo_of=plan_id, edits=edits)
+        return self.set_draft(user, moves, undo_of=plan_id, edits=edits, ops=ops)
 
     def reset_simulation(self) -> None:
         if self.mode != "simulation" or self.runner().busy():
@@ -289,6 +334,15 @@ class Editor:
             if s["kind"] == "move":
                 summary.append({"name": (devs.get(s["device"]) or {}).get("name", "?"), "from": (nets.get(s["before"]["network"]) or {}).get("name", "?"),
                                 "to": (nets.get(s["after"]["network"]) or {}).get("name", "?")})
+            elif s["kind"] in guests.GUEST_KINDS:
+                _, label = guests._label(st, s)
+                fields = [f for f in stepkinds.changed_fields(s) if f != "guest"]
+                item = {"name": label, "kind": s["kind"], "fields": fields if s["kind"] in ("guest.nic", "guest.fw_rule") else []}
+                if s["kind"] == "guest.power":
+                    item["status"] = s["after"]["status"]
+                elif s["kind"] == "guest.firewall":
+                    item["on"] = s["after"]["firewall"]
+                summary.append(item)
             else:
                 obj = neutral.find(st, s) or {}
                 item = {"name": obj.get("name") or s["after"].get("name") or s["before"].get("name") or "?",

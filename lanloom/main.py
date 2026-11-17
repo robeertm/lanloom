@@ -90,6 +90,8 @@ class App:
         self.firewall.live = self.core.live_configs
         self.firewall.journal = self.real_core.reports.journal       # finished real changes -> nightly report
         self.firewall.notify = self.real_core.notify                  # a change put back -> notification rules
+        from .guest_protect import app_identity as _app_identity
+        self.firewall.identity = lambda: _app_identity(self.core)      # guests that keep the network running
         from .firewall import report as _fw_report  # noqa: F401 - registers the nightly report section
         from .ai.manager import AI
         from .ai import report as _ai_report  # noqa: F401 - registers the nightly report section
@@ -926,9 +928,13 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         data = await body(request)
         moves = data.get("moves") if isinstance(data.get("moves"), dict) else {}
         edits = data.get("edits") if isinstance(data.get("edits"), dict) else None
-        note(request, detail={"moves": len(moves), "edits": len(edits or {})})
+        ops = data.get("ops") if isinstance(data.get("ops"), (dict, list)) else None
+        detail = {"moves": len(moves), "edits": len(edits or {})}
+        if ops is not None:
+            detail["guest_changes"] = len(ops)
+        note(request, detail=detail)
         try:
-            return state.firewall.set_draft(request.state.user, moves, edits=edits)
+            return state.firewall.set_draft(request.state.user, moves, edits=edits, ops=ops)
         except Refused as exc:
             return refused(exc)
 

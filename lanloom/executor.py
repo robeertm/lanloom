@@ -26,17 +26,20 @@ Environment:
   LANLOOM_EXECUTOR_WATCH_S      watch time after a change (default 3600)
   LANLOOM_FW_QUIET_HOURS        e.g. 21-7: changes at night need an explicit confirmation
 """
+import ipaddress
 import json
 import logging
 import os
+import socket
 import sys
 import time
 import urllib.request
+from urllib.parse import urlsplit
 from pathlib import Path
 
 from . import __version__, integrations
 from .updates import is_older as _older
-from .firewall.adapter import SimulatedController
+from .firewall.adapter import SimulatedController, with_sample_hypervisor
 from .firewall.runner import Runner, read_private, write_private
 from .firewall.steps import PLAN_VERSION_MAX
 from .integrations import capabilities as capmod
@@ -83,7 +86,10 @@ def keys_path(s: Settings) -> Path:
 def build_adapter(s: Settings):
     if s.target == "simulation":
         saved = read_private(s.state / "simulation.json", None)
-        return SimulatedController(state=saved, persist=lambda st: write_private(s.state / "simulation.json", st), settle_s=5)
+        if isinstance(saved, dict) and saved.get("devices"):
+            saved = with_sample_hypervisor(saved)      # rehearsal states of earlier releases had no sample hypervisor
+        return SimulatedController(state=saved, persist=lambda st: write_private(s.state / "simulation.json", st), settle_s=5,
+                                   hypervisor=True)
     if s.target != "controller":
         raise SystemExit("LANLOOM_EXECUTOR_TARGET must be simulation or controller")
     if not s.armed():
@@ -111,9 +117,84 @@ def build_adapter(s: Settings):
         raise SystemExit("adapter options: state_dir is set by the executor, not in the options file")
     options["state_dir"] = str(s.state)          # e.g. the sign-in cap that holds across restarts
     try:
-        return integrations.load_write(family, **options)
+        adapter = integrations.load_write(family, **options)
     except (TypeError, ValueError) as exc:
         raise SystemExit("adapter options: %s" % exc)
+    if hasattr(adapter, "use_identity"):         # lockout rules that need to know where the executor and the app run
+        adapter.use_identity(lambda host: local_identity(host, s.app))
+    return adapter
+
+
+# ---------------------------------------------------------------------------- what the executor sees of itself
+def _mac_hashes(mac) -> set:
+    return integrations.guest_mac_hashes(mac)
+
+
+def _read_lines(path: str) -> list:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return fh.read(256 * 1024).splitlines()
+    except OSError:
+        return []
+
+
+def local_identity(peer_host: str = None, app_url: str = None) -> tuple:
+    """({address: reason}, {mac hash: reason}) the executor finds on its own: its own addresses and hardware addresses
+    (host networking: the guest it runs on), the app's address, the name servers it uses and its default gateway,
+    with the hardware addresses its neighbour table knows for them. Errors are ignored (fewer findings, never more)."""
+    addrs, macs = {}, {}
+
+    def add(ip, why):
+        try:
+            a = ipaddress.ip_address(str(ip).split("%", 1)[0])
+        except ValueError:
+            return
+        if not a.is_loopback and not a.is_unspecified and str(a) not in addrs:
+            addrs[str(a)] = why
+
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            add(info[4][0], "hv.why.executor")
+    except OSError:
+        pass
+    if peer_host:
+        try:
+            fam = socket.AF_INET6 if ":" in peer_host else socket.AF_INET
+            with socket.socket(fam, socket.SOCK_DGRAM) as s:      # no packet is sent: only the route is looked up
+                s.connect((peer_host, 9))
+                add(s.getsockname()[0], "hv.why.executor")
+        except OSError:
+            pass
+    host = urlsplit(app_url or "").hostname if app_url else None
+    if host:
+        try:
+            for info in socket.getaddrinfo(host, None):
+                add(info[4][0], "hv.why.self")
+        except OSError:
+            pass
+    for line in _read_lines("/etc/resolv.conf"):
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == "nameserver":
+            add(parts[1], "hv.why.dns")
+    for line in _read_lines("/proc/net/route")[1:]:
+        parts = line.split()
+        if len(parts) > 2 and parts[1] == "00000000" and parts[2] != "00000000":
+            try:
+                add(socket.inet_ntoa(bytes.fromhex(parts[2])[::-1]), "hv.why.gateway")
+            except (ValueError, OSError):
+                pass
+    for name in sorted(os.listdir("/sys/class/net")) if os.path.isdir("/sys/class/net") else []:
+        if name == "lo":
+            continue
+        for line in _read_lines("/sys/class/net/%s/address" % name)[:1]:
+            for h in _mac_hashes(line.strip()):
+                macs.setdefault(h, "hv.why.executor")
+    for line in _read_lines("/proc/net/arp")[1:]:
+        parts = line.split()
+        if len(parts) >= 4 and parts[0] in addrs:
+            for h in _mac_hashes(parts[3]):
+                macs.setdefault(h, addrs[parts[0]])
+    return addrs, macs
 
 
 def guard_hosts(s: Settings, adapter) -> list:

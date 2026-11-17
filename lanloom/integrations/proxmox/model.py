@@ -42,6 +42,8 @@ QEMU_MODELS = ("virtio", "e1000", "e1000e", "rtl8139", "vmxnet3", "ne2k_pci", "n
 IFACE_KINDS = {"bridge": "bridge", "bond": "bond", "vlan": "vlan", "eth": "eth", "OVSBridge": "ovs_bridge",
                "OVSBond": "ovs_bond", "OVSPort": "ovs_port", "OVSIntPort": "ovs_port", "alias": "alias"}
 STATUSES = ("running", "stopped", "paused", "suspended", "prelaunch")
+OWN_MARK = "lanloom:"             # comment prefix of guest firewall rules Lanloom created (only those may be removed)
+RULE_PROTOS = ("tcp", "udp", "icmp")
 
 
 # ---------------------------------------------------------------------------- small helpers
@@ -297,6 +299,13 @@ def _guests(raw, host_ids, vnets) -> tuple:
             macs.setdefault(gid, []).append((n["_mac"], found[0] if found else None, n["bridge"], n["vlan"]))
         nics += g_nics
         fwo = _d(det.get("fw_options"))
+        fw_read = isinstance(det.get("fw_options"), dict)     # an empty answer means every option is at its default
+        g_rules = _rules(det.get("fw_rules"), "guest", gid)
+        # compact signatures for the night report, which keeps guests but not the card and rule lists:
+        # "net0 vmbr0·30, net1 vmbr1" and a short hash of the guest's rules
+        net_sig = ", ".join("%s %s%s" % (n["name"], n["bridge"] or "-", "·%d" % n["vlan"] if n["vlan"] else "") for n in g_nics)[:160]
+        rules_sig = hashlib.sha256(repr([(r["direction"], r["action"], r["enabled"], r["proto"], r["dport"], r["source"], r["macro"],
+                                          r["group"]) for r in g_rules]).encode("utf-8")).hexdigest()[:12] if g_rules else ""
         status = str(r.get("status") or "")
         if status == "running" and str(r.get("lock") or "") == "suspended":
             status = "suspended"
@@ -308,14 +317,17 @@ def _guests(raw, host_ids, vnets) -> tuple:
                        "mem": num(r.get("mem")), "mem_max": num(r.get("maxmem")), "disk_max": num(r.get("maxdisk")),
                        "uptime_s": num(r.get("uptime")), "tags": tags_of(r.get("tags") or cfg.get("tags")),
                        "ha": text(r.get("hastate"), 24), "pool": text(r.get("pool"), 64), "onboot": flag(cfg.get("onboot")),
+                       "lock": text(r.get("lock") or cfg.get("lock"), 24),
                        "protected": "guest.protection" if flag(cfg.get("protection")) else None,
                        "agent": kind == "qemu" and str(parse_kv(cfg.get("agent")).get("_") or parse_kv(cfg.get("agent")).get("enabled") or "0") == "1",
-                       "firewall": flag(fwo.get("enable")) if fwo else None, "ips": sorted(set(ips), key=lambda x: (":" in x, x))[:8],
+                       "firewall": flag(fwo.get("enable")) if fw_read else None, "ips": sorted(set(ips), key=lambda x: (":" in x, x))[:8],
                        "traffic": {"in_bps": num(rate[0]), "out_bps": num(rate[1])} if rate else None,
-                       "rrd": _rrd(det.get("rrd")), "config_read": bool(cfg)})
-        if fwo:
+                       "rrd": _rrd(det.get("rrd")), "config_read": bool(cfg),
+                       "net_sig": net_sig if cfg else None, "rules_sig": rules_sig if det.get("fw_rules") is not None else None,
+                       "rules_n": len(g_rules)})
+        if fw_read:
             opts.append(_fw_opts("guest", gid, fwo))
-        rules += _rules(det.get("fw_rules"), "guest", gid)
+        rules += g_rules
         extra += _aliases(det.get("fw_aliases"), "guest", gid) + _ipsets(det.get("fw_ipsets"), {}, "guest", gid)
     for n in nics:
         n.pop("_mac", None)
@@ -335,17 +347,32 @@ def _fw_opts(scope: str, owner: str, o: dict) -> dict:
     return out
 
 
+def rule_id(scope: str, owner: str, pos) -> str:
+    return oid("r", "%s/%s/%s" % (scope, owner, pos))
+
+
 def _rule(r: dict, scope: str, owner: str, idx: int) -> dict:
     typ = str(r.get("type") or "in")
     act = str(r.get("action") or "")
     pos = num(r.get("pos"))
-    return {"id": oid("r", "%s/%s/%s" % (scope, owner, pos if isinstance(pos, int) else idx)), "scope": scope, "owner": owner,
-            "pos": pos if isinstance(pos, int) else idx, "direction": typ if typ in DIRECTIONS else "in",
-            "action": "group" if typ == "group" else ACTIONS.get(act.upper(), "other"),
-            "group": text(act, 32) if typ == "group" else None, "enabled": flag(r.get("enable")),
-            "proto": text(r.get("proto"), 16) or "any", "sport": text(r.get("sport"), 64), "dport": text(r.get("dport"), 64),
-            "source": text(r.get("source"), 96), "dest": text(r.get("dest"), 96), "macro": text(r.get("macro"), 32),
-            "iface": text(r.get("iface"), 16), "comment": text(r.get("comment"), 96), "log": text(r.get("log"), 12)}
+    pos = pos if isinstance(pos, int) else idx
+    comment = text(r.get("comment"), 96)
+    out = {"id": rule_id(scope, owner, pos), "scope": scope, "owner": owner,
+           "pos": pos, "direction": typ if typ in DIRECTIONS else "in",
+           "action": "group" if typ == "group" else ACTIONS.get(act.upper(), "other"),
+           "group": text(act, 32) if typ == "group" else None, "enabled": flag(r.get("enable")),
+           "proto": text(r.get("proto"), 16) or "any", "sport": text(r.get("sport"), 64), "dport": text(r.get("dport"), 64),
+           "source": text(r.get("source"), 96), "dest": text(r.get("dest"), 96), "macro": text(r.get("macro"), 32),
+           "iface": text(r.get("iface"), 16), "comment": comment, "log": text(r.get("log"), 12)}
+    if scope == "guest":
+        # the fields a plan step may write (stage B): rules with a macro, a group, a destination, a source port, an
+        # interface or an unusual protocol are shown, and only switched on or off - never rewritten field by field
+        own = bool(comment and comment.startswith(OWN_MARK))
+        plain = typ in ("in", "out") and out["action"] in ("allow", "block", "reject") and not out["macro"] and not out["dest"] \
+            and not out["sport"] and not out["iface"] and out["proto"] in ("any",) + RULE_PROTOS
+        out.update(guest=owner, own=own, plain=plain, name=(comment[len(OWN_MARK):].strip() if own else (comment or ""))[:64],
+                   ports=out["dport"] or "")
+    return out
 
 
 def _rules(items, scope: str, owner: str) -> list:

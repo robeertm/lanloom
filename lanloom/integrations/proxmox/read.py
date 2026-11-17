@@ -20,7 +20,7 @@ import json
 import re
 import time
 
-from . import CAPABILITIES, model
+from . import READ_CAPABILITIES as CAPABILITIES, model
 from .. import capabilities
 from ..credentials import SUPERUSER_PRINCIPALS, Secret
 from ..transport import Forbidden, Transport, TransportError, read_allowlist

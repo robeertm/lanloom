@@ -25,6 +25,8 @@ SAME_AS_ENGLISH = {
     r"livestate\.live": "the header says Live and the time; German uses the word Live as it is",
     r"notify\.(email\.placeholder|hb\.url_ph)": "an example address in an input field, not a word",
     r"zone\.net_(named|vlan|named_vlan)": "a name, a VLAN number and an address joined by dots; no word of its own",
+    r"hv\.nic\.title": "a guest name and a network card name joined by a dot; no word of its own",
+    r"hv\.edit\.fw_chip": "the word Firewall and a translated on/off; German uses the word Firewall as it is",
 }
 
 # Families of keys chosen at run time ('kind.' + x). A key counts as used when the code builds its prefix. Prefixes with two or more

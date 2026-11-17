@@ -152,6 +152,8 @@ def _hv_raw(now: float) -> dict:
     }
     rrd = [{"time": now - 120 * i, "netin": 9000 + 4000 * ((i * 7) % 5), "netout": 22000 + 9000 * ((i * 3) % 4), "cpu": 0.04} for i in range(30)]
     guests = {k: {"node": "virt-1", "config": v} for k, v in cfg.items()}
+    for k in ("lxc/201", "lxc/202"):
+        guests[k]["fw_options"] = {}                  # every option at its default: the guest firewall is off
     guests["qemu/101"].update({"agent": {"result": [{"name": "eth0", "hardware-address": "52:54:00:4c:00:0d",
                                                      "ip-addresses": [{"ip-address": "192.168.50.13"}]}]}, "rrd": rrd,
                                "fw_options": {"enable": 1, "policy_in": "DROP", "policy_out": "ACCEPT"},

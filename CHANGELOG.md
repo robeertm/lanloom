@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.27.0] – 2026-11-17
+
+### Added
+- **Change guests of a hypervisor** (stage B, executor only): start a guest, shut it down cleanly, move a network card to another bridge or VLAN, switch its firewall flag, switch the guest's own firewall on or off, and change, switch, add or remove its firewall rules. The Firewall tab gets a **Guests** card in *Change* mode with a sheet for the network card (bridge of the guest's node or a virtual network, VLAN tag, firewall flag) and one for rules; everything goes into the draft, the preview shows every field old → new, and start, shutdown and the firewall switch need their own tick. Guide: [docs/integrations/proxmox.md](docs/integrations/proxmox.md#changing-guests-stage-b). Product names are used only to identify compatible products; no affiliation or endorsement.
+- **Guests that keep the network running stay as they are**: Lanloom does not stop a guest, move its network card, switch its firewall on or change its rules when the guest runs Lanloom or the executor, is the network's name server or gateway, a hub, controller or broker Lanloom reads, carries the tag `lanloom-protect` or is listed in the executor's options (`protect_guests`, `protect_addresses`). The app checks this in the preview with what it knows (its own address, gateway, name servers, connections, the hardware addresses of the inventory), and the executor checks it again right before writing with what it sees on its own (its addresses, the app's address, its name servers and gateway, its neighbour table). Templates, guests locked or protected on the host and guests of the cluster's high-availability manager are never changed; the card shows a lock and the reason.
+- Write half of the hypervisor family: one send path with a field-exact allow-list (only network card values plus the config digest, start, shutdown with `forceStop=0`, the guest firewall switch, guest rules - a new rule must carry the Lanloom mark), the host's digest against changes made meanwhile, host tasks followed to their end (a shutdown that does not finish in time leaves the guest running and rolls the plan back), a card change the running guest could only take after a restart is reverted at once, a fresh read before every write, and the way back puts back only what a step reached. The superuser's token is refused; a token that could change much more gets a warning. Rights template (`LanloomOperator` on a pool) in the guide.
+- Night report of the hypervisor: a guest's firewall switched off (a look) or on, network cards moved to another bridge or VLAN (before → now), guest rules changed (count before → now) - whoever made the change.
+- Command palette: *Change a guest (start, shut down, network card, firewall) …* opens the Guests card.
+- Simulation: a sample hypervisor (one node, four guests and a template, bridges, a virtual network, guest firewall) next to the sample network, with a name server and a broker that are protected, so guest changes can be rehearsed end to end.
+
+### Changed
+- Plan steps: the network card step also carries the firewall flag; new steps for the guest firewall switch and for adding and removing a guest rule. The executor pipeline asks a family for rules over the whole plan (`plan_lockout`).
+- A guest whose firewall options are all at their defaults counts as *firewall off* (it showed as unknown).
+- The read half of the hypervisor family publishes no write keys; the executor brings them.
+- Performance budget: like the API times, the growth from 250 to 1000 devices is measured once more when a busy test machine puts a key over its limit; it fails only when both runs are over (limits unchanged).
+
 ## [1.26.1] – 2026-11-17
 
 ### Changed

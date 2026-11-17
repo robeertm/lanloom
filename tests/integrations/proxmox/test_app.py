@@ -63,10 +63,16 @@ def booked(env):
 
 
 # ---------------------------------------------------------------------------- registry and manifest
-def test_family_is_built_in_with_a_read_half_only():
+def test_family_is_built_in_with_a_read_half_and_an_executor_write_half():
     m = integrations.get("proxmox")
-    assert m.read == "lanloom.integrations.proxmox.read:ProxmoxReader" and m.write == "" and m.docs == "docs/integrations/proxmox.md"
-    assert m.capabilities["write"] == {} and m.secret_fields == ("token_secret",)
+    assert m.read == "lanloom.integrations.proxmox.read:ProxmoxReader" and m.docs == "docs/integrations/proxmox.md"
+    assert m.write == "lanloom.integrations.proxmox.write:ProxmoxWriter" and m.write_secret_fields == ("write_token_secret",)
+    assert set(m.capabilities["write"]) == {"guest.nic", "guest.fw_rule", "guest.fw_rule_create", "guest.fw_rule_delete",
+                                            "guest.firewall", "guest.power"}
+    assert m.capabilities["write"]["guest.power"] == "B*" and m.capabilities["write"]["guest.firewall"] == "B*"
+    assert m.secret_fields == ("token_secret",)
+    from lanloom.integrations.proxmox import READ_CAPABILITIES
+    assert READ_CAPABILITIES["write"] == {}                     # what the read half publishes never offers a write
     assert (Path(__file__).resolve().parents[3] / m.docs).is_file()
     assert core.integration_fields("proxmox") == (("url", "token_id", "allow_self_signed"), ("token_secret",))
     with pytest.raises(PermissionError):
@@ -215,12 +221,35 @@ def test_night_section_calm_night_and_no_source():
     assert report.night_section(None, None, fx.NOW) is None and report.night_section(None, {"zones": []}, fx.NOW) is None
 
 
+def test_night_section_reports_guest_network_and_firewall_changes():
+    # fixed clock; the previous state is stored without card and rule lists (nightly FAMILY_STATE_DROP): the guests'
+    # compact signatures carry what changed
+    from lanloom.nightly.contrib import FAMILY_STATE_DROP
+    prev = {k: v for k, v in model.to_neutral(fx.raw(), fx.NOW - fx.DAY).items() if k not in FAMILY_STATE_DROP}
+    prev["t"] = fx.NOW - fx.DAY
+    raw = copy.deepcopy(fx.raw())
+    raw["guests"]["qemu/100"]["config"]["net0"] = "virtio=02:4C:4C:00:01:00,bridge=vmbr0,firewall=1,tag=30"
+    raw["guests"]["qemu/100"]["fw_options"] = dict(raw["guests"]["qemu/100"]["fw_options"], enable=0)
+    raw["guests"]["qemu/100"]["fw_rules"] = raw["guests"]["qemu/100"]["fw_rules"] + [
+        {"pos": 3, "type": "in", "action": "ACCEPT", "enable": 1, "proto": "tcp", "dport": "22", "comment": "lanloom: SSH"}]
+    sec = report.night_section(prev, model.to_neutral(raw, fx.NOW), fx.NOW)
+    got = {i["key"]: i for i in sec["items"] if i["params"].get("guest") == "web"}
+    assert got["night.hv.guest_fw_off"]["level"] == "warn"
+    assert got["night.hv.nic_changed"]["params"] == {"guest": "web", "vmid": 100, "was": "net0 vmbr0·20, net1 vmbr1",
+                                                      "now": "net0 vmbr0·30, net1 vmbr1"}
+    assert got["night.hv.rules_changed"]["params"] == {"guest": "web", "vmid": 100, "was": 3, "n": 4}
+    assert "02:4c:4c" not in repr(sec).lower()
+    same = report.night_section(prev, model.to_neutral(fx.raw(), fx.NOW), fx.NOW)
+    assert not [i for i in same["items"] if i["key"] in ("night.hv.nic_changed", "night.hv.rules_changed", "night.hv.guest_fw_off")]
+
+
 def test_night_texts_exist_in_every_language():
     import json
     root = Path(__file__).resolve().parents[3] / "lanloom" / "i18n"
     langs = sorted(p for p in root.glob("*.json") if not p.name.startswith("board."))
     keys = {"night.hv.title", "night.hv.summary_look", "night.hv.summary_calm", "night.hv.backup_ok", "night.hv.backup_failed",
-            "night.hv.guest_new", "night.hv.guest_gone", "night.hv.guest_stopped", "night.hv.node_offline"}
+            "night.hv.guest_new", "night.hv.guest_gone", "night.hv.guest_stopped", "night.hv.node_offline",
+            "night.hv.guest_fw_on", "night.hv.guest_fw_off", "night.hv.nic_changed", "night.hv.rules_changed"}
     keys |= {"hv.finding.%s" % k for k in ("node_offline", "storage_full", "backup_none", "backup_old", "backup_failed", "bridge_missing",
                                             "vlan_not_allowed", "fw_inactive", "vlan_chain")}
     for p in langs:
@@ -240,7 +269,7 @@ def test_api_lists_the_family_and_serves_the_live_view(env):
         sign_in(c, env)
         fams = {f["family"]: f for f in c.get("/api/integrations").json()["families"]}
         assert fams["proxmox"]["sample"] == "hypervisor" and fams["proxmox"]["label"] == "Sample hypervisor (local API)"
-        assert all(f["sample"] is True for k, f in fams.items() if k != "proxmox") and fams["proxmox"]["capabilities"]["write"] == {}
+        assert all(f["sample"] is True for k, f in fams.items() if k != "proxmox") and fams["proxmox"]["capabilities"]["write"]["guest.power"] == "B*"
         assert [f["k"] for f in fams["proxmox"]["form"]] == ["url", "token_id", "token_secret", "allow_self_signed"]
         ll = c.app.state.ll
         add_integration(ll.store, 41)

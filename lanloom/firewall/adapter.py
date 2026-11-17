@@ -18,6 +18,7 @@ Contract of an adapter (all methods synchronous, called from the executor thread
 * ``settle(steps) -> None``     wait until the controller finished provisioning (may sleep)
 * ``probe(steps) -> dict``      watch probe: {"global_ok": bool, "missing": [object ids not as planned]}
 * ``lockout(state, step)``      extra family-specific lockout rule: a refusal key or None (neutral rules always run)
+* ``plan_lockout(state, steps)`` the same over the whole plan (rules that depend on several steps), or None
 * ``endpoints() -> list``       host names or addresses the adapter connects to; the executor's connection guard
                                 allows nothing else (see ``lanloom.connguard``)
 """
@@ -61,6 +62,9 @@ class ControllerAdapter:
         return {"global_ok": True, "missing": []}
 
     def lockout(self, state: dict, step: dict):
+        return None
+
+    def plan_lockout(self, state: dict, steps: list):
         return None
 
     def endpoints(self) -> list:
@@ -127,6 +131,29 @@ _DEPENDENCIES = [{"device": "d10", "by": "Automation hub (presence by address)"}
                  {"device": "d12", "by": "Office laptop (printer by address)"}]
 
 
+HV_LISTS = ("hosts", "guests", "guest_nics", "guest_rules", "bridges", "sdn_zones", "sdn_vnets", "fw_rules", "fw_options", "raw")
+# the sample hypervisor's name server and message broker: critical guests (stopping them would cut the network off)
+SAMPLE_CRITICAL = {"192.168.50.53": "hv.why.dns", "192.168.50.13": "hv.why.hub"}
+
+
+def with_sample_hypervisor(state: dict, now: float = None) -> dict:
+    """The sample network plus the sample hypervisor (one node, its guests, bridges and guest firewall) - the
+    rehearsal target for guest changes. A state that already has hosts is returned unchanged."""
+    if state.get("hosts"):
+        return state
+    from .. import integrations
+    from ..demo_live import hypervisor_sample
+    fams = integrations.families_reading("guests")
+    if not fams:
+        return state
+    _, hv = hypervisor_sample(now or time.time(), fams[0])
+    out = dict(state)
+    for area in HV_LISTS:
+        out[area] = copy.deepcopy(hv.get(area) or [])
+    out["hints"] = {"critical_addresses": dict(SAMPLE_CRITICAL)}
+    return out
+
+
 def sample_state() -> dict:
     nets = {n["id"]: n for n in _NETS}
     devices = []
@@ -153,8 +180,9 @@ class SimulatedController(ControllerAdapter):
     family = "simulation"
 
     def __init__(self, state: dict = None, persist=None, settle_s: float = 2.0, fail_devices=(), capabilities=None,
-                 fail_after_writes: int = 0, fail_restore: bool = False, state_dir=None):
-        self._state = copy.deepcopy(state) if state else sample_state()
+                 fail_after_writes: int = 0, fail_restore: bool = False, state_dir=None, hypervisor: bool = False):
+        self.hypervisor = hypervisor              # the sample includes the sample hypervisor (the app's rehearsal target)
+        self._state = copy.deepcopy(state) if state else self._initial()
         self._persist = persist
         self._lock = threading.Lock()
         self.settle_s = settle_s
@@ -164,6 +192,9 @@ class SimulatedController(ControllerAdapter):
         self._caps = copy.deepcopy(capabilities) if capabilities else None
         self._next = 0
         self.writes = []
+
+    def _initial(self) -> dict:
+        return with_sample_hypervisor(sample_state()) if self.hypervisor else sample_state()
 
     def capabilities(self) -> dict:
         if self._caps:
@@ -204,8 +235,14 @@ class SimulatedController(ControllerAdapter):
             if kind.verb == "create":
                 self._next += 1
                 new_id = "sim%04d" % self._next
-                items.append(dict(step["after"], id=new_id, own=True))
+                item = dict(step["after"], id=new_id, own=True)
+                if kind.area == "guest_rules":          # a sample guest rule, appended like on a real host
+                    mine = [r for r in items if r.get("owner") == item.get("guest")]
+                    item.update(scope="guest", owner=item.get("guest"), plain=True, direction=item.get("direction", "in"),
+                                pos=1 + max([r.get("pos", 0) for r in mine] or [-1]))
+                items.append(item)
                 self.writes.append(new_id)
+                self._sync_hv()
                 self._save()
                 return {"id": new_id}
             obj = next((o for o in items if o.get("id") == oid), None)
@@ -220,8 +257,34 @@ class SimulatedController(ControllerAdapter):
                     if "network" in step["after"] and obj.get("fixed_ip"):
                         obj["ip"] = obj["fixed_ip"]       # the sample device takes its new address at once
                 self.writes.append(oid)
+            self._sync_hv()
             self._save()
             return None
+
+    def _sync_hv(self) -> None:
+        """Keep the display fields of the sample hypervisor in line with what a step wrote (the guest firewall switch
+        in the options list, port and comment of a guest rule)."""
+        fw = {g["id"]: g.get("firewall") for g in self._state.get("guests") or []}
+        for o in self._state.get("fw_options") or []:
+            if o.get("scope") == "guest" and fw.get(o.get("owner")) is not None:
+                o["enabled"] = bool(fw[o["owner"]])
+        for r in self._state.get("guest_rules") or []:
+            if "ports" in r:
+                r["dport"] = r.get("ports") or None
+            if "name" in r:
+                r["comment"] = ("lanloom: %s" % r["name"]).strip() if r.get("own") else (r.get("name") or None)
+
+    def lockout(self, state: dict, step: dict):
+        """The guest rules of a hypervisor family, with the sample's own critical addresses."""
+        if not str(step.get("kind", "")).startswith("guest."):
+            return None
+        from . import guests
+        crit = guests.critical_guests(state, (state.get("hints") or {}).get("critical_addresses"))
+        return guests.step_lockout(state, step, crit)
+
+    def plan_lockout(self, state: dict, steps: list):
+        from . import guests
+        return guests.plan_lockout(state, steps)
 
     def restore(self, snapshot: dict) -> None:
         with self._lock:
@@ -240,6 +303,7 @@ class SimulatedController(ControllerAdapter):
             for area, items in self._state.items():
                 if created and isinstance(items, list):
                     items[:] = [o for o in items if not (isinstance(o, dict) and o.get("id") in created)]
+            self._sync_hv()
             self._save()
 
     def settle(self, steps: list) -> None:
@@ -251,7 +315,7 @@ class SimulatedController(ControllerAdapter):
 
     def reset(self) -> None:
         with self._lock:
-            self._state = sample_state()
+            self._state = self._initial()
             self._save()
 
     def _save(self) -> None:

@@ -23,6 +23,10 @@
   // one line for a change of a job (progress card, history): "Phone → Media" or "Phone · name, fixed address"
   function sumText(x) {
     if (x.to && !x.kind) return x.name + ' → ' + x.to;
+    if (x.kind === 'guest.power') return x.name + ' · ' + t(x.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
+    if (x.kind === 'guest.firewall') return x.name + ' · ' + t(x.on ? 'fw.sum.fw_on' : 'fw.sum.fw_off');
+    if (x.kind === 'guest.fw_rule_create') return x.name + ' · ' + t('fw.sum.rule_new');
+    if (x.kind === 'guest.fw_rule_delete') return x.name + ' · ' + t('fw.sum.rule_gone');
     const parts = [];
     if (x.to) parts.push('→ ' + x.to);
     (x.fields || []).filter(f => f !== 'network').forEach(f => parts.push(f === 'name' && x.name_new ? t('fw.sum.name', { name: x.name_new }) : t('fw.field.' + f)));
@@ -66,18 +70,39 @@
         st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ }
         await load();
       }
+      // guest changes of a hypervisor (see LL.hvEditCards): one draft entry per kind and object
+      function opsList(ops) { return Object.values(ops || {}).map(o => ({ kind: o.kind, object: o.object, after: o.after })); }
+      async function putOps(list) {
+        try { await api('/api/firewall/draft', { method: 'PUT', body: { moves: Object.assign({}, st.view.draft.moves), ops: list } }); }
+        catch (e) { LL.toast(fwErr(e), 'error'); }
+        await load();
+      }
+      function setOp(kind, object, after) {
+        const key = kind + '|' + object;
+        const list = opsList(st.view.draft.ops).filter(o => !(o.kind === kind && o.object === object));
+        if (after) list.push({ kind, object, after });
+        else if (!(st.view.draft.ops || {})[key]) return Promise.resolve();
+        return putOps(list);
+      }
+      function dropOp(key) { const ops = Object.assign({}, st.view.draft.ops || {}); delete ops[key]; return putOps(opsList(ops)); }
       function unstage(devId) {
         const m = Object.assign({}, st.view.draft.moves); delete m[devId];
         const e = Object.assign({}, st.view.draft.edits || {}); delete e[devId];
         return setMoves(m, e);
       }
-      const draftCount = v => new Set(Object.keys(v.draft.moves || {}).concat(Object.keys(v.draft.edits || {}))).size;
+      const draftCount = v => new Set(Object.keys(v.draft.moves || {}).concat(Object.keys(v.draft.edits || {}))).size + Object.keys(v.draft.ops || {}).length;
 
       // ---------------------------------------------------------------- rendering
       // controls appear only for what the connected controller can do (capability list from the server)
       function canMove(v) { const w = v.capabilities && v.capabilities.write; return LL.can('operate') && (!w || Object.prototype.hasOwnProperty.call(w, 'move')); }
       function canEdit(v, field) { return LL.can('operate') && v.mode !== 'live' && hasKey(v, 'client.set.' + field); }
-      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip'); }
+      function canGuest(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!(v.state && (v.state.guests || []).length) && Object.keys(w).some(k => k.startsWith('guest.')); }
+      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip') || canGuest(v); }
+      function hasBoard(v) { return (v.state.zones || []).length > 0 && (v.state.networks || []).length > 0; }
+      function guestCtx(v) {
+        return { change: st.mode === 'change', can: key => LL.can('operate') && hasKey(v, key), ops: v.draft.ops || {},
+          critical: (v.guests && v.guests.critical) || {}, bridges: (v.guests && v.guests.bridges) || {}, setOp, dropOp };
+      }
 
       function render() {
         const v = st.view;
@@ -91,7 +116,8 @@
         else if (!canChange(v)) kids.push(h('div', { class: 'callout' }, t('fw.executor.readonly')));
         if (v.quiet) kids.push(h('div', { class: 'callout callout--warn' }, t('fw.quiet.now', { hours: v.quiet_hours })));
         if (v.running) kids.push(progressCard(v.running));
-        if (!(v.mode === 'live' && v.state.hosts && v.state.hosts.length)) kids.push(board(v));
+        if (!(v.mode === 'live' && v.state.hosts && v.state.hosts.length) && hasBoard(v)) kids.push(board(v));
+        if (v.mode !== 'live' && v.state.hosts && v.state.hosts.length) kids.push(...LL.hvEditCards(v.state, guestCtx(v)));
         st.pol.source = v.mode === 'live' ? v.source : null;     // "Explain" (AI) reads the rule from this live source
         if (v.state.policies && v.state.policies.length) kids.push(LL.fwPolicies(v.state, st.pol, render));
         if (v.mode === 'live') kids.push(...LL.fwLiveExtras(v.state));
@@ -312,8 +338,10 @@
         const moves = v.draft.moves || {};
         const edits = v.draft.edits || {};
         const ids = [...new Set(Object.keys(moves).concat(Object.keys(edits)))];
-        bar.hidden = !ids.length;
-        if (!ids.length) { fr.main.classList.remove('has-draftbar'); return; }
+        const ops = v.draft.ops || {};
+        const total = ids.length + Object.keys(ops).length;
+        bar.hidden = !total;
+        if (!total) { fr.main.classList.remove('has-draftbar'); return; }
         fr.main.classList.add('has-draftbar');
         const s = v.state;
         const chips = ids.map(id => {
@@ -324,13 +352,32 @@
           if (e.name) parts.push(t('fw.sum.name', { name: e.name }));
           if (e.fixed_ip != null) parts.push(e.fixed_ip ? t('fw.sum.fixed', { ip: e.fixed_ip }) : t('fw.sum.fixed_off'));
           return h('button', { type: 'button', class: 'fw-chip', title: t('fw.draft.undo_one', { name: d.name }), onclick: () => unstage(id) }, d.name + ' ' + parts.join(' · '), h('span', { 'aria-hidden': 'true' }, ' ✕'));
-        });
+        }).concat(Object.keys(ops).sort().map(key => {
+          const name = opLabel(s, ops[key]);
+          return h('button', { type: 'button', class: 'fw-chip', title: t('fw.draft.undo_one', { name }), onclick: () => dropOp(key) }, name, h('span', { 'aria-hidden': 'true' }, ' ✕'));
+        }));
         bar.replaceChildren(
-          h('div', { class: 'fw-draftbar__info' }, h('strong', {}, t('fw.draft', { n: ids.length })),
+          h('div', { class: 'fw-draftbar__info' }, h('strong', {}, t('fw.draft', { n: total })),
             v.draft.undo_of ? h('span', { class: 'chip chip--muted' }, t('fw.draft.is_undo')) : null, h('div', { class: 'fw-draftbar__chips' }, chips)),
           h('div', { class: 'fw-draftbar__actions' },
             h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => { await api('/api/firewall/draft', { method: 'DELETE' }); load(); } }, t('fw.draft.discard')),
             h('button', { class: 'btn btn--primary', type: 'button', disabled: !!v.running, onclick: openPreview }, t('fw.draft.preview'))));
+      }
+
+      function opLabel(s, o) {
+        const g = id => (s.guests || []).find(x => x.id === id) || {};
+        const a = o.after || {};
+        if (o.kind === 'guest.power') return g(o.object).name + ' · ' + t(a.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
+        if (o.kind === 'guest.firewall') return g(o.object).name + ' · ' + t(a.firewall ? 'fw.sum.fw_on' : 'fw.sum.fw_off');
+        if (o.kind === 'guest.nic') {
+          const n = (s.guest_nics || []).find(x => x.id === o.object) || {};
+          const bits = [a.bridge ? a.bridge : null, 'vlan' in a ? (a.vlan == null ? t('hv.nic.vlan_none') : 'VLAN ' + a.vlan) : null, 'firewall' in a ? t('hv.col.firewall') + ' ' + LL.hvValText('', a.firewall) : null].filter(Boolean);
+          return g(n.guest).name + ' · ' + n.name + ' → ' + bits.join(', ');
+        }
+        if (o.kind === 'guest.fw_rule_create') return g(a.guest).name + ' · ' + t('fw.sum.rule_new');
+        const r = (s.guest_rules || []).find(x => x.id === o.object) || {};
+        if (o.kind === 'guest.fw_rule_delete') return g(r.owner).name + ' · ' + t('fw.sum.rule_gone');
+        return g(r.owner).name + ' · ' + t('fw.sum.rule_changed');
       }
 
       // ---------------------------------------------------------------- preview
@@ -344,12 +391,13 @@
         const ext = v.mode === 'external';
         const applyBtn = h('button', { class: 'btn btn--primary btn--block fw-apply', type: 'button' }, t(ext ? 'fw.preview.apply_passkey' : 'fw.preview.apply_sim'));
         const refresh = () => { applyBtn.disabled = !LL.can('admin') || pv.blocks.length > 0 || [...needs].some(k => !confirm.has(k)) || (ext && !LL.passkeySupported()); };
+        const mono = f => ['fixed_ip', 'ports', 'source', 'bridge', 'vlan'].includes(f) ? 'mono' : '';
         const editRows = c => (c.edit || []).length ? h('ul', { class: 'fw-pv__edits' }, c.edit.map(e => h('li', {},
-          h('span', { class: 'fw-pv__field' }, t('fw.field.' + e.field)), ' ',
-          h('s', { class: e.field === 'fixed_ip' ? 'mono' : '' }, e.from || t('fw.preview.none_value')), ' → ',
-          h('b', { class: e.field === 'fixed_ip' ? 'mono' : '' }, e.to || t('fw.preview.none_value'))))) : null;
+          h('span', { class: 'fw-pv__field' }, t(e.field === 'name' && /^guest\.fw_rule/.test(c.kind || '') ? 'hv.rule.name' : 'fw.field.' + e.field)), ' ',
+          c.kind === 'guest.fw_rule_create' ? null : h('s', { class: mono(e.field) }, LL.hvValText(e.field, e.from)), c.kind === 'guest.fw_rule_create' ? null : ' → ',
+          h(c.kind === 'guest.fw_rule_delete' ? 's' : 'b', { class: mono(e.field) }, LL.hvValText(e.field, c.kind === 'guest.fw_rule_delete' ? e.from : e.to))))) : null;
         const changes = h('div', { class: 'fw-pv__changes' }, pv.changes.map(c => !c.to ? h('div', { class: 'fw-pv__change' },
-          h('div', { class: 'fw-pv__what' }, h('strong', {}, c.name), h('span', { class: 'muted' }, ' · ' + t('fw.preview.settings'))), editRows(c)) : h('div', { class: 'fw-pv__change' },
+          h('div', { class: 'fw-pv__what' }, h('strong', {}, c.name), h('span', { class: 'muted' }, ' · ' + t(c.what || 'fw.preview.settings'))), editRows(c)) : h('div', { class: 'fw-pv__change' },
           h('div', { class: 'fw-pv__what' }, h('strong', {}, c.name), h('span', { class: 'muted' }, ' · ' + t('fw.preview.from_to', { from: c.from, to: c.to }))),
           h('div', { class: 'mono fw-pv__ip' }, h('s', {}, c.old_ip), ' → ', h('b', {}, c.new_ip)), editRows(c),
           h('div', { class: 'fw-pv__cols' },
@@ -357,6 +405,7 @@
             h('div', { class: 'fw-pv__box fw-pv__box--no' }, h('h4', {}, t('fw.preview.may_not')), h('ul', {}, c.may_not.length ? c.may_not.map(x => h('li', {}, tr(x))) : [h('li', { class: 'muted' }, t('fw.preview.nothing_lost'))]))))));
         const confirmKey = w => {
           if (w[0] === 'fw.warn.private_address') return pv.confirm.find(k => k.startsWith('private_address:') && pv.changes.some(c => k === 'private_address:' + c.device && c.name === w[1].name));
+          if (w[1] && w[1].confirm) return w[1].confirm;            // a step that needs its own confirmation (B*)
           return { 'fw.warn.self': 'self', 'fw.warn.quiet': 'quiet' }[w[0]];
         };
         const warns = h('ul', { class: 'fw-pv__warns' }, pv.warnings.map(w => {
@@ -464,6 +513,13 @@
 
       await load();
       const want = rest && rest[0];
+      if (want === 'guests' && st.view) {
+        if (st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; try { localStorage.setItem('ll-fw-source', 'editor'); } catch (e) { /* ignore */ } await load(); }
+        window.history.replaceState(null, '', LL.base + '#/firewall');
+        if (canGuest(st.view)) { st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ } render(); }
+        const box = page.querySelector('#fw-guests');
+        if (box) box.scrollIntoView({ block: 'start' }); else LL.toast(t('hv.edit.none_here'), 'info');
+      }
       if ((want === 'device' || want === 'pick') && st.view && st.view.state) {
         if (st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; await load(); }
         window.history.replaceState(null, '', LL.base + '#/firewall');
@@ -486,6 +542,8 @@
   LL.registerAction = LL.registerAction || function (act) { LL.actions = (LL.actions || []).filter(a => a.id !== act.id).concat([act]); };
   LL.registerCommand({ id: 'firewall-change-device', group: 'commands', order: 40, label: 'fw.cmd.change', keywords: 'fw.cmd.change_keywords',
     available: () => LL.can('operate'), run: () => LL.go('#/firewall/pick') });
+  LL.registerCommand({ id: 'firewall-guests', group: 'commands', order: 42, label: 'fw.cmd.guests', keywords: 'fw.cmd.guests_keywords',
+    available: () => LL.can('operate'), run: () => LL.go('#/firewall/guests') });
   // "Firewall checks": opens the first live source with checks of its own (a zone firewall read by an adapter)
   LL.registerCommand({ id: 'firewall-checks', group: 'commands', order: 41, label: 'fw.cmd.checks', keywords: 'fw.cmd.checks_keywords',
     run: async () => {

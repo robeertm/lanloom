@@ -9,6 +9,9 @@ Items, most important first:
 * ``night.hv.node_offline``      a node is offline now;
 * ``night.hv.guest_stopped``     a guest that was running at the last report is stopped now (templates skipped);
 * ``night.hv.guest_new`` / ``night.hv.guest_gone``  guests added or removed since the last report;
+* ``night.hv.guest_fw_off`` / ``night.hv.guest_fw_on``  a guest's own firewall was switched off (a look) or on;
+* ``night.hv.nic_changed``       bridge or VLAN of a guest's network cards changed (before -> now);
+* ``night.hv.rules_changed``     a guest's firewall rules changed (count before -> now);
 * ``night.hv.backup_failed``     a backup task failed during the night;
 * the adapter's findings (``hv.finding.<kind>``: storage almost full, guests without or with an old backup, bridge
   missing, VLAN not allowed on the bridge, VLAN not carried by the switch port, firewall without effect);
@@ -47,6 +50,20 @@ def night_section(previous, state, now: float, name: str = None):
         for gid, g in sorted(before.items(), key=lambda kv: kv[1].get("vmid") or 0):
             if gid not in guests:
                 items.append(_item("info", "night.hv.guest_gone", guest=g.get("name"), vmid=g.get("vmid")))
+        # guest network and firewall changes since the last report (whoever made them: Lanloom's editor or the host)
+        for gid, g in sorted(guests.items(), key=lambda kv: kv[1].get("vmid") or 0):
+            old = before.get(gid)
+            if not old:
+                continue
+            if old.get("firewall") is not None and g.get("firewall") is not None and old["firewall"] != g["firewall"]:
+                items.append(_item("info" if g["firewall"] else "warn", "night.hv.guest_fw_on" if g["firewall"] else "night.hv.guest_fw_off",
+                                   guest=g.get("name"), vmid=g.get("vmid")))
+            if old.get("net_sig") is not None and g.get("net_sig") is not None and old["net_sig"] != g["net_sig"]:
+                items.append(_item("info", "night.hv.nic_changed", guest=g.get("name"), vmid=g.get("vmid"),
+                                   was=old["net_sig"] or "-", now=g["net_sig"] or "-"))
+            if old.get("rules_sig") is not None and g.get("rules_sig") is not None and old["rules_sig"] != g["rules_sig"]:
+                items.append(_item("info", "night.hv.rules_changed", guest=g.get("name"), vmid=g.get("vmid"),
+                                   was=old.get("rules_n") or 0, n=g.get("rules_n") or 0))
         since = prev.get("t")
     window = float(now) - (float(since) if isinstance(since, (int, float)) else 86400.0)
     failed = 0

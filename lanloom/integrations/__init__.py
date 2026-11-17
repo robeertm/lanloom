@@ -175,6 +175,24 @@ def load_model(family: str):
     return importlib.import_module("%s.%s.model" % (__name__, family))
 
 
+def families_reading(area: str) -> list:
+    """Ids of the built-in device families (not the internal sample family) whose read half reads ``area``
+    (``guests``: hypervisor families), in registry order. Core code uses this instead of naming a family."""
+    return [m.family for m in BUILTIN if m.read and m.selectable and area in (m.capabilities.get("read") or [])]
+
+
+def guest_mac_hashes(mac) -> set:
+    """The hashes the hypervisor families give this hardware address in their neutral model (``mac_hash`` of their
+    translation module), so core code can match a guest's network card without seeing hardware addresses there."""
+    out = set()
+    for fam in families_reading("guests"):
+        fn = getattr(load_model(fam), "mac_hash", None)
+        h = fn(mac) if fn else None
+        if h:
+            out.add(h)
+    return out
+
+
 def night_sections() -> list:
     """Registered night report contributions of the built-in families: [(family, function)], in registry order.
     ``function(previous_state, state, now, name)`` returns ``{"family", "title": key, "items": [{level, key, params}]}``
