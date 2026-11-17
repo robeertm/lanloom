@@ -47,8 +47,9 @@ def register(app: FastAPI, c: Ctx) -> None:
         core = c.state.core
         names = subject_names(core)
         if subject not in names:
-            return c.err("avail.err.unknown", 404)
+            return {"known": False}          # not an error: a hidden device, a map tile that is no device, a connection that is gone
         out = await asyncio.to_thread(core.availability.detail, subject)
+        out["known"] = True
         out["title"], out["kind"] = names[subject]["title"], names[subject]["kind"]
         return out
 

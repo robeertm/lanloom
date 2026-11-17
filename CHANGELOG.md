@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.29.1] – 2026-11-17
+
+### Fixed
+- Asking for the availability of something that is not tracked (a hidden device, a map tile that is not a device) is no longer a 404 error in the browser console: the route answers `{"known": false}` and the card or hover window simply leaves the part out.
+- 1.28.0 (availability over time, Stability list, traffic plots, card sections) was not released on its own; 1.29.1 contains all of it together with 1.29.0.
+
 ## [1.29.0] – 2026-11-17
 
 ### Security

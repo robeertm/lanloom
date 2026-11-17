@@ -78,6 +78,7 @@
     async function load() {
       let d;
       try { d = await api('/api/availability/dev:' + encodeURIComponent(deviceId)); } catch (e) { sec.remove(); return; }
+      if (!d.known) { sec.remove(); return; }
       const chips = [];
       if (d.open) chips.push(h('span', { class: 'chip chip--danger' }, t('avail.open')));
       if (d.wobbly) chips.push(h('span', { class: 'chip chip--warn' }, t('avail.wobbly')));
@@ -337,7 +338,7 @@
     const below = r.bottom + 8 + 150 < window.innerHeight;
     card.style.top = (below ? r.bottom + 8 : Math.max(8, r.top - 8 - 150)) + 'px';
     const body = card.querySelector('.tile-hover__body');
-    const [tr, av] = await Promise.all([plotData(id, '1h').catch(() => null), api('/api/availability/dev:' + encodeURIComponent(id)).catch(() => null)]);
+    const [tr, av] = await Promise.all([plotData(id, '1h').catch(() => null), api('/api/availability/dev:' + encodeURIComponent(id)).then(r => (r.known ? r : null)).catch(() => null)]);
     if (hover.el !== card) return;
     const kids = [];
     if (tr && tr.points.some(p => p[0] || p[1])) {

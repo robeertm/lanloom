@@ -485,7 +485,6 @@
  "avail.axis.now": "jetzt",
  "avail.bars.aria": "Verfügbarkeit je Tag über die letzten {n} Tage",
  "avail.days": "{n, plural, one {Letzter Tag} other {Letzte # Tage, ein Balken je Tag}}",
- "avail.err.unknown": "Für dieses Gerät gibt es keine Verfügbarkeitsdaten.",
  "avail.incidents7": "Lücken in 7 Tagen",
  "avail.longest": "Längste Lücke (7 Tage)",
  "avail.mttr": "Typische Reparaturzeit",

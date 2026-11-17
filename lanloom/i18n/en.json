@@ -485,7 +485,6 @@
  "avail.axis.now": "now",
  "avail.bars.aria": "Availability per day over the last {n} days",
  "avail.days": "{n, plural, one {Last day} other {Last # days, one bar per day}}",
- "avail.err.unknown": "No availability data for this one.",
  "avail.incidents7": "Gaps in 7 days",
  "avail.longest": "Longest gap (7 days)",
  "avail.mttr": "Typical repair time",

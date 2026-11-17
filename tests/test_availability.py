@@ -196,8 +196,8 @@ def test_routes_demo_history(client):
     top = stab["rows"][0]
     assert len(top["bars"]) == 35
     det = client.get("/api/availability/" + top["id"]).json()
-    assert det["title"] == top["title"] and len(det["slots24"]) == 288 and det["list"]
-    assert client.get("/api/availability/dev:nope").status_code == 404
+    assert det["known"] and det["title"] == top["title"] and len(det["slots24"]) == 288 and det["list"]
+    assert client.get("/api/availability/dev:nope").json() == {"known": False}        # not an error (the browser console stays clean)
     comp = client.get("/api/map?view=overview").json()["components"]
     host = next(c["id"] for c in comp if c.get("kind") in ("server", "nas", "router", "host", "device") and not str(c["id"]).startswith(("zone", "area", "topic")))
     plot = client.get("/api/traffic/%s?range=24h" % host)
