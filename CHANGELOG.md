@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Forget device** on the card of a hidden or offline device (operators): removes the entry, its history and what you entered for it, after a confirmation in the app's own dialog. This host and the gateway cannot be forgotten; a device that still answers is found again by the next scan, as a new entry. The function existed on the server, now the card offers it.
 - **Devices behind a Wi-Fi repeater that rewrites addresses**: when one of two entries has a private hardware address and both end in the same three bytes, the card offers *Same device* if a second fact fits: the same IP address, or the other address inside the device's host or mDNS name. At most 50 %, so it is only ever a suggestion, never an automatic merge; *Different devices* keeps them apart.
 - Maker behind such a repeater: if a device with a private address carries its real, registered address in its own host or mDNS name (same last three bytes), the maker of that address is shown, marked *address in its name, register*.
-- Classification: the DNS-SD service type of a common family of smart plugs and relays (`_shelly._tcp`, identifier) counts as a smart-home device.
+- Classification: the DNS-SD service type announced by a common family of smart plugs and relays counts as a smart-home device.
 
 ### Fixed
 - The card of a **hidden device** opens again. It said "This element is no longer on the map", so a hidden device could not be shown again from its card. Hidden devices and second interfaces now open their card without connections.
