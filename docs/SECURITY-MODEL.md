@@ -1,0 +1,162 @@
+# Security model
+
+This document says what Lanloom protects, against whom, how, and what is left over. It complements
+[SECURITY.md](../SECURITY.md) (rules, verification, reporting) and the detail pages it links to. It is reviewed with
+every release that adds a way to write, a new outbound connection or a new route without a session.
+
+## What is worth protecting
+
+| Asset | Where it lives | Why it matters |
+|---|---|---|
+| The map of the network (devices, addresses, names, ports, cabling, traffic) | database in the data volume | a ready-made target list for an attacker |
+| Credentials of integrations (read-only accounts, tokens, delivery channels, AI keys) | encrypted in the database, key `secret.key` in the data volume | access to other systems |
+| Write credentials of a controller or hypervisor | only in the executor's options file (0600) | can change the network |
+| Accounts, sessions, second factors, passkeys | database | control over Lanloom itself |
+| The audit log | database, hash chain keyed from `secret.key` | evidence of who changed what |
+| The image users run | public registry | code that runs in thousands of networks |
+
+## Who we defend against
+
+### 1. An attacker in the local network
+
+Someone with a device in the same network (a compromised IoT device, a guest, malware on a laptop) who can reach
+Lanloom's port and sniff or answer local multicast.
+
+- **Sign-in is mandatory**, the first account needs the one-time setup code from the log, passwords are argon2id,
+  sessions are 256-bit random tokens in `HttpOnly`, `SameSite=Strict` cookies.
+- **Brute force:** failed sign-ins, second steps, invitation and restore codes lock the client address out (5 tries,
+  then 60 s doubling to 1 h; IPv6 per /64); the limiter's memory is bounded without forgetting active lock-outs.
+- **Flooding:** every state-changing request passes a flood guard: 120 per minute per client address for the routes
+  without a session, 600 per minute per account for everything else (`lanloom/flood.py`). Open passkey sign-in
+  ceremonies are capped at 2000 (the oldest goes first), so the routes without a session cannot grow memory without
+  bound. A test sends past the limit on every route without a session (`tests/test_security_headers.py`).
+- **Cross-site requests from a page the victim opens:** state-changing requests need `X-Lanloom: 1` and a matching
+  `Origin`; cookies are `SameSite=Strict`; responses forbid framing.
+- **Sniffing:** Lanloom serves plain HTTP. In a network you do not trust, put it behind a TLS reverse proxy; HSTS is
+  then sent (only when the request really arrived over HTTPS: directly, or from a proxy in `LANLOOM_TRUSTED_PROXIES`
+  that says so). Passkeys need HTTPS or localhost anyway.
+- **Forged announcements** (mDNS, SSDP, UPnP, WS-Discovery, NetBIOS, LLDP/SNMP answers): every value read from the
+  network is untrusted text. It is size-capped and parsed defensively, shown escaped under a strict Content Security
+  Policy, and never decides a write. A description address in an announcement is fetched only when it points into the
+  scanned private ranges as an address literal. The scanner only probes private address ranges and never tries to
+  sign in.
+- **Remaining risk:** without TLS, someone who can read the traffic can steal a session cookie. Use a TLS proxy or a
+  trusted network segment for the management port.
+
+### 2. A stolen session
+
+Someone got hold of a session cookie (shared computer, malware in the browser, sniffed plain HTTP).
+
+- Sessions expire after 30 days, after 14 days without use, and on public computers after 8 hours or 30 minutes
+  idle. Users see and end their sessions; admins can end anyone's; a password reset ends all.
+- **Step-up confirmation:** critical actions (users, connections, sign-in security, AI pairing, own passkeys and
+  factors, backup export and restore) need a passkey, app code or recovery code from the last 10 minutes. A stolen
+  cookie alone cannot add a user, change a connection or take a backup.
+- **Executor approvals** need a passkey signature over the SHA-256 of every plan, every time; the executor checks it
+  against keys the operator pinned. A stolen session cannot change the network.
+- **Roles on the server** for every route (`lanloom/access.py`, checked by a test against every route); a viewer's
+  stolen session can only read.
+- The flood guard caps what a stolen session can do per minute, and every state-changing action lands in the
+  tamper-evident audit log with origin and user agent.
+- **Remaining risk:** a stolen viewer or operator session can read the map until it expires or is ended.
+
+### 3. A malicious counterpart
+
+A device or service Lanloom talks to answers with crafted data: a hub, MQTT broker, SNMP agent, switch controller,
+zone firewall, hypervisor, a web page on a device, a cloud AI service, a webhook receiver.
+
+- **Read-only by construction:** each integration has one send path that refuses everything but reads (allow-lists
+  per protocol, checked by tests); write halves exist only in the separate executor process.
+- **Untrusted input:** answers are size-capped, parsed with the standard library or strict parsers, and shown
+  escaped. Certificates are checked unless an administrator allows a device's own certificate for that connection
+  (opt-in); device-family adapters can bind the connection to the certificate's SHA-256 instead.
+- **AI answers** are text only; the AI never writes configuration and its suggestions go through the same draft,
+  preview and passkey as a person's. Cloud services get placeholders instead of addresses, names and serial numbers.
+- **The executor's connection guard** allows connections only to the app and to the controller resolved at start;
+  everything else is refused before it is made.
+- **Remaining risk:** a compromised counterpart can feed false data into the map (wrong names, fake devices). Lanloom
+  shows observations, not guarantees.
+
+### 4. The supply chain
+
+Someone tampers with what users install: a dependency, the base image, the build, the registry, the update path.
+
+- **Pinned dependencies:** every Python package (also transitive ones) is pinned with `==` in `requirements.txt`;
+  the image is built from the official Python slim image of the current stable release of its distribution, with the
+  distribution's security updates applied in every build.
+- **Dependency scan** (`scripts/dep_scan.py`): the pinned Python packages against the OSV database, and the built
+  image (operating system and Python packages) with grype, in CI before an image is built for publishing, again on the
+  published image, and in the release gate. A critical finding stops the release unless an exception with a reason
+  and a review date covers it (`security/vulnerability-policy.json`); a high finding is listed with its reason. A
+  self-check proves the scanner still reports a known critical package; a scan that cannot run is never green.
+- **Pinned tools and actions:** the scanner, SBOM and signing tools are pinned by version and SHA-256
+  (`security/tools.json`); the CI actions of the build and test workflows are pinned to commit hashes.
+- **Signed images, no key anywhere:** each published image is signed keyless with Sigstore in the project's CI. The
+  certificate names the publishing workflow on the main branch, the signature is in the public transparency log, and
+  there is no private key on any computer that could be stolen. `:latest` and `:<major>` point at the same digest, so
+  they carry the same signature.
+- **SBOM:** one SPDX document per platform is attached to the image as a signed attestation and to the release page
+  as a file (with checksums).
+- **Release gate:** an image is published under its version only after tests, a leak check, the scan and an end-to-end
+  run against exactly that published image; `:latest` moves only after that. Version tags never move.
+- **Updater:** the one-click updater pulls the new version, runs a self-test without network on a read-only
+  file system with all capabilities dropped, starts a trial on a copy of the data, backs up and keeps the old image,
+  and rolls back on failure. Checking the signature before the swap is planned for the next updater release.
+- **No secrets in the repository:** a secret scanner reads every tracked file and the whole git history in CI.
+- **Remaining risk:** the trust anchor is the maintainer's account on the code host and the build workflow. A compromised maintainer account
+  could publish a signed image; the transparency log would show it. Verify the signature (SECURITY.md) if you pull
+  images through mirrors.
+
+## No telemetry, checked
+
+Lanloom does not phone home. The only outbound connection of its own is the optional update check against the public
+release feed. Everything else connects only when someone sets it up: integrations to the addresses an administrator
+entered, delivery channels, web push to a browser's push service, the heartbeat, a cloud AI service, and one TLS
+handshake per morning to the connections set up (certificate expiry).
+
+This is a checked rule, not a promise: `scripts/egress_check.py` reads the shipped code (without running it) and lists
+every place that can open a connection and every fixed public host name. Each one must be listed in
+`security/egress.json` with a category and a purpose; a new one without an entry fails the tests, CI and the release
+gate, and so does a stale entry. The web page itself can only talk to its own server (`connect-src 'self'` in the
+Content Security Policy, pinned by a test). The web framework's built-in OpenTelemetry hooks are switched off and no
+telemetry SDK or exporter is installed (also tested).
+
+## Container principles
+
+Checked by `tests/test_container_hardening.py` against the Dockerfile, `compose.yaml`, the compose file the installer
+writes, compose snippets in the documentation and the containers the updater creates:
+
+- the image runs as uid/gid 10001, numeric, and nothing runs as root after the switch;
+- the app and the executor run with a read-only root file system, all capabilities dropped and `no-new-privileges`;
+- nothing is privileged, adds capabilities, maps devices or shares the host's PID or IPC namespace;
+- the self-test and trial containers of an update are read-only, drop all capabilities and set `no-new-privileges`;
+- the only exception is the optional updater sidecar: it runs as root because it needs the container runtime socket
+  (root-equivalent on the host), is opt-in through its own profile, and still has a read-only file system and
+  `no-new-privileges`. Leave it out if you do not want that.
+
+## Web interface
+
+| Header | Value | Why |
+|---|---|---|
+| Content-Security-Policy | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'` | no inline or foreign script, the page talks only to its own server; inline styles stay allowed for layout values the board computes (they cannot run code) |
+| Strict-Transport-Security | `max-age=31536000` | only over real HTTPS; no `includeSubDomains`, so other hosts of a local domain are not affected |
+| Referrer-Policy | `no-referrer` | addresses in the URL never leak |
+| Permissions-Policy | camera, microphone, geolocation, USB, serial, HID, MIDI, payment, screen capture and motion sensors off | the page needs none of them; passkeys and clipboard stay available |
+| X-Frame-Options, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy | `DENY`, `same-origin`, `same-origin` | no framing, no cross-origin window access, no embedding of responses |
+| X-Content-Type-Options, Cache-Control (API) | `nosniff`, `no-store` | no content sniffing, no cached API answers |
+
+Every answer carries these headers, also refusals of the guard (401, 403, 429) and static files; a test checks each
+kind of answer.
+
+### Writing endpoints (review)
+
+| Kind | Routes | Protection |
+|---|---|---|
+| Without a session | first account, sign-in, second step, passkey sign-in, invitation check and acceptance, AI pairing (3), restore before the first account (3) | `X-Lanloom` + `Origin`, flood guard per client (120/min), failure lock-out per client (and per account for the second step), one-time codes stored as hashes; pairing and restore need the setup code, pairing accepts only private peers |
+| Signed in | everything else that changes state | role per route (central table, test against every route), step-up for critical actions, flood guard per account (600/min), audit log |
+| Executor | plan hand-over and result | shared token, no session, passkey signature per plan checked by the executor |
+| Uploads | backup restore | size limit, one slot per purpose, decrypted only with the passphrase, rate-limited like wrong passphrases |
+
+## How to report
+
+See [SECURITY.md](../SECURITY.md#reporting-a-vulnerability).

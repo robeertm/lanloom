@@ -1,0 +1,83 @@
+# Image dependency scan (operating system and Python packages of the container image) before anything is published.
+# Called by publish.yml before the build job; runs on its own on branches when the image inputs change, and by hand.
+# Policy: security/vulnerability-policy.json (critical = red, high = notice with its reason). The SBOM rehearsal
+# checks that keyless signing works for this repository without pushing anything.
+name: Security scan
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths:
+      - Dockerfile
+      - requirements.txt
+      - security/**
+      - scripts/dep_scan.py
+      - scripts/fetch_tools.py
+      - .github/workflows/security.yml
+      - .github/workflows/publish.yml
+      - .github/workflows/release-assets.yml
+
+permissions:
+  contents: read
+
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write          # keyless signing rehearsal (no key anywhere, short-lived certificate)
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the candidate (amd64, not pushed)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: lanloom-scan:ci
+          build-args: |
+            VERSION=0.0.0-scan
+            BASE_REFRESH=${{ github.run_id }}
+          cache-from: type=gha
+          provenance: false
+      - name: Container principles of the built image
+        run: |
+          set -euo pipefail
+          user="$(docker image inspect lanloom-scan:ci --format '{{.Config.User}}')"
+          echo "image user: $user"
+          [ "$user" = "10001:10001" ] || { echo "::error::image does not run as 10001:10001"; exit 1; }
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true lanloom-scan:ci python -m lanloom --selftest
+      - name: Supply-chain tools (pinned, SHA-256 checked)
+        run: python3 scripts/fetch_tools.py --dest "$RUNNER_TEMP/tools" grype syft cosign
+      - name: Scanner self-check (a known critical package must be red)
+        run: python3 scripts/dep_scan.py bait --tools "$RUNNER_TEMP/tools"
+      - name: Python packages (OSV)
+        run: python3 scripts/dep_scan.py python --md "$GITHUB_STEP_SUMMARY"
+      - name: Image packages (critical = red, high = notice)
+        run: python3 scripts/dep_scan.py image docker:lanloom-scan:ci --tools "$RUNNER_TEMP/tools" --json scan-image.json --md "$GITHUB_STEP_SUMMARY"
+      - name: SBOM and keyless signing rehearsal (nothing is pushed)
+        env:
+          COSIGN_YES: "true"
+        run: |
+          set -euo pipefail
+          T="$RUNNER_TEMP/tools"
+          SYFT_CHECK_FOR_APP_UPDATE=false "$T/syft" docker:lanloom-scan:ci --source-name lanloom-amd64 --source-version rehearsal -o spdx-json=sbom.spdx.json -q
+          python3 -c "import json; d=json.load(open('sbom.spdx.json')); assert d['spdxVersion'].startswith('SPDX-2') and len(d['packages']) > 50, 'SBOM too small'; print('SBOM packages:', len(d['packages']))"
+          "$T/cosign" sign-blob --bundle sbom.bundle sbom.spdx.json
+          "$T/cosign" verify-blob --bundle sbom.bundle \
+            --certificate-identity-regexp "^https://github\.com/${GITHUB_REPOSITORY}/\.github/workflows/security\.yml@refs/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com sbom.spdx.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: security-scan
+          path: |
+            scan-image.json
+            sbom.spdx.json
+          if-no-files-found: ignore
+          retention-days: 14

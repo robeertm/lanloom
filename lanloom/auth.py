@@ -711,10 +711,11 @@ class Passkeys:
     """WebAuthn registration and sign-in (discoverable credentials)."""
 
     TTL = 180
+    MAX_PENDING = 2000   # sign-in options need no session: a flood must not grow memory without bound
 
     def __init__(self, store: Store):
         self.store = store
-        self._pending = {}   # ceremony id -> (challenge, user_id|None, rp_id, origin, created)
+        self._pending = {}   # ceremony id -> (challenge, user_id|None, rp_id, origin, created), oldest first
         self._lock = threading.Lock()
 
     def _remember(self, challenge: bytes, user_id: Optional[int], rp_id: str, origin: str) -> str:
@@ -723,6 +724,8 @@ class Passkeys:
         with self._lock:
             for k in [k for k, v in self._pending.items() if now - v[4] > self.TTL]:
                 self._pending.pop(k, None)
+            while len(self._pending) >= self.MAX_PENDING:          # the oldest open ceremony goes first
+                self._pending.pop(next(iter(self._pending)))
             self._pending[cid] = (challenge, user_id, rp_id, origin, now)
         return cid
 

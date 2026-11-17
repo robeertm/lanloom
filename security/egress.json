@@ -1,0 +1,271 @@
+{
+ "about": "Every place in the shipped code that can open a network connection, and every fixed public host name. Checked by scripts/egress_check.py (tests/test_egress.py, CI, release gate). A new connection needs an entry here; one that the user did not set up breaks the no-telemetry rule in SECURITY.md.",
+ "sites": [
+  {
+   "site": "lanloom/ai/providers.py::_Stream.__init__::http",
+   "category": "configured-ai",
+   "purpose": "requests to the AI service an administrator set up and switched on (cloud only with placeholders; local service stays in the network)"
+  },
+  {
+   "site": "lanloom/connguard.py::resolve::dns",
+   "category": "executor-link",
+   "purpose": "executor connection guard: resolves the controller address entered by the operator to pin the only allowed destinations"
+  },
+  {
+   "site": "lanloom/core.py::Core._presence_round.probe::socket",
+   "category": "lan-scan",
+   "purpose": "presence check: one TCP connect to an already known device in the local network"
+  },
+  {
+   "site": "lanloom/executor.py::_http::http",
+   "category": "executor-link",
+   "purpose": "executor: talks to the app and to the controller entered by the operator (behind the connection guard)"
+  },
+  {
+   "site": "lanloom/executor.py::local_identity::dns",
+   "category": "local-host",
+   "purpose": "executor: own host name and addresses, to refuse changes to the guest it runs in"
+  },
+  {
+   "site": "lanloom/executor.py::local_identity::socket",
+   "category": "local-host",
+   "purpose": "executor: finds the own source address towards the app (UDP socket, nothing is sent)"
+  },
+  {
+   "site": "lanloom/integrations/transport.py::Transport.request::http",
+   "category": "configured-source",
+   "purpose": "adapters of device families: read half in the app, write half only in the executor; address entered by an administrator"
+  },
+  {
+   "site": "lanloom/netflow.py::Collector.start::socket",
+   "category": "listener",
+   "purpose": "optional NetFlow/IPFIX receiver (off by default): binds a UDP port, sends nothing"
+  },
+  {
+   "site": "lanloom/nightly/certs.py::days_left::socket",
+   "category": "own-connection-check",
+   "purpose": "one TLS handshake per morning to the addresses of the connections set up, to read certificate expiry"
+  },
+  {
+   "site": "lanloom/nightly/deliver.py::_email::smtp",
+   "category": "configured-channel",
+   "purpose": "nightly report by e-mail through the mail server an administrator entered"
+  },
+  {
+   "site": "lanloom/nightly/deliver.py::_post::http",
+   "category": "configured-channel",
+   "purpose": "nightly report to the webhook, push topic or chat bot an administrator set up"
+  },
+  {
+   "site": "lanloom/notify/__init__.py::Notifier.beat::http",
+   "category": "configured-channel",
+   "purpose": "optional heartbeat: plain GET to the address an administrator entered"
+  },
+  {
+   "site": "lanloom/notify/webpush.py::_open::http",
+   "category": "configured-channel",
+   "purpose": "web push to the push service of a browser a person subscribed"
+  },
+  {
+   "site": "lanloom/scan/_udp.py::ask::socket",
+   "category": "lan-scan",
+   "purpose": "scanner: single UDP questions (NetBIOS, LLMNR, SNMP) to private addresses"
+  },
+  {
+   "site": "lanloom/scan/httpget.py::_fetch_once::socket",
+   "category": "lan-scan",
+   "purpose": "scanner: reads the title of a web page on a local device (private addresses only)"
+  },
+  {
+   "site": "lanloom/scan/mcast.py::listen_socket::socket",
+   "category": "lan-scan",
+   "purpose": "scanner: listens for local multicast announcements"
+  },
+  {
+   "site": "lanloom/scan/mcast.py::query_sockets::socket",
+   "category": "lan-scan",
+   "purpose": "scanner: multicast questions in the local network (link-local groups)"
+  },
+  {
+   "site": "lanloom/scan/mdns.py::browse::socket",
+   "category": "lan-scan",
+   "purpose": "scanner: mDNS/DNS-SD in the local network"
+  },
+  {
+   "site": "lanloom/scan/ndp.py::read_ndp::socket",
+   "category": "local-host",
+   "purpose": "reads the IPv6 neighbour table of the host (netlink, nothing leaves the host)"
+  },
+  {
+   "site": "lanloom/scan/neighbors.py::nudge::socket",
+   "category": "lan-scan",
+   "purpose": "scanner: empty UDP datagram so the kernel learns a neighbour's hardware address"
+  },
+  {
+   "site": "lanloom/scan/netinfo.py::_iface_addrs::socket",
+   "category": "local-host",
+   "purpose": "reads the addresses of the host's own interfaces (ioctl, nothing is sent)"
+  },
+  {
+   "site": "lanloom/scan/ports.py::tcp_probe::socket",
+   "category": "lan-scan",
+   "purpose": "scanner: TCP connect to the listed ports of private addresses, no login"
+  },
+  {
+   "site": "lanloom/scan/ssdp.py::search::socket",
+   "category": "lan-scan",
+   "purpose": "scanner: SSDP search in the local network"
+  },
+  {
+   "site": "lanloom/scan/wsd.py::probe::socket",
+   "category": "lan-scan",
+   "purpose": "scanner: one WS-Discovery probe in the local network"
+  },
+  {
+   "site": "lanloom/sources/_ws.py::WebSocket.connect::socket",
+   "category": "configured-source",
+   "purpose": "read-only hub connection (WebSocket) to the address an administrator entered"
+  },
+  {
+   "site": "lanloom/sources/controller.py::Controller._send::http",
+   "category": "configured-source",
+   "purpose": "read-only switch controller connection to the address an administrator entered"
+  },
+  {
+   "site": "lanloom/sources/hostnet.py::NetlinkReader.__init__::socket",
+   "category": "local-host",
+   "purpose": "reads TCP byte counters of the host (netlink, nothing leaves the host)"
+  },
+  {
+   "site": "lanloom/sources/mqtt.py::Mqtt._connect::socket",
+   "category": "configured-source",
+   "purpose": "read-only MQTT subscription to the broker an administrator entered"
+  },
+  {
+   "site": "lanloom/sources/snmp.py::SnmpClient._socket::dns",
+   "category": "configured-source",
+   "purpose": "resolves the SNMP device an administrator entered"
+  },
+  {
+   "site": "lanloom/sources/snmp.py::SnmpClient._socket::socket",
+   "category": "configured-source",
+   "purpose": "SNMP Get/GetNext/GetBulk to the device an administrator entered"
+  },
+  {
+   "site": "lanloom/updates.py::Updates._fetch::http",
+   "category": "update-check",
+   "purpose": "update check against the public release feed (LANLOOM_UPDATE_CHECK=0 or the setting turns it off)"
+  },
+  {
+   "site": "updater/engine.py::Updater.pick_probe_port::socket",
+   "category": "local-host",
+   "purpose": "updater: finds a free loopback port for the trial start (bind only)"
+  },
+  {
+   "site": "updater/engine.py::http_health::http",
+   "category": "local-host",
+   "purpose": "updater: reads the health check of the trial and the swapped container on this host"
+  },
+  {
+   "site": "updater/localai.py::default_http_get::http",
+   "category": "local-host",
+   "purpose": "local AI setup: checks the local AI service on this host"
+  },
+  {
+   "site": "updater/localai.py::default_port_open::socket",
+   "category": "local-host",
+   "purpose": "local AI setup: checks whether the local AI port on this host answers"
+  },
+  {
+   "site": "updater/runtimeapi.py::UnixHTTPConnection.connect::socket",
+   "category": "container-runtime",
+   "purpose": "updater: local socket of the container runtime (pull the new image, test, swap, roll back)"
+  }
+ ],
+ "hosts": [
+  {
+   "host": "api.github.com",
+   "use": "connect",
+   "category": "update-check",
+   "purpose": "public release feed of the project (update check, optional)"
+  },
+  {
+   "host": "api.anthropic.com",
+   "use": "connect",
+   "category": "configured-ai",
+   "purpose": "preset address of a cloud AI service, used only after an administrator sets it up and switches it on"
+  },
+  {
+   "host": "api.mistral.ai",
+   "use": "connect",
+   "category": "configured-ai",
+   "purpose": "preset address of a cloud AI service, used only after an administrator sets it up and switches it on"
+  },
+  {
+   "host": "api.openai.com",
+   "use": "connect",
+   "category": "configured-ai",
+   "purpose": "preset address of a cloud AI service, used only after an administrator sets it up and switches it on"
+  },
+  {
+   "host": "generativelanguage.googleapis.com",
+   "use": "connect",
+   "category": "configured-ai",
+   "purpose": "preset address of a cloud AI service, used only after an administrator sets it up and switches it on"
+  },
+  {
+   "host": "openrouter.ai",
+   "use": "connect",
+   "category": "configured-ai",
+   "purpose": "preset address of a cloud AI service, used only after an administrator sets it up and switches it on"
+  },
+  {
+   "host": "host.docker.internal",
+   "use": "connect",
+   "category": "configured-ai",
+   "purpose": "address of the host from inside a container, tried only to find a local AI service"
+  },
+  {
+   "host": "api.telegram.org",
+   "use": "connect",
+   "category": "configured-channel",
+   "purpose": "chat bot API, used only when an administrator sets up the chat bot channel"
+  },
+  {
+   "host": "github.com",
+   "use": "link",
+   "category": "link",
+   "purpose": "project address shown as a link and sent as the VAPID contact of web push (no personal data)"
+  },
+  {
+   "host": "creativecommons.org",
+   "use": "link",
+   "category": "link",
+   "purpose": "licence link of the bundled location database, shown only"
+  },
+  {
+   "host": "db-ip.com",
+   "use": "link",
+   "category": "link",
+   "purpose": "attribution link of the bundled location database, shown only (the database ships in the image)"
+  },
+  {
+   "host": "standards-oui.ieee.org",
+   "use": "link",
+   "category": "link",
+   "purpose": "source of the bundled manufacturer register, shown only (the register ships in the image)"
+  },
+  {
+   "host": "schemas.xmlsoap.org",
+   "use": "link",
+   "category": "link",
+   "purpose": "XML namespace of WS-Discovery messages, an identifier that is never fetched"
+  },
+  {
+   "host": "www.w3.org",
+   "use": "link",
+   "category": "link",
+   "purpose": "XML/SVG namespace, an identifier that is never fetched"
+  }
+ ]
+}

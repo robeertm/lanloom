@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.29.0] – 2026-11-17
+
+### Security
+- **Signed images without a key**: every published image is signed keyless with Sigstore in the project's CI (OIDC identity of the publishing workflow on the main branch, recorded in the public transparency log; no signing key exists anywhere). `:latest` and `:1` carry the same signature because they point at the same digest. How to verify: [SECURITY.md](SECURITY.md#verifying-an-image).
+- **SBOM per image**: one SPDX document per platform, attached to the image as a signed attestation and to the release page as files with a checksum file.
+- **Dependency scan**: the pinned Python packages (OSV database) and the image's operating-system and Python packages (grype) are scanned in CI before an image is built for publishing, again on the published image, and in the release gate. A critical finding stops the release unless an exception with a reason and a review date covers it (`security/vulnerability-policy.json`); a high finding is listed with its reason. A self-check proves the scanner still reports a known critical package; a scan that cannot run is never green.
+- **No telemetry, checked**: a static check (`scripts/egress_check.py`) lists every place in the shipped code that can open a connection and every fixed public host against an allow-list with purposes (`security/egress.json`); anything new without an entry fails the tests, CI and the release gate. The web framework's built-in telemetry hooks are switched off, and no telemetry library is installed (tested).
+- **Secret scanner** over every tracked file and the whole git history (CI); reviewed fakes in the history are kept as hashes only.
+- **Container principles as tests**: unprivileged numeric user, read-only root file system, all capabilities dropped, `no-new-privileges`, nothing privileged - checked against the Dockerfile, both compose files, documentation snippets and the containers the updater creates. The updater's self-test and trial containers now drop all capabilities and set `no-new-privileges` too.
+- **Headers on every answer**, refusals of the guard (401/403/429) included: wider Permissions-Policy (camera, microphone, location, USB, serial, HID, MIDI, payment, screen capture, motion sensors off), Cross-Origin-Opener-Policy and Cross-Origin-Resource-Policy `same-origin`, `object-src 'none'` in the Content Security Policy, and HSTS when the request arrived over HTTPS (directly or from a trusted proxy; never over plain HTTP).
+- **Flood guard** for state-changing requests: 120 per minute per client address on the routes without a session, 600 per minute per account on the others, on top of the failure lock-outs. Open passkey sign-in ceremonies are capped, so the sign-in options route cannot grow memory without bound.
+- **Updated dependencies with fixed advisories**: the web framework (FastAPI 0.163, Starlette 1.10; fixes among others a slow Range header parse for file responses), cryptography 50.0.2 and pyOpenSSL 26.4.0.
+- **Base image**: the current stable release of the base distribution instead of the previous one, with the distribution's security updates applied in every build (no critical findings left in the image).
+- The CI actions of the build and test workflows are pinned to commit hashes; the scanner, SBOM and signing tools are pinned by version and SHA-256 (`security/tools.json`).
+- Threat model: [docs/SECURITY-MODEL.md](docs/SECURITY-MODEL.md) (attacker in the local network, stolen session, malicious counterpart, supply chain, with what is left over), including the review of all writing endpoints.
+
 ## [1.28.0] – 2026-11-17
 
 ### Added

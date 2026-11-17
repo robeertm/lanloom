@@ -1,13 +1,21 @@
 # Lanloom - read-only circuit-board map of the local network.
 # Multi-arch (amd64, arm64). Runs as an unprivileged user; only /data is written
 # (and /state by the optional firewall executor, which runs as its own container).
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-trixie
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     LANLOOM_DATA=/data \
     LANLOOM_PORT=7380 \
     HOME=/tmp
+
+# Security updates of the base distribution on every release build. CI passes the build date, so the layer is
+# renewed at least once a day instead of being served from the build cache.
+ARG BASE_REFRESH=none
+RUN echo "base refresh: ${BASE_REFRESH}" \
+ && apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends upgrade \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY requirements.txt .

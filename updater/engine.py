@@ -757,7 +757,8 @@ class Updater:
             "Cmd": ["python", "-m", "lanloom", "--selftest"],
             "Env": ["LANLOOM_UPDATE_CHECK=0", "LANLOOM_PROBE=1", "LANLOOM_DATA=/tmp/selftest-data"],
             "Labels": self._throwaway_labels(run),
-            "HostConfig": {"NetworkMode": "none", "ReadonlyRootfs": True,
+            "HostConfig": {"NetworkMode": "none", "ReadonlyRootfs": True, "CapDrop": ["ALL"],
+                           "SecurityOpt": ["no-new-privileges:true"],
                            "Tmpfs": {"/tmp": "rw,size=64m"}, "RestartPolicy": {"Name": "no"}},
         }
         if cfg.get("User"):
@@ -856,7 +857,8 @@ class Updater:
                 self.prepare_probe_data(probe_dir)
             except (OSError, sqlite3.Error) as exc:
                 raise UpdateError("update.err.probe_failed", f"cannot copy data: {type(exc).__name__}") from None
-            host_cfg = {"NetworkMode": mode, "ReadonlyRootfs": True, "Tmpfs": {"/tmp": "rw,size=64m"},
+            host_cfg = {"NetworkMode": mode, "ReadonlyRootfs": True, "CapDrop": ["ALL"],
+                        "SecurityOpt": ["no-new-privileges:true"], "Tmpfs": {"/tmp": "rw,size=64m"},
                         "RestartPolicy": {"Name": "no"}}
             host_cfg.update(self.probe_mount_spec(run.target, sub))
             body = {"Image": run.candidate, "Env": env, "Labels": self._throwaway_labels(run),

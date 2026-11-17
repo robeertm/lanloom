@@ -1,0 +1,34 @@
+{
+ "about": "Supply-chain tools used by CI and the release gate, pinned by version and SHA-256 of the release file. scripts/fetch_tools.py downloads, checks and unpacks them; a different file is refused.",
+ "tools": {
+  "syft": {
+   "version": "1.57.1",
+   "repo": "anchore/syft",
+   "archive": "syft_1.57.1_linux_{arch}.tar.gz",
+   "member": "syft",
+   "sha256": {
+    "amd64": "bf52519eb57f675d47c07d43213cb6dff6449f3d6d1147ff6701ed91f44eef0c",
+    "arm64": "aa3d3e07344f590bcce8d31043b752daa76c8a56c2aa34ceeee63c6168152582"
+   }
+  },
+  "grype": {
+   "version": "0.121.3",
+   "repo": "anchore/grype",
+   "archive": "grype_0.121.3_linux_{arch}.tar.gz",
+   "member": "grype",
+   "sha256": {
+    "amd64": "e9da18cc1429e786722e32161288103600efffd8e483c90761f90485bd1bec85",
+    "arm64": "b7815598d48da78bfd16f5b98ef28e1bb09c03d34fc8c3e350f99b6ccb3c7cba"
+   }
+  },
+  "cosign": {
+   "version": "3.1.4",
+   "repo": "sigstore/cosign",
+   "file": "cosign-{os}-{arch}",
+   "sha256": {
+    "amd64": "424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa",
+    "arm64": "ade83b7aac62e131cacfe96d958948b2150cc9efec46a570a2649b8e27dedad2"
+   }
+  }
+ }
+}

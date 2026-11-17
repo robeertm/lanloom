@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.routing import APIRoute
 from starlette.routing import Match
 
-from . import __version__, access, auth, config as config_mod, demoview, mapmodel, palette, setup_assist, textfmt
+from . import __version__, access, auth, config as config_mod, demoview, flood, mapmodel, palette, setup_assist, textfmt
 from .audit import AuditLog
 from .core import Core
 from .integrations import catalog
@@ -33,7 +33,23 @@ STATE_CHANGING = ("POST", "PUT", "PATCH", "DELETE")
 # routes reachable without a session (the full table with roles is access.RULES)
 PUBLIC_API = {p for (m, p), r in access.RULES.items() if r.role == "public" and p.startswith("/api/") and "{" not in p}
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; "
-       "connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+       "connect-src 'self'; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+# Response headers on every answer (static files, API, refusals of the guard). HSTS is added only when the request
+# really arrived over HTTPS (directly or from a trusted proxy that says so); plain HTTP in the LAN never gets it.
+SECURITY_HEADERS = {
+    "Content-Security-Policy": CSP,
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": ("accelerometer=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), "
+                           "hid=(), magnetometer=(), microphone=(), midi=(), payment=(), serial=(), usb=()"),
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+}
+HSTS = "max-age=31536000"
+# FastAPI's built-in OpenTelemetry hooks stay off: no spans, metrics or log records, and no exporter from OTEL_*
+# environment variables. (No telemetry SDK or exporter is installed either; tests/test_egress.py checks both.)
+NO_TELEMETRY = {"tracing": False, "metrics": False, "logs": False, "operation_spans": False, "auto_configure": False}
 
 
 def i18n_languages() -> list:
@@ -152,7 +168,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             await state.demo_view.stop()
             await state.core.stop()
 
-    app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None, telemetry=NO_TELEMETRY)
     app.state.ll = state
 
     # ------------------------------------------------------------------ guards
@@ -189,6 +205,19 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             return True
         return auth.from_trusted_proxy(peer_of(request), proxies) and request.headers.get("x-forwarded-proto", "") == "https"
 
+    def over_https(request: Request) -> bool:
+        """The request really arrived over HTTPS: directly, or from a trusted proxy that says so (never by setting)."""
+        if request.url.scheme == "https":
+            return True
+        return auth.from_trusted_proxy(peer_of(request), proxies) and request.headers.get("x-forwarded-proto", "") == "https"
+
+    public_flood = flood.FloodGuard(flood.PUBLIC_LIMIT)
+    user_flood = flood.FloodGuard(flood.USER_LIMIT)
+    state.flood = (public_flood, user_flood)
+
+    def flooded(wait: float) -> JSONResponse:
+        return JSONResponse({"error": "auth.err.rate", "wait": int(wait) + 1}, status_code=429)
+
     def match_route(scope) -> tuple:
         """(route template, path params) of the route that will answer, or (None, {})."""
         for route in app.router.routes:
@@ -214,6 +243,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
+        response = await guarded(request, call_next)
+        for name, value in SECURITY_HEADERS.items():
+            response.headers[name] = value
+        if over_https(request):
+            response.headers["Strict-Transport-Security"] = HSTS
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    async def guarded(request: Request, call_next):
         path = request.url.path
         rule = None
         user = None
@@ -231,7 +270,12 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             if rule is not None and rule.role == "executor":
                 if not state.firewall.token_ok(request.headers.get("authorization", "")):
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)   # token of the executor service, no session
-            elif rule is None or rule.role != "public":
+            elif rule is not None and rule.role == "public":
+                if request.method in STATE_CHANGING:
+                    wait = public_flood.hit(client_of(request))
+                    if wait:
+                        return flooded(wait)
+            else:
                 user = current_user(request)
                 if not user:
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)
@@ -248,6 +292,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                         return JSONResponse({"error": "auth.err.role", "need": need}, status_code=403)
                     if rule and rule.stepup and not (user.get("source") == "proxy" or state.sessions.fresh(user)):
                         return JSONResponse({"error": "auth.err.stepup", "methods": stepup_methods(user)}, status_code=403)
+                if request.method in STATE_CHANGING:
+                    wait = user_flood.hit("user:%s" % (user.get("id") or user.get("username") or "?"))
+                    if wait:
+                        return flooded(wait)
                 request.state.user = user
             if state.demo_view.requested(request.cookies):
                 # sample network (demo view): only for a signed-in session, and only reading
@@ -267,13 +315,6 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                 if target is None:
                     target = ",".join("%s" % v for v in params.values()) if params else ""
                 audit_from(request, user, info.get("action") or rule.audit, outcome, target=target, detail=info.get("detail"))
-        response.headers["Content-Security-Policy"] = CSP
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
-        if path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"
         return response
 
     async def body(request: Request) -> dict:

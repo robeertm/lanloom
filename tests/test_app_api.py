@@ -90,7 +90,7 @@ def test_static_path_traversal_blocked(client):
 
 def test_secrets_never_returned_and_stored_encrypted(client):
     create_account(client)
-    secret = "super-secret-token-value-123"
+    secret = "super-secret-token-value-123"   # secret-scan: fake
     r = client.post("/api/integrations", json={"kind": "hub", "name": "Hub", "config": {"url": "http://192.168.50.14:8123"},
                                                "secrets": {"token": secret}}, headers=HDR)
     assert r.status_code == 200, r.text

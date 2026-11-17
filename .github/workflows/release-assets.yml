@@ -1,0 +1,56 @@
+# Attaches the signed SBOMs of a released version to its release page: one SPDX document per platform plus a
+# checksum file. The SBOMs are taken from the image's own attestations after the signature and the attestations
+# were verified against the publishing workflow on main, so the files on the release page are the attested ones.
+name: Release assets
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released version, e.g. 1.28.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-assets-${{ github.event.release.tag_name || inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write          # upload release assets
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Version
+        id: v
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          INPUT: ${{ inputs.version }}
+        run: |
+          V="${INPUT:-${TAG#v}}"
+          echo "$V" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::not a version: $V"; exit 1; }
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+      - name: Supply-chain tools (pinned, SHA-256 checked)
+        run: python3 scripts/fetch_tools.py --dest "$RUNNER_TEMP/tools" cosign
+      - name: Verified SBOMs of the released image
+        run: |
+          set -euo pipefail
+          V="${{ steps.v.outputs.version }}"
+          # the image of a release is published before the tag; wait a little if the registry is slow
+          for i in 1 2 3 4 5 6; do
+            python3 scripts/sign_image.py sboms "ghcr.io/${GITHUB_REPOSITORY,,}:$V" --tools "$RUNNER_TEMP/tools" --out assets && break
+            [ "$i" = 6 ] && { echo "::error::no verified signature/SBOM for $V"; exit 1; }
+            sleep 60
+          done
+          ls -l assets
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "v${{ steps.v.outputs.version }}" assets/* --clobber -R "$GITHUB_REPOSITORY"
