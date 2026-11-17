@@ -2056,7 +2056,7 @@
  "ident.why.same_port": "same switch port",
  "ident.why.same_sysname": "same SNMP system name and type",
  "ident.why.same_udn": "same UPnP device id",
- "ident.why.translated_mac": "last three bytes match, first three differ (a Wi-Fi repeater may rewrite the address)",
+ "ident.why.translated_mac": "last three bytes match, first three differ (a wireless repeater may rewrite the address)",
  "integ.add.controller": "+ Switch controller",
  "integ.add.family": "+ {name}",
  "integ.add.hub": "+ Home-automation hub",

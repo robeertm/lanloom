@@ -2,11 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.32.1] – 2026-11-17
+
+### Changed
+- Texts about repeaters say "wireless repeater".
+- 1.32.0 was not released on its own; 1.32.1 contains all of it.
+
 ## [1.32.0] – 2026-11-17
 
 ### Added
 - **Forget device** on the card of a hidden or offline device (operators): removes the entry, its history and what you entered for it, after a confirmation in the app's own dialog. This host and the gateway cannot be forgotten; a device that still answers is found again by the next scan, as a new entry. The function existed on the server, now the card offers it.
-- **Devices behind a Wi-Fi repeater that rewrites addresses**: when one of two entries has a private hardware address and both end in the same three bytes, the card offers *Same device* if a second fact fits: the same IP address, or the other address inside the device's host or mDNS name. At most 50 %, so it is only ever a suggestion, never an automatic merge; *Different devices* keeps them apart.
+- **Devices behind a wireless repeater that rewrites addresses**: when one of two entries has a private hardware address and both end in the same three bytes, the card offers *Same device* if a second fact fits: the same IP address, or the other address inside the device's host or mDNS name. At most 50 %, so it is only ever a suggestion, never an automatic merge; *Different devices* keeps them apart.
 - Maker behind such a repeater: if a device with a private address carries its real, registered address in its own host or mDNS name (same last three bytes), the maker of that address is shown, marked *address in its name, register*.
 - Classification: the DNS-SD service type announced by a common family of smart plugs and relays counts as a smart-home device.
 
@@ -18,7 +24,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 - The buttons at the foot of a card have a gap and wrap on narrow screens.
-- Docs: FAQ *A device appears twice behind a Wi-Fi repeater*, DISCOVERY.md (repeater evidence, maker from the name), manual page *Devices* (hidden devices, Forget device), TROUBLESHOOTING.md, README.
+- Docs: FAQ *A device appears twice behind a wireless repeater*, DISCOVERY.md (repeater evidence, maker from the name), manual page *Devices* (hidden devices, Forget device), TROUBLESHOOTING.md, README.
 - CHANGELOG: the 1.31.0 section stands in its place above 1.30.1.
 
 ## [1.31.0] – 2026-11-17

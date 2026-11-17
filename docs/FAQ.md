@@ -104,7 +104,7 @@ Yes. Set `LANLOOM_TRUSTED_ORIGINS` and `LANLOOM_TRUSTED_PROXIES`, and `LANLOOM_B
 ### How do I remove a device that is gone?
 Open its card (hidden devices: tick *Show hidden* in the device list) and choose *Forget device* (operators; only for hidden or offline devices, after a confirmation). Or see the *Probably gone* rows of the [inventory](manual/inventory.md), which can be decommissioned and kept as history. Devices without a sign of life for a while are marked automatically.
 
-### A device appears twice behind a Wi-Fi repeater
+### A device appears twice behind a wireless repeater
 Many repeaters rewrite the hardware address of their clients: the first three bytes are replaced by a private prefix, the last three stay. Lanloom identifies a device by that address, so it shows a second entry. When the IP address is the same, or the device's host or mDNS name still contains its original address, the card offers *Same device* (never an automatic merge). Join the two there, or decommission the old entry in the inventory, or forget it on its card. If the name contains the original address, the maker is taken from it.
 
 ### Where is the manual?
