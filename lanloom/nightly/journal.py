@@ -31,10 +31,16 @@ class Journal:
     def __init__(self, store, clock: Callable[[], float] = time.time):
         self.store = store
         self.clock = clock
+        self.listeners: list = []          # (kind, data, t) callbacks, e.g. the notification rules
 
     def add(self, kind: str, data: Optional[dict] = None, t: Optional[float] = None) -> None:
         self.store.execute("INSERT INTO events(t, kind, data) VALUES(?,?,?)",
                            (float(self.clock() if t is None else t), kind, json.dumps(data or {}, separators=(",", ":"))))
+        for fn in list(self.listeners):
+            try:
+                fn(kind, dict(data or {}), float(self.clock() if t is None else t))
+            except Exception:
+                log.exception("journal listener failed (%s)", kind)
 
     def between(self, since: float, until: float, kinds: Optional[tuple] = None) -> list:
         rows = self.store.query("SELECT t, kind, data FROM events WHERE t > ? AND t <= ? ORDER BY t, id", (since, until))

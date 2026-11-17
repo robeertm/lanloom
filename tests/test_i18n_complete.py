@@ -23,6 +23,7 @@ SAME_AS_ENGLISH = {
     r"ai\.status\.public": "only a label and a model name around the word Cloud, which German uses as it is",
     r"integrations\.family\..+": "a product name with its standard description",
     r"livestate\.live": "the header says Live and the time; German uses the word Live as it is",
+    r"notify\.(email\.placeholder|hb\.url_ph)": "an example address in an input field, not a word",
 }
 
 # Families of keys chosen at run time ('kind.' + x). A key counts as used when the code builds its prefix. Prefixes with two or more

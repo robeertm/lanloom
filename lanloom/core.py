@@ -133,6 +133,10 @@ class Core:
         self.netflow = netflow.Collector(self.paths, self._netflow_device, self._netflow_lan, self._netflow_skip)
         from .nightly import Reports
         self.reports = Reports(self, getattr(cfg, "data_dir", None))
+        from .notify import Notifier
+        self.notify = Notifier(self)
+        self.reports.journal.listeners.append(self.notify.on_journal)
+        self.reports.on_certs = self.notify.on_certs
         from .storage import Storage
         self.storage = Storage(self)                    # retention, nightly clean-up, sizes per area
         self.counters = counters_mod.CounterCheck(self)  # hourly reconciliation of meters that see the same bytes
@@ -285,6 +289,7 @@ class Core:
             self._tasks.append(asyncio.create_task(self.storage.loop()))
         self._tasks.append(asyncio.create_task(self._tick_loop()))
         self._tasks.append(asyncio.create_task(self.reports.loop()))
+        self._tasks.append(asyncio.create_task(self.notify.loop()))
 
     async def stop(self) -> None:
         self.netflow.stop()

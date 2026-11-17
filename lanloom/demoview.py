@@ -75,6 +75,8 @@ class DemoView:
         core.demo.seed(core)
         core.demo.seed_integrations(core)
         core.demo.seed_reports(core)
+        from .notify.demo import seed as seed_notify
+        seed_notify(core)
         store.set_setting("setup_done", True)
         core.geo.start()
         core.oui.start()

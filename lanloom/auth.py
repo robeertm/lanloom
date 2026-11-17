@@ -580,10 +580,16 @@ class Notices:
     def __init__(self, store: Store, clock=time.time):
         self.store = store
         self.clock = clock
+        self.listener = None          # (user_id, kind, data): the notification rules may pass it on (event security_notice)
 
     def add(self, user_id: int, kind: str, data: Optional[dict] = None) -> None:
         self.store.execute("INSERT INTO notices(user_id, t, kind, data) VALUES(?,?,?,?)",
                            (user_id, self.clock(), kind, json.dumps(data or {}, separators=(",", ":"))))
+        if self.listener is not None:
+            try:
+                self.listener(user_id, kind, dict(data or {}))
+            except Exception:
+                pass
         # bounded: the newest 200 per user
         self.store.execute("DELETE FROM notices WHERE user_id=? AND id NOT IN (SELECT id FROM notices WHERE user_id=? ORDER BY id DESC LIMIT 200)",
                            (user_id, user_id))

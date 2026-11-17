@@ -80,6 +80,7 @@ class App:
         self.limiter = auth.LoginLimiter()
         self.setup_code = auth.SetupCode(cfg.data_dir, store)
         self.real_core = Core(cfg, store, vault)
+        self.notices.listener = self.real_core.notify.on_notice
         self.demo_view = demoview.DemoView(cfg)
         self.updates = Updates(cfg, store)
         self.core.reports.update_state = self.updates.state
@@ -109,6 +110,8 @@ class App:
                 self.core.demo.seed_integrations(self.core)
                 self.core.demo.seed_reports(self.core)
                 self.core.demo.seed_access(self)
+                from .notify.demo import seed as seed_notify
+                seed_notify(self.core)
                 self.ai.seed_demo_hint()            # one open identification suggestion to look at
                 store.set_setting("setup_done", True)
 
@@ -331,6 +334,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
 
     from . import web_storage
     web_storage.register(app, web_storage.Ctx(state=state, body=body, err=err, note=note))
+    from . import web_notify
+    web_notify.register(app, web_notify.Ctx(state=state, body=body, err=err, note=note,
+                                            agent=lambda r: auth.agent_label(r.headers.get("user-agent", ""))))
 
     # ------------------------------------------------------------------ settings, networks, scans
     @app.get("/api/settings")

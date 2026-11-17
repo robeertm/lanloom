@@ -91,6 +91,11 @@ def send(ch: str, cfg: dict, secrets: dict, msg: dict) -> tuple:
     try:
         if ch == "email":
             _email(cfg, secrets, msg)
+        elif ch == "webhook" and msg.get("kind") == "notification":
+            _post(secrets["url"], json.dumps({"type": "notification", "event": msg.get("event") or "", "severity": msg.get("severity") or "info",
+                                              "title": msg["title"], "text": msg["lines"][0] if msg.get("lines") else msg["text"],
+                                              "link": msg.get("url") or None, "time": int(msg.get("time") or 0)}).encode(),
+                  {"Content-Type": "application/json"})
         elif ch == "webhook":
             _post(secrets["url"], json.dumps({"title": msg["title"], "headline": msg["headline"], "lines": msg["lines"],
                                               "points": msg["points"], "day": msg["day"], "link": msg.get("url") or None,

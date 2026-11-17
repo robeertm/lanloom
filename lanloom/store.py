@@ -164,6 +164,26 @@ CREATE TABLE IF NOT EXISTS audit (
     hash TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS audit_t ON audit(t);
+CREATE TABLE IF NOT EXISTS notify_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    t REAL NOT NULL,
+    event TEXT NOT NULL,
+    key TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '{}',
+    outcome TEXT NOT NULL DEFAULT '{}',
+    maint TEXT
+);
+CREATE INDEX IF NOT EXISTS notify_log_t ON notify_log(t);
+CREATE TABLE IF NOT EXISTS push_subs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created REAL NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    last_ok REAL,
+    last_err TEXT NOT NULL DEFAULT '',
+    fails INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS report_marks (
     day TEXT NOT NULL,
     item TEXT NOT NULL,

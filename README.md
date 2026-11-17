@@ -165,6 +165,19 @@ Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map
 </tr>
 </table>
 
+### Notifications
+
+![Settings, Notifications: rules per event with when, from which severity and on which channel](docs/screenshots/notify-rules-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/notify-maintenance-light.png" width="100%" alt="Planned maintenance: one-off or weekly, for all or some devices"><br><sub>A maintenance window pauses notifications and mark outages as maintenance</sub></td>
+<td width="50%"><img src="docs/screenshots/notify-history-dark.png" width="100%" alt="History of what the rules did with each event"><br><sub>History: sent, bundled, quiet hours, maintenance, flap, cool-down</sub></td>
+</tr>
+</table>
+
+Calm by default: every event goes into the nightly report. Each person chooses per event *immediately*, *bundled every hour* or *nightly report only*, from which severity on, and on which channel – web push on their own devices (with VAPID, per device, removable) or the shared e-mail, webhook, push topic and chat bot channels. Quiet hours let only critical immediate events through; planned maintenance (one-off or weekly, for all or some devices) pauses everything; flap protection, a 12-hour cool-down, an all-clear only after an announced outage and a daily limit keep it quiet. An optional heartbeat calls an address of yours so an outside service notices when Lanloom itself is down. Details: [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md).
+
 ### Users and sign-in security
 
 ![Settings, Users: roles, second factor and last sign-in](docs/screenshots/access-users-light.png)
@@ -410,7 +423,7 @@ Supported services: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). Step-by-step
 
 ## Security and privacy
 
-Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Further people join by one-time invitation with a viewer, operator or admin role, enforced on the server for every route; a second factor (authenticator app or passkey) is required for admins by default, critical actions ask for a fresh confirmation, and every change is written to a tamper-evident audit log ([docs/ACCESS.md](docs/ACCESS.md)). Sign-in through your own authentication proxy is optional and off by default. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The optional update check against the public release feed is the only outbound connection of its own; everything else happens only when you switch it on: the delivery of the nightly report summary, a cloud AI service (which only ever receives placeholders instead of addresses and names) and the download of the local AI service and its models. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Further people join by one-time invitation with a viewer, operator or admin role, enforced on the server for every route; a second factor (authenticator app or passkey) is required for admins by default, critical actions ask for a fresh confirmation, and every change is written to a tamper-evident audit log ([docs/ACCESS.md](docs/ACCESS.md)). Sign-in through your own authentication proxy is optional and off by default. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The optional update check against the public release feed is the only outbound connection of its own; everything else happens only when you switch it on: the delivery of the nightly report summary and of notifications (web push to the push service of your own browsers), the optional heartbeat to an address you enter, a cloud AI service (which only ever receives placeholders instead of addresses and names) and the download of the local AI service and its models. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
 ## Updating
 
@@ -439,6 +452,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/manual/views.md](docs/manual/views.md): the views one by one (overview, map, network, data paths, devices, firewall, nightly report, settings), the rails, keys, live state and deep links
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, moving to another host, uninstall
 - [docs/BACKUP.md](docs/BACKUP.md): backup and restore in the app, automatic backups, moving to another host, the file format
+- [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md): notification rules per person, quiet hours, planned maintenance, flap protection, web push, the heartbeat
 - [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path
 - [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces
 - [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md): the home-automation bridge: what is read, admin mode, sparing the hub, privacy filter

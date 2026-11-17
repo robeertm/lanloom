@@ -619,6 +619,7 @@
   // ------------------------------------------------------------------ settings
   // sub-pages of the settings; each names the lowest role that sees it (the server enforces the same per route)
   const SETTINGS_PAGES = [['general', '', 'settings.general', 'viewer'], ['account', 'account', 'settings.tab.account', 'viewer'],
+    ['notifications', 'notifications', 'notify.tab', 'viewer'],
     ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['backup', 'backup', 'backup.tab', 'admin'],
     ['storage', 'storage', 'storage.tab', 'admin'], ['ai', 'ai', 'ai.tab', 'admin']];
   function settingsSubnav(active) {
@@ -630,7 +631,7 @@
   async function settingsView(app, rest) {
     const fr = frame(app, 'settings');
     const sub = rest && rest[0];
-    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage }[sub];
+    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, notifications: LL.notifyPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage }[sub];
     if (subPage) {
       const pg = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav(sub)));
       fr.main.append(pg);

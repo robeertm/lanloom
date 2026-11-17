@@ -28,6 +28,7 @@ At the top one line: **All quiet**, or **N things need a look**. Below it one se
 | AI | only when AI is set up: requests answered per day (local and cloud), the daily limit for cloud requests if it was reached, failed requests, new suggestions for unknown devices that wait for a decision | the limit was reached, or requests failed and none succeeded |
 | Storage | only once a clean-up ran or a growth history exists: the night's clean-up (entries removed, space freed), the database size and its growth per day ([details](PERFORMANCE.md#storage-and-retention)) | the database could not be compacted for lack of space, or the data volume would be full within 30 days at the current growth |
 | Backup | the age of the newest backup, automatic backups written that night, a restore from a backup | automatic backups are on and the newest backup is older than twice the interval (at least 25 hours), or the last automatic backup failed |
+| Notifications | only once anybody uses notification rules, push, planned maintenance or the heartbeat: messages sent, events held back by quiet hours, events during planned maintenance (with its names), flaps, repeats in the cool-down, events over the daily limit ([details](NOTIFICATIONS.md)) | a message could not be delivered, or the heartbeat does not get through |
 | Lanloom | a new version, Lanloom's own updates and restarts (shown as maintenance, never as a fault), sources that stopped sending data, free space on the data volume | a new version is available, a source sent nothing for 30 minutes, less than 10 % or 1 GB is free |
 
 Short interruptions, a phone that sleeps at night or a 40-second flap of the line are listed as notes, not as things that need a look.
@@ -40,6 +41,8 @@ Short interruptions, a phone that sleeps at night or a 40-second flap of the lin
 - **Preview now** shows how the next report would look at this moment. It is neither saved nor sent.
 
 ## Delivery (optional)
+
+The channels set up here are also the shared channels of the [notifications](NOTIFICATIONS.md): once a channel is complete, everybody can choose it in their own rules, even when the nightly delivery itself is off.
 
 Off by default. Under *Settings → Nightly report → Delivery* you can switch on any of these channels. Each one sends a short version: a title, the headline, two lines with the most important points and, if you entered the address of your Lanloom, a link to the report. Device ids and other internal values are never sent.
 

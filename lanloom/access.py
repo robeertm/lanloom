@@ -144,6 +144,20 @@ RULES = {
     ("GET", "/api/hub/{integ_id}/entity/{entity_id}"): R(V),       # history: within the bridge's own budget
     ("POST", "/api/hub/{integ_id}/match"): R(O, "hub.match"),
 
+    # ---------------------------------------------------------------- notifications (own rules for everyone)
+    ("GET", "/api/notify"): R(V),
+    ("PUT", "/api/notify/prefs"): R(V, "notify.prefs"),
+    ("GET", "/api/notify/history"): R(V),
+    ("POST", "/api/notify/push"): R(V, "notify.push_add"),
+    ("POST", "/api/notify/push/forget"): R(V, "notify.push_remove"),
+    ("DELETE", "/api/notify/push/{sub_id}"): R(V, "notify.push_remove"),
+    ("POST", "/api/notify/test"): R(V, "notify.test"),
+    ("POST", "/api/notify/maintenance"): R(O, "notify.maintenance_add"),
+    ("DELETE", "/api/notify/maintenance/{window_id}"): R(O, "notify.maintenance_remove"),
+    ("PUT", "/api/notify/settings"): R(A, "notify.settings"),
+    ("PUT", "/api/notify/heartbeat"): R(A, "notify.heartbeat"),
+    ("POST", "/api/notify/heartbeat/test"): R(A, "notify.heartbeat_test"),
+
     # ---------------------------------------------------------------- nightly reports
     ("GET", "/api/reports"): R(V),
     ("GET", "/api/reports/preview"): R(V),

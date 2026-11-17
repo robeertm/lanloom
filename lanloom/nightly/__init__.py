@@ -74,6 +74,7 @@ class Reports:
         self.watch = Watch(core, self.journal, clock)
         self.update_state: Callable[[], dict] = lambda: {}
         self.cert_check: Optional[Callable] = None          # replaced in tests
+        self.on_certs: Optional[Callable] = None            # notification rules: certificates checked for a report
         self._lock = asyncio.Lock()
         self._fail_until = 0.0
 
@@ -283,6 +284,11 @@ class Reports:
     async def build(self, since: float, until: float, prev: Optional[dict], day: str, catch_up: bool = False,
                     planned: Optional[float] = None, preview: bool = False) -> dict:
         certs = await self.check_certs()
+        if self.on_certs is not None and not preview:
+            try:
+                self.on_certs(certs)
+            except Exception:
+                log.exception("nightly report: certificate notification failed")
         return self.assemble(since, until, prev, day, certs, catch_up=catch_up, planned=planned, preview=preview)
 
     def assemble(self, since: float, until: float, prev: Optional[dict], day: str, certs: list, catch_up: bool = False,

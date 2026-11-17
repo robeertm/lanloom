@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.22.0] – 2026-11-17
+
+### Added
+- **Notifications – calm by default.** Every event still goes into the nightly report. Under *Settings → Notifications* each person (any role) chooses per event *Immediately*, *Bundled every hour*, *Nightly report only* (default) or *Off*, from which severity on, and on which channels. Two presets: *All in the nightly report* and *Important sooner*.
+- **Events**: new device, new device in a **protected network** (administrators choose the networks; critical), device offline (network equipment and servers as a warning), internet down, connection not answering, sign-in refused by a connection, certificate expires within 14 days, backup too old, Lanloom update available, and security notices of the own account (only to that person). *Incident* and *Vulnerability* are registered for the features that will report them; later features add their own events with `lanloom.notify.events.register` and `core.notify.emit`.
+- **Channels**: **web push** on the person's own devices – VAPID key created on first use and kept in the encrypted secret store, messages encrypted for each browser (RFC 8291) and signed (RFC 8292) without any extra package, one subscription per browser, listed with its last message and removable from any device; subscriptions the browser ended are forgotten. Plus the shared channels of the nightly report delivery (e-mail, webhook, push topic, chat bot) once they are set up, with an optional own e-mail address per person and a *Send test* per channel. Webhook notifications are JSON with `type`, `event`, `severity`, `title`, `text`, `link`, `time`.
+- **Quiet hours** per person (for example 22:00–07:00): only *Immediately* + *critical* gets through; the rest waits for the nightly report.
+- **Maintenance window** (planned by operators and administrators): one-off or every week (also across midnight), for all or for some devices, *Maintenance for one hour from now* with one click or from the search (`Ctrl K`). Nothing is announced while a window is active, occurrences are marked as maintenance (`maintenance_at` for incident handling) and no all-clear follows; the start page shows an active window.
+- **Flap protection**: an outage must last three minutes (one to fifteen) before it is announced; a 12-hour cool-down per subject (1 to 24); an all-clear only after an announced outage and only to the people who were told; a **daily limit** per person (default 20) with one note when it is reached.
+- **Heartbeat to the outside** (administrators, optional): Lanloom calls an address of yours every 1 to 60 minutes so an outside service notices when Lanloom itself is down; stored encrypted, *Call now* to test.
+- **History** of the last 30 days with what the rules did (sent, bundled, failed, nightly report, quiet hours, maintenance, flap, cool-down, daily limit, no channel); administrators see the outcome per person.
+- **Nightly report section "Notifications"**: messages sent, held back by quiet hours, during maintenance, flaps, repeats, over the daily limit; failed deliveries and a failing heartbeat need a look.
+- **Service worker**: web push and the offline shell of the installed app (network first, the API is never cached).
+- Demo: rules, a weekly and a past maintenance window, a day of history with every outcome, a heartbeat.
+- API: `GET /api/notify`, `PUT /api/notify/prefs`, `GET /api/notify/history`, `POST /api/notify/push`, `POST /api/notify/push/forget`, `DELETE /api/notify/push/{id}`, `POST /api/notify/test` (any role, own data), `POST`/`DELETE /api/notify/maintenance` (operator), `PUT /api/notify/settings`, `PUT /api/notify/heartbeat`, `POST /api/notify/heartbeat/test` (admin); every change is written to the audit log.
+- Guide: [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md); README section with screenshots; SECURITY.md lists the new opt-in outbound connections.
 ## [1.21.1] – 2026-11-17
 
 1.20.0 and 1.21.0 were not released on their own; their changes are part of this version.

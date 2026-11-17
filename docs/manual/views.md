@@ -107,8 +107,12 @@ A short report of every night with points to tick off. Each report has its own a
 <a id="settings"></a>
 ## Settings
 
-Scanning, connections, appearance, users, security, backup and AI. See [INSTALL.md](../INSTALL.md),
-[ACCESS.md](../ACCESS.md) and [BACKUP.md](../BACKUP.md).
+Scanning, connections, appearance, notifications, users, security, backup and AI. See [INSTALL.md](../INSTALL.md),
+[ACCESS.md](../ACCESS.md), [NOTIFICATIONS.md](../NOTIFICATIONS.md) and [BACKUP.md](../BACKUP.md).
+
+**Notifications** (every role): your own rules per event, quiet hours, push on this device, the planned maintenance and
+the history of what the rules did. Operators plan maintenance; administrators set the shared limits, the
+protected networks and the heartbeat.
 
 <a id="right-now"></a>
 ## Right now
