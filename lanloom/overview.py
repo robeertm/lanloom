@@ -34,6 +34,7 @@ MAX_TALKS = 8
 MAX_LIST = 8
 TALK_FROM = 256.0               # bytes per second (both directions) before a trace counts as a conversation
 CACHE_S = 2.0
+PATHS_CACHE_S = 60.0
 INFRA_KINDS = ("router", "switch", "ap", "nas", "server", "hub", "broker", "firewall")
 LEVELS = ("ok", "info", "warn", "danger")
 CHANGE_KINDS = ("dev_new", "dev_offline", "dev_back", "dev_gone", "src_fail", "src_ok", "wan_down", "wan_up", "wan_switch",
@@ -84,9 +85,9 @@ class Overview:
         self._cache = {}                                    # name -> (t, value)
 
     # ------------------------------------------------------------------ cache
-    def _cached(self, name: str, now: float, fn: Callable):
+    def _cached(self, name: str, now: float, fn: Callable, ttl: float = CACHE_S):
         hit = self._cache.get(name)
-        if hit and now - hit[0] < CACHE_S:
+        if hit and now - hit[0] < ttl:
             return hit[1]
         value = fn()
         self._cache[name] = (now, value)
@@ -123,6 +124,7 @@ class Overview:
         wdev = watch.dev if watch is not None else {}
         down_since = watch.down_since if watch is not None else {}
         out = []
+        last_scan = core._last_scan_id()                    # one query for all devices, not one per device
         for dev in core.store.devices():
             if dev["id"] in members:
                 continue                                    # a second interface of a known device
@@ -132,7 +134,7 @@ class Overview:
                 "kind": dev.get("user_kind") or dev["kind"], "hidden": bool(dev["hidden"]),
                 "is_self": bool(data.get("is_self")), "is_gateway": bool(data.get("is_gateway")),
                 "certainty": "sure" if dev.get("user_kind") else data.get("certainty", "unknown"),
-                "first_seen": dev["first_seen"], "last_seen": dev["last_seen"], "status": core.device_status(dev),
+                "first_seen": dev["first_seen"], "last_seen": dev["last_seen"], "status": core.device_status(dev, last_scan),
                 "origin": reg.origin_of(dev.get("mac")), "vendor": reg.lookup(dev.get("mac")) or "",
                 "was_up": wdev.get(dev["id"]) in ("up", "down", "gone"), "down_since": down_since.get(dev["id"]),
             })
@@ -186,6 +188,10 @@ class Overview:
                 "measured": bool(router and down + up > 0), "last_outage": last_out}
 
     def _paths(self, now: float) -> dict:
+        # data paths are booked once a minute; the full summary is the expensive part of the page, so it is kept a minute
+        return self._cached("paths", now, lambda: self._load_paths(now), PATHS_CACHE_S)
+
+    def _load_paths(self, now: float) -> dict:
         try:
             s = self.core.paths_summary("24h")
         except Exception:
@@ -305,12 +311,10 @@ class Overview:
         now = self.clock() if now is None else now
         return self._cached("now", now, lambda: self._right_now(now))
 
-    def _names(self) -> dict:
-        core = self.core
+    def _names(self, now: float) -> dict:
         names = {}
-        for dev in core.store.devices():
-            names[dev["id"]] = {"id": dev["id"], "title": "" if dev["data"].get("is_self") else (dev.get("user_title") or dev["title"] or dev["ip"]),
-                                "kind": "self" if dev["data"].get("is_self") else (dev.get("user_kind") or dev["kind"])}
+        for d in self._devices(now):                        # the shared device pass (no second read of the inventory)
+            names[d["id"]] = {"id": d["id"], "title": "" if d["is_self"] else (d["title"] or d["ip"]), "kind": "self" if d["is_self"] else d["kind"]}
         names["internet"] = {"id": "internet", "title": "", "kind": "internet"}
         names["self"] = names.get("self") or {"id": "self", "title": "", "kind": "self"}
         return names
@@ -320,7 +324,7 @@ class Overview:
         per = {}
         for (trace, direction), r in core.quant.rates(now).items():
             per.setdefault(trace, [0.0, 0.0])[direction] = r
-        names = self._names()
+        names = self._names(now)
         integ = {i["id"]: i["name"] for i in core.integrations()}
         out = []
         for trace, (r0, r1) in per.items():
@@ -342,12 +346,19 @@ class Overview:
                 continue
             else:
                 continue
-            na = names.get(a) or {"id": a, "title": a, "kind": "unknown"}
-            nb = names.get(b) or {"id": b, "title": b, "kind": "unknown"}
+            na = names.get(a) or self._name_of(a)
+            nb = names.get(b) or self._name_of(b)
             out.append({"trace": trace, "kind": {"f": "flow", "l": "lan", "p": "lan", "u": "uplink"}[kind], "a": na, "b": nb,
                         "r0": round(r0), "r1": round(r1)})
         out.sort(key=lambda x: -(x["r0"] + x["r1"]))
         return out[:MAX_TALKS]
+
+    def _name_of(self, dev_id: str) -> dict:
+        """A device the shared pass leaves out (a second interface): look it up once."""
+        dev = self.core.store.device(dev_id) if dev_id.startswith("d-") else None
+        if not dev:
+            return {"id": dev_id, "title": dev_id, "kind": "unknown"}
+        return {"id": dev_id, "title": dev.get("user_title") or dev["title"] or dev["ip"], "kind": dev.get("user_kind") or dev["kind"]}
 
     def changes(self, now: float) -> list:
         core = self.core

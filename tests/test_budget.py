@@ -15,9 +15,9 @@ SPEC.loader.exec_module(bench)
 
 # ratio to calib_ms at 250 devices
 LIMITS_250 = {"start_ms": 3, "tick_ms": 4, "map_overview_ms": 6, "map_network_ms": 9, "devices_ms": 5, "component_ms": 5,
-              "paths_24h_ms": 7, "paths_30d_ms": 8, "storage_ms": 2, "search_ms": 4}
+              "paths_24h_ms": 7, "paths_30d_ms": 8, "storage_ms": 2, "search_ms": 4, "overview_ms": 6}
 # growth from 250 to 1000 devices (linear = 4, quadratic = 16; 8 leaves room for a busy machine and the garbage collector)
-GROWTH = {"tick_ms": 8, "map_overview_ms": 8, "map_network_ms": 8, "devices_ms": 8, "component_ms": 8, "search_ms": 8}
+GROWTH = {"tick_ms": 8, "map_overview_ms": 8, "map_network_ms": 8, "devices_ms": 8, "component_ms": 8, "search_ms": 8, "overview_ms": 8}
 HEAP_MB = {250: 15, 1000: 45}
 
 
