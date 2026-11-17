@@ -149,6 +149,8 @@ class Core:
         self._view_cache: dict = {}                     # device id -> (row signature, view without status)
         from .overview import Overview
         self.overview = Overview(self)
+        from .inventory import Inventory
+        self.inventory = Inventory(self)                # own fields, life cycle states, end-of-updates hints
         self._refresh_index()
 
     # ------------------------------------------------------------------ settings
@@ -290,6 +292,7 @@ class Core:
             self._tasks.append(asyncio.create_task(self._rescan_loop()))
             await self.netflow_apply()
             self._tasks.append(asyncio.create_task(self.storage.loop()))
+            self._tasks.append(asyncio.create_task(self.inventory.loop()))
         self._tasks.append(asyncio.create_task(self._tick_loop()))
         self._tasks.append(asyncio.create_task(self.reports.loop()))
         self._tasks.append(asyncio.create_task(self.notify.loop()))
@@ -608,6 +611,7 @@ class Core:
         if ok:
             self.paths.forget_device(device_id)
         self.store.execute("DELETE FROM phys_manual WHERE device_id=? OR parent_id=?", (device_id, device_id))
+        self.inventory.forget(device_id)
         self._manual_ver += 1
         self._refresh_index()
         return ok
@@ -807,6 +811,7 @@ class Core:
                         self.store.execute("UPDATE devices SET id=? WHERE id=?", (dev_id, old["id"]))
                         self.store.execute("UPDATE phys_manual SET device_id=? WHERE device_id=?", (dev_id, old["id"]))
                         self.store.execute("UPDATE phys_manual SET parent_id=? WHERE parent_id=?", (dev_id, old["id"]))
+                        self.inventory.rename_device(old["id"], dev_id)
                         self._manual_ver += 1
                 self.store.upsert_device({"id": dev_id, "ip": host.get("ip") or "", "mac": host.get("mac"), "data": data,
                                           "kind": verdict["kind"], "confidence": verdict["confidence"],

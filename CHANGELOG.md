@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.26.0] – 2026-11-17
+
+### Added
+- **Inventory and life cycle** (Devices | Inventory, `#/inventory`): every device carries what only a person knows - purpose, room, purchase date, warranty until, shop and note, serial number, the responsible person (one of the accounts), own firmware and an own end-of-updates date - next to what Lanloom found (maker, model, firmware with its source, serial number where the device announces one). Filters (needs attention, missing, probably gone, warranty ending or ended, updates ending or ended, unconfirmed, decommissioned), free-text search over every field, sorting, deep links, and editing many devices at once (own fields only, never name, type or serial number). The table becomes cards on a phone; the device card has an Inventory block. Guide: [docs/INVENTORY.md](docs/INVENTORY.md).
+- **States over a device's life**: *active*, *missing* (no sign of life for N days, default 7), *probably gone* (missing, and reasons add up: long absence, a successor of the same kind and maker appeared, its switch port is used by another device, it normally stays on - shown in plain words, with *Decommission* and *Still here*) and *decommissioned* (date, replaced by, note; hidden from the map, kept as history; a note when it answers again). Signs of life are remembered across restarts, and nothing is judged while Lanloom has not looked at the network for two days.
+- **Provisional entries**: an entry Lanloom made on its own is provisional until you confirm it (button, or by touching it: name, type, own fields, manual connection, hiding). Without a sign of life for 7 days (setting, 0 = never) it leaves the list once a day; the gateway, this computer, devices a connected family or hub knows and everything confirmed are never removed.
+- **Warranty and end of updates**: chips for warranty (ok, ends in N days, expired) and for the end of a device's updates, from an offline table in the image (`lanloom/data/eol.json`, renewed with each release, never downloaded; advisory) or from your own date; an own table can be added in the data directory. Firmware comes from your own entry, a device-family adapter's equipment list, the hub's device registry or what the device announced.
+- Nightly report section **Inventory**: devices that became missing or probably gone, retired devices that are back, warranties and end-of-updates dates that crossed a threshold (once, in the night it happened), provisional entries taken off the list.
+- Roles: everyone reads; operators write the own fields, confirm, decommission and edit in bulk; admins change the thresholds. Every change is in the audit log with field names, never values. Command palette: *Open Inventory* and four filtered views; the device search finds a device by room, purpose, person or shop. Sample network: purposes and rooms, a missing device, one that is probably gone, one decommissioned, warranties and an end of updates.
+- The UPnP description's serial number is kept (shown beside your own, hidden from AI texts together with your own serial numbers).
+
+### Changed
+- The Devices page uses the same width as the Inventory page, so the switch stays where it is.
+- Performance budget: the inventory list is measured as `inventory_ms`.
+
 ## [1.25.0] – 2026-11-17
 
 ### Added

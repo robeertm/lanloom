@@ -85,6 +85,15 @@ CREATE TABLE IF NOT EXISTS phys_manual (
     medium TEXT NOT NULL,
     updated REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS inventory (
+    device_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    updated REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS device_alive (
+    device_id TEXT PRIMARY KEY,
+    t REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS scans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started REAL NOT NULL,

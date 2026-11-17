@@ -207,11 +207,30 @@ def _unit_ok(want: str, have) -> bool:
 _device_cache: dict = {}            # (core, device id) -> (signature, device entry, service entries): folding names is the cost, not matching
 
 
+def _inventory_text(core) -> dict:
+    """Device id -> what the owner wrote down in the inventory (room, purpose, person, shop): one query for all devices."""
+    import json
+    out = {}
+    try:
+        for r in core.store.query("SELECT device_id, data FROM inventory"):
+            try:
+                rec = json.loads(r["data"])
+            except ValueError:
+                continue
+            text = " ".join(str(rec.get(k) or "") for k in ("room", "purpose", "owner", "shop")).strip()
+            if text:
+                out[r["device_id"]] = text
+    except Exception:                                         # a search must work without the inventory table
+        return {}
+    return out
+
+
 def _device_entries(core, devices) -> tuple:
     """(device entries, service entries) of the visible devices; an entry is built again only when what is searched changed."""
     from . import classify
     key = id(core)
     dev_out, svc_out, seen = [], [], set()
+    notes = _inventory_text(core)
     for d in devices:
         if d.get("hidden"):
             continue
@@ -219,12 +238,12 @@ def _device_entries(core, devices) -> tuple:
         seen.add((key, did))
         ports = tuple((p.get("port"), p.get("service")) for p in d.get("ports") or [])
         sig = (d.get("title"), d.get("ip"), d.get("mac"), d.get("kind"), tuple(d.get("hostnames") or ()), d.get("vendor"), d.get("model"),
-               ports, tuple(d.get("services") or ()), bool(d.get("is_self")))
+               ports, tuple(d.get("services") or ()), bool(d.get("is_self")), notes.get(did, ""))
         got = _device_cache.get((key, did))
         if got is None or got[0] != sig:
             title = d.get("title") or ""
             extra = " ".join([d.get("ip") or "", d.get("mac") or "", d.get("kind") or "", " ".join(d.get("hostnames") or []),
-                              d.get("vendor") or "", d.get("model") or ""])
+                              d.get("vendor") or "", d.get("model") or "", notes.get(did, "")])
             dev = Entry(title, extra, {"kind": "device", "id": did, "title": title, "ip": d.get("ip"), "device_kind": d.get("kind"),
                                        "status": None, "self": bool(d.get("is_self"))})
             by_service = {}

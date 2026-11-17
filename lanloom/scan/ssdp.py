@@ -100,9 +100,9 @@ def parse_description(raw: bytes) -> dict | None:
             break
     if device is None:
         return None
-    out = {"friendly_name": None, "manufacturer": None, "model": None, "device_type": None}
+    out = {"friendly_name": None, "manufacturer": None, "model": None, "device_type": None, "serial": None}
     keys = {"friendlyName": "friendly_name", "manufacturer": "manufacturer",
-            "modelName": "model", "deviceType": "device_type"}
+            "modelName": "model", "deviceType": "device_type", "serialNumber": "serial"}
     for child in device:
         k = keys.get(_local(child.tag))
         if k and out[k] is None:
@@ -260,7 +260,8 @@ async def search(duration: float = 3.0, networks=(), target: tuple[str, int] = (
             desc = descriptions.get(h.get("location") or "") or {}
             entries.append({"st": _clean(st) or "", "server": _clean(h.get("server")), "udn": udn_of(h.get("usn")),
                             "friendly_name": desc.get("friendly_name"), "model": desc.get("model"),
-                            "manufacturer": desc.get("manufacturer"), "device_type": desc.get("device_type")})
+                            "manufacturer": desc.get("manufacturer"), "device_type": desc.get("device_type"),
+                            "serial": desc.get("serial")})
         if entries:
             result[ip] = entries
     return result, sent

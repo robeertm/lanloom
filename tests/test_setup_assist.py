@@ -243,9 +243,11 @@ def test_sample_network_is_read_only_and_leaves_the_inventory_alone(real_client)
     st = c.get("/api/state").json()
     assert st["demo"] is True and st["demo_view"] is True and st["setup_done"] is True
     devs = c.get("/api/devices").json()["devices"]
-    assert len(devs) == len(demo.HOSTS) + len(demo.ADAPTER_CLIENTS) + len(demo.ADAPTER_FDB)   # the sample adapters list a few more
+    from lanloom import inventory_demo
+    extra = len(inventory_demo.EXTRA)              # the sample's missing, gone and retired devices
+    assert len(devs) == len(demo.HOSTS) + len(demo.ADAPTER_CLIENTS) + len(demo.ADAPTER_FDB) + extra   # the sample adapters list a few more
     assert all(d["ip"].startswith("192.168.") or not d["ip"] for d in devs)
-    assert sum(1 for d in devs if d["ip"].startswith("192.168.50.")) == len(demo.HOSTS)
+    assert sum(1 for d in devs if d["ip"].startswith("192.168.50.")) == len(demo.HOSTS) + extra
     assert c.get("/api/map").json()["components"]
     # nothing can be changed from the sample
     r = c.patch("/api/devices/" + devs[0]["id"], json={"title": "x"}, headers=HDR)

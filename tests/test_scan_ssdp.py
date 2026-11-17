@@ -50,7 +50,13 @@ def test_parse_notify():
 def test_description_parse():
     d = ssdp.parse_description(DESC)
     assert d == {"friendly_name": "Living room media player", "manufacturer": "Example Corp",
-                 "model": "MP-100", "device_type": "urn:schemas-upnp-org:device:MediaRenderer:1"}
+                 "model": "MP-100", "device_type": "urn:schemas-upnp-org:device:MediaRenderer:1", "serial": None}
+
+
+def test_description_parse_keeps_the_serial_number_clean():
+    raw = (b'<?xml version="1.0"?><root xmlns="urn:schemas-upnp-org:device-1-0"><device><friendlyName>X</friendlyName>'
+           b'<serialNumber>  SN-0042   </serialNumber></device></root>')
+    assert ssdp.parse_description(raw)["serial"] == "SN-0042"
 
 
 @pytest.mark.parametrize("raw", [

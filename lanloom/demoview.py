@@ -73,6 +73,8 @@ class DemoView:
         core.ai = None
         core.audit = None
         core.demo.seed(core)
+        from .inventory_demo import seed as seed_inventory
+        seed_inventory(core)
         core.demo.seed_integrations(core)
         core.demo.seed_reports(core)
         from .notify.demo import seed as seed_notify

@@ -168,6 +168,15 @@ def known_values(core) -> dict:
             out["IP"].add(str(d["ip"]))
         if d.get("mac"):
             out["MAC"].add(str(d["mac"]))
+        for s in d.get("ssdp") or []:
+            if isinstance(s, dict) and s.get("serial"):
+                out["SERIAL"].add(str(s["serial"]))
+    try:
+        for rec in core.inventory._records().values():      # serial numbers written down by people (inventory)
+            if rec.get("serial"):
+                out["SERIAL"].add(str(rec["serial"]))
+    except Exception:
+        pass
     try:
         integs = core.integrations()
     except Exception:

@@ -104,6 +104,7 @@ class App:
         from .backup import Backups
         from . import backup_report as _backup_report  # noqa: F401 - registers the nightly report section
         from . import storage_report as _storage_report  # noqa: F401 - registers the storage + counter check sections
+        from . import inventory_report as _inventory_report  # noqa: F401 - registers the inventory section
         self.backups = Backups(self)
         self.core.backups = self.backups
         if cfg.demo:
@@ -111,6 +112,8 @@ class App:
             self.core.demo = Demo()
             if os.environ.get("LANLOOM_DEMO_SEED", "").strip() in ("1", "true", "yes"):
                 self.core.demo.seed(self.core)
+                from .inventory_demo import seed as seed_inventory
+                seed_inventory(self.core)
                 self.core.demo.seed_integrations(self.core)
                 self.core.demo.seed_reports(self.core)
                 self.core.demo.seed_access(self)
@@ -338,6 +341,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
 
     from . import web_storage
     web_storage.register(app, web_storage.Ctx(state=state, body=body, err=err, note=note))
+    from . import web_inventory
+    web_inventory.register(app, web_inventory.Ctx(state=state, body=body, err=err, note=note))
     from . import web_notify
     web_notify.register(app, web_notify.Ctx(state=state, body=body, err=err, note=note,
                                             agent=lambda r: auth.agent_label(r.headers.get("user-agent", ""))))
@@ -356,6 +361,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         except ValueError as exc:
             return err(str(exc))
         if data.get("setup_done") and cfg.demo and state.core.demo:
+            from .inventory_demo import seed as seed_inventory
+            seed_inventory(state.core)
             state.core.demo.seed_integrations(state.core)
             state.core.demo.seed_reports(state.core)
             state.core.demo.seed_access(state)
@@ -1127,7 +1134,7 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

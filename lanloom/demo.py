@@ -324,6 +324,8 @@ NEW_TODAY = ((99, 2.5 * 3600), (67, 40 * 60))     # (host number, seconds since 
 
 
 class Demo:
+    absent: frozenset = frozenset()          # device ids that never answer (inventory sample: missing, gone, retired)
+
     def __init__(self, seed: int = 7):
         self.rng = random.Random(seed)
         self.oui = registry()
@@ -718,7 +720,8 @@ class Demo:
             if now - topo_sent >= 30:
                 topo_sent = now
                 for row in core.store.query("SELECT id FROM devices"):     # simulated presence check: every demo device answers
-                    core.presence[row["id"]] = now
+                    if row["id"] not in self.absent:       # ... except the ones the inventory sample keeps away on purpose
+                        core.presence[row["id"]] = now
                 if "controller" in ids:
                     core.on_event("int:%d" % ids["controller"], ids["controller"], controller_event(now))
                 if "snmp" in ids:

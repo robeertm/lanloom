@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "as_of": "2026-11-17",
+  "note": "End of the vendor's regular updates, as announced by the vendor. Advisory only: a match is a hint, never a verdict. Each entry has a stable id, patterns matched against the device's maker, model, firmware and system description (lower case), and the date.",
+  "entries": [
+    {"id": "win7", "name": "Windows 7", "match": ["\\bwindows 7\\b"], "until": "2020-01-14"},
+    {"id": "win81", "name": "Windows 8.1", "match": ["\\bwindows 8\\.1\\b"], "until": "2023-01-10"},
+    {"id": "win10", "name": "Windows 10", "match": ["\\bwindows 10\\b"], "until": "2025-10-14"},
+    {"id": "winsrv2008r2", "name": "Windows Server 2008 R2", "match": ["windows server 2008 r2"], "until": "2020-01-14"},
+    {"id": "winsrv2012r2", "name": "Windows Server 2012 R2", "match": ["windows server 2012 r2"], "until": "2023-10-10"},
+    {"id": "winsrv2016", "name": "Windows Server 2016", "match": ["windows server 2016"], "until": "2027-01-12"},
+    {"id": "winsrv2019", "name": "Windows Server 2019", "match": ["windows server 2019"], "until": "2029-01-09"},
+    {"id": "ubuntu1804", "name": "Ubuntu 18.04", "match": ["ubuntu 18\\.04", "ubuntu1804"], "until": "2023-05-31"},
+    {"id": "ubuntu2004", "name": "Ubuntu 20.04", "match": ["ubuntu 20\\.04", "ubuntu2004"], "until": "2025-05-31"},
+    {"id": "debian10", "name": "Debian 10", "match": ["debian 10\\b", "\\bdebian-10\\b"], "until": "2024-06-30"},
+    {"id": "debian11", "name": "Debian 11", "match": ["debian 11\\b", "\\bdebian-11\\b"], "until": "2026-08-31"},
+    {"id": "debian12", "name": "Debian 12", "match": ["debian 12\\b", "\\bdebian-12\\b"], "until": "2028-06-30"},
+    {"id": "esxi67", "name": "ESXi 6.7", "match": ["esxi 6\\.7", "vmware esxi 6\\.7"], "until": "2022-10-15"},
+    {"id": "esxi70", "name": "ESXi 7.0", "match": ["esxi 7\\.0", "vmware esxi 7\\.0"], "until": "2025-10-02"},
+    {"id": "pve7", "name": "Proxmox VE 7", "match": ["pve-manager/7\\.", "proxmox ve 7\\.", "proxmox-ve: 7\\."], "until": "2024-07-31"}
+  ]
+}

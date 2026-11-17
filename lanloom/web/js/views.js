@@ -364,7 +364,7 @@
     (dev.ssdp || []).forEach(s => ann.push(h('li', {}, h('span', { class: 'mono' }, (s.device_type || s.st || '').replace(/^urn:/, '')), ' — ', [s.friendly_name, s.model].filter(Boolean).join(' · '))));
     const hide = !may ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
     return h('div', {}, section(t('detail.device'), facts(rows)), LL.aiHintSection ? LL.aiHintSection(dev) : null, identitySection(dev, may),
-      LL.integrateSection ? LL.integrateSection(dev) : null, LL.protectSection ? LL.protectSection(dev, may) : null, ports ? section(t('device.ports'), ports) : null,
+      LL.integrateSection ? LL.integrateSection(dev) : null, LL.protectSection ? LL.protectSection(dev, may) : null, LL.inventorySection ? LL.inventorySection(dev) : null, ports ? section(t('device.ports'), ports) : null,
       ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, hide ? h('div', { class: 'detail__foot' }, hide) : null);
   }
 
@@ -607,7 +607,7 @@
     }
     const count = h('span', { class: 'muted' });
     q.addEventListener('input', render); showHidden.addEventListener('change', render);
-    fr.main.append(h('div', { class: 'page' }, h('div', { class: 'page__head' }, h('h1', {}, t('nav.devices')), count),
+    fr.main.append(h('div', { class: 'page page--wide' }, h('div', { class: 'page__head inv-head' }, h('h1', {}, t('nav.devices')), count, LL.inventorySwitch ? LL.inventorySwitch('devices') : null),
       h('div', { class: 'toolbar' }, q, h('label', { class: 'check' }, showHidden, h('span', {}, t('devices.show_hidden'))),
         show ? h('a', { class: 'mf-chip is-on dev-filter', href: '#/devices', title: t('devices.filter.clear') }, t('devices.filter.' + show), h('span', { 'aria-hidden': 'true' }, ' ✕')) : null), list), panel);
     render();

@@ -29,6 +29,7 @@
 - **Physical topology.** Which device hangs on which switch port, which clients use which access point (with band and network name), and which guests run on a host. Cables are solid traces, wireless links dashed with a radio mark, guests dotted; the port number sits at the device end. The data comes from a manual "connected via" field, a switch controller (view-only account), LLDP neighbours and switch address tables over SNMP, in this order of precedence. Clients behind an access point default to wireless. This host's measured traffic flows along the cabling. See [docs/TOPOLOGY.md](docs/TOPOLOGY.md).
 - **Data paths.** A calm world map shows where your devices send data on the internet, by country: arcs from your home country, width by bytes, outside the EU in amber. 24 hours, 7 days or 30 days, a full-screen map, lists of countries and devices, and calm hints for unusual behaviour (a device talks to a new country, uploads far more than on a typical day, or sits in a network that should not reach the internet). Countries come from an offline database shipped in the image; only countries and byte counts are stored, never addresses. Own networks and tunnels are kept apart, and the EU share only counts traffic with a known country. To see every device, not only the Lanloom host, let your router send NetFlow v5, v9 or IPFIX (with IPv6) to Lanloom's built-in receiver: off by default, only from the exporter addresses you allow. The map zooms with the mouse wheel or a pinch, up to 16 times. See [docs/DATA-PATHS.md](docs/DATA-PATHS.md).
 - **Nightly report.** Every morning a short report about the night in plain words: internet outages, new and missing devices, interrupted connections and refused sign-ins, data paths hints, changes to the controller configuration, expiring certificates, and Lanloom's own updates and restarts as maintenance. One headline says "All quiet" or how many things need a look; those can be ticked off. Rule-based from Lanloom's own data, with no online service needed (an AI can explain a note on request, see below); made at the next start if Lanloom was off at report time; 30-day archive; optional delivery by e-mail, webhook, push topic or your own chat bot (off by default). See [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md).
+- **Inventory and life cycle.** Beside the found facts (maker, model, firmware and where each comes from) every device carries what only you know: purpose, room, purchase date, warranty, shop and note, serial number, the responsible person. Devices are *active*, *missing* (not seen for N days), *probably gone* (with the reasons: long absent, a successor appeared, its switch port is used by another device) or *decommissioned* (date, replaced by, note; hidden from the map, kept as history). Entries Lanloom made on its own are provisional and disappear after seven days without a sign of life unless you confirm them. An offline table in the image points at devices whose updates ended or end soon; warranties that run out do the same. Filters, sorting, editing many devices at once, the phone layout and a section in the nightly report come with it. Everything stays in your database; nothing is asked online. See [docs/INVENTORY.md](docs/INVENTORY.md).
 - **Several users, three roles.** Viewer, operator and admin, enforced on the server for every route. Invitation links, two-step sign-in with an authenticator app, recovery codes or passkeys, sessions you can end, security notices and a tamper-evident audit log. Optional sign-in through your own authentication proxy. See [docs/ACCESS.md](docs/ACCESS.md).
 - **AI, local or cloud (optional).** An Explain button on devices, notes of the nightly report and firewall rules lets an AI answer in plain words, in the language of the app. **Ask your network** answers questions with links to the devices and views concerned, the nightly report gets a paragraph *In plain words*, the AI suggests what an unknown device is (you confirm), and the firewall editor shows suggestions you can take over as a draft. Off by default; AI only reads and never changes a setting. See [docs/integrations/ai.md](docs/integrations/ai.md).
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide or set "connected via" by hand.
@@ -307,6 +308,21 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 </tr>
 </table>
 
+### Inventory
+
+![Inventory: warranty, end of updates, states and the reasons for "probably gone"](docs/screenshots/inventory-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/inventory-edit-light.png" width="100%" alt="The sheet of one device: purpose, room, purchase, warranty, person, serial number"><br><sub>The sheet of one device: what it is for, where it stands, how long it is covered</sub></td>
+<td width="50%"><img src="docs/screenshots/inventory-bulk-light.png" width="100%" alt="Editing several devices at once"><br><sub>Several devices at once (own fields only)</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/inventory-dark.png" width="100%" alt="Inventory, dark theme, a device that is probably gone"><br><sub>A device that is probably gone, with the reasons</sub></td>
+<td width="50%"><img src="docs/screenshots/inventory-phone-dark.png" width="200" alt="Inventory on the phone"><br><sub>On the phone the table becomes cards</sub></td>
+</tr>
+</table>
+
 ### Devices and settings
 
 ![Device list](docs/screenshots/devices-light.png)
@@ -488,6 +504,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/BACKUP.md](docs/BACKUP.md): backup and restore in the app, automatic backups, moving to another host, the file format
 - [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md): notification rules per person, quiet hours, planned maintenance, flap protection, web push, the heartbeat
 - [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path
+- [docs/INVENTORY.md](docs/INVENTORY.md): inventory and life cycle: own fields, states, why a device is "probably gone", provisional entries, warranty and end of updates, the offline table, roles
 - [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces, networks and VLANs, devices without an address, scan protection, what can be connected
 - [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md): the home-automation bridge: what is read, admin mode, sparing the hub, privacy filter
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read

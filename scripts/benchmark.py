@@ -199,6 +199,7 @@ def measure(n: int, runs: int = 5, data_dir: Path = None) -> dict:
     res["search_ms"] = timed(lambda: (palette.search(c, "sample"), palette.search(c, "swtich")), runs)    # a broad word, then a typo
     # start page and "Right now" rail (O3): both from scratch (the 2 s cache emptied every run; data paths stay a minute)
     res["overview_ms"] = timed(lambda: ([c.overview._cache.pop(k, None) for k in ("summary", "now", "devices")], dumps(c.overview.summary()), dumps(c.overview.right_now())), runs)
+    res["inventory_ms"] = timed(lambda: dumps(c.inventory.list({"sort": "room"})), runs)        # inventory list (L1), computed per request
     res["map_kb"] = round(len(dumps(mapmodel.build(c, "overview"))) / 1024, 1)
     res["ring_samples"] = c.ring.samples()
     res["heap_mb"] = round((tracemalloc.get_traced_memory()[0] - base_heap) / 1e6, 1)
@@ -212,7 +213,7 @@ def measure(n: int, runs: int = 5, data_dir: Path = None) -> dict:
 
 
 COLS = ("devices", "start_ms", "tick_ms", "cpu_live_pct", "map_overview_ms", "map_network_ms", "devices_ms", "devices_cold_ms", "component_first_ms", "component_ms",
-        "paths_24h_ms", "paths_30d_ms", "storage_ms", "search_ms", "overview_ms", "map_kb", "heap_mb", "rss_mb", "db_mb")
+        "paths_24h_ms", "paths_30d_ms", "storage_ms", "search_ms", "overview_ms", "inventory_ms", "map_kb", "heap_mb", "rss_mb", "db_mb")
 
 
 def main(argv=None) -> int:

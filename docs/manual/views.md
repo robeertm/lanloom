@@ -8,7 +8,7 @@ and links here.
 - [Map](#map)
 - [Network](#network)
 - [Data paths](#paths)
-- [Devices](#devices)
+- [Devices](#devices) · [Inventory](#inventory)
 - [Firewall](#firewall)
 - [Nightly report](#reports)
 - [Settings](#settings)
@@ -91,6 +91,23 @@ Where your data went: countries and devices over 24 hours, 7 or 30 days. See [DA
 Every device with type, certainty, maker, model and services; search by name, address, maker or service. From the start
 page the list can open filtered (`#/devices?show=new`, `?show=unsure`, `?show=offline`); the chip above the list removes
 the filter. See [DISCOVERY.md](../DISCOVERY.md).
+
+The **Devices | Inventory** switch at the top opens the [inventory](#inventory) of the same devices.
+
+<a id="inventory"></a>
+### Inventory
+
+Purpose, room, owner, purchase and warranty, firmware and the end of its updates for every device, and what became of
+it: active, missing, probably gone, decommissioned (`#/inventory`, filters such as `#/inventory?state=missing`).
+
+![Inventory, light theme](../screenshots/inventory-light.png)
+
+- **Quick filters** (with counts) and a search over every field; sort by clicking a column header.
+- **Click a row** to edit it (operators); *Select* edits many devices at once (own fields only).
+- **Probably gone** rows give the reasons and offer *Decommission* and *Still here*; unconfirmed automatic entries
+  are marked *Automatic* and disappear after seven days without a sign of life unless confirmed.
+- **Chips** show the warranty and the end of updates (from an offline table, advisory) in calm colours.
+- On a phone the table becomes cards. Everything, with the rules and the settings, is in [INVENTORY.md](../INVENTORY.md).
 
 <a id="firewall"></a>
 ## Firewall
