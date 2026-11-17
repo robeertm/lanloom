@@ -50,6 +50,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - Demo: three adapter-only networks (smart home, cameras, guests), a second network card without an IP address, a protected printer, planned catalog entries.
 - Guide: [docs/DISCOVERY.md](docs/DISCOVERY.md); README section with screenshots.
 
+### Fixed
+- The devices list: a row without an IP address shows its hardware address, and the row of a second interface opens the card of the device it belongs to (it has no card of its own on the map).
+
 ### Changed
 - The scan result carries a `protect` field per host; port 20000 is listed as an industrial port in the deep scan.
 

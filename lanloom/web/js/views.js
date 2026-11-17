@@ -594,12 +594,14 @@
     const newIds = new Set(ov ? ov.new.map(d => d.id) : []);
     const keep = d => !show || (show === 'new' ? newIds.has(d.id) : show === 'offline' ? d.status === 'down' : (!d.is_self && d.certainty !== 'sure'));
     const here = id => '#/devices' + (id ? '/' + encodeURIComponent(id) : '') + LL.queryString();
-    const openRow = id => { LL.deepLink(here(id)); openDetail(panel, id, () => LL.deepLink(here(null))); };
+    // a second interface has no card of its own on the map: its row opens the card of the device it belongs to
+    const cardOf = id => { const d = data.devices.find(x => x.id === id); return d && d.merged_into ? d.merged_into.id : id; };
+    const openRow = id => { LL.deepLink(here(id)); openDetail(panel, cardOf(id), () => LL.deepLink(here(null))); };
     function render() {
       const s = q.value.toLowerCase();
       const rows = data.devices.filter(d => keep(d) && (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' ')].join(' ').toLowerCase().includes(s)));
       list.replaceChildren(...rows.map(d => h('button', { class: 'device-row' + (d.hidden ? ' is-hidden' : ''), type: 'button', onclick: () => openRow(d.id) },
-        LL.kindIcon(d.kind), h('span', { class: 'device-row__main' }, h('span', { class: 'device-row__title' }, d.is_self ? t('kind.self') : (d.title || t('kind.' + d.kind))), h('span', { class: 'device-row__sub mono' }, d.ip)),
+        LL.kindIcon(d.kind), h('span', { class: 'device-row__main' }, h('span', { class: 'device-row__title' }, d.is_self ? t('kind.self') : (d.title || t('kind.' + d.kind))), h('span', { class: 'device-row__sub mono' }, d.ip || d.mac || '')),
         h('span', { class: 'device-row__kind' }, t('kind.' + d.kind)), h('span', { class: 'device-row__svc' }, d.services.slice(0, 3).map(s => h('span', { class: 'll-badge' }, s))),
         h('span', { class: 'status-dot status-dot--' + d.status, title: t('board.status.' + d.status) }))));
       if (!rows.length) list.replaceChildren(h('div', { class: 'empty-note' }, t('devices.none')));
@@ -613,7 +615,7 @@
     render();
     // deep link #/devices/<id> (answers of "Ask your network", the start page and the live rail link here): open that device's card
     const want = rest && rest[0] ? decodeURIComponent(rest[0]) : '';
-    if (want && data.devices.some(d => d.id === want)) openDetail(panel, want, () => LL.deepLink(here(null)));
+    if (want && data.devices.some(d => d.id === want)) openDetail(panel, cardOf(want), () => LL.deepLink(here(null)));
     return fr;
   }
 
