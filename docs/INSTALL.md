@@ -40,6 +40,10 @@ docker run -d --name lanloom --network host --restart unless-stopped \
   ghcr.io/robeertm/lanloom:latest
 ```
 
+## Optional: host agent on other hosts
+
+To see what runs on your other hosts (containers, services, timers, load, disks) and who talks to whom, run the optional host agent there. It uses the same signed image as Lanloom and is paired with a one-time code from *Settings > Agents*; [deploy/agent-compose.yaml](../deploy/agent-compose.yaml) has the compose file. Everything about it, including what it reads and what it never reads, is in [HOST-AGENT.md](HOST-AGENT.md). Lanloom itself needs none of this.
+
 ## First start
 
 Open `http://<host>:7380`. Enter the one-time setup code from the log:

@@ -1,6 +1,6 @@
 # Map
 
-[Manual](README.md) · [Overview](overview.md) · Map · [Network](network.md) · [Devices](devices.md) · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Updating](updating.md) · [Settings](settings.md) · [AI](ai.md)
+[Manual](README.md) · [Overview](overview.md) · Map · [Network](network.md) · [Devices](devices.md) · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Running](running.md) · [Updating](updating.md) · [Settings](settings.md) · [AI](ai.md)
 
 ## Purpose
 
@@ -16,6 +16,8 @@ there, what talks to what, and what is down, in one picture.
 - **Traces** for connections. Moving dots are measured bytes; nothing is animated that was not measured. The line
   styles tell the kind of link (cable, radio, service, flow, integration, uplink).
 - **Zones** are the areas of the board, one per network or VLAN, titled with its name, VLAN number and range.
+- **Containers** of a host that reports to Lanloom (an optional [host agent](../HOST-AGENT.md) or a container source) are drawn as small components **folded into the host**. Open one host with the button on its card, or all of them with the **Containers** chip; the state is kept in this browser. See [Running](running.md).
+- **Dashed "talks to" lines** join a host that runs an agent and the devices it exchanges measured traffic with; they fade a few minutes after the traffic ends.
 - **Chips above the board** filter by **area** (one zone of the board; the internet edge stays for orientation) or
   show **problems only** (components that are down or whose data stopped).
 - **Hover window.** Rest the mouse on a tile for half a second: the traffic of the last hour and the availability of
@@ -72,6 +74,7 @@ there, what talks to what, and what is down, in one picture.
 
 - [DISCOVERY.md](../DISCOVERY.md) - how devices are recognised and grouped
 - [AVAILABILITY.md](../AVAILABILITY.md) - availability, traffic plots, hover window and *Simulate maintenance*
+- [Running](running.md) and [HOST-AGENT.md](../HOST-AGENT.md) - containers and "talks to" lines
 - [TOPOLOGY.md](../TOPOLOGY.md) - where the traces come from
 - [PERFORMANCE.md](../PERFORMANCE.md#the-map-in-the-browser) - the frame budget of the map
 - [PALETTE.md](../PALETTE.md) - search and commands

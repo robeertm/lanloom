@@ -5,7 +5,7 @@ live state in the header, the deep links and the keys. Each view has its own pag
 [manual](README.md):
 
 [Overview](overview.md) · [Map](map.md) · [Network](network.md) · [Devices](devices.md) · [Inventory](inventory.md) ·
-[Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Updating](updating.md) · [Settings](settings.md) ·
+[Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Running](running.md) · [Updating](updating.md) · [Settings](settings.md) ·
 [AI](ai.md)
 
 - [Right now](#right-now) · [About this view](#about-this-view) · [Live state and live grade](#live-state-and-live-grade) · [Deep links and the back key](#deep-links-and-the-back-key) · [Keys](#keys)
@@ -69,6 +69,7 @@ two seconds or more, times such as "seen 5 s ago" may look shifted by that much.
 | `#/automations?view=<view>` | the [Automations](automations.md) tab (`list`, `who`, `timeline`, `plan`, `rooms`, `health`) |
 | `#/firewall/device/<address>` | the [firewall editor](firewall.md) in change mode with the sheet of that device |
 | `#/firewall/pick` | the firewall editor with a searchable list of the devices that can be changed |
+| `#/running` | the [Running](running.md) view |
 | `#/settings/<page>` | a [settings](settings.md) page |
 
 Opening a card, a report or a filter changes the address, so the back key closes the card or returns to the report or

@@ -18,9 +18,14 @@ Open **Settings → Notifications**. Everybody (viewer, operator, admin) has the
 | Sign-in refused by a connection | warning | yes | yes |
 | Certificate expires within 14 days (expired: critical) | warning | – | – |
 | Backup too old | warning | – | – |
+| Host agent silent (no report for 90 seconds; only with a [host agent](HOST-AGENT.md)) | warning | yes | yes |
+| Failed service or timer on a host with an agent | warning | – | yes |
+| Container unhealthy or restarting (host agent or container source) | warning | yes | yes |
 | Lanloom update available | note | – | – |
 | Security notice for your account (only you get it) | warning | – | – |
 | Controller change put back (only with the external executor; could not be put back: critical) | warning | – | – |
+
+The three events about hosts (*Host agent silent*, *Service or timer failed*, *Container unhealthy*) are in the group **Hosts and containers** and are offered only once a host agent or container source exists. The name of the host and of the unit or container is in the message; nothing from inside a container ever is.
 
 *Incident* and *Vulnerability* are already in the register and appear as soon as the features that report them are there. New devices found by the very first scan are no news; neither are rows about the past.
 

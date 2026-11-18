@@ -11,7 +11,8 @@ use. A route missing from the table is refused for everyone below admin (fail cl
 checks every route of the app against this table, so a new route cannot slip through unnoticed.
 
 Per route:
-  role    - lowest role that may call it ("public" for the sign-in routes, "executor" for the executor token)
+  role    - lowest role that may call it ("public" for the sign-in routes, "executor" for the executor token, "agent" for
+            the token of a host agent)
   stepup  - True: needs a recent second confirmation (passkey, one-time code, or password without second factor)
   audit   - action name written to the audit log for state-changing calls ("@" = the handler writes it itself)
   enroll  - reachable by a session that still has to set up its second factor
@@ -241,6 +242,18 @@ RULES = {
     ("GET", "/api/executor/plans"): R("executor"),
     ("POST", "/api/executor/state"): R("executor"),
     ("POST", "/api/executor/report"): R("executor"),
+
+    # ---------------------------------------------------------------- host agents and container sources (E4)
+    ("GET", "/api/agents"): R(V),
+    ("POST", "/api/agents/invite"): R(A, "agents.invite", stepup=True),
+    ("POST", "/api/agents/proxy"): R(A, "agents.proxy_add"),
+    ("POST", "/api/agents/proxy/test"): R(A, "agents.proxy_test"),
+    ("PATCH", "/api/agents/{agent_id}"): R(O, "agents.rename"),
+    ("DELETE", "/api/agents/{agent_id}"): R(A, "agents.revoke", stepup=True),
+    ("GET", "/api/agents/{agent_id}/health"): R(V),
+    ("GET", "/api/running"): R(V),
+    ("POST", "/api/agent/pair"): R("public", "agents.paired"),
+    ("POST", "/api/agent/report"): R("agent"),           # bearer token of one host agent, no session
 
     # ---------------------------------------------------------------- live feed (WebSocket)
     ("WS", "/api/live"): R(V),

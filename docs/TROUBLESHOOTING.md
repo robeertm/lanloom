@@ -5,7 +5,7 @@ Start here when something does not work. The page is ordered the way problems us
 - [Read the status of a source](#read-the-status-of-a-source)
 - [The diagnostic export](#the-diagnostic-export)
 - [This host](#this-host) · [SNMP](#snmp) · [MQTT broker](#mqtt-broker) · [Switch controller](#switch-controller) · [Home-automation hub](#home-automation-hub)
-- [Device-family adapters](#device-family-adapters) · [AI services](#ai-services)
+- [Device-family adapters](#device-family-adapters) · [AI services](#ai-services) · [Host agent and container source](#host-agent-and-container-source)
 - [Data paths and NetFlow](#data-paths-and-netflow)
 - [Scanning and devices](#scanning-and-devices)
 - [Sign-in and access](#sign-in-and-access)
@@ -145,6 +145,27 @@ The adapters of device families (controller, hypervisor, firewall; the list is i
 | Devices are missing on the map | only devices that are also in Lanloom's device list are placed; run a scan and include the device's network |
 | Rules show a zone "?" | the account may not read zones; rules still show, zone names are missing |
 | A change through the executor is refused | by design: guests that keep the network running, wired clients (their network follows the switch port) and accounts that cannot write are refused; see the *Firewall* manual page |
+
+## Host agent and container source
+
+The optional [host agent](HOST-AGENT.md) on another host, and a container source added in *Settings > Agents*. Start with `docker exec lanloom-agent python -m lanloom.agent once` on the host: it prints what the agent would send and sends nothing, and `docker logs lanloom-agent` says why it is waiting.
+
+| Symptom | Cause and fix |
+|---|---|
+| The log says *not paired* and nothing arrives | the agent was started without a code, or the code was used up or has expired (30 minutes, one use). Create a new code in *Settings > Agents > Pair a host agent* and start the agent again with it |
+| *Pairing failed* / the code is refused | wrong or already used code; several wrong tries lock the address out for a while. Create a new code |
+| *Lanloom cannot be reached from the agent* | the address in `LANLOOM_AGENT_SERVER` is wrong for that host, a firewall blocks the port, or an HTTPS address with `LANLOOM_AGENT_PIN` presents another certificate. Reports wait in the buffer (up to two hours) and arrive when the line is back |
+| The host shows *Offline* | no report for 90 seconds: the host is down, the agent container stopped, or Lanloom cannot be reached from there. The agent that was *revoked* (entry removed) stops and waits; pair it again with a new code |
+| The agent stopped after the entry was removed | the token is revoked on purpose; it drops its token and waits quietly. Give it a new code, or stop and delete the container |
+| *Units not available* | the system bus socket is not mounted (`/run/dbus/system_bus_socket`), the host has no service manager on that bus, or the agent is not run as the host's super user id |
+| *Containers not available* / no container runtime socket | the runtime socket is not mounted, `LANLOOM_AGENT_CONTAINERS` points to the wrong place, or a socket proxy in between refuses the request: it must allow `GET` on the containers and the version |
+| Containers listed, but no bytes per container | the agent needs `pid: host` (it reads each container's network counters through the process view), and a container on the host network has no counters of its own |
+| Services show *unknown process* | the same: `pid: host` is missing, or the process is not visible |
+| No flows or bytes at all | the agent is not on the host network (`network_mode: host`), or the kernel offers no socket diagnostics |
+| *Update* next to the agent | the agent runs another version than Lanloom. Pull the image with Lanloom's exact version tag and recreate the container; the agent never updates itself |
+| *This agent speaks another protocol version* | the same, with a larger gap |
+| Containers are missing from the list | containers that lived under 10 minutes are hidden (the page says how many); a source shows at most 400 containers per host |
+| The test of a container source fails | check the address form (`unix:///path.sock`, `http://host:port` or `tcp://host:port`, no user name or password), that Lanloom can reach it, and that the proxy lets `GET` through |
 
 ## AI services
 

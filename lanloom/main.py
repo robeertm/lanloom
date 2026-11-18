@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.routing import APIRoute
 from starlette.routing import Match
 
-from . import __version__, access, auth, config as config_mod, demoview, flood, mapmodel, palette, setup_assist, textfmt
+from . import __version__, access, agents as agents_mod, auth, config as config_mod, demoview, flood, mapmodel, palette, setup_assist, textfmt
 from .audit import AuditLog
 from .core import Core
 from .integrations import catalog
@@ -272,6 +272,11 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             if rule is not None and rule.role == "executor":
                 if not state.firewall.token_ok(request.headers.get("authorization", "")):
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)   # token of the executor service, no session
+            elif rule is not None and rule.role == "agent":
+                aid = state.core.agents.token_agent(request.headers.get("authorization", ""))
+                if not aid:
+                    return JSONResponse({"error": "auth.err.required"}, status_code=401)   # token of a host agent, no session
+                request.state.agent = aid
             elif rule is not None and rule.role == "public":
                 if request.method in STATE_CHANGING:
                     wait = public_flood.hit(client_of(request))
@@ -367,7 +372,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                "proxy": bool(user) and user.get("source") == "proxy",
                "notices": len(state.notices.unseen(user["id"])) if full else 0,
                "hubs": [{"id": i["id"], "name": i["name"]} for i in state.core.integrations() if i["kind"] == "hub"]
-               if full and state.core else []}
+               if full and state.core else [],
+               "agents": len(state.core.agents.live) if full and state.core else 0}     # host agents + container sources (E4)
         return out
 
     @app.get("/api/i18n/{lang}")
@@ -1144,6 +1150,98 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         state.firewall.on_progress(await body(request))
         return {"ok": True}
 
+    # ------------------------------------------------------------------ host agents and container sources (E4)
+    def agent_guard(request: Request) -> Optional[JSONResponse]:
+        wait = state.limiter.wait_seconds("agent-pair:" + client_of(request))
+        if wait > 0:
+            return JSONResponse({"error": "auth.err.rate", "wait": int(wait) + 1}, status_code=429)
+        return None
+
+    @app.get("/api/agents")
+    async def agents_list():
+        return {"agents": await asyncio.to_thread(state.core.agents.entries), "server_version": __version__,
+                "image": "%s:%s" % (agents_mod.IMAGE, __version__)}
+
+    @app.post("/api/agents/invite")
+    async def agents_invite(request: Request):
+        data = await body(request)
+        out = state.core.agents.invite(str(data.get("name") or ""))
+        note(request, target=out["code"][:2] + "…")
+        return out
+
+    @app.post("/api/agents/proxy")
+    async def agents_proxy(request: Request):
+        data = await body(request)
+        try:
+            out = await asyncio.to_thread(state.core.agents.add_proxy, str(data.get("name") or ""), str(data.get("url") or ""))
+        except ValueError as exc:
+            return err(str(exc))
+        note(request, target=out["id"])
+        return out
+
+    @app.post("/api/agents/proxy/test")
+    async def agents_proxy_test(request: Request):
+        data = await body(request)
+        if state.core.demo:
+            return {"ok": True, "runtime": "docker", "version": "27.3.1", "containers": 9}
+        return await asyncio.to_thread(state.core.agents.test_proxy, str(data.get("url") or ""))
+
+    @app.patch("/api/agents/{agent_id}")
+    async def agents_rename(agent_id: str, request: Request):
+        data = await body(request)
+        try:
+            ok = state.core.agents.rename(agent_id, str(data.get("name") or ""))
+        except ValueError as exc:
+            return err(str(exc))
+        return {"ok": True} if ok else err("agent.err.unknown", 404)
+
+    @app.delete("/api/agents/{agent_id}")
+    async def agents_revoke(agent_id: str):
+        ok = await asyncio.to_thread(state.core.agents.revoke, agent_id)
+        return {"ok": True} if ok else err("agent.err.unknown", 404)
+
+    @app.get("/api/agents/{agent_id}/health")
+    async def agents_health(agent_id: str, hours: int = 24):
+        return await asyncio.to_thread(state.core.agents.health, agent_id, hours)
+
+    @app.get("/api/running")
+    async def running_view():
+        return await asyncio.to_thread(state.core.agents.running)
+
+    @app.post("/api/agent/pair")
+    async def agent_pair(request: Request):
+        blocked = agent_guard(request)
+        if blocked:
+            return blocked
+        data = await body(request)
+        try:
+            out = await asyncio.to_thread(state.core.agents.pair, data.get("code"), data, requester_ip(request))
+        except PermissionError:
+            state.limiter.failure("agent-pair:" + client_of(request))
+            note(request, target="")
+            return err("agent.err.code", 403)
+        except ValueError as exc:
+            return err(str(exc), 409 if str(exc) == "agent.err.proto" else 400)
+        note(request, target=out["agent_id"])
+        return out
+
+    @app.post("/api/agent/report")
+    async def agent_report(request: Request):
+        aid = getattr(request.state, "agent", None)
+        if not aid:
+            return err("auth.err.required", 401)
+        try:
+            size = int(request.headers.get("content-length") or 0)
+        except ValueError:
+            size = 0
+        if size > agents_mod.MAX_BODY:
+            return err("agent.err.too_large", 413)
+        data = await body(request)
+        try:
+            return await asyncio.to_thread(state.core.agents.ingest, aid, data)
+        except ValueError as exc:
+            return err(str(exc), 409 if str(exc) == "agent.err.proto" else 400)
+
     # ------------------------------------------------------------------ live
     @app.websocket("/api/live")
     async def live_feed(ws: WebSocket):
@@ -1263,7 +1361,7 @@ def selftest() -> int:
         from . import qr, totp as _totp
         if _totp.code_at("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", 59) != "287082" or not qr.encode("otpauth://totp/x?secret=A"):  # secret-scan: fake (RFC 6238 vector)
             problems.append("one-time codes")
-        if any(r.role not in access.ROLES + ("public", "executor") for r in access.RULES.values()):
+        if any(r.role not in access.ROLES + ("public", "executor", "agent") for r in access.RULES.values()):
             problems.append("access table")
         en = load_i18n("en")
         if not en:

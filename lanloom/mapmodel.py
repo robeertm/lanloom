@@ -290,8 +290,12 @@ def build(core, view: str = "overview") -> dict:
             elif router:
                 add_trace(lan_trace(router["id"], vid), router["id"], vid, "lan", False)
         _radio_network(core, special, merge, comps, zone, add_trace)
-        # guests sit right after the zone of their host
+        _containers(core, comps, zones, zone, add_trace)
+        # guests and containers sit right after the zone of their host
         for zid, z in zones.items():
+            if zid.startswith("containers:"):
+                host_zone = next((c["zone"] for c in comps if c["id"] == zid[11:]), None)
+                z["order"] = (zones[host_zone]["order"] if host_zone in zones else 90) + 0.45
             if zid.startswith("guests:"):
                 host_zone = next((c["zone"] for c in comps if c["id"] == zid[7:]), None)
                 z["order"] = (zones[host_zone]["order"] if host_zone in zones else 90) + 0.4
@@ -380,6 +384,40 @@ def build(core, view: str = "overview") -> dict:
             c["metric"] = metrics[c["id"]]
     return {"view": view, "generated": now, "structure": core.structure_version, "zones": zone_list,
             "components": comps, "traces": traces}
+
+
+MAX_CONTAINERS_ON_MAP = 60      # containers drawn per host; the Running view lists all
+
+
+def _containers(core, comps: list, zones: dict, zone, add_trace) -> None:
+    """Containers the host agents and container sources report, as sub-parts of their host (network view).
+
+    They sit in a zone of their own right after the host's zone and carry ``fold`` = the host's id: the browser keeps
+    them folded until somebody opens them (the choice is remembered per host)."""
+    hub = getattr(core, "agents", None)
+    if hub is None:
+        return
+    from .agents import container_component
+    unit = core.rate_unit()
+    drawn = {c["id"]: c for c in comps}
+    for host_id, items in hub.containers_by_device().items():
+        host = drawn.get(host_id)
+        if host is None:
+            continue
+        zid = "containers:" + host_id
+        if host.get("kind") == "self" or not (host.get("title") or "").strip():
+            zone(zid, "zone.containers_self" if host.get("kind") == "self" else "zone.containers", order=0)
+            zones[zid]["vars"] = {"host": host.get("subtitle") or ""}
+        else:
+            zone(zid, "zone.containers", order=0)
+            zones[zid]["vars"] = {"host": host["title"]}
+        zones[zid]["fold"] = host_id
+        host["folds"] = len(items)
+        for aid, c in items[:MAX_CONTAINERS_ON_MAP]:
+            comp = container_component(aid, host_id, c, lambda r: live.human_rate(r, unit))
+            comp["zone"] = zid
+            comps.append(comp)
+            add_trace("ct:%s>%s" % (host_id, comp["id"]), host_id, comp["id"], "virtual", False)
 
 
 def _ip_key(ip: str):
@@ -655,6 +693,16 @@ def component_detail(core, comp_id: str) -> dict:
     if comp_id == core.ip_to_device.get(core.self_ip or ""):
         out["ifaces"] = core.self_iface
     out.update(hypervisor_detail(core, comp_id, dev))
+    hub = getattr(core, "agents", None)
+    if hub is not None:
+        if comp_id.startswith("ct:"):
+            ct = hub.container(comp_id, now)
+            if ct:
+                out["container"] = ct
+        elif dev:
+            ad = hub.device_detail(comp_id, now)
+            if ad:
+                out["agent"] = ad
     out["physical"] = physical_detail(core, comp_id, bool(dev))
     return out
 

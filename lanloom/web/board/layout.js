@@ -24,7 +24,7 @@
   };
   const COMPACT_MAX = 700;   // container widths up to this use the compact (phone) layout by default
 
-  const KIND_ORDER = ['internet', 'router', 'switch', 'ap', 'hub', 'broker', 'nas', 'server', 'service', 'computer', 'self', 'phone', 'printer', 'tv', 'media', 'camera', 'iot', 'unknown'];
+  const KIND_ORDER = ['internet', 'router', 'switch', 'ap', 'hub', 'broker', 'nas', 'server', 'service', 'container', 'computer', 'self', 'phone', 'printer', 'tv', 'media', 'camera', 'iot', 'unknown'];
 
   function metrics(compact) { return Object.assign({}, compact ? COMPACT : DESKTOP); }
 

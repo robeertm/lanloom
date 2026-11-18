@@ -34,6 +34,7 @@ PUBLIC = {
     ("POST", "/api/ai/pair/hello"): "AI setup script: code check and model advice, needs the pairing code, rate limited",
     ("POST", "/api/ai/pair"): "AI setup script: pairing, needs the pairing code, rate limited",
     ("POST", "/api/ai/pair/status"): "AI setup script: pairing result, needs the pairing code, rate limited",
+    ("POST", "/api/agent/pair"): "host agent: one-time pairing code for a token, rate limited (reports then need the token)",
     ("GET", "/"): "the web page itself",
     ("GET", "/{path:path}"): "static files of the web page (never /api/)",
 }

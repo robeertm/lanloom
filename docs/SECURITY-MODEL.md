@@ -107,6 +107,27 @@ Someone tampers with what users install: a dependency, the base image, the build
   could publish a signed image; the transparency log would show it. Verify the signature (SECURITY.md) if you pull
   images through mirrors.
 
+### Host agents and container sources
+
+The optional [host agent](HOST-AGENT.md) is a separate program in the same signed image on another host, so it is part of
+the model:
+
+- **Token and code.** An administrator (with a recent second confirmation) creates a one-time code that is valid for
+  30 minutes. The agent trades it for a token of its own; Lanloom stores only the hash of the code and of the token. Removing
+  the entry revokes the token; the agent then stops sending and waits quietly.
+- **Metadata only, filtered twice.** Positive lists on the agent, a value filter on both ends, and a check for
+  forbidden field names; a test feeds known secrets through a container and requires that none arrives.
+- **Read-only clients.** The container client sends `GET` and nothing else, the bus client can only list units and read
+  properties, the overlay client only `GET`. Tests check the code for any other method. A read-only mount of a socket is
+  not a barrier by itself; use a socket proxy where the separation must be enforced outside the agent.
+- **No inbound.** The agent opens no port and the answer to a report cannot carry a command; it never loads code.
+- **What the container needs.** The agent runs as the host's super user id with every capability dropped, a read-only
+  file system and `no-new-privileges`, and shares the host's network and process view (this is the one place where the
+  [container principles](#container-principles) differ, on purpose and only for this optional container). Hosts that
+  should not run it can be read through a container source.
+- **Egress.** The agent's connections are in `security/egress.json` (category `agent-link`, plus the local sockets) and checked
+  like all others; it connects only to the Lanloom it was paired with, optionally pinned to a certificate.
+
 ## No telemetry, checked
 
 Lanloom does not phone home. The only outbound connection of its own is the optional update check against the public
@@ -128,7 +149,7 @@ writes, compose snippets in the documentation and the containers the updater cre
 
 - the image runs as uid/gid 10001, numeric, and nothing runs as root after the switch;
 - the app and the executor run with a read-only root file system, all capabilities dropped and `no-new-privileges`;
-- nothing is privileged, adds capabilities, maps devices or shares the host's PID or IPC namespace;
+- nothing is privileged, adds capabilities, maps devices or shares the host's PID or IPC namespace - with one exception: the optional host agent of another host shares the host's process view (see [Host agents and container sources](#host-agents-and-container-sources)), still with every capability dropped, a read-only file system and `no-new-privileges`;
 - the self-test and trial containers of an update are read-only, drop all capabilities and set `no-new-privileges`;
 - the only exception is the optional updater sidecar: it runs as root because it needs the container runtime socket
   (root-equivalent on the host), is opt-in through its own profile, and still has a read-only file system and
@@ -154,6 +175,7 @@ kind of answer.
 |---|---|---|
 | Without a session | first account, sign-in, second step, passkey sign-in, invitation check and acceptance, AI pairing (3), restore before the first account (3) | `X-Lanloom` + `Origin`, flood guard per client (120/min), failure lock-out per client (and per account for the second step), one-time codes stored as hashes; pairing and restore need the setup code, pairing accepts only private peers |
 | Signed in | everything else that changes state | role per route (central table, test against every route), step-up for critical actions, flood guard per account (600/min), audit log |
+| Host agent | pairing (`/api/agent/pair`) and report (`/api/agent/report`) | pairing: one-time code (30 minutes, stored as a hash), flood guard, failure lock-out per client; report: the token of one agent (stored as a hash, revoked by deleting the entry), body limit 4 MB, 60 reports per call, every report filtered again on arrival |
 | Executor | plan hand-over and result | shared token, no session, passkey signature per plan checked by the executor |
 | Uploads | backup restore | size limit, one slot per purpose, decrypted only with the passphrase, rate-limited like wrong passphrases |
 

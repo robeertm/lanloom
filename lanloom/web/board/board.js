@@ -33,6 +33,7 @@
     "board.legend.dot": "1 dot ≈ {size}",
     "board.legend.unmeasured": "Not measured",
     "board.legend.waiting": "Waiting for live data",
+    "board.legend.talk": "Talks to (last 24 hours)",
     "board.grade.realtime": "Real-time",
     "board.grade.near": "Near real-time",
     "board.grade.periodic": "Periodic",
@@ -66,6 +67,7 @@
     "board.kind.iot": "Smart device",
     "board.kind.service": "Service",
     "board.kind.broker": "Message broker",
+    "board.kind.container": "Container",
     "board.kind.self": "This host",
     "board.kind.unknown": "Unknown device",
     "board.tile.aria": "{title}, {kind}, {status}, live data: {grade}",
@@ -586,8 +588,10 @@
     /* Straight dashed lines in the air between the tiles of two devices that talk to each other (not wires: nothing is claimed about
        the cable). The width follows the bytes (square root, 1 to 3.2 px); the tiles sit above the lines, so a line ends at the tile edge. */
     setTalk(pairs) {
+      const had = this.talk.length > 0;
       this.talk = Array.isArray(pairs) ? pairs : [];
       this.renderTalk();
+      if (had !== (this.talk.length > 0) && this.view) this.renderLegend();
       if (this.highlighted) this.applyHighlight();
     }
     renderTalk() {
@@ -651,6 +655,7 @@
       parts.push(`<span class="ll-legend__item">${dashSvg}<span>${esc(t('board.legend.unmeasured'))}</span></span>`);
       const kl = TRACE_KINDS.filter(k => kinds.has(k));
       if (kl.length) parts.push('<span class="ll-legend__sep" aria-hidden="true"></span>' + kl.map(k => `<span class="ll-legend__item">${kindSw(k)}<span>${esc(t('board.trace.' + k))}</span></span>`).join(''));
+      if (this.talk.length) parts.push(`<span class="ll-legend__item ll-legend__talk"><svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6H27" class="ll-lg-talk"/></svg><span>${esc(t('board.legend.talk'))}</span></span>`);
       parts.push('<span class="ll-legend__sep" aria-hidden="true"></span><span class="ll-legend__grades"></span>');
       this.legendEl.innerHTML = parts.join('');
       this.gradesEl = this.legendEl.querySelector('.ll-legend__grades');

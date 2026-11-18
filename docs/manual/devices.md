@@ -1,6 +1,6 @@
 # Devices
 
-[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · [Network](network.md) · Devices · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Updating](updating.md) · [Settings](settings.md) · [AI](ai.md)
+[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · [Network](network.md) · Devices · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Running](running.md) · [Updating](updating.md) · [Settings](settings.md) · [AI](ai.md)
 
 ## Purpose
 
@@ -16,6 +16,7 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
 - **The card of a device** (click a row): name, type, **address origin** (registered maker, private or random address,
   unregistered address, only an IP address), model and firmware where the device tells them, IPv6 addresses, NetBIOS
   name, the reasons for its type, the *Can be connected* section, and the *Inventory* block.
+- **Host agent section.** The card of a host that runs an optional [host agent](../HOST-AGENT.md), or is read through a container source, adds the version, the last report, the system values, the counts of containers and failed units, a link to [Running](running.md) and a button to show or hide its containers on the map. The card of a container shows its state, image, ports, networks and live traffic.
 - **Devices | Inventory** switch at the top: opens the [inventory](inventory.md) of the same devices.
 - **List | Stability** switch under the search box: how steady each device and connection was instead of what it is.
   Five key figures (checked, without a gap, gaps in 7 days, typical repair time, wobbly), the wobbly candidates, and

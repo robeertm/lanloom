@@ -22,6 +22,7 @@
     hub: '<path d="M4 11 12 4.5 20 11"/><path d="M6 9.5v10h12v-10"/><circle cx="12" cy="14.5" r="1.8"/><path d="M12 12.7v-1.6M10.4 15.4l-1.4.8M13.6 15.4l1.4.8"/>',
     iot: '<rect x="7" y="7" width="10" height="10" rx="1.6"/><path d="M10 7V4M14 7V4M10 20v-3M14 20v-3M7 10H4M7 14H4M20 10h-3M20 14h-3"/>',
     service: '<path d="M12 3.2 19.6 7.5v9L12 20.8 4.4 16.5v-9z"/><path d="M4.4 7.5 12 11.8l7.6-4.3M12 11.8v9"/>',
+    container: '<path d="M12 3 20 7.2v9.6L12 21 4 16.8V7.2z"/><path d="M4 7.2l8 4.2 8-4.2M12 11.4V21"/><path d="M8 5.1l8 4.2"/>',
     broker: '<circle cx="12" cy="12" r="2.6"/><circle cx="4.8" cy="6" r="1.7"/><circle cx="19.2" cy="6" r="1.7"/><circle cx="4.8" cy="18" r="1.7"/><circle cx="19.2" cy="18" r="1.7"/><path d="M6.3 7.2l3.6 3M17.7 7.2l-3.6 3M6.3 16.8l3.6-3M17.7 16.8l-3.6-3"/>',
     self: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.4"/><circle cx="12" cy="12" r="1"/>',
     unknown: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.7"/><path d="M12 16.9h.01"/>'

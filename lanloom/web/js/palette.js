@@ -73,9 +73,19 @@
   const VIEWS = [['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports']];
   VIEWS.forEach(([k, label], i) => LL.registerCommand({
     id: 'go.' + k, group: 'views', order: i, label: () => t('cmdk.go', { name: t(label) }), keywords: () => t('cmdk.kw.' + k), run: () => LL.go('#/' + k) }));
+  // the Running view exists once a host agent or container source is paired
+  [['running', 'nav.running', 4.4]].forEach(([k, label, order]) => LL.registerCommand({
+    id: 'go.' + k, group: 'views', order, available: () => !!(LL.state && LL.state.agents > 0), label: () => t('cmdk.go', { name: t(label) }),
+    keywords: () => t('cmdk.kw.' + k), run: () => LL.go('#/' + k) }));
+  LL.registerCommand({ id: 'agents-pair', group: 'commands', order: 25, available: () => LL.can('admin'), label: 'cmdk.agents_pair', keywords: () => t('cmdk.kw.agents_pair'),
+    run: () => LL.go('#/settings/agents?pair=1') });
+  // containers of the open network map: unfold or fold them on every host at once
+  [['containers-expand', 'cmdk.containers_expand', true, 26], ['containers-collapse', 'cmdk.containers_collapse', false, 27]].forEach(([id, label, on, order]) => LL.registerCommand({
+    id, group: 'commands', order, available: () => (LL.foldHosts || []).length > 0 && LL.allUnfolded() !== on, label, keywords: () => t('cmdk.kw.containers'),
+    run: () => LL.setAllUnfolded(on) }));
   // settings pages: [id, route part, label key, lowest role]
   const SETTINGS = [['settings', '', 'nav.settings', 'viewer'], ['account', '/account', 'settings.tab.account', 'viewer'], ['users', '/users', 'settings.tab.users', 'admin'],
-    ['security', '/security', 'settings.tab.security', 'admin'], ['backup', '/backup', 'backup.tab', 'admin'], ['network', '/network', 'settings.tab.network', 'viewer'], ['ai', '/ai', 'ai.tab', 'admin']];
+    ['security', '/security', 'settings.tab.security', 'admin'], ['backup', '/backup', 'backup.tab', 'admin'], ['network', '/network', 'settings.tab.network', 'viewer'], ['agents', '/agents', 'agents.tab', 'viewer'], ['ai', '/ai', 'ai.tab', 'admin']];
   SETTINGS.forEach(([k, sub, label, role], i) => LL.registerCommand({
     id: 'go.settings.' + k, group: 'views', order: 20 + i, typedOnly: k !== 'settings', available: () => role === 'viewer' || LL.can(role === 'admin' ? 'admin' : 'operate'),
     label: () => (k === 'settings' ? t('cmdk.go', { name: t(label) }) : t('cmdk.go', { name: t('nav.settings') + ' › ' + t(label) })),

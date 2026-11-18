@@ -718,6 +718,12 @@ class Demo:
                 from . import demo_history
                 demo_history.seed(core, now)              # availability and traffic history of the sample network (only when empty)
             el = now - t0
+            if now - getattr(self, "_agents_t", 0) >= 10:
+                from . import demo_agents
+                if not getattr(self, "_agents_t", 0):
+                    demo_agents.seed(core, now)           # sample host agents and a container source (E4)
+                self._agents_t = now
+                demo_agents.tick(core, now, el, rng)
             ids = {row["kind"]: row["id"] for row in core.store.query("SELECT id, kind FROM integrations")}
             for key in ["host"] + ["int:%d" % i for i in ids.values()]:
                 core.source_status[key] = {"ok": True, "key": "source.ok", "t": now}

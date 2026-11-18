@@ -203,6 +203,12 @@ Who talks to whom: dashed lines between devices that talk to each other, and the
 
 Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map: Natural Earth (public domain).
 
+### Hosts and containers (optional agent)
+
+![Running: hosts with their containers, services, timers and load](docs/screenshots/running-dark.png)
+
+An optional host agent, started from the same signed image on another host, shows what runs there: containers (folded into their host on the map), listening services, timers and failed services, load, memory and disks, and who talks to whom as dashed lines. It reads metadata only - never contents, environment variables or command lines - opens no port, takes no commands and pairs with a one-time code from *Settings > Agents*. A container source reads the containers of a host through a read-only socket proxy instead. See [docs/HOST-AGENT.md](docs/HOST-AGENT.md) and the [Running](docs/manual/running.md) page of the manual.
+
 ### Nightly report
 
 ![Nightly report: headline, sections with points to tick off, and the archive](docs/screenshots/reports-light.png)
@@ -575,7 +581,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 
 ## Documentation
 
-- [docs/manual/README.md](docs/manual/README.md): the manual, one page per view (overview, map, network, data paths, devices, inventory, firewall, nightly reports, settings, AI) with purpose, what you see, how to use it, limits and privacy; [docs/manual/views.md](docs/manual/views.md) covers the rails, keys, live state and deep links
+- [docs/manual/README.md](docs/manual/README.md): the manual, one page per view (overview, map, network, data paths, devices, inventory, firewall, nightly reports, running, settings, AI) with purpose, what you see, how to use it, limits and privacy; [docs/manual/views.md](docs/manual/views.md) covers the rails, keys, live state and deep links
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): reading the status of a source, the reasons of every source and adapter with cause and fix, scanning, sign-in, install, and the redacted diagnostic export
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, moving to another host, uninstall
 - [docs/BACKUP.md](docs/BACKUP.md): backup and restore in the app, automatic backups, moving to another host, the file format
@@ -590,6 +596,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md): hardware requirements with measured values, storage and retention, the nightly clean-up, the counter check, the frame budget of the map
+- [docs/HOST-AGENT.md](docs/HOST-AGENT.md): the optional host agent and container source: what is read and never read, the secret filter, installation, pairing, updates, limits
 - [docs/NIGHTLY-REPORT.md](docs/NIGHTLY-REPORT.md): the nightly report, its sections, the archive, optional delivery, adding a section
 - [docs/PALETTE.md](docs/PALETTE.md): search and commands: keys, what is searched, the value filter, actions, adding a command
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): supported integrations and AI services, what each can read and write

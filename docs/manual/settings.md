@@ -1,6 +1,6 @@
 # Settings
 
-[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · [Network](network.md) · [Devices](devices.md) · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Updating](updating.md) · Settings · [AI](ai.md)
+[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · [Network](network.md) · [Devices](devices.md) · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Running](running.md) · [Updating](updating.md) · Settings · [AI](ai.md)
 
 ## Purpose
 
@@ -23,6 +23,7 @@ Something not working? *Settings > General > Diagnostic export* downloads a reda
 | [Security](#security) | `#/settings/security` | administrators |
 | [Backup](#backup) | `#/settings/backup` | administrators |
 | [Storage](#storage) | `#/settings/storage` | administrators |
+| [Agents](#agents) | `#/settings/agents` | every role sees the list; administrators pair, add and remove, operators rename |
 | [Network](#network) | `#/settings/network` | every role (operators and administrators may change things) |
 | [AI](#ai) | `#/settings/ai` | administrators |
 
@@ -105,6 +106,16 @@ connected to which device.
 
 ![What can be connected](../screenshots/network-connect-light.png)
 
+### Agents
+
+The hosts that report to Lanloom: host agents and container sources, with kind, state, version, last report and an
+*Update* hint with the exact image when the version differs. Administrators use **Pair a host agent** (a one-time code
+valid 30 minutes, with a compose file and a `docker run` line to copy) and **Add container source** (the address of a
+read-only socket proxy, with a test); operators rename; administrators remove, which revokes the agent's token at once.
+What the agent reads and how to install it: [HOST-AGENT.md](../HOST-AGENT.md); what it shows: [Running](running.md).
+
+![Pairing a host agent](../screenshots/hosts-pair-dark.png)
+
 ### AI
 
 Needs the administrator role. The *Local AI* and *Cloud AI* cards, the order, the permissions per function and the daily
@@ -151,6 +162,7 @@ limit for cloud requests. Off by default. See [AI](ai.md).
 - [INSTALL.md](../INSTALL.md) - installation, updating and the forgotten password
 - [ACCESS.md](../ACCESS.md) - roles, users, two-step sign-in, sessions, audit log, sign-in through a proxy
 - [NOTIFICATIONS.md](../NOTIFICATIONS.md) - rules, quiet hours, maintenance, push, heartbeat
+- [HOST-AGENT.md](../HOST-AGENT.md) - the optional host agent, the container source and the *Agents* page
 - [BACKUP.md](../BACKUP.md) - backup, restore and moving to another host
 - [PERFORMANCE.md](../PERFORMANCE.md#storage-and-retention) - retention and the nightly clean-up
 - [DISCOVERY.md](../DISCOVERY.md#networks-and-vlans) - networks, scan protection, what can be connected

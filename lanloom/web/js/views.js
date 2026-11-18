@@ -61,6 +61,7 @@
   function frame(app, active, content) {
     const tabs = [['overview', 'nav.overview'], ['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports'], ['settings', 'nav.settings']];
     if (LL.state && (LL.state.hubs || []).length) tabs.splice(5, 0, ['sensors', 'nav.sensors'], ['automations', 'nav.automations']);   // the hub's sensors and automations, only with a hub connection
+    if (LL.state && LL.state.agents > 0) tabs.splice(tabs.findIndex(x => x[0] === 'reports'), 0, ['running', 'nav.running']);   // what runs on the hosts with an agent or a container source
     const nav = h('nav', { class: 'tabs', 'aria-label': t('nav.label') }, tabs.map(([k, label]) =>
       h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null,
         title: t(label), 'aria-label': t(label) },   // narrow screens show only the icon
@@ -140,6 +141,7 @@
     devices: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/></svg>',
     sensors: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l2.5-6 4 12 2.5-6H21"/></svg>',
     automations: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><rect x="15" y="9" width="6" height="6" rx="1.5"/><path d="M7 6h3a2 2 0 0 1 2 2v2.5a1.5 1.5 0 0 0 1.5 1.5H15M7 18h3a2 2 0 0 0 2-2v-2.5"/></svg>',
+    running: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="1.8"/><rect x="3" y="13" width="18" height="7" rx="1.8"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/></svg>',
     settings: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>'
   };
 
@@ -188,7 +190,15 @@
         });
       };
       // area filter (#/map?zone=<id>) and "problems only" (#/map?only=problems); the internet edge always stays for orientation
-      const filtered = view => {
+      // containers sit folded in their host; a host that is unfolded (remembered in this browser) shows them
+      const unfolded = view => {
+        if (!view.components.some(c => c.fold && !LL.isUnfolded(c.fold))) return view;
+        const hide = c => c.fold && !LL.isUnfolded(c.fold);
+        const comps = view.components.filter(c => !hide(c)), ids = new Set(comps.map(c => c.id));
+        return Object.assign({}, view, { components: comps, zones: view.zones.filter(z => !hide(z)), traces: view.traces.filter(tr => ids.has(tr.a) && ids.has(tr.b)) });
+      };
+      const filtered = full => {
+        const view = unfolded(full);
         const zone = LL.query.get('zone'), only = LL.query.get('only');
         if (!zone && !only) return view;
         let comps = view.components;
@@ -198,7 +208,7 @@
         return Object.assign({}, view, { components: comps, zones: view.zones.filter(z => zs.has(z.id)), traces: view.traces.filter(tr => ids.has(tr.a) && ids.has(tr.b)) });
       };
       const show = d => localise(filtered(d));
-      // "Who talks to whom": dashed lines in the air between devices that talk to each other (gateway flows, last 24 hours)
+      // "Who talks to whom": dashed lines in the air between devices that talk to each other (gateway flows and host agents, last 24 hours)
       let talkOn = LL.query.get('talk') === '1', talkInfo = null, talkVer = null, talkBusy = false;
       async function loadTalk() {
         if (!board.setTalk) return;                      // the tree has no lines in the air
@@ -217,14 +227,21 @@
       }
       const feed = d => (mode === 'tree' ? localise(d) : show(d));       // the tree filters on its own (it keeps the chain above a match)
       const treeFilter = () => ({ zone: LL.query.get('zone') || '', only: LL.query.get('only') || '' });
+      // containers fold under their host (E4): the board hides them until the host is opened (remembered per host)
+      const foldIds = () => data.components.filter(c => c.folds).map(c => c.id);
+      LL.foldHosts = foldIds();
+      function redraw() {
+        LL.foldHosts = foldIds();
+        board.update(feed(data)); if (LL.a11y) LL.a11y.setNames(localise(data).components); if (selected) board.highlight(selected);
+        drawFilter();
+      }
       function drawFilter() {
-        const zones = localise(data).zones.filter(z => z.id !== 'edge');
+        const zones = localise(data).zones.filter(z => z.id !== 'edge' && !z.fold);
         const zone = LL.query.get('zone'), only = LL.query.get('only');
         const set = (key, value) => {
           if (value) LL.query.set(key, value); else LL.query.delete(key);
           LL.deepLink(here(selected));
-          board.update(feed(data)); if (selected) board.highlight(selected);
-          drawFilter();
+          redraw();
         };
         const chip = (label, on, fn, extra) => h('button', { class: 'mf-chip' + (on ? ' is-on' : '') + (extra || ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', onclick: fn }, label);
         // the view toggle comes first: with many areas the row scrolls and a chip at the end would be out of sight
@@ -235,6 +252,7 @@
           treeOk ? viewSwitch() : null, treeOk ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
           mode !== 'board' ? null : talkChip,        // the lines in the air belong to the board; the tree has the chain
           mode === 'board' && talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
+          mode === 'board' && LL.foldHosts.length ? chip(t('mapfilter.containers'), LL.allUnfolded(), () => LL.setAllUnfolded(!LL.allUnfolded()), ' mf-chip--containers') : null,
           h('span', { class: 'mf-sep', 'aria-hidden': 'true' }),
           zones.length > 1 ? chip(t('mapfilter.all'), !zone, () => set('zone', null)) : null,
           ...(zones.length > 1 ? zones.map(z => chip(z.title || '—', zone === z.id, () => set('zone', zone === z.id ? null : z.id))) : []),
@@ -280,9 +298,12 @@
       if (talkOn) loadTalk();
       const onTheme = ev => board.setTheme && board.setTheme(ev.detail);
       document.addEventListener('ll-theme', onTheme);
+      document.addEventListener('ll-fold', redraw);
       // deep link #/map/<id> or #/network/<id> (command palette, answers of "Ask your network"): open that component's card;
       // a component that sits on the other board sends the page there
       const want = rest && rest[0] ? decodeURIComponent(rest[0]) : '';
+      const wantComp = want && data.components.find(c => c.id === want);
+      if (wantComp && wantComp.fold && !LL.isUnfolded(wantComp.fold)) { LL.setUnfolded(wantComp.fold, true, true); board.update(feed(data)); }
       if (want) {
         if (data.components.some(c => c.id === want)) onSelectId(want, true);
         else {
@@ -297,7 +318,7 @@
       async function refresh() {
         if (refreshing) { stale = true; return; }
         refreshing = true;
-        try { data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); structure = data.structure; board.update(feed(data)); if (LL.a11y) LL.a11y.setNames(localise(data).components); if (selected) board.highlight(selected); drawFilter(); }
+        try { data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); structure = data.structure; redraw(); }
         catch (e) { /* keep the old board */ }
         refreshing = false;
         if (stale) { stale = false; refresh(); }
@@ -312,7 +333,7 @@
       });
       const onVis = () => { if (!document.hidden && stale) { stale = false; refresh(); } };
       document.addEventListener('visibilitychange', onVis);
-      return { destroy: () => { unsub(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); board.destroy(); fr.destroy(); } };
+      return { destroy: () => { unsub(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; board.destroy(); fr.destroy(); } };
     };
   }
 
@@ -343,6 +364,8 @@
       sections.push(trafficSec);
     }
     if (d.device && LL.availabilitySection) sections.push(LL.availabilitySection(id));
+    if (d.container && LL.containerSection) sections.push(LL.containerSection(d.container));
+    if (d.agent && LL.agentSection) sections.push(LL.agentSection(d.agent, d.device ? d.device.id : null));
     if (d.hypervisor) sections.push(LL.hvHostSection(d.hypervisor));
     if (d.guest) sections.push(LL.hvGuestSection(d.guest));
     // the hub side of a merged device comes first: one component, network side and hub side
@@ -892,7 +915,7 @@
   const SETTINGS_PAGES = [['general', '', 'settings.general', 'viewer'], ['account', 'account', 'settings.tab.account', 'viewer'],
     ['notifications', 'notifications', 'notify.tab', 'viewer'],
     ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['backup', 'backup', 'backup.tab', 'admin'],
-    ['storage', 'storage', 'storage.tab', 'admin'], ['network', 'network', 'settings.tab.network', 'viewer'], ['ai', 'ai', 'ai.tab', 'admin']];
+    ['storage', 'storage', 'storage.tab', 'admin'], ['network', 'network', 'settings.tab.network', 'viewer'], ['agents', 'agents', 'agents.tab', 'viewer'], ['ai', 'ai', 'ai.tab', 'admin']];
   function settingsSubnav(active) {
     const allowed = p => p[3] === 'viewer' || LL.can(p[3] === 'admin' ? 'admin' : 'operate');
     return h('nav', { class: 'seg settings-subnav', 'aria-label': t('settings.sections') }, SETTINGS_PAGES.filter(allowed).map(([k, sub, label]) =>
@@ -902,7 +925,7 @@
   async function settingsView(app, rest) {
     const fr = frame(app, 'settings');
     const sub = rest && rest[0];
-    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, notifications: LL.notifyPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage, network: LL.networkPage }[sub];
+    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, notifications: LL.notifyPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage, network: LL.networkPage, agents: LL.agentsPage }[sub];
     if (subPage) {
       const pg = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav(sub)));
       fr.main.append(pg);

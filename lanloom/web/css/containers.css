@@ -1,0 +1,23 @@
+/* Lanloom — card sections of a container and of a host with an agent or container source, and the map's container chip. */
+.ct-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ct-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ct-link { color: var(--ll-accent); text-decoration: none; overflow-wrap: anywhere; }
+.ct-link:hover { text-decoration: underline; }
+.ct-sub { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ct-sub h4 { margin: 0; font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); color: var(--ll-text-2); }
+.ct-sub__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ct-foot { display: flex; flex-wrap: wrap; gap: 8px; }
+.ct-entry { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ct-entry + .ct-entry { padding-top: 12px; border-top: 1px solid var(--ll-border); }
+.ct-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
+.ct-head strong { overflow-wrap: anywhere; }
+.ct-update { margin: 0; font-size: var(--ll-fs-sm); display: flex; flex-direction: column; gap: 4px; }
+.ct-code { display: block; overflow-wrap: anywhere; font-size: var(--ll-fs-xs, 12px); }
+.ct-meters { grid-template-columns: minmax(0, 1fr); }
+.ct-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ct-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin: 0 -8px; border-radius: var(--ll-radius-sm, 6px); color: var(--ll-text); text-decoration: none; font-size: var(--ll-fs-sm); min-width: 0; }
+.ct-row:hover, .ct-row:focus-visible { background: var(--ll-surface-2); }
+.ct-row__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--ll-fw-medium, 500); }
+.ct-row__state { flex: none; }
+.ct-row.is-bad .ct-row__name { color: var(--ll-danger); }
+.ll-legend .ll-lg-talk { opacity: .8; }

@@ -77,12 +77,14 @@ SAFETY_KEEP = 2                             # safety copies of the database take
 
 # Tables of the configuration (always) and of the history (optional). Sessions, invitations, notices, known sign-in
 # places and the meta table are never part of a backup: they belong to the running instance.
-CONFIG_TABLES = ("users", "passkeys", "recovery_codes", "settings", "integrations", "devices", "phys_manual")
-HISTORY_TABLES = ("scans", "events", "reports", "report_marks", "paths_hour", "paths_day", "paths_seen", "paths_pair_hour", "paths_pair_day")
+CONFIG_TABLES = ("users", "passkeys", "recovery_codes", "settings", "integrations", "devices", "phys_manual", "agent_hosts")
+HISTORY_TABLES = ("scans", "events", "reports", "report_marks", "paths_hour", "paths_day", "paths_seen", "paths_pair_hour", "paths_pair_day",
+                  "agent_samples")
 INSTANCE_TABLES = ("sessions", "invites", "notices", "known_logins")       # emptied on restore (they name old user ids)
 # settings that describe this instance at runtime, not the configuration
 LOCAL_SETTINGS = frozenset({"fw_sim_state", "fw_jobs", "update_cache", "report_heartbeat", "report_epoch",
-                            "report_last_version", "ai_pairing", "ai_usage", "backup_state", "backup_demo_seeded"})
+                            "report_last_version", "ai_pairing", "ai_usage", "backup_state", "backup_demo_seeded",
+                            "agent_invites"})
 # vault entries that are never exported (half-finished set-ups, the imported pepper travels separately)
 LOCAL_SECRET_PREFIXES = ("totp_pending:",)
 PEPPER_SECRET = "auth:recovery_pepper"

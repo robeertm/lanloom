@@ -34,7 +34,8 @@ CATEGORIES = {
     "update-check": "release feed of the project, optional, can be switched off",
     "update-signature": "image registry of the project: signature of an update candidate, asked by the updater only "
                         "during an update or rollback an administrator started",
-    "container-runtime": "local socket of the container runtime (one-click updater and local AI setup only)",
+    "container-runtime": "local socket of the container runtime (one-click updater, local AI setup, host agent - read only)",
+    "agent-link": "the optional host agent's reports to the one Lanloom it was paired with (no other destination)",
     "lan-scan": "probes of the network scanner, only private address ranges",
     "configured-source": "a device or service whose address an administrator entered (read-only integrations)",
     "configured-channel": "a delivery channel an administrator or user set up (report, notifications, heartbeat)",

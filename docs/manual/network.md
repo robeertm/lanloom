@@ -1,6 +1,6 @@
 # Network
 
-[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · Network · [Devices](devices.md) · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Updating](updating.md) · [Settings](settings.md) · [AI](ai.md)
+[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · Network · [Devices](devices.md) · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Running](running.md) · [Updating](updating.md) · [Settings](settings.md) · [AI](ai.md)
 
 ## Purpose
 
@@ -18,6 +18,7 @@ in?".
 - **Cards** of switches and access points list the devices on their ports.
 - **The deciding source.** The card of a device says which source placed it, which others agree and what the rest say
   ("Switch controller says Core switch - Port 10. Manual entry has priority.").
+- **Containers** of a host with a [host agent](../HOST-AGENT.md) hang below that host, folded as on the [map](map.md) (the *Containers* chip or the button on the host card unfolds them), next to the guests of a virtualization host.
 - **Live traffic** along the cabling: traffic to a storage server runs up to the switch and down again; internet
   traffic runs up to the router.
 

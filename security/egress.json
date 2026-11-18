@@ -185,6 +185,36 @@
    "site": "updater/sigverify.py::default_opener::http",
    "category": "update-signature",
    "purpose": "updater: reads the signature of an update candidate (image index, signature bundle) from the registry of the official image, anonymously and only over https, during an update or rollback an administrator started"
+  },
+  {
+   "site": "lanloom/agent/containers.py::Runtime._conn::http",
+   "category": "configured-source",
+   "purpose": "container source: GET requests to the container runtime API at the address an administrator entered (socket proxy) or the runtime socket mounted into the host agent"
+  },
+  {
+   "site": "lanloom/agent/containers.py::_UnixConnection.connect::socket",
+   "category": "container-runtime",
+   "purpose": "host agent and container source: the local container runtime socket, read with GET only"
+  },
+  {
+   "site": "lanloom/agent/dbus.py::Bus.__init__::socket",
+   "category": "local-host",
+   "purpose": "host agent: the host's system message bus socket, read-only listing of failed services and timers"
+  },
+  {
+   "site": "lanloom/agent/overlay.py::_Unix.connect::socket",
+   "category": "local-host",
+   "purpose": "host agent: local status socket of an overlay VPN daemon on the same host, read with GET only (only when mounted)"
+  },
+  {
+   "site": "lanloom/agent/system.py::_iface_ip::socket",
+   "category": "local-host",
+   "purpose": "host agent: address of an own interface (ioctl on a local socket, nothing is sent)"
+  },
+  {
+   "site": "lanloom/agent/transport.py::Link._post::http",
+   "category": "agent-link",
+   "purpose": "host agent: pairing and reports to the address of the Lanloom it was started with, nothing else"
   }
  ],
  "hosts": [

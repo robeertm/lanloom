@@ -15,6 +15,7 @@ guides in [docs/](../)). The *About this view* rail of the app (key `I`) links t
 | Data paths | [data-paths.md](data-paths.md) | Which countries your devices exchange data with, on a world map. |
 | Nightly report | [nightly-reports.md](nightly-reports.md) | A short report of every night with points to tick off. |
 | Automations | [automations.md](automations.md) | What the hub does on its own, in plain words, with findings, a dependency board and a day plan. |
+| Running | [running.md](running.md) | What runs on the other hosts: containers, services, timers, failed units, with an optional host agent. |
 | Updating | [updating.md](updating.md) | Update notice, one-click update, channels, hold, going back, signature check, What's new. |
 | Settings | [settings.md](settings.md) | Scanning, connections, appearance, notifications, users, security, backup, storage, AI. |
 | AI | [ai.md](ai.md) | Optional explanations, questions and suggestions, local or cloud, read-only. |

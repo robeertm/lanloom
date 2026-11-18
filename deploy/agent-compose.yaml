@@ -1,0 +1,28 @@
+# Lanloom host agent: reports metadata of this host (containers, services, timers, load, memory, disks) to one Lanloom.
+# Create the one-time code in Lanloom under Settings > Agents > Pair a host agent (valid 30 minutes, works once).
+# Reference and the meaning of every line: docs/HOST-AGENT.md
+services:
+  lanloom-agent:
+    # Pin the exact version your Lanloom runs (shown in the pairing window) instead of "latest".
+    image: ghcr.io/robeertm/lanloom:latest
+    container_name: lanloom-agent
+    command: ["python", "-m", "lanloom.agent", "run"]
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      LANLOOM_AGENT_SERVER: "http://<lanloom-address>:7380"
+      LANLOOM_AGENT_CODE: "<code>"
+    volumes:
+      - lanloom-agent:/var/lib/lanloom-agent
+      - /:/host:ro
+      # optional: failed services and timers (read only client)
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
+      # optional: containers (the agent only sends GET requests)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+volumes:
+  lanloom-agent:

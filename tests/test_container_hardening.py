@@ -11,6 +11,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 HARDENED = ("lanloom", "executor")           # services that must carry every rule
+AGENT = "lanloom-agent"                    # optional host agent of another host: shares the host process view, still hardened
 EXCEPTION = "updater"                         # runtime socket, root inside; still read-only and no-new-privileges
 
 
@@ -46,6 +47,8 @@ def compose_files():
     assert m, "installer compose block not found"
     out["install.sh"] = yaml.safe_load(m.group(1).replace("${IMAGE}", "img").replace("${PORT}", "7380")
                                        .replace("${UPDATE_CHECK}", "1"))
+    agent = ROOT / "deploy" / "agent-compose.yaml"
+    out["deploy/agent-compose.yaml"] = yaml.safe_load(agent.read_text())
     for doc in sorted((ROOT / "docs").rglob("*.md")):
         for block in re.findall(r"```ya?ml\n(.*?)```", doc.read_text(), re.S):
             if "services:" in block:
@@ -64,7 +67,12 @@ def test_compose_services_follow_the_rules():
             assert not svc.get("privileged"), where
             assert not svc.get("cap_add"), where
             assert not svc.get("devices"), where
-            assert svc.get("pid") != "host" and svc.get("ipc") != "host", where
+            assert svc.get("ipc") != "host", where
+            if sname == AGENT:
+                assert svc.get("pid") == "host" and svc.get("read_only") is True and svc.get("cap_drop") == ["ALL"], where
+                assert no_new_privileges(svc), where
+            else:
+                assert svc.get("pid") != "host", where
             if name in ("compose.yaml", "install.sh") and sname in HARDENED + (EXCEPTION,):
                 assert svc.get("read_only") is True, where
                 assert no_new_privileges(svc), where

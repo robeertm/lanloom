@@ -10,6 +10,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from . import adapter_inventory, availability as availability_mod, classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubauto, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
+from .agents import AgentHub
 from .crypto import Vault
 from .scan import protect as protect_mod
 from .store import Store
@@ -140,6 +141,7 @@ class Core:
         self.reports = Reports(self, getattr(cfg, "data_dir", None))
         from .notify import Notifier
         self.notify = Notifier(self)
+        self.agents = AgentHub(self)                    # host agents and container sources (E4)
         self.reports.journal.listeners.append(self.notify.on_journal)
         self.reports.on_certs = self.notify.on_certs
         from .storage import Storage
@@ -296,6 +298,7 @@ class Core:
             self._tasks.append(asyncio.create_task(self.storage.loop()))
             self._tasks.append(asyncio.create_task(self.inventory.loop()))
         self._tasks.append(asyncio.create_task(self._tick_loop()))
+        self._tasks.append(asyncio.create_task(self.agents.loop()))
         self._tasks.append(asyncio.create_task(self.reports.loop()))
         self._tasks.append(asyncio.create_task(self.notify.loop()))
 
@@ -583,7 +586,8 @@ class Core:
             flow = "f" if now - self.flow_seen.get(dev_id, 0) < FLOW_KEEP else ""
             parts.append("%s%s%s%d" % (dev_id, st, flow, r["hidden"]))
         parts.extend("%s%d" % (k, 1 if v.get("ok") else 0) for k, v in sorted(self.source_status.items()))
-        sig = hash((self.structure_version, last, tuple(parts)))
+        agents = getattr(self, "agents", None)
+        sig = hash((self.structure_version, last, tuple(parts), agents.version if agents else 0))
         if sig != self._map_sig:
             if self._map_sig is not None:
                 self.map_version += 1
@@ -1324,6 +1328,7 @@ class Core:
         self._manual_ver += 1
         self.structure_version += 1
         self._refresh_index()
+        self.agents.reload()
         if not self.demo and not self.cfg.probe and self._tasks:
             for integ in self.integrations():
                 if integ["enabled"]:

@@ -9,6 +9,7 @@ Family by stage by checked firmware. **Read** is stage A (Lanloom only reads); *
 | Family | Read | Write | Checked firmware and versions | How it was checked |
 |---|---|---|---|---|
 | This host | yes | none | Linux kernels with socket diagnostics | automatic tests; a desktop container runtime lacks the interface and reports it |
+| Host agent and container source | yes | none | amd64 and arm64 (the same image as Lanloom); a host kernel with socket diagnostics over netlink; optional: the service manager over the system message bus, a container runtime API, an overlay VPN's status interface (see below) | automatic tests with stand-ins for the kernel files, the bus and the runtime |
 | SNMP v2c / v3 | yes | none (Get, GetNext, GetBulk only) | protocol level: v2c, v3 with MD5, SHA, SHA-256 and AES-128; not tied to a firmware | automatic protocol tests with stand-ins |
 | MQTT 3.1.1 broker | yes | none (cannot publish) | brokers speaking MQTT 3.1.1 | protocol tests with a stand-in broker |
 | Switch controller (local JSON API) | yes | none | console and classic API layouts | automatic adapter tests with stand-ins |
@@ -27,10 +28,27 @@ These work with any device that speaks the protocol; they only read.
 | Source | Reads | Writes |
 |---|---|---|
 | This host (kernel socket diagnostics) | own TCP flows, interface counters | never |
+| Host agent (optional, other hosts) | TCP conversations with bytes, listening services, load, memory, disks, failed services and timers, containers, overlay VPN peers; never contents, environment variables or command lines ([details](HOST-AGENT.md)) | never |
+| Container source | the container list of a host through the runtime API, `GET` only | never |
 | SNMP v2c / v3 | interface counters, LLDP neighbours, switch address table | never (Get, GetNext, GetBulk only) |
 | Switch controller (local JSON API, view-only account) | which client sits on which switch port or access point | never |
 | MQTT broker | message and byte counts per topic group | never (cannot publish) |
 | Home-automation hub (WebSocket API) | rooms, devices, entities, state changes, automation runs; admin mode: entities used by automations and scripts, related items, last runs ([details](HUB-BRIDGE.md)) | never (cannot call services, never renders templates) |
+
+## Host agent
+
+The optional [host agent](HOST-AGENT.md) and the container source only read. What each part needs:
+
+| Part | Needs | Without it |
+|---|---|---|
+| Image | amd64 or arm64 (the same signed image as Lanloom, same version) | not available on other architectures |
+| TCP conversations and bytes | a host kernel with socket diagnostics over netlink; host networking | flows without bytes, reported as not available |
+| Listening services and process names | host networking; process names also need the host's process view | services without a process name |
+| Failed services and timers | a service manager that answers on the system message bus (read only: list units, read properties) | units "not available" |
+| Containers | a container runtime API of the common kind; bytes per container from the byte counters of the container's network namespace, otherwise the one-shot statistics call (API version 1.41 and newer) | containers "not available", or no bytes for a container |
+| Overlay VPN peers | the VPN daemon's local status interface (optional) | no peers listed |
+
+A container source reads only the container list through the same API, over a socket or an address you enter (a read-only socket proxy is the safer choice).
 
 ## Device-family adapters
 

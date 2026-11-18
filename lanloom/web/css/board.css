@@ -117,6 +117,7 @@
 .ll-talkline { stroke: var(--ll-text-3); stroke-dasharray: 8 7; stroke-linecap: round; opacity: .5; fill: none; transition: opacity var(--ll-dur) var(--ll-ease); }
 .ll-board.is-focus .ll-talkline:not(.is-on) { opacity: .08; }
 .ll-board.is-focus .ll-talkline.is-on { opacity: .95; }
+.ll-lg-talk { stroke: var(--ll-text-3); stroke-width: 1.8; stroke-dasharray: 5 4; stroke-linecap: round; fill: none; }
 .ll-pad { fill: var(--ll-pcb-copper); transition: opacity var(--ll-dur) var(--ll-ease); }
 .ll-via { fill: var(--ll-pcb-board); stroke: var(--ll-pcb-via); stroke-width: 1; opacity: .8; transition: opacity var(--ll-dur) var(--ll-ease); }
 

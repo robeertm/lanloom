@@ -73,8 +73,8 @@ def test_table_names_exactly_the_routes_of_the_app(app_client):
 
 def test_every_rule_is_well_formed():
     for key, rule in access.RULES.items():
-        assert rule.role in access.ROLES + ("public", "executor"), key
-        if key[0] in CHANGING and rule.role not in ("executor",):
+        assert rule.role in access.ROLES + ("public", "executor", "agent"), key
+        if key[0] in CHANGING and rule.role not in ("executor", "agent"):
             # public reads of codes (pairing hello/status, passkey challenge, invite check) change nothing worth a line
             if rule.role == "public" and key[1] in ("/api/passkey/login/options", "/api/invite/check", "/api/ai/pair/hello",
                                                     "/api/ai/pair/status"):
@@ -92,7 +92,7 @@ def test_every_route_against_the_table(app_client, role):
     wrong = []
     for method, path in http_routes(app_client.routes_):
         rule = access.RULES[(method, path)]
-        if rule.role in ("public", "executor") or (method, path) in SESSION_ENDERS:
+        if rule.role in ("public", "executor", "agent") or (method, path) in SESSION_ENDERS:
             continue
         r = call(app_client, method, path, role)
         refused = r.status_code == 403 and r.json().get("error") == "auth.err.role"
