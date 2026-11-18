@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.35.0] – 2026-11-18
+
+### Added
+- **Tree view of the network.** The Network view has a switch **Board | Tree**: Internet, gateway, switches and access points, devices and guests as a tree that folds, each line with the link (cable and port on both ends, wireless band and network name, virtual), the live traffic as a number and the state as a word. Open and closed branches are remembered, also while the live data redraws the tree; devices without a known link are listed apart; the area chips and *Problems only* keep the way up to the Internet. On a phone the lines wrap. `#/network?v=tree` opens it directly. The tree is also the text alternative of the board for screen readers.
+- **Keyboard everywhere.** Every clickable surface can be reached and used with `Tab`, `Enter` and `Space`; the focus is always visible and stays on its element when a view is drawn again; `Esc` closes a card and gives the focus back to the tile or line it was opened from; dialogs keep the focus inside and give it back. Key `?` (and the command *Keyboard help*) lists every key. A *Skip to content* link is the first stop. In the tree: arrows move and fold, `Home` and `End` jump, `*` opens a level, a letter jumps to the next name. A focused tile or line lights the chain of its partners as the pointer does.
+- **Screen readers.** The tree uses the tree pattern (levels, position, expanded). Names of tiles, lines, buttons and tabs start with their visible text. The page is no longer one big live region; one polite status region speaks the important changes (a device stopped talking or is back, overall grade, live connection, change of the view), throttled: one announcement every few seconds, three items at most, a device again after a minute at the earliest, nothing for the first data. The page title follows the view.
+- **Table alternatives.** The traffic plot and the availability bars of a card have a closed *Show as table* part with their numbers.
+- Documentation: [Accessibility](docs/ACCESSIBILITY.md), the tree in the manual page of the Network view, the key list in the manual, screenshots of the tree (wide and phone) and of the keyboard help.
+
+### Changed
+- Calmer states (a configured connection, a past maintenance window, the switches of a quiet rule) are drawn in a quieter colour instead of being made see-through, so their text keeps the contrast of WCAG 2.2 AA in every theme.
+- The marks at the edge of the board (traces that lead out of view or to the outside) are named by the words they show.
+
+### Tests
+- An automated accessibility check (axe-core) over every view in the light and the dark theme and both colour themes, at desktop and phone width, allows no serious or critical finding; plus a keyboard tour of the tree, a name check for every control, a check that nothing clickable is out of reach of the keyboard and a test of the throttled status.
+
 ## [1.34.0] – 2026-11-18
 
 ### Added

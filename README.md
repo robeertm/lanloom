@@ -88,6 +88,18 @@ All screenshots show the built-in demo network with invented names and addresses
 
 ![Network view, light theme](docs/screenshots/network-light.png)
 
+### The network as a tree
+
+The Network view has two faces: the board and a **tree** that folds, Internet, gateway, switches and access points, devices and guests, with the link (cable and port, wireless band, virtual), the live traffic as a number and the state as a word. It is also the text alternative of the picture. Everything can be done with the keyboard (`?` shows the keys), the spoken status for screen readers is throttled, and an automated check allows no serious accessibility finding before a release ([Accessibility](docs/ACCESSIBILITY.md)).
+
+<table>
+<tr>
+<td width="60%"><img src="docs/screenshots/network-tree-light.png" width="100%" alt="Network tree with the card of an access point open"><br><sub>The chain as a tree; the chain of the line under the pointer is lit</sub></td>
+<td width="20%"><img src="docs/screenshots/network-tree-phone-dark.png" width="100%" alt="Network tree on a phone"><br><sub>On a phone the lines wrap</sub></td>
+<td width="20%"><img src="docs/screenshots/keyboard-help-light.png" width="100%" alt="Keyboard help"><br><sub>Key <code>?</code></sub></td>
+</tr>
+</table>
+
 ### Cabling
 
 <table>
@@ -573,6 +585,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/INVENTORY.md](docs/INVENTORY.md): inventory and life cycle: own fields, states, why a device is "probably gone", provisional entries, warranty and end of updates, the offline table, roles
 - [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces, networks and VLANs, devices without an address, scan protection, what can be connected
 - [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md): the home-automation bridge: what is read, admin mode, sparing the hub, privacy filter
+- [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md): the tree view of the network, the keyboard, screen readers, colours and contrast, how it is tested
 - [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md): the Automations tab: plain words, flow, findings, dependency board, who switches what, timeline, day plan, rooms, hub health
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read
 - [docs/DATA-PATHS.md](docs/DATA-PATHS.md): the data paths world map, what is counted where, unusual behaviour, privacy, country data ([IP Geolocation by DB-IP](https://db-ip.com), CC BY 4.0)

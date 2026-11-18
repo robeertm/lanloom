@@ -86,10 +86,11 @@
     if (LL.state) LL.state.reports_unread = n;
     document.querySelectorAll('.tab--reports').forEach(tab => {
       let b = tab.querySelector('.tab__badge');
-      if (!n) { if (b) b.remove(); tab.removeAttribute('title'); return; }
+      if (!n) { if (b) b.remove(); tab.removeAttribute('title'); tab.setAttribute('aria-label', t('nav.reports')); return; }
       if (!b) { b = h('span', { class: 'tab__badge' }); tab.append(b); }
       b.textContent = n > 9 ? '9+' : String(n);
       tab.title = t('reports.badge', { n });
+      tab.setAttribute('aria-label', t('nav.reports') + ' ' + t('reports.badge', { n }));    // the name contains the visible text (the badge number)
     });
   };
 

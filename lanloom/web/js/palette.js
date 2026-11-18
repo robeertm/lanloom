@@ -364,8 +364,8 @@
 
   // ------------------------------------------------------------------ the button in the top bar and the keys
   LL.paletteButton = function () {
-    const b = h('button', { class: 'cmdk-pill', type: 'button', 'aria-haspopup': 'dialog', title: t('cmdk.button.hint', { keys: keyName }), 'aria-label': t('cmdk.button'),
-      onclick: () => open() }, h('span', { class: 'cmdk-pill__icon', 'aria-hidden': 'true' }), h('span', { class: 'cmdk-pill__label' }, t('cmdk.button')), h('kbd', { class: 'cmdk-pill__keys', 'aria-hidden': 'true' }, keyName));
+    const b = h('button', { class: 'cmdk-pill', type: 'button', 'aria-haspopup': 'dialog', title: t('cmdk.button.hint', { keys: keyName }), 'aria-label': t('cmdk.button') + ' ' + keyName,
+      onclick: () => open() }, h('span', { class: 'cmdk-pill__icon', 'aria-hidden': 'true' }), h('span', { class: 'cmdk-pill__label' }, t('cmdk.button')), ' ', h('kbd', { class: 'cmdk-pill__keys', 'aria-hidden': 'true' }, keyName));
     b.firstChild.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICON.search + '</svg>';
     return b;
   };

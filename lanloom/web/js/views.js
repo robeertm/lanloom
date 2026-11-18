@@ -84,13 +84,18 @@
       nav, h('div', { class: 'topbar__right' }, LL.paletteButton ? LL.paletteButton() : null, LL.aiAskButton ? LL.aiAskButton() : null, updateBtn, reconnectBtn, gradePill,
         LL.railButtons ? LL.railButtons() : null, themeBtn));
     themeBtn.classList.add('theme-btn');
-    const main = h('main', { class: 'main main--' + active }, content);
+    const main = h('main', { class: 'main main--' + active, id: 'll-main', tabindex: '-1', 'aria-label': t('nav.' + active) }, content);
+    const skip = h('a', { class: 'skip-link', href: '#ll-main', onclick: ev => { ev.preventDefault(); main.focus(); } }, t('a11y.skip'));
+    document.title = t('nav.' + active) + ' · Lanloom';
     const notes = LL.noticeBar ? LL.noticeBar() : null;              // security notices (new device, lock-out ...)
     const demoBar = LL.state && LL.state.demo_view ? h('div', { class: 'demo-bar', role: 'status' },
       h('span', { class: 'demo-bar__text' }, h('strong', {}, t('setup.demo.bar_title')), ' ', t('setup.demo.bar_text')),
       h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => LL.demoView(false) }, t('setup.demo.leave'))) : null;
     const verFoot = active === 'map' || active === 'network' || !LL.versionFoot ? null : LL.versionFoot();   // phones: the version sits at the end of the page, not in the header
-    app.replaceChildren(h('div', { class: 'frame' }, header, demoBar, notes, LL.shellBody ? LL.shellBody(main, active) : main, verFoot));
+    app.replaceChildren(h('div', { class: 'frame' }, skip, header, demoBar, notes, LL.shellBody ? LL.shellBody(main, active) : main, verFoot));
+    // a new page starts at its content: the focused tab of the old page is gone, the keyboard and screen reader land in the new view
+    if (!frame.first) main.focus({ preventScroll: true });
+    frame.first = false;
     const pillText = gradePill.querySelector('.grade-pill__text');
     const narrow = window.matchMedia('(max-width: 1400px)');          // the short form: only the time
     function showState() {
@@ -108,8 +113,15 @@
     const unsub = liveSubscribe(f => {
       gradePill.dataset.grade = live.state === 'live' ? ((f.overall && f.overall.grade) || 'unknown') : 'unknown';
       showState();
+      if (LL.a11y && LL.a11y.watch) LL.a11y.watch(f);          // spoken status: a device stopped talking or is back (throttled)
     });
-    const unStatus = LL.live.onStatus(() => { if (live.state !== 'live') gradePill.dataset.grade = 'unknown'; showState(); });
+    let lastState = live.state;
+    const unStatus = LL.live.onStatus(() => {
+      if (live.state !== 'live') gradePill.dataset.grade = 'unknown';
+      showState();
+      if (live.state !== lastState && LL.a11y && (live.state === 'offline' || (lastState === 'offline' && live.state === 'live'))) LL.a11y.watchState(live.state);
+      lastState = live.state;
+    });
     const clock = setInterval(showState, 1000);
     showState();
     if (LL.can('admin')) checkUpdate(updateBtn);
@@ -120,6 +132,7 @@
     }
     return { main, destroy: () => { unsub(); unStatus(); clearInterval(clock); } };
   }
+  frame.first = true;       // the first page after loading keeps the browser's own start of focus
   const NAV_ICONS = {
     overview: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0 1 16 0"/><path d="M12 13l3.5-4"/><path d="M4 17h16"/><circle cx="12" cy="13" r="1.2"/></svg>',
     map: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h4.5v7.5M6.5 10v7.5H14"/></svg>',
@@ -157,12 +170,22 @@
         return fr;
       }
       let selected = null;
+      // the Network view has two faces: the circuit board and the tree of the chain (Internet → gateway → switches → devices);
+      // the choice is kept per browser and can be given in the address (#/network?v=tree)
+      const treeOk = kind === 'network' && !!(LL.Tree && LL.Tree.mount);
+      let mode = treeOk && (LL.query.get('v') === 'tree' || (LL.query.get('v') !== 'board' && LL.prefs.get('ll-netview', 'board') === 'tree')) ? 'tree' : 'board';
       // the address follows the open card (#/map/<id>), the back key closes it again
       const here = id => '#/' + route + (id ? '/' + encodeURIComponent(id) : '') + LL.queryString();
       const onSelectId = (id, fromAddress) => {
         selected = id; board.highlight(id);
         if (!fromAddress) LL.deepLink(here(id));
-        openDetail(panel, id, () => { selected = null; board.highlight(null); LL.deepLink(here(null)); });
+        const opener = document.activeElement;
+        openDetail(panel, id, () => {
+          selected = null; board.highlight(null); LL.deepLink(here(null));
+          // the keyboard goes back to where the card was opened from (the tile or tree row), not to the top of the page
+          const back = opener && opener.isConnected ? opener : host.querySelector('[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+          if (back && back.focus) back.focus({ preventScroll: true });
+        });
       };
       // area filter (#/map?zone=<id>) and "problems only" (#/map?only=problems); the internet edge always stays for orientation
       const filtered = view => {
@@ -178,6 +201,7 @@
       // "Who talks to whom": dashed lines in the air between devices that talk to each other (gateway flows, last 24 hours)
       let talkOn = LL.query.get('talk') === '1', talkInfo = null, talkVer = null, talkBusy = false;
       async function loadTalk() {
+        if (!board.setTalk) return;                      // the tree has no lines in the air
         if (!talkOn) { talkInfo = null; board.setTalk([]); return; }
         if (talkBusy) return;
         talkBusy = true;
@@ -191,13 +215,15 @@
         LL.deepLink(here(selected));
         loadTalk(); drawFilter();
       }
+      const feed = d => (mode === 'tree' ? localise(d) : show(d));       // the tree filters on its own (it keeps the chain above a match)
+      const treeFilter = () => ({ zone: LL.query.get('zone') || '', only: LL.query.get('only') || '' });
       function drawFilter() {
         const zones = localise(data).zones.filter(z => z.id !== 'edge');
         const zone = LL.query.get('zone'), only = LL.query.get('only');
         const set = (key, value) => {
           if (value) LL.query.set(key, value); else LL.query.delete(key);
           LL.deepLink(here(selected));
-          board.update(show(data)); if (selected) board.highlight(selected);
+          board.update(feed(data)); if (selected) board.highlight(selected);
           drawFilter();
         };
         const chip = (label, on, fn, extra) => h('button', { class: 'mf-chip' + (on ? ' is-on' : '') + (extra || ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', onclick: fn }, label);
@@ -206,8 +232,9 @@
         const talkChip = chip(t('talk.chip') + (nTalk ? ' · ' + nTalk : ''), talkOn, toggleTalk, ' mf-chip--talk');
         if (nTalk) talkChip.title = t('talk.legend', { n: nTalk });
         filterBar.replaceChildren(...[
-          talkChip,
-          talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
+          treeOk ? viewSwitch() : null, treeOk ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
+          mode !== 'board' ? null : talkChip,        // the lines in the air belong to the board; the tree has the chain
+          mode === 'board' && talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
           h('span', { class: 'mf-sep', 'aria-hidden': 'true' }),
           zones.length > 1 ? chip(t('mapfilter.all'), !zone, () => set('zone', null)) : null,
           ...(zones.length > 1 ? zones.map(z => chip(z.title || '—', zone === z.id, () => set('zone', zone === z.id ? null : z.id))) : []),
@@ -216,12 +243,42 @@
         const n = filtered(data).components.filter(c => c.zone !== 'edge').length;
         if ((zone || only) && !n) filterBar.append(h('span', { class: 'mf-empty muted' }, t(only ? 'mapfilter.none_problems' : 'mapfilter.none')));
       }
-      const board = LL.Board.mount(host, {
-        view: show(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: id => onSelectId(id)
-      });
+      function mountViewer() {
+        host.classList.toggle('board-host--tree', mode === 'tree');
+        if (mode === 'tree') return LL.Tree.mount(host, { view: feed(data), t: LL.t, locale: LL.locale(), filter: treeFilter, onSelect: id => onSelectId(id) });
+        return LL.Board.mount(host, { view: feed(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: id => onSelectId(id) });
+      }
+      let board = mountViewer();
+      if (LL.a11y) LL.a11y.setNames(localise(data).components);
+      // Esc closes the open card (not while a dialog, the palette or a text field has the keyboard)
+      const onEsc = ev => {
+        if (ev.key !== 'Escape' || panel.hidden || document.querySelector('.modal, .cmdk')) return;
+        const el = ev.target;
+        if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+        const x = panel.querySelector('.detail__close'); if (x) x.click();
+      };
+      document.addEventListener('keydown', onEsc);
+      // Board / Tree: one pair of buttons, the pressed one is the current face; the open card stays open
+      function viewSwitch() {
+        const btn = (m, label) => h('button', { class: 'seg__btn' + (mode === m ? ' is-active' : ''), type: 'button', 'aria-pressed': mode === m ? 'true' : 'false', onclick: () => switchTo(m) }, t(label));
+        return h('div', { class: 'seg nv-seg', role: 'group', 'aria-label': t('netview.label') }, btn('board', 'netview.board'), btn('tree', 'netview.tree'));
+      }
+      function switchTo(m) {
+        if (m === mode) return;
+        mode = m;
+        LL.prefs.set('ll-netview', m);
+        LL.query.delete('v'); LL.deepLink(here(selected), true);
+        board.destroy(); host.replaceChildren();
+        board = mountViewer();
+        if (selected) board.highlight(selected);
+        if (mode === 'board' && talkOn) loadTalk();
+        drawFilter();
+        const again = filterBar.querySelector('.nv-seg .is-active'); if (again) again.focus();
+        LL.announce(t(m === 'tree' ? 'netview.now_tree' : 'netview.now_board'), { now: true });
+      }
       drawFilter();
       if (talkOn) loadTalk();
-      const onTheme = ev => board.setTheme(ev.detail);
+      const onTheme = ev => board.setTheme && board.setTheme(ev.detail);
       document.addEventListener('ll-theme', onTheme);
       // deep link #/map/<id> or #/network/<id> (command palette, answers of "Ask your network"): open that component's card;
       // a component that sits on the other board sends the page there
@@ -240,7 +297,7 @@
       async function refresh() {
         if (refreshing) { stale = true; return; }
         refreshing = true;
-        try { data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); structure = data.structure; board.update(show(data)); if (selected) board.highlight(selected); drawFilter(); }
+        try { data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); structure = data.structure; board.update(feed(data)); if (LL.a11y) LL.a11y.setNames(localise(data).components); if (selected) board.highlight(selected); drawFilter(); }
         catch (e) { /* keep the old board */ }
         refreshing = false;
         if (stale) { stale = false; refresh(); }
@@ -255,7 +312,7 @@
       });
       const onVis = () => { if (!document.hidden && stale) { stale = false; refresh(); } };
       document.addEventListener('visibilitychange', onVis);
-      return { destroy: () => { unsub(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); board.destroy(); fr.destroy(); } };
+      return { destroy: () => { unsub(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); board.destroy(); fr.destroy(); } };
     };
   }
 
@@ -557,13 +614,17 @@
 
   // ------------------------------------------------------------------ sources dialog (live grade)
   function dialog(title, body, foot) {
-    const close = () => { dlg.remove(); document.removeEventListener('keydown', esc); };
-    const esc = ev => { if (ev.key === 'Escape') close(); };
+    // focus moves into the dialog, Tab stays inside, Esc and the close button give the focus back to where it came from
+    const opener = document.activeElement;
+    let release = null;
+    const close = () => { if (!dlg.isConnected) return; dlg.remove(); document.removeEventListener('keydown', esc); if (release) release(); };
+    const esc = ev => { if (ev.key === 'Escape' && document.querySelectorAll('.modal').length && [...document.querySelectorAll('.modal')].pop() === dlg) { ev.stopPropagation(); close(); } };
     const dlg = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title, onclick: ev => { if (ev.target === dlg) close(); } },
       h('div', { class: 'modal__card card' }, h('header', { class: 'modal__head' }, h('h2', {}, title), h('button', { class: 'icon-btn', type: 'button', 'aria-label': t('detail.close'), onclick: close }, '✕')),
         h('div', { class: 'modal__body' }, body), foot ? h('footer', { class: 'modal__foot' }, foot) : null));
     document.addEventListener('keydown', esc);
     document.body.appendChild(dlg);
+    if (LL.a11y && LL.a11y.trapFocus) release = LL.a11y.trapFocus(dlg, opener);
     return { el: dlg, close };
   }
 
@@ -729,7 +790,7 @@
   LL.versionChip = () => {
     if (!verText() || !LL.state.authenticated) return null;
     wnOnce();
-    return h('button', { class: 'ver-chip', type: 'button', title: t('whatsnew.title'), 'aria-label': t('whatsnew.title') + ' — ' + verText(), onclick: openWhatsNew }, `v${verText()}`, wnDot());
+    return h('button', { class: 'ver-chip', type: 'button', title: t('whatsnew.title'), 'aria-label': `v${verText()}, ` + t('whatsnew.title'), onclick: openWhatsNew }, `v${verText()}`, wnDot());
   };
   LL.versionFoot = () => {
     if (!verText() || !LL.state.authenticated) return null;

@@ -369,7 +369,7 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .setup-first .btn-row { margin-top: 4px; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .setup-suggest { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
-.setup-suggest.is-configured { opacity: .85; }
+.setup-suggest.is-configured .setup-suggest__titles h3 { color: var(--ll-text-2); }        /* calmer, not dimmed: dimmed words fail the contrast */
 .setup-suggest__head { display: flex; align-items: flex-start; gap: 12px; }
 .setup-suggest__head > .chip, .setup-suggest__head > .btn { flex: none; align-self: center; }
 .setup-suggest__titles { flex: 1; min-width: 0; }

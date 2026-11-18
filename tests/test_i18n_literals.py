@@ -25,6 +25,7 @@ ALLOWED = {
     ("app.js", "Lanloom"): "the product name; a proper name is not translated",
     ("app.js", "Lanloom "): "the product name; a proper name is not translated",
     ("views.js", "Lanloom"): "the product name; a proper name is not translated",
+    ("views.js", " · Lanloom"): "separator and the product name in the page title; a proper name is not translated",
     ("wizard.js", "Lanloom"): "the product name; a proper name is not translated",
     ("wizard.js", "ABCD-EFGH"): "an example of the shape of the setup code, not a word",
     ("backup.js", "Lanloom"): "the product name; a proper name is not translated",

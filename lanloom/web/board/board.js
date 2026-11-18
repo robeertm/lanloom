@@ -334,8 +334,8 @@
           const el = document.createElement('button');
           el.type = 'button';
           el.className = 'll-tile';
-          el.innerHTML = '<span class="ll-tile__icon"></span><span class="ll-tile__body"><span class="ll-tile__title"></span><span class="ll-tile__sub"></span>' +
-            '<span class="ll-tile__meta"><i class="ll-grade" aria-hidden="true"></i><span class="ll-tile__metric"></span><span class="ll-tile__badges"></span></span></span><i class="ll-led" aria-hidden="true"></i>';
+          el.innerHTML = '<span class="ll-tile__icon"></span><span class="ll-tile__body"><span class="ll-tile__title"></span> <span class="ll-tile__sub"></span> ' +      // the blanks keep the words apart for readers of the text (they are not drawn in a flex row)
+            '<span class="ll-tile__meta"><i class="ll-grade" aria-hidden="true"></i> <span class="ll-tile__metric"></span> <span class="ll-tile__badges"></span></span></span><i class="ll-led" aria-hidden="true"></i>';
           this.tilesEl.appendChild(el);
           e = { el, icon: el.querySelector('.ll-tile__icon'), title: el.querySelector('.ll-tile__title'), sub: el.querySelector('.ll-tile__sub'),
             metric: el.querySelector('.ll-tile__metric'), badgesEl: el.querySelector('.ll-tile__badges'), badges: [], kind: null };
@@ -352,7 +352,7 @@
         e.data = c;
         // badges: create as needed (≤ 3)
         const badges = (c.badges || []).slice(0, 3).map(String);
-        while (e.badges.length < badges.length) { const b = document.createElement('span'); b.className = 'll-badge'; e.badgesEl.appendChild(b); e.badges.push(b); }
+        while (e.badges.length < badges.length) { const b = document.createElement('span'); b.className = 'll-badge'; e.badgesEl.appendChild(document.createTextNode(' ')); e.badgesEl.appendChild(b); e.badges.push(b); }
         while (e.badges.length > badges.length) e.badges.pop().remove();
         e.badgeText = badges;
         e.title.setAttribute('title', c.title || '');
@@ -365,15 +365,16 @@
     ariaLabel(e) {
       const c = e.data;
       const grade = this.gradeOf.get(c.id) || 'unknown';
-      let s = this.t('board.tile.aria', {
-        title: c.title || c.id,
+      // the name starts with exactly what the tile shows (title, address, live number, badges) and adds what only the colours say
+      // afterwards: kind, status, live grade (a screen reader user also hears the visible text; a voice control user can say it)
+      const metric = e.metricFull ? e.metricFull : (c.metric ? localiseMetric(String(c.metric), this.locale) : '');
+      const shown = [c.title || c.id, c.subtitle, metric].concat(e.badgeText || []).filter(Boolean).join(' ');
+      const s = this.t('board.tile.aria', {
+        title: shown,
         kind: this.t('board.kind.' + (e.kind || 'unknown')),
         status: this.t('board.status.' + (STATUSES.includes(c.status) ? c.status : 'unknown')),
         grade: this.t('board.grade.' + grade)
       });
-      if (c.subtitle) s += ', ' + c.subtitle;
-      if (e.metricFull) s += ', ' + e.metricFull;
-      else if (c.metric) s += ', ' + localiseMetric(String(c.metric), this.locale);
       e.el.setAttribute('aria-label', s);
     }
 
@@ -432,6 +433,7 @@
       e.sub.textContent = fitText(f.sub, c.subtitle || '', f.wSub - SAFETY);
       e.metricFull = c.metric == null ? '' : localiseMetric(String(c.metric), this.locale);
       this.fitMeta(e, f);
+      this.ariaLabel(e);       // the name follows what the tile shows now (a refit puts the number of the structure data back)
     }
     fitMeta(e, f) {
       // badges first (each ≤ 64 px), then the metric gets the rest; badges are dropped from the end if the metric would get too narrow

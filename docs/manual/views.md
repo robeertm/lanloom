@@ -82,6 +82,7 @@ filter you had before.
 | `L` | show or hide *Right now* |
 | `I` | show or hide *About this view* |
 | `/`, `Ctrl K`, `⌘ K` | search and commands |
-| `Esc` | close a dialog or a rail that lies over the page |
+| `?` | the keyboard help (every key, also for the tree view of the Network view) |
+| `Esc` | close a card, a dialog or a rail that lies over the page; the focus returns to where you came from |
 
-Keys do nothing while you type in a field.
+Keys do nothing while you type in a field. Everything can be done with the keyboard; see [Accessibility](../ACCESSIBILITY.md).

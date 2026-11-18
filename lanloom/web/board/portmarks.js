@@ -468,7 +468,7 @@
         used.add(sp.key);
         let m = this.marks.get(sp.key);
         if (!m) {
-          m = document.createElement('div'); m.className = this.cls('mark');
+          m = document.createElement('div'); m.className = this.cls('mark'); m.setAttribute('role', 'img');
           m.innerHTML = `<span class="${this.cls('sym')}"></span><span class="${this.cls('txt')}"></span>`;
           this.el.appendChild(m); this.marks.set(sp.key, m);
         }

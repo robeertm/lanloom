@@ -91,6 +91,8 @@
           [t('avail.mttr'), d.mttr_s ? LL.fmtAge(d.mttr_s) : '—'], [t('avail.longest'), d.longest_s ? LL.fmtAge(d.longest_s) : '—']]),
         h('div', { class: 'avail__sub muted' }, t('avail.days', { n: d.bars.length })),
         bars(d.bars, d.t, 40),
+        LL.a11y ? LL.a11y.tableAlt(t('a11y.table.avail_caption', { n: d.bars.length }), [t('a11y.table.day'), t('a11y.table.share')],
+          d.bars.map((v, i) => [dayStamp(d.t - (d.bars.length - 1 - i) * 86400), v == null ? t('avail.slot.unknown') : pct(v)]).reverse()) : null,
         list.length ? h('ul', { class: 'avail-list' }, list.map(i => h('li', {}, h('span', { class: 'mono' }, stamp(i.from, true)),
           h('span', { class: 'muted' }, ' · ' + (i.open ? t('avail.ongoing') : LL.fmtAge(i.dur)))))) : h('p', { class: 'muted avail__none' }, t('avail.none')));
     }
@@ -140,6 +142,19 @@
       }
     }
   }
+  // the numbers behind the picture for the table alternative: at most 12 periods, the average rate of each (newest last, like the plot)
+  function plotRows(data) {
+    const pts = data.points, n = pts.length, buckets = Math.min(12, n), day = data.range === '7d' || data.range === '24h';
+    const rows = [];
+    for (let b = 0; b < buckets; b++) {
+      const from = Math.floor(b * n / buckets), to = Math.max(from + 1, Math.floor((b + 1) * n / buckets));
+      let up = 0, down = 0;
+      for (let i = from; i < to; i++) { up += pts[i][0]; down += pts[i][1]; }
+      const k = to - from;
+      rows.push([stamp(data.t0 + from * data.step, day) + ' – ' + stamp(data.t0 + to * data.step), LL.fmtRate(up / k), LL.fmtRate(down / k)]);
+    }
+    return rows;
+  }
   // the plot with its ranges; ``liveEl`` (optional) is the one-second live chart that stays the first tab
   function plot(id, opts) {
     opts = opts || {};
@@ -151,7 +166,8 @@
     const tabs = h('div', { class: 'seg plot-tabs', role: 'tablist', 'aria-label': t('plot.range') });
     const names = { live: 'plot.live', '1h': 'plot.r1h', '6h': 'plot.r6h', '24h': 'plot.r24h', '7d': 'plot.r7d' };
     const full = opts.full ? null : h('button', { class: 'icon-btn plot-full-btn', type: 'button', title: t('plot.full'), 'aria-label': t('plot.full'), onclick: () => LL.plotFull(id, range === 'live' ? '1h' : range, opts.title) }, '⤢');
-    const hist = h('div', { class: 'tplot__hist' }, canvas, readout, stats);
+    const alt = LL.a11y ? LL.a11y.tableAlt(t('a11y.table.traffic_caption'), [t('a11y.table.time'), t('a11y.table.up'), t('a11y.table.down')], []) : null;
+    const hist = h('div', { class: 'tplot__hist' }, canvas, readout, stats, alt);
     const wrap = h('div', { class: 'tplot-wrap' }, h('div', { class: 'tplot__bar' }, tabs, full), opts.live || null, hist);
     function drawTabs() {
       tabs.replaceChildren(...(opts.live ? ['live'] : []).concat(RANGES).map(r => h('button', { type: 'button', role: 'tab', class: 'seg__btn' + (r === range ? ' is-active' : ''),
@@ -166,6 +182,7 @@
       if (!data || range === 'live') return;
       const nonzero = data.points.some(p => p[0] || p[1]);
       canvas.hidden = !nonzero; readout.hidden = !nonzero;          // an empty plot is a message, not a flat line
+      if (alt) { alt.hidden = !nonzero; if (nonzero) alt.setRows(plotRows(data)); }
       if (nonzero) drawPlot(canvas, data, height, cursor);
       stats.replaceChildren(nonzero ? h('span', {}, t('plot.sent', { v: LL.fmtBytes(data.total[0]) }) + ' · ' + t('plot.received', { v: LL.fmtBytes(data.total[1]) }) + ' · ' + t('plot.peak', { v: LL.fmtRate(Math.max(data.peak[0], data.peak[1])) })) : h('span', {}, t('plot.none')));
     }

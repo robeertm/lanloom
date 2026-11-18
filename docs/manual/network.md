@@ -23,6 +23,16 @@ in?".
 
 ![Switch card with the devices on its ports](../screenshots/connection-switch-light.png)
 
+### Board or tree
+
+The switch **Board | Tree** above the view changes its face. The **tree** shows the same chain as a list that folds:
+Internet, gateway, switches and access points, then devices and guests, each line with the link (cable and port,
+wireless band and network name, or virtual), the live traffic as a number and the state as a word. It is also the text
+alternative of the picture for screen readers and can be walked with the arrow keys (`?` lists the keys). Your choice is
+kept in the browser. See [Accessibility](../ACCESSIBILITY.md).
+
+![The network as a tree](../screenshots/network-tree-light.png)
+
 ## How to use it
 
 - Open a device and read *Source* to see who placed it; the warning box lists what other sources say.
@@ -58,6 +68,7 @@ in?".
 
 ## See also
 
+- [ACCESSIBILITY.md](../ACCESSIBILITY.md) - the tree view, the keyboard, screen readers
 - [TOPOLOGY.md](../TOPOLOGY.md) - sources, precedence, manual entry, shared ports, troubleshooting
 - [COMPATIBILITY.md](../COMPATIBILITY.md) - which device families can be read
 - [DISCOVERY.md](../DISCOVERY.md#networks-and-vlans) - networks, VLANs and what is scanned across routers

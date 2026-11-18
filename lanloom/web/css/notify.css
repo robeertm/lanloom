@@ -19,7 +19,7 @@
 .nt-rule__hint { flex-basis: 100%; font-weight: normal; font-size: var(--ll-fs-sm); }
 .nt-rule__warn { flex-basis: 100%; font-weight: normal; font-size: var(--ll-fs-sm); color: var(--ll-warn-text); }
 .nt-rule .select { width: 100%; }
-.nt-rule.is-calm .nt-rule__chans { opacity: .55; }
+.nt-rule.is-calm .nt-chans > :not(.fineprint) { opacity: .55; }        /* only the switches are dimmed; the words keep their contrast */
 .nt-group__title { margin: var(--ll-space-3) 0 0; font-size: var(--ll-fs-sm); color: var(--ll-text-2); text-transform: uppercase; letter-spacing: .05em; }
 .nt-chans { display: flex; flex-wrap: wrap; gap: 6px; }
 .nt-chan { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-pill); font-size: var(--ll-fs-sm); cursor: pointer; background: var(--ll-surface-2); }
@@ -29,7 +29,7 @@
 .nt-times input[type="time"] { width: 100%; }
 
 .nt-win.is-active { border-left: 3px solid var(--ll-warn); padding-left: 10px; }
-.nt-win.is-past { opacity: .65; }
+.nt-win.is-past .nt-win__title { color: var(--ll-text-2); font-weight: var(--ll-fw-regular, 400); }        /* a window in the past is calmer, not dimmed: dimmed grey words fail the contrast */
 .nt-win__main { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .nt-win__when { flex-basis: 100%; font-size: var(--ll-fs-sm); }
 .nt-form { border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); padding: 10px 14px; background: var(--ll-surface-2); }

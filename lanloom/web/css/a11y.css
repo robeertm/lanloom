@@ -1,0 +1,23 @@
+/* Lanloom — accessibility: skip link, keyboard help, table alternatives, visible focus everywhere. Design tokens only. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; left: 12px; top: -48px; z-index: 120; padding: 10px 16px; border-radius: var(--ll-radius-md); background: var(--ll-surface); color: var(--ll-text);
+  border: 2px solid var(--ll-focus); font-weight: var(--ll-fw-semibold); text-decoration: none; }
+.skip-link:focus { top: 10px; }
+main:focus { outline: none; }
+.kbd { display: inline-block; font-family: var(--ll-font-mono); font-size: var(--ll-fs-xs); line-height: 1; padding: 4px 8px; border-radius: var(--ll-radius-xs); border: 1px solid var(--ll-border-strong);
+  border-bottom-width: 2px; background: var(--ll-surface-2); color: var(--ll-text); white-space: nowrap; }
+.kb-help > p { margin: 0 0 16px; }
+.kb-group { margin: 0 0 18px; }
+.kb-group h3 { margin: 0 0 8px; font-size: var(--ll-fs-md); }
+.kb-list { display: grid; grid-template-columns: 150px 1fr; gap: 8px 16px; margin: 0; align-items: center; }
+.kb-list dt { margin: 0; }
+.kb-list dd { margin: 0; color: var(--ll-text-2); }
+.kb-or { color: var(--ll-text-3); margin: 0 2px; }
+@media (max-width: 520px) { .kb-list { grid-template-columns: 1fr; gap: 2px; } .kb-list dd { margin-bottom: 8px; } }
+.alt { margin-top: 8px; font-size: var(--ll-fs-sm); }
+.alt > summary { cursor: pointer; color: var(--ll-text-2); padding: 4px 0; }
+.alt > summary:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 2px; border-radius: var(--ll-radius-xs); }
+.alt-table { width: 100%; margin-top: 6px; }
+.alt-table th[scope="row"] { text-align: left; font-weight: var(--ll-fw-medium); }
+/* every interactive thing shows where the keyboard is */
+a:focus-visible, button:focus-visible, summary:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 2px; }

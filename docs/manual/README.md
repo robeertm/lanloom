@@ -20,5 +20,7 @@ guides in [docs/](../)). The *About this view* rail of the app (key `I`) links t
 | AI | [ai.md](ai.md) | Optional explanations, questions and suggestions, local or cloud, read-only. |
 | The parts around the views | [views.md](views.md) | Right now, About this view, live state and live grade, deep links, keys. |
 
+Keyboard, screen reader and the tree view of the Network view: [../ACCESSIBILITY.md](../ACCESSIBILITY.md).
+
 When something does not work, see [../TROUBLESHOOTING.md](../TROUBLESHOOTING.md). Installation is in
 [../INSTALL.md](../INSTALL.md), the security model in [../../SECURITY.md](../../SECURITY.md).

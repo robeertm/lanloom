@@ -764,7 +764,8 @@
         if (m.style.color !== sp.color) m.style.color = sp.color;
         m.style.setProperty('--ll-em-g', sp.kind === 'end' ? (0.5 + 0.5 * Math.min(1, sp.g * 1.6)).toFixed(2) : '1');
         const target = sp.entries.length === 1 ? sp.entries[0].name : t('endmarks.targets', { n: sp.entries.length });
-        m.setAttribute('aria-label', t(sp.kind === 'end' ? 'endmarks.ariaEnd' : 'endmarks.ariaEdge', { target }));
+        // the name starts with the words on the mark (voice control says what it sees), then says where the trace leads
+        m.setAttribute('aria-label', sp.text + ', ' + t(sp.kind === 'end' ? 'endmarks.ariaEnd' : 'endmarks.ariaEdge', { target }));
         // the label may be shortened, the tooltip names all peers in full
         const names = sp.entries.slice(0, LIST_MAX).map(e => e.name), rest = sp.entries.length - names.length;
         const tip = names.join(' · ') + (rest > 0 ? ' · ' + t('endmarks.more', { n: rest }) : '');

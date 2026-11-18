@@ -230,8 +230,10 @@
     setTimeout(() => { el.classList.add('is-out'); setTimeout(() => el.remove(), 300); }, 4200);
   };
   LL.field = function (label, input, hint) {
-    const id = input.id || ('f' + Math.random().toString(36).slice(2, 9));
-    input.id = id;
+    // a wrapper around the control (password field with a clear button, ...) hands the label to the control inside it
+    const ctl = /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(input.tagName) ? input : (input.querySelector('input:not([type=hidden]),select,textarea') || input);
+    const id = ctl.id || ('f' + Math.random().toString(36).slice(2, 9));
+    ctl.id = id;
     return h('div', { class: 'field' }, h('label', { for: id, class: 'field__label' }, label), input, hint ? h('div', { class: 'field__hint' }, hint) : null);
   };
   LL.msg = function (el, text, kind) { el.textContent = text || ''; el.className = 'msg' + (text ? ' msg--' + (kind || 'info') : ''); };
