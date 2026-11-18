@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.36.0] – 2026-11-18
+
+### Added
+- **Host agent (optional).** A small agent for the other hosts of the network, started from the same signed image (`python -m lanloom.agent run`, standard library only). It reports every 10 seconds, only to the Lanloom it was paired with: bytes per TCP conversation (kernel socket diagnostics), listening services with the short process name, load, memory and disks, failed services and the results of timers (a read-only client of the system message bus that can only list and read properties), the containers of the host's container runtime and, when its status socket is there, the peers of an overlay VPN. Metadata only: never contents, environment variables, command lines, labels (except the compose project and service), mounts or health check output - a positive list on the agent and a second filter in Lanloom. It opens no port and takes no commands.
+- **Pairing with a one-time code.** Settings › Agents › *Pair a host agent* shows a code (30 minutes, once) with a ready compose file and a `docker run` line for the host. The agent exchanges the code for a token of its own; Lanloom keeps only the token's hash, and *Remove* revokes it at once (the agent then stops sending and waits quietly). Reports wait in a buffer of about two hours when Lanloom cannot be reached (kept across restarts) and go out oldest first. The agent never loads code: when its version differs, Lanloom names the exact image to pull.
+- **Container source without an agent.** Settings › Agents › *Add container source*: a container runtime API behind a socket proxy (`unix://`, `http://`, `tcp://`), read every 30 seconds with GET requests only; *Test* shows runtime, version and the number of containers.
+- **Running view.** A new tab per host: system values with a 24-hour trend, containers (state, health, image, uptime, ports, live rate), listening services, timers with last and next run and their result, failed units, overlay VPN peers; *Problems only* and a search. Containers that lived less than 10 minutes (one-off jobs) are only counted, a known, restarting or unhealthy one always shows.
+- **Containers on the map.** In the Network view the containers of a host are sub-parts in a zone right after it, folded until opened (chip *Containers*, the host's card, palette *Show containers on the map* / *Hide containers on the map*; remembered per host). A container stopped on purpose is grey, a failed, dead or restarting one red. Cards for a container and a *Host agent* section on the card of a host.
+- **Who talks to whom across hosts.** Conversations an agent measures between two known devices become pairs of the data paths (the map's dashed lines and *Where does it talk to?* on the cards); when both ends run an agent, only one side counts them. Bytes to the internet go into the data paths of that host.
+- Nightly report section *Hosts and containers* (silent agents, failed services and timers, unhealthy containers, full disks, agents waiting for an update) and notification events *Host agent silent*, *Service or timer failed*, *Container unhealthy*. 5-minute samples of load, memory, disk and failures per host are kept for 35 days (host health for the forecast feature). Demo with two agents and a container source.
+- Documentation: [Host agent](docs/HOST-AGENT.md) (reference and installation), manual page [Running](docs/manual/running.md), compatibility, troubleshooting, security model, `deploy/agent-compose.yaml`; screenshots.
+
+### Security
+- New routes in the rights table: reading for every role, renaming for operators, codes, container sources and removal for administrators (with a fresh confirmation for codes and removal), the report route only with an agent token. The agent's outbound connection is a category of its own in the egress allow-list (`agent-link`); the runtime and bus clients are checked to send nothing but GET requests and listing/reading calls.
+
+### Tests
+- Secret filter with known secrets in environment, command line, labels, mounts and health output (on the agent, in the database and in every answer), a stand-in container runtime that records every request (GET only), the bus client's method list and wire format, pairing, one-time codes, token hashes, revocation, buffer and restart, noise filter, conversations counted once, samples, events, nightly section, demo; a browser check of the Running view, the pairing dialog, the folded containers and the cards at desktop and phone width.
+
 ## [1.35.0] – 2026-11-18
 
 ### Added
