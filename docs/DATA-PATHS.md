@@ -14,7 +14,7 @@ The **Data paths** tab shows where the devices of your network send data on the 
 
 ## Where does it talk to? (on every card)
 
-The card of a device has the section **Where does it talk to?** with the period switch (24 hours, 7 days, 30 days, the same choice as the map): *On the internet* lists the countries with the bytes sent and received and whether the country is in the EU (own networks and tunnels and traffic without a country are listed as their own lines), and *In your network* lists the devices it talks to, by name, with the bytes in each direction. A click on a name opens that device's card. The card of the **Internet** tile has *Who talks to the internet?*: every device that exchanged data with the internet in the period, with its sums and the number of countries. Route: `GET /api/paths/device/<id>?window=` (`internet` for the tile).
+The card of a device has the section **Where does it talk to?** with the period switch (24 hours, 7 days, 30 days, the same choice as the map): *On the internet* lists the countries with the bytes sent and received and whether the country is in the EU (own networks and tunnels, anycast and traffic without a country are listed as their own lines), and *In your network* lists the devices it talks to, by name, with the bytes in each direction. A click on a name opens that device's card. The card of the **Internet** tile has *Who talks to the internet?*: every device that exchanged data with the internet in the period, with its sums and the number of countries. Route: `GET /api/paths/device/<id>?window=` (`internet` for the tile).
 
 ## Who talks to whom (on the map)
 
@@ -34,9 +34,10 @@ Every connection partner beyond your local network falls into exactly one bucket
 | --- | --- | --- |
 | A country | the country from the offline database | yes |
 | Own networks and tunnels | the address range used by overlay VPNs (`100.64.0.0/10`), special and reserved ranges, and every network you list under *Settings → Data paths → Own networks and tunnels* (for example a second site or a VPN provider) | no, shown separately |
+| Anycast (nearest location) | well-known anycast networks: the published ranges of the largest content delivery network (also its time and DNS services) and the networks of three public DNS resolvers. They answer from the nearest of many locations worldwide, while the database only knows the country a block is registered in, so a download from a server next door would otherwise be booked under a far-away country. The list ships with the image and is renewed with releases; a network you list as your own wins | no, its own line in the countries list (click it to see which devices use it) |
 | Without a country | a valid address the database has no country for | no, shown separately |
 
-The share outside the EU therefore only refers to traffic with a known country. If there is none, it shows **no data** instead of 0 %. Partners inside your local network are not data paths and are not counted.
+The share outside the EU therefore only refers to traffic with a known country; anycast is never part of it. If there is none, it shows **no data** instead of 0 %. Partners inside your local network are not data paths and are not counted.
 
 Without loaded country data nothing is booked at all, so a start-up race can never turn real traffic into "without a country".
 

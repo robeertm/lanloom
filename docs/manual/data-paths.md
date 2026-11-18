@@ -48,9 +48,12 @@ unusually much.
 
 ## Limits
 
-- Every partner beyond your local network falls into exactly one bucket: a country, *own networks and tunnels* or
-  *without a country*. The share outside the EU refers only to traffic with a known country; if there is none, it
-  shows **no data** instead of 0 %.
+- Every partner beyond your local network falls into exactly one bucket: a country, *own networks and tunnels*,
+  *anycast (nearest location)* or *without a country*. The share outside the EU refers only to traffic with a known
+  country; if there is none, it shows **no data** instead of 0 %.
+- Anycast networks (a large content delivery network, public DNS resolvers, time services) answer from the nearest of
+  many locations, but the country database only knows where their addresses are registered. Lanloom therefore lists
+  them as one line of their own instead of a country, and leaves them out of the share outside the EU.
 - Without NetFlow only the host's own connections are counted. With NetFlow, an address no device is known for is booked
   as *Unknown device*, and traffic between two local devices is not counted.
 - Country data is offline and approximate (a database that ships with each release). A country lights up with its main

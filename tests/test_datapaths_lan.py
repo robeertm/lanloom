@@ -66,10 +66,10 @@ def test_forgetting_a_device_removes_its_conversations():
 
 def test_device_view_lists_countries_and_lan_partners_with_titles():
     dp = make()
-    dp.book("a", "8.8.8.8", 1000, 4000, T0)
+    dp.book("a", "3.3.3.3", 1000, 4000, T0)
     dp.book("a", "193.0.0.1", 10, 20, T0)
     dp.book("a", "198.51.100.9", 5, 6, T0)                            # listed as own by the geo data (ZZ)
-    dp.book("b", "8.8.8.8", 7, 8, T0)
+    dp.book("b", "3.3.3.3", 7, 8, T0)
     dp.book_pair("a", "b", 300, T0)
     dp.book_pair("c", "a", 40, T0)
     v = dp.device_view("a", "24h", DEVS, T0 + 1)
@@ -84,8 +84,8 @@ def test_device_view_lists_countries_and_lan_partners_with_titles():
 
 def test_internet_tile_view_sums_per_device():
     dp = make()
-    dp.book("a", "8.8.8.8", 1000, 4000, T0)
-    dp.book("b", "8.8.8.8", 10, 20, T0)
+    dp.book("a", "3.3.3.3", 1000, 4000, T0)
+    dp.book("b", "3.3.3.3", 10, 20, T0)
     dp.book("b", "193.0.0.1", 1, 2, T0)
     v = dp.device_view("internet", "24h", DEVS, T0 + 1)
     assert [(d["id"], d["tx"], d["rx"], d["countries"], d["title"]) for d in v["devices"]] == [("a", 1000, 4000, 1, "Laptop"), ("b", 11, 22, 2, "Storage")]
@@ -106,7 +106,7 @@ def test_lan_to_lan_flows_become_conversations_but_never_data_paths():
              (ipaddress.ip_address("192.0.2.11"), ipaddress.ip_address("192.0.2.10"), 900),
              (ipaddress.ip_address("192.0.2.10"), ipaddress.ip_address("192.0.2.77"), 1234),   # unknown device: no line
              (ipaddress.ip_address("192.0.2.10"), ipaddress.ip_address("192.0.2.10"), 50),     # itself
-             (ipaddress.ip_address("192.0.2.10"), ipaddress.ip_address("8.8.8.8"), 700)]
+             (ipaddress.ip_address("192.0.2.10"), ipaddress.ip_address("3.3.3.3"), 700)]
     assert col._book(flows, T0) == 1
     assert dp.pairs("24h", T0 + 1) == [{"a": "a", "b": "b", "ab": 4000, "ba": 900}]
     s = dp.summary("24h", DEVS, T0 + 1)

@@ -173,22 +173,23 @@ def registry():
     return reg
 
 
-# Data paths (synthetic history): host number -> [(country, MB sent per day, MB received per day)]. "~own" is a tunnel.
+# Data paths (synthetic history): host number -> [(country, MB sent per day, MB received per day)]. "~own" is a tunnel,
+# "~anycast" a well-known anycast network (content delivery, public resolvers, time service).
 PATHS_HOME = "NL"
 PATHS = {
     11: [("NL", 40, 300), ("US", 15, 120), ("DE", 5, 40), ("IE", 3, 20), ("~own", 30, 30)],
     10: [("NL", 300, 80), ("CH", 120, 10)],
     12: [("NL", 20, 4)],
     14: [("NL", 5, 20), ("US", 2, 10), ("FI", 1, 3)],
-    20: [("NL", 80, 600), ("US", 60, 400), ("FR", 10, 80), ("SE", 5, 120), ("GB", 4, 30), ("~own", 12, 40)],
-    22: [("NL", 25, 300), ("US", 30, 350), ("IE", 6, 60), ("SG", 2, 20)],
+    20: [("NL", 80, 600), ("US", 60, 400), ("FR", 10, 80), ("SE", 5, 120), ("GB", 4, 30), ("~own", 12, 40), ("~anycast", 15, 450)],
+    22: [("NL", 25, 300), ("US", 30, 350), ("IE", 6, 60), ("SG", 2, 20), ("~anycast", 4, 90)],
     23: [("US", 10, 400), ("NL", 8, 150)],
     30: [("US", 20, 2500), ("NL", 5, 900), ("IE", 2, 300)],
     31: [("US", 3, 60), ("IE", 1, 30)],
     32: [("US", 4, 700), ("GB", 1, 90)],
     51: [("CN", 12, 1)],
     65: [("CN", 2, 1), ("SG", 1, 0.5)],
-    66: [("NL", 1, 0.3), ("DE", 0.5, 0.2)],
+    66: [("NL", 1, 0.3), ("DE", 0.5, 0.2), ("~anycast", 0.05, 0.05)],
 }
 # Conversations between two devices of the LAN (as a gateway would report them across networks): host number, host number,
 # MB per day from the first to the second, MB per day back. The map's "Who talks to whom" draws them as dashed lines.

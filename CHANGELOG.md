@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.42.0] – 2026-11-18
+
+1.41.0 and 1.41.1 below were not released on their own; they are part of this release.
+
+### Added
+- **Anycast networks get their own line in the data paths instead of a far-away country.** The offline country database only knows the country an address block is registered in. Anycast networks answer from the nearest of many locations worldwide, so a download from a content delivery server in the next city, the time service of a smart plug or a public DNS resolver was booked under the country of registration (a large content delivery network showed up as "Canada", its resolver as "Australia") and inflated the share outside the EU. Lanloom now ships a small list of well-known anycast networks with the image (the published ranges of the largest content delivery network, also its time and DNS services, and the networks of three public DNS resolvers) and books matching traffic as **Anycast (nearest location)**: its own line in the countries list (click it to see which devices use it), its own line under *Where does it talk to?* on a device card, a note under the key figures, never a country, never a "new country" hint, and never part of the share outside the EU. The bytes still count for the device and for *data exchanged with the internet*. A network listed under *Own networks and tunnels* wins. API: `GET /api/paths` totals `anycast`, `anycast_tx`, `anycast_rx`, `anycast_devices`, matrix bucket `~anycast`; `GET /api/paths/device/<id>` field `anycast`. Reported by a tester (issue #4).
+- Demo: some anycast traffic on the laptop, the phone and the inverter.
+
+### Changed
+- Traffic already booked under a country before the update is not re-sorted (only country, device and bytes are stored, never addresses); it drops out as the periods roll over.
+
 ## [1.41.1] – 2026-11-18
 
 1.41.0 below was not released on its own; it is part of this release.

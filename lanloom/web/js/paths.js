@@ -25,6 +25,7 @@
   function countryName(cc) {
     if (!cc) return '';
     if (cc === '~unassigned') return t('paths.unassigned');
+    if (cc === '~anycast') return t('paths.anycast');
     try {
       if (!names || names.lang !== LL.lang) names = { lang: LL.lang, dn: new Intl.DisplayNames([LL.lang], { type: 'region' }) };
       return names.dn.of(cc) || cc;
@@ -428,7 +429,7 @@
       h('button', { type: 'button', class: 'pw-selchip__x', 'aria-label': t('paths.selection.clear'), onclick: () => select(null) }, '×'));
   }
   function kpis(d) {
-    const tt = d.totals, total = tt.tx + tt.rx + tt.unassigned;
+    const tt = d.totals, total = tt.tx + tt.rx + tt.unassigned + (tt.anycast || 0);
     const tile = (value, label, cls) => h('div', { class: 'pw-kpi' + (cls ? ' ' + cls : '') }, h('b', {}, value), h('span', {}, label));
     const share = tt.outside_eu_share == null ? t('paths.no_data') : pct(tt.outside_eu_share);
     return h('div', { class: 'pw-kpis' },
@@ -440,8 +441,9 @@
   }
   function note(d) {
     const tt = d.totals, parts = [];
-    if (tt.own > 0 || tt.unassigned > 0) parts.push(t('paths.note.share', { bytes: LL.fmtBytes(tt.attributable) }));
+    if (tt.own > 0 || tt.unassigned > 0 || tt.anycast > 0) parts.push(t('paths.note.share', { bytes: LL.fmtBytes(tt.attributable) }));
     if (tt.own > 0) parts.push(t('paths.note.own', { bytes: LL.fmtBytes(tt.own) }));
+    if (tt.anycast > 0) parts.push(t('paths.note.anycast', { bytes: LL.fmtBytes(tt.anycast) }));
     if (tt.unassigned > 0) parts.push(t('paths.note.unassigned', { bytes: LL.fmtBytes(tt.unassigned) }));
     return parts.length ? h('p', { class: 'pw-note' }, parts.join(' ')) : null;
   }
@@ -468,6 +470,7 @@
   }
   function countriesCard(d) {
     let rows = d.countries.map(c => ({ cc: c.cc, b: c.tx + c.rx, devices: c.devices, eu: c.eu }));
+    if (d.totals.anycast > 0) rows.push({ cc: '~anycast', b: d.totals.anycast, devices: d.totals.anycast_devices, eu: false });
     if (S.sel && S.sel.type === 'device') {
       rows = d.matrix.filter(m => m[0] === S.sel.id && m[1] !== '~own').map(m => ({ cc: m[1], b: m[2] + m[3], devices: null, eu: isEU(m[1]) }));
     }
@@ -477,8 +480,8 @@
     const title = S.sel && S.sel.type === 'device' ? t('paths.countries.of', { device: devTitle(deviceById(S.sel.id)) }) : t('paths.countries.title');
     return h('section', { class: 'card pw-card' }, h('header', { class: 'pw-card__head' }, h('h2', {}, title)),
       rows.length ? h('ul', { class: 'pw-list' }, rows.slice(0, 40).map(r => h('li', {}, h('button', { type: 'button',
-        class: 'pw-row' + (selCC === r.cc ? ' is-selected' : ''), disabled: r.cc.startsWith('~') ? true : null,
-        onclick: () => select({ type: 'country', id: r.cc }) },
+        class: 'pw-row' + (selCC === r.cc ? ' is-selected' : ''), disabled: r.cc.startsWith('~') && r.cc !== '~anycast' ? true : null,
+        title: r.cc === '~anycast' ? t('paths.anycast.hint') : null, onclick: () => select({ type: 'country', id: r.cc }) },
       h('span', { class: 'pw-row__cc mono' }, r.cc.startsWith('~') ? '–' : r.cc),
       h('span', { class: 'pw-row__name' }, countryName(r.cc)),
       h('span', { class: 'pw-row__meta muted' }, r.devices != null ? t('paths.n_devices', { n: r.devices }) : ''),
@@ -789,6 +792,7 @@
         (d.countries || []).forEach(c => net.push(row(h('span', { class: 'talk__lead' }, h('span', { class: 'talk__name' }, countryName(c.cc)),
           h('span', { class: 'chip ' + (c.eu ? 'chip--muted' : 'chip--warn') + ' talk__eu' }, t(c.eu ? 'talk.eu' : 'talk.outside_eu'))), c.tx, c.rx)));
         if (d.own) net.push(row(h('span', { class: 'talk__name' }, t('settings.paths.own')), d.own.tx, d.own.rx));
+        if (d.anycast) net.push(row(h('span', { class: 'talk__name', title: t('paths.anycast.hint') }, t('paths.anycast')), d.anycast.tx, d.anycast.rx));
         if (d.unassigned) net.push(row(h('span', { class: 'talk__name' }, t('paths.unassigned')), d.unassigned.tx, d.unassigned.rx));
         kids.push(h('h4', { class: 'talk__sub-h' }, t('talk.internet')));
         kids.push(net.length ? h('ul', { class: 'talk__list' }, net) : h('p', { class: 'muted' }, t('talk.none_internet')));

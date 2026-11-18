@@ -6,13 +6,17 @@ sources can feed the same ``book`` call later). Every peer is put in exactly one
   * OWN: own networks and tunnels: the carrier-grade NAT range used by overlay VPNs, special/reserved ranges of the
     geo data and every network listed in the setting ``paths_own_networks`` (for example the public address of a
     second site or a VPN provider). Own traffic is shown, but it is never "unassigned" and never "outside the EU",
+  * ANYCAST: well-known anycast networks (``ANYCAST_NETS``). The geo data only knows the country a block is registered
+    in, but these networks answer from the nearest of many locations worldwide, so booking them under the registration
+    country would invent traffic to a far-away country. Anycast is shown as its own entry, never as a country and never
+    in the share "outside the EU". A network listed in ``paths_own_networks`` wins (counts as own),
   * UNASSIGNED: a valid address the geo data has no country for (should be rare).
 Without loaded geo data nothing is booked at all: a start-up race must not turn real traffic into "unassigned".
 
 Stored are only country, device id and bytes per hour (49 hours) and per day (31 days), plus the first and last day a
 device talked to a country. No peer addresses, host names or visited sites are kept.
 
-The share "outside the EU" refers only to attributable traffic (countries, not own and not unassigned); without
+The share "outside the EU" refers only to attributable traffic (countries, not own, not anycast, not unassigned); without
 attributable traffic it is ``None`` ("no data"), never 0 %.
 
 Unusual behaviour, calm and without alarms (never creates a firewall rule):
@@ -30,6 +34,7 @@ import time
 from typing import Callable, Optional
 
 OWN = "~own"
+ANYCAST = "~anycast"
 UNASSIGNED = "~unassigned"
 EU = frozenset("AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE".split())
 PERIODS = {"24h": ("hour", 24), "7d": ("day", 7), "30d": ("day", 30)}
@@ -49,6 +54,20 @@ MAX_PAIRS = 300                 # conversations between two devices the map draw
 MAX_PAIR_KEYS = 20000           # pending pair sums held in memory between two flushes
 MAX_NETS = 64
 _TUNNEL_NETS = [ipaddress.ip_network("100.64.0.0/10")]       # carrier-grade NAT space, used by overlay VPNs
+# Well-known anycast networks, answered from the nearest location (snapshot of November 2026, renewed with a release):
+# the published address ranges of the largest anycast CDN (its web, DNS and time services), its public resolver
+# networks (announced by the same network, not in its published list) and the resolver networks of two other public
+# DNS services. Only networks that are anycast as a whole belong here, never a provider's whole address space.
+ANYCAST_NETS = tuple(ipaddress.ip_network(n) for n in (
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18",
+    "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+    "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+    "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32", "2a06:98c0::/29",
+    "2c0f:f248::/32",
+    "1.1.1.0/24", "1.0.0.0/24",                                             # resolver of the same network
+    "8.8.8.0/24", "8.8.4.0/24", "2001:4860:4860::/48",                      # public DNS resolver
+    "9.9.9.0/24", "149.112.112.0/24", "2620:fe::/48",                       # public DNS resolver
+))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS paths_hour (hour INTEGER NOT NULL, device TEXT NOT NULL, cc TEXT NOT NULL,
@@ -130,7 +149,7 @@ class DataPaths:
             self._offline_nets = _nets(key[1])
 
     def classify(self, peer: str) -> Optional[str]:
-        """Bucket of a peer beyond the LAN: country code, OWN or UNASSIGNED; None without geo data or for no address."""
+        """Bucket of a peer beyond the LAN: country code, OWN, ANYCAST or UNASSIGNED; None without geo data or for no address."""
         try:
             addr = ipaddress.ip_address(peer)
         except ValueError:
@@ -142,6 +161,8 @@ class DataPaths:
         self._refresh_nets()
         if _in(addr, _TUNNEL_NETS) or _in(addr, self._own_nets):
             return OWN
+        if _in(addr, ANYCAST_NETS):
+            return ANYCAST
         cc = self.geo.country(str(addr))
         if cc is None:
             return UNASSIGNED
@@ -268,7 +289,9 @@ class DataPaths:
         rows = self._rows(window, now)
         self._refresh_nets()
         countries, devs, matrix = {}, {}, []
-        tot = {"tx": 0, "rx": 0, "own_tx": 0, "own_rx": 0, "unassigned_tx": 0, "unassigned_rx": 0, "outside_eu": 0}
+        tot = {"tx": 0, "rx": 0, "own_tx": 0, "own_rx": 0, "unassigned_tx": 0, "unassigned_rx": 0, "outside_eu": 0,
+               "anycast_tx": 0, "anycast_rx": 0}
+        anycast_devs = set()
         for r in rows:
             tx, rx, cc, dev = int(r["tx"] or 0), int(r["rx"] or 0), r["cc"], r["device"]
             if cc == OWN:
@@ -276,6 +299,9 @@ class DataPaths:
                 continue
             if cc == UNASSIGNED:
                 tot["unassigned_tx"] += tx; tot["unassigned_rx"] += rx
+            elif cc == ANYCAST:
+                tot["anycast_tx"] += tx; tot["anycast_rx"] += rx
+                anycast_devs.add(dev)
             else:
                 tot["tx"] += tx; tot["rx"] += rx
                 if cc not in EU:
@@ -284,7 +310,7 @@ class DataPaths:
                 c["tx"] += tx; c["rx"] += rx; c["devices"] += 1
             d = devs.setdefault(dev, {"id": dev, "tx": 0, "rx": 0, "countries": 0})
             d["tx"] += tx; d["rx"] += rx
-            if cc != UNASSIGNED:
+            if not cc.startswith("~"):
                 d["countries"] += 1
             matrix.append([dev, cc, tx, rx])
         attributable = tot["tx"] + tot["rx"]
@@ -302,6 +328,8 @@ class DataPaths:
             "totals": {
                 "tx": tot["tx"], "rx": tot["rx"], "attributable": attributable,
                 "own": tot["own_tx"] + tot["own_rx"], "unassigned": tot["unassigned_tx"] + tot["unassigned_rx"],
+                "anycast": tot["anycast_tx"] + tot["anycast_rx"], "anycast_tx": tot["anycast_tx"], "anycast_rx": tot["anycast_rx"],
+                "anycast_devices": len(anycast_devs),
                 "outside_eu": tot["outside_eu"],
                 "outside_eu_share": (tot["outside_eu"] / attributable) if attributable > 0 else None,
                 "countries": len(countries), "devices": len(devs),
@@ -355,7 +383,7 @@ class DataPaths:
             out["devices"] = devs[:MAX_PAIRS]
             out["totals"] = {"tx": sum(d["tx"] for d in devs), "rx": sum(d["rx"] for d in devs), "devices": len(devs)}
             return out
-        own = unassigned = None
+        own = unassigned = anycast = None
         countries = []
         for r in self._rows(window, now):
             dev, cc, tx, rx = r["device"], r["cc"], int(r["tx"] or 0), int(r["rx"] or 0)
@@ -365,6 +393,8 @@ class DataPaths:
                 own = {"tx": tx, "rx": rx}
             elif cc == UNASSIGNED:
                 unassigned = {"tx": tx, "rx": rx}
+            elif cc == ANYCAST:
+                anycast = {"tx": tx, "rx": rx}
             else:
                 countries.append({"cc": cc, "eu": cc in EU, "tx": tx, "rx": rx})
         countries.sort(key=lambda c: -(c["tx"] + c["rx"]))
@@ -375,7 +405,7 @@ class DataPaths:
             other = p["b"] if p["a"] == device else p["a"]
             sent, got = (p["ab"], p["ba"]) if p["a"] == device else (p["ba"], p["ab"])
             lan.append({"id": other, "tx": sent, "rx": got, **meta(other)})
-        out.update({"countries": countries[:40], "own": own, "unassigned": unassigned, "lan": lan[:40]})
+        out.update({"countries": countries[:40], "own": own, "anycast": anycast, "unassigned": unassigned, "lan": lan[:40]})
         return out
 
     def unusual(self, now: float, devices: dict, rows24: list) -> list:

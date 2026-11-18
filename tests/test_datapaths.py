@@ -108,7 +108,7 @@ def test_build_tool_checks_its_input(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------- bookkeeping
 class FakeGeo:
     def __init__(self, table=None, loaded=True):
-        self.table = table or {"8.8.8.8": "US", "193.0.0.1": "DE", "198.51.100.9": "ZZ", "203.0.113.5": "ZZ"}
+        self.table = table or {"3.3.3.3": "US", "193.0.0.1": "DE", "198.51.100.9": "ZZ", "203.0.113.5": "ZZ"}
         self.db = object() if loaded else None
 
     def country(self, ip):
@@ -130,17 +130,68 @@ def make(settings=None, loaded=True, now=T0):
 
 def test_buckets_country_own_and_tunnel():
     dp = make({"paths_own_networks": ["198.18.0.0/15"]})
-    assert dp.classify("8.8.8.8") == "US"
+    assert dp.classify("3.3.3.3") == "US"
     assert dp.classify(CGNAT_HOST) == datapaths.OWN             # overlay VPN: own, never unassigned
     assert dp.classify("198.18.4.4") == datapaths.OWN            # listed own network
     assert dp.classify("203.0.113.5") == datapaths.OWN           # special range of the geo data
-    assert dp.classify("::ffff:8.8.8.8") == "US"
+    assert dp.classify("::ffff:3.3.3.3") == "US"
     assert dp.classify("nonsense") is None
+
+
+# anycast: the geo data names the registration country, the traffic is answered from the nearest location (issue #4)
+ANYCAST_SAMPLES = ("1.1.1.1", "1.0.0.1", "162.159.200.1", "162.159.200.123", "104.16.132.229", "172.64.0.1",
+                   "8.8.8.8", "9.9.9.9", "2606:4700:4700::1111", "2001:4860:4860::8888", "::ffff:104.16.132.229")
+
+
+def test_anycast_list_is_sound():
+    nets = datapaths.ANYCAST_NETS
+    assert len(nets) == len(set(nets)) and len(nets) >= 20
+    for n in nets:
+        assert n.is_global and not n.is_private, n
+        assert n.prefixlen >= (13 if n.version == 4 else 29), n          # never a provider's whole address space
+    for i, a in enumerate(nets):
+        assert not any(a.overlaps(b) for b in nets[i + 1:] if a.version == b.version), a
+
+
+def test_anycast_with_the_bundled_geo_data(real_geo):
+    st = Store(":memory:")
+    s = {"home_country": "DE", "paths_own_networks": [], "paths_no_internet": []}
+    dp = datapaths.DataPaths(st, real_geo, lambda: s, clock=lambda: T0)
+    assert real_geo.country("162.159.200.1") != "DE"             # the registration country, the cause of the report
+    for ip in ANYCAST_SAMPLES:
+        assert dp.classify(ip) == datapaths.ANYCAST, ip
+    assert dp.classify("88.198.0.1") == "DE" and dp.classify("3.3.3.3") == "US"
+
+
+def test_anycast_bucket_is_not_a_country_and_not_outside_the_eu():
+    dp = make({"paths_own_networks": ["1.1.1.0/24"]}, now=T0)
+    dp.geo.table.update({"162.159.200.1": "CA", "104.16.132.229": "CA", "1.0.0.1": "AU"})
+    assert dp.classify("1.1.1.1") == datapaths.OWN                # a listed own network wins
+    dp.book("laptop", "104.16.132.229", 6_000_000, 6_000_000_000, T0)   # big download from the content network
+    dp.book("plug", "162.159.200.1", 900, 900, T0)                 # time service of the plug
+    dp.book("plug", "1.0.0.1", 100, 100, T0)
+    dp.book("laptop", "193.0.0.1", 1_000_000, 1_000_000, T0)       # EU
+    dp.book("laptop", "3.3.3.3", 1_000_000, 1_000_000, T0)         # outside
+    devices = {"laptop": {"title": "Laptop", "ip": "192.168.50.20"}, "plug": {"title": "Plug", "ip": "192.168.50.60"}}
+    s = dp.summary("24h", devices, T0)
+    tt = s["totals"]
+    assert tt["anycast"] == 6_006_002_000 and tt["anycast_tx"] == 6_001_000 and tt["anycast_devices"] == 2
+    assert tt["attributable"] == 4_000_000 and tt["outside_eu_share"] == pytest.approx(0.5)
+    assert {c["cc"] for c in s["countries"]} == {"DE", "US"} and tt["countries"] == 2
+    assert "CA" not in json.dumps(s) and "AU" not in json.dumps(s)
+    devs = {d["id"]: d for d in s["devices"]}
+    assert devs["plug"]["countries"] == 0 and devs["plug"]["tx"] == 1000      # device sums keep the real traffic
+    assert devs["laptop"]["countries"] == 2
+    assert ["plug", datapaths.ANYCAST, 1000, 1000] in s["matrix"]
+    assert not [u for u in s["unusual"] if u.get("cc") == datapaths.ANYCAST]
+    v = dp.device_view("plug", "24h", devices, T0)
+    assert v["anycast"] == {"tx": 1000, "rx": 1000} and v["countries"] == [] and v["own"] is None
+    assert dp.store.query("SELECT cc FROM paths_seen WHERE device='plug'") == []    # never "new country"
 
 
 def test_without_geo_data_nothing_is_booked():
     dp = make(loaded=False)
-    assert dp.book("dev", "8.8.8.8", 5000, 5000) is False
+    assert dp.book("dev", "3.3.3.3", 5000, 5000) is False
     dp.flush()
     assert dp.unbooked == 10000
     s = dp.summary("24h", {})
@@ -152,7 +203,7 @@ def test_share_refers_to_attributable_traffic_only():
     dp = make()
     dp.book("dev", CGNAT_HOST, 49_000_000_000, 0)          # the lesson: 49 GB through a tunnel ...
     dp.book("dev", "193.0.0.1", 500_000_000, 0)             # ... 0.5 GB in the EU
-    dp.book("dev", "8.8.8.8", 500_000_000, 0)               # ... 0.5 GB outside
+    dp.book("dev", "3.3.3.3", 500_000_000, 0)               # ... 0.5 GB outside
     tt = dp.summary("24h", {"dev": {"title": "Laptop", "ip": "192.168.50.20"}})["totals"]
     assert tt["own"] == 49_000_000_000
     assert tt["attributable"] == 1_000_000_000
@@ -166,7 +217,7 @@ def test_windows_hours_and_days_and_pruning():
     dp = make()
     now = T0
     for hours_ago in (1, 30, 24 * 5, 24 * 20, 24 * 40):
-        dp.book("dev", "8.8.8.8", 1000, 0, now - hours_ago * 3600)
+        dp.book("dev", "3.3.3.3", 1000, 0, now - hours_ago * 3600)
     dp.flush(now)
     sums = {w: dp.summary(w, {}, now)["totals"]["tx"] for w in ("24h", "7d", "30d")}
     assert sums["24h"] == 1000
@@ -178,10 +229,10 @@ def test_windows_hours_and_days_and_pruning():
 
 def test_no_addresses_are_stored():
     dp = make()
-    dp.book("d1", "8.8.8.8", 10, 20)
+    dp.book("d1", "3.3.3.3", 10, 20)
     dp.flush()
     dump = json.dumps([dp.store.query("SELECT * FROM %s" % t) for t in ("paths_hour", "paths_day", "paths_seen")])
-    assert "8.8.8.8" not in dump and "US" in dump
+    assert "3.3.3.3" not in dump and "US" in dump
 
 
 def test_new_country_after_warmup_only():
@@ -189,9 +240,9 @@ def test_new_country_after_warmup_only():
     t = dp.clock_ref
     dp.book("tv", "193.0.0.1", 10_000_000, 0, T0 - 5 * 86400)       # history starts five days ago
     dp.flush(T0 - 5 * 86400)
-    dp.book("tv", "8.8.8.8", 2_000_000, 0, T0 - 3600)               # new country, 2 MB
+    dp.book("tv", "3.3.3.3", 2_000_000, 0, T0 - 3600)               # new country, 2 MB
     dp.book("fresh", "193.0.0.1", 9_000_000, 0, T0 - 7200)          # a device seen for the first time today ...
-    dp.book("fresh", "8.8.8.8", 9_000_000, 0, T0 - 3600)            # ... is not "new country" yet (warm-up)
+    dp.book("fresh", "3.3.3.3", 9_000_000, 0, T0 - 3600)            # ... is not "new country" yet (warm-up)
     dp.book("tv", "198.51.100.9", 9_000_000, 0, T0 - 3600)          # own range never counts as a country
     t["t"] = T0
     un = dp.summary("24h", {})["unusual"]
@@ -211,7 +262,7 @@ def test_heavy_upload_against_typical_day():
 
 def test_network_without_internet_talks_anyway():
     dp = make({"paths_no_internet": ["192.168.50.48/28"]})
-    dp.book("cam", "8.8.8.8", 3000, 100, T0 - 60)
+    dp.book("cam", "3.3.3.3", 3000, 100, T0 - 60)
     dp.book("cam2", CGNAT_HOST, 3000, 100, T0 - 60)                 # through an own tunnel: not the internet
     devices = {"cam": {"ip": "192.168.50.50"}, "cam2": {"ip": "192.168.50.51"}}
     un = dp.summary("24h", devices, T0)["unusual"]
@@ -220,8 +271,8 @@ def test_network_without_internet_talks_anyway():
 
 def test_forget_device_removes_its_rows():
     dp = make()
-    dp.book("a", "8.8.8.8", 1, 1)
-    dp.book("b", "8.8.8.8", 1, 1)
+    dp.book("a", "3.3.3.3", 1, 1)
+    dp.book("b", "3.3.3.3", 1, 1)
     dp.flush()
     dp.forget_device("a")
     assert {r["device"] for r in dp.store.query("SELECT device FROM paths_hour")} == {"b"}
@@ -288,7 +339,7 @@ def test_host_flows_feed_data_paths(tmp_path):
     c = Core(cfg, Store(":memory:"), None)
     c.geo.start(background=False)
     c.on_event("host", None, {"type": "bytes", "flows": [
-        {"local_ip": "192.168.50.11", "peer_ip": "8.8.8.8", "peer_port": 443, "tx": 1000, "rx": 9000},
+        {"local_ip": "192.168.50.11", "peer_ip": "3.3.3.3", "peer_port": 443, "tx": 1000, "rx": 9000},
         {"local_ip": "192.168.50.11", "peer_ip": "192.168.50.10", "peer_port": 445, "tx": 5000, "rx": 5000},   # LAN: not a data path
         {"local_ip": "192.168.50.11", "peer_ip": CGNAT_HOST, "peer_port": 41641, "tx": 700, "rx": 300}]})
     tt = c.paths_summary("24h")["totals"]

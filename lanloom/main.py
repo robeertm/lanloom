@@ -1456,8 +1456,10 @@ def selftest() -> int:
         if c.geo.db is None:
             problems.append("geo data: %s" % c.geo.error)
         else:
-            c.paths.book("self", "8.8.8.8", 1000, 2000)
-            if c.paths_summary("24h")["totals"]["attributable"] != 3000:
+            c.paths.book("self", "3.3.3.3", 1000, 2000)
+            c.paths.book("self", "1.1.1.1", 10, 20)        # anycast: its own entry, never a country
+            tt = c.paths_summary("24h")["totals"]
+            if tt["attributable"] != 3000 or tt["anycast"] != 30:
                 problems.append("data paths")
         from . import nightly  # noqa: F401 - import check
         rep = c.reports.assemble(0, time.time(), None, "2026-01-01", [])
