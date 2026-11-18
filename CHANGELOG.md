@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.44.1] – 2026-11-18
+
+1.44.0 below was not released on its own; it is part of this release.
+
+### Changed
+- API: a request with a token to a path under `/api/v1` that does not exist answers `404 api.err.not_found`, guesses with unknown tokens count against the per-client request limit of the routes without a session, and the bearer tokens of the host agents and the executor service are never taken for API tokens. The first group of the API reference is called *General*.
+
 ## [1.44.0] – 2026-11-18
 
 ### Added
