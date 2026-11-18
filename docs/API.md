@@ -87,7 +87,7 @@ Read the token from an environment variable or a file with restricted rights, ne
 Times are seconds since 1970-01-01 UTC (floating point). The examples are shortened answers of the sample network.
 Authoritative and complete: `GET /api/v1/openapi.json`.
 
-### Meta
+### General
 
 `GET /api/v1` - the index: the API version, the app version, where the description is, and who you are.
 

@@ -211,7 +211,7 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
     def lang_of(lang: str) -> str:
         return lang if lang in render_mod.languages() else "en"
 
-    @api.op("GET", BASE, tag="meta", summary="API index: versions and where the description is",
+    @api.op("GET", BASE, tag="general", summary="API index: versions and where the description is",
             response=s_obj({"api": s_str("API version"), "app": s_str("Lanloom version"), "openapi": s_str("path of the OpenAPI description"),
                             "you": s_obj({"username": s_str(), "role": s_str(), "via": s_str(enum=("token", "session")),
                                           "token": s_str("name of the token", nullable=True), "scope": s_str(nullable=True)})}),
@@ -224,7 +224,7 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
                 "you": {"username": user.get("username") or "", "role": user.get("role") or "", "via": "token" if tok else "session",
                         "token": tok.get("name"), "scope": tok.get("scope")}}
 
-    @api.op("GET", BASE + "/openapi.json", tag="meta", summary="This description (OpenAPI 3.1)",
+    @api.op("GET", BASE + "/openapi.json", tag="general", summary="This description (OpenAPI 3.1)",
             response=s_obj({"openapi": s_str(), "info": s_obj({}, required=(), extra=True), "paths": s_map({})}, required=("openapi", "info", "paths"), extra=True))
     async def openapi_json():
         return openapi(api.ops)
