@@ -950,23 +950,41 @@
     deep.addEventListener('change', () => { consent.disabled = !deep.checked; if (!deep.checked) consent.checked = false; });
     const snmpPub = h('input', { type: 'checkbox', checked: !!s.scan_snmp_public });
     const scanMsg = h('div', { class: 'msg' });
-    const last = scan.last;
+    const lastText = l => l ? t('settings.scan.last', { when: LL.fmtDate(l.started), n: l.hosts, mode: t('scan.mode.' + l.mode) }) : t('settings.scan.never');
+    const lastLine = h('p', { class: 'muted' }, lastText(scan.last));
+    // while a scan runs (started here, by the wizard or by the automatic rescan) a bar fills left of the button and the
+    // button cancels it; afterwards it starts a scan again
+    const scanBar = h('div', { class: 'progress__bar' });
+    const scanMeter = h('div', { class: 'progress scan-run__bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0',
+      'aria-label': t('settings.scan.title'), hidden: true }, scanBar);
     const scanBtn = h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
+      if (scanWatch.running) {
+        scanBtn.disabled = true;
+        try { await api('/api/scan', { method: 'DELETE' }); } catch (e) { scanBtn.disabled = false; LL.msg(scanMsg, LL.errText(e), 'error'); }
+        return;
+      }
       LL.msg(scanMsg, '');
-      try { await api('/api/scan', { method: 'POST', body: { cidrs: [...cidrs], deep: deep.checked, consent: consent.checked, snmp_public: snmpPub.checked } }); LL.msg(scanMsg, t('settings.scan.started'), 'ok'); watchScan(scanMsg); }
-      catch (e) { LL.msg(scanMsg, LL.errText(e), 'error'); }
+      try { const cur = await api('/api/scan', { method: 'POST', body: { cidrs: [...cidrs], deep: deep.checked, consent: consent.checked, snmp_public: snmpPub.checked } }); LL.msg(scanMsg, t('settings.scan.started'), 'ok'); scanWatch.start(cur); }
+      catch (e) {
+        LL.msg(scanMsg, LL.errText(e), 'error');
+        api('/api/scan').then(r => { if (r.current && r.current.state === 'running' && !scanWatch.running) scanWatch.start(r.current); }).catch(() => {});   // started elsewhere meanwhile
+      }
     } }, t('settings.scan.now'));
+    const scanWatch = watchScan({ msg: scanMsg, bar: scanBar, meter: scanMeter, btn: scanBtn,
+      onEnd: () => api('/api/scan').then(r => { lastLine.textContent = lastText(r.last); }).catch(() => {}) });
     const rescan = h('select', { class: 'select', onchange: () => api('/api/settings', { method: 'PUT', body: { rescan_hours: Number(rescan.value) } }).then(() => LL.toast(t('settings.saved'), 'ok')) },
       [0, 1, 3, 6, 12, 24].map(n => h('option', { value: String(n) }, n ? t('settings.rescan.every', { n }) : t('settings.rescan.never'))));
     rescan.value = String(s.rescan_hours);
     page.append(card(t('settings.scan.title'), [
-      h('p', { class: 'muted' }, last ? t('settings.scan.last', { when: LL.fmtDate(last.started), n: last.hosts, mode: t('scan.mode.' + last.mode) }) : t('settings.scan.never')),
+      lastLine,
       netBox,
       h('label', { class: 'check' }, deep, h('span', {}, t('wizard.scan.deep'))), h('label', { class: 'check check--consent' }, consent, h('span', {}, t('wizard.scan.consent'))),
       h('label', { class: 'check' }, snmpPub, h('span', {}, t('scan.snmp_public'))), h('p', { class: 'muted fineprint' }, t('scan.snmp_public.hint')),
-      scanMsg, h('div', { class: 'btn-row' }, scanBtn),
+      scanMsg, h('div', { class: 'btn-row scan-run' }, scanMeter, scanBtn),
       h('hr'), LL.field(t('settings.rescan'), rescan, t('settings.rescan.hint'))]));
-    if (scan.current && scan.current.state === 'running') watchScan(scanMsg);
+    if (scan.current && scan.current.state === 'running') scanWatch.start(scan.current);
+    const frDestroy = fr.destroy;
+    fr.destroy = () => { scanWatch.stop(); if (frDestroy) frDestroy.call(fr); };
     // integrations
     const integWrap = h('div', { class: 'stack' });
     async function renderInteg() {
@@ -1119,12 +1137,49 @@
     return h('div', { class: 'field' }, h('span', { class: 'field__label', id: 'palette-label' }, t('settings.palette')), group,
       h('div', { class: 'field__hint' }, t('settings.palette.hint')));
   }
-  function watchScan(msg) {
-    const timer = setInterval(async () => {
+  // Settings > General > Network scan: polls GET /api/scan while a scan runs, fills the bar (never backwards, see
+  // LL.scanMeter), turns the button into Cancel and back; stop() ends the polling when the page is left
+  function watchScan({ msg, bar, meter, btn, onEnd }) {
+    const w = { running: false, timer: null };
+    let pct = null;
+    function show(on) {
+      w.running = on;
+      meter.hidden = !on;
+      btn.disabled = false;
+      btn.className = 'btn ' + (on ? 'btn--ghost' : 'btn--primary');
+      btn.textContent = t(on ? 'wizard.scan.cancel' : 'settings.scan.now');
+    }
+    function paint(s) {
+      const p = pct(s);
+      bar.style.width = Math.max(2, p) + '%';
+      meter.setAttribute('aria-valuenow', String(p));
+      return p;
+    }
+    async function poll() {
       let s; try { s = (await api('/api/scan')).current; } catch (e) { return; }
-      if (s.state === 'running') LL.msg(msg, t('settings.scan.progress', { phase: t('scan.phase.' + s.phase), found: s.found || 0 }), 'info');
-      else { clearInterval(timer); LL.msg(msg, s.state === 'done' ? t('settings.scan.done', { n: s.found }) : t(s.error || 'wizard.scan.stopped'), s.state === 'done' ? 'ok' : 'error'); }
-    }, 1200);
+      if (!w.running || !s) return;
+      if (s.state === 'running') {
+        const p = paint(s);
+        LL.msg(msg, s.total ? t('settings.scan.progress_n', { phase: t('scan.phase.' + s.phase), done: s.done || 0, total: s.total, found: s.found || 0, pct: p })
+          : t('settings.scan.progress', { phase: t('scan.phase.' + s.phase), found: s.found || 0 }), 'info');
+        return;
+      }
+      w.stop();
+      if (s.state === 'done') paint(s);
+      show(false);
+      LL.msg(msg, s.state === 'done' ? t('settings.scan.done', { n: s.found }) : t(s.error || 'wizard.scan.stopped'), s.state === 'done' ? 'ok' : 'error');
+      if (onEnd) onEnd(s);
+    }
+    w.start = cur => {
+      w.stop();
+      pct = LL.scanMeter();
+      bar.style.width = '2%';
+      show(true);
+      if (cur && cur.state === 'running') paint(cur);
+      w.timer = setInterval(poll, 1000);
+    };
+    w.stop = () => { if (w.timer) clearInterval(w.timer); w.timer = null; };
+    return w;
   }
 
   LL.frame = frame;

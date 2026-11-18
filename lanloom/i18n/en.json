@@ -4090,6 +4090,7 @@
  "settings.scan.never": "No scan yet.",
  "settings.scan.now": "Scan now",
  "settings.scan.progress": "Scanning: {phase} · {found} found",
+ "settings.scan.progress_n": "Scanning: {phase} {done}/{total} · {found} found · {pct} %",
  "settings.scan.started": "Scan started.",
  "settings.scan.title": "Network scan",
  "settings.sections": "Settings sections",

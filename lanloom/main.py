@@ -552,7 +552,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
 
     @app.get("/api/scan")
     async def scan_status():
-        last = state.store.one("SELECT * FROM scans ORDER BY id DESC LIMIT 1")
+        # "last scan" is the last finished one: a running, stopped or failed scan does not replace it (its state is in "current")
+        last = state.store.one("SELECT * FROM scans WHERE status='done' ORDER BY id DESC LIMIT 1")
         return {"current": state.core.scan_state, "last": last}
 
     @app.post("/api/scan")

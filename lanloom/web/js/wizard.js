@@ -5,6 +5,23 @@
   const { h, t, api } = LL;
   const STEPS = ['account', 'networks', 'scan', 'review', 'connect', 'done'];
   const PHASES = ['neighbors', 'mdns', 'ssdp', 'ports', 'banners', 'identify'];
+  // Scan progress in percent from phase + done/total, shared by the wizard and Settings > General > Network scan.
+  // One meter per watcher: within one scan (same id) the value never moves backwards - mDNS and SSDP listen at the
+  // same time, so their progress reports interleave and the plain phase position would jump back and forth.
+  LL.SCAN_PHASES = PHASES;
+  LL.scanMeter = function () {
+    let id = null, best = 0;
+    return function (s) {
+      if (!s) return 0;
+      if (s.id !== id) { id = s.id; best = 0; }
+      if (s.state === 'done') { best = 100; return best; }
+      const i = PHASES.indexOf(s.phase);
+      const part = s.total > 0 ? Math.min(1, Math.max(0, (s.done || 0) / s.total)) : 0;
+      const pct = i < 0 ? 0 : Math.min(99, Math.round(100 * (i + part) / PHASES.length));
+      best = Math.max(best, pct);
+      return best;
+    };
+  };
 
   function stepKey() { try { return sessionStorage.getItem('ll-wiz') || 'networks'; } catch (e) { return 'networks'; } }
   function setStep(s) { try { sessionStorage.setItem('ll-wiz', s); } catch (e) { /* ignore */ } }
@@ -197,12 +214,12 @@
         } }, t('setup.first.open'))));
       first.hidden = false;
     }
+    const meter = LL.scanMeter();
     const timer = setInterval(async () => {
       tick();
       let s; try { s = (await api('/api/scan')).current; } catch (e) { return; }
       if (s.preview && s.state === 'running' && !(LL.state && LL.state.setup_done)) showFirst(s.preview);
-      const pct = s.total ? Math.min(100, Math.round(100 * PHASES.indexOf(s.phase) / PHASES.length + 100 / PHASES.length * (s.done / s.total))) : 4;
-      bar.style.width = (s.state === 'done' ? 100 : Math.max(4, pct)) + '%';
+      bar.style.width = Math.max(4, meter(s)) + '%';
       counter.firstChild.textContent = String(s.found || 0);
       sub.textContent = s.total ? t('wizard.scan.addresses', { done: s.done, total: s.total }) : '';
       const pi = PHASES.indexOf(s.phase);

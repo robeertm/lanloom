@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.41.0] – 2026-11-18
+
+### Added
+- **Scan progress in Settings.** *Settings › General › Network scan* shows a progress bar next to the button while a scan runs, and *Scan now* turns into *Cancel* (stops the scan, then it is *Scan now* again). The status line adds the phase's progress and the percentage (`Scanning: Service ports 120/500 · 14 found · 58 %`). A scan that already runs when the page opens - started in the setup assistant or by the automatic rescan - is picked up with its bar and *Cancel*; leaving the page stops the polling. Suggested and tried out by a tester (issue #7).
+
+### Fixed
+- The scan progress bar (setup assistant and Settings) never moves backwards within one scan: the mDNS and SSDP listeners run at the same time and their reports interleave, which made the bar jump back. Both pages now share one meter.
+- *Last scan* in Settings names the last finished scan; a stopped, failed or still running scan no longer shows up there as a scan with 0 devices (`GET /api/scan` field `last`).
+
 ## [1.40.0] – 2026-11-18
 
 ### Added

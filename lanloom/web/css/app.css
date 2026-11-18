@@ -150,6 +150,9 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .scan-live__right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .progress { height: 10px; border-radius: 99px; background: var(--ll-surface-3); overflow: hidden; }
 .progress__bar { height: 100%; width: 4%; background: linear-gradient(90deg, var(--ll-accent), var(--ll-grade-realtime)); border-radius: 99px; transition: width .6s var(--ll-ease); }
+/* Settings > General > Network scan: the bar fills the button row left of the Cancel button while a scan runs */
+.scan-run__bar { flex: 1 1 auto; min-width: 0; }
+.scan-run__bar[hidden] { display: none; }
 .phases { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .phases li { display: flex; align-items: center; gap: 10px; color: var(--ll-text-3); }
 .phase-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--ll-border-strong); flex: none; }

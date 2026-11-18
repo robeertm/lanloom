@@ -34,6 +34,9 @@ Administrators additionally:
 
 - **Network scan** - which networks to scan, *Scan now*, the rescan interval (never, or every 1, 3, 6, 12 or 24 hours),
   the optional deep scan (only with your consent) and the switch for the default SNMP read community (off by default).
+  While a scan runs - started here, in the setup assistant or by the automatic rescan - a progress bar fills next to the
+  button, the status line shows the phase, its progress, the devices found so far and the percentage, and *Scan now*
+  turns into *Cancel*. *Last scan* names the last finished scan; a stopped scan does not replace it.
 - **Connections** - the hub, MQTT broker, SNMP, switch controller, DNS filters and device-family adapters. Credentials are stored
   encrypted and never shown again. *Test connection* checks before you save.
 - **Set up again** - starts the setup assistant over, or the demo.
