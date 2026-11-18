@@ -687,6 +687,11 @@ class Notifier:
             if upd.get("available") and upd.get("latest"):
                 self.emit("update_available", "update:%s" % upd["latest"], {"version": upd["latest"], "current": __version__},
                           t=now, once=True)
+            st = upd.get("status") or {}
+            if st.get("state") in ("failed", "rolled_back") and st.get("version") and now - float(st.get("t") or 0) < 3600:
+                self.emit("update_failed", "updfail:%s" % (st.get("nonce") or st.get("t")),
+                          {"version": st["version"], "reason_key": st.get("message_key") or "update.err.internal"},
+                          t=now, once=True)
         except Exception:
             log.exception("notify: update check failed")
 

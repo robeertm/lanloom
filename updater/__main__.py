@@ -1,4 +1,5 @@
-"""Entry point: `python -m updater` (loop) or `python -m updater --once-check` (diagnostics).
+"""Entry point: `python -m updater` (loop), `python -m updater --once-check` (diagnostics) or
+`python -m updater --verify REPOSITORY:TAG` (signature check of a published image, exit 0 = verified).
 
 Environment:
   LANLOOM_DATA                 shared data volume inside the sidecar (default /data)
@@ -25,7 +26,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m updater", description="Lanloom update sidecar")
     parser.add_argument("--once-check", action="store_true", help="print a diagnostic report and exit")
     parser.add_argument("--version", action="store_true", help="print the sidecar version and exit")
+    parser.add_argument("--verify", metavar="IMAGE", help="check the signature of REPOSITORY:TAG and exit")
     args = parser.parse_args(argv)
+
+    if args.verify:
+        from .engine import split_ref
+        from .sigverify import SignatureError, verify_image
+        repo, tag = split_ref(args.verify)
+        try:
+            v = verify_image(repo, tag or "latest")
+        except SignatureError as exc:
+            print(json.dumps({"verified": False, "key": exc.key, "detail": exc.detail}, sort_keys=True))
+            return 1
+        print(json.dumps(dict(v.as_status(), image=args.verify), sort_keys=True))
+        return 0
 
     if args.version:
         print(sidecar_version())

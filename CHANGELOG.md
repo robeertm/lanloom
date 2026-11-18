@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.34.0] – 2026-11-18
+
+### Added
+- **Update channels.** Settings › Updates has a channel: *Stable* (the default) offers the newest stable release; *Preview* also offers a pre-release from the release feed when it is newer and went through the same release path (same gate, same signed image). Only plain version tags are offered, never `:edge` or another moving tag. Without such a pre-release the page says that no preview is available.
+- **Hold this version.** Administrators can keep the running version: no update notice and no update until the hold is released; the nightly report says when a newer version waits. Palette commands hold and release.
+- **Back to the previous version.** A button *Back to X.Y.Z* returns to the version that ran before the last update, with a fresh confirmation and the same checks as an update (signature, self-test, trial start, backup, health). The version it goes back to is held afterwards. Versions published before images were signed (before 1.29.0) are not offered; the manual describes the way back by hand.
+- **Signature check before the swap.** The updater sidecar reads the signature of an official update candidate from the image registry, checks it against the publishing workflow and the public transparency log, and pulls exactly the checked digest. A missing or wrong signature means no swap and a clear message; nothing changes. `python -m updater --verify IMAGE` checks a published image by hand. An older sidecar updates without the check until it is renewed; the page shows the command.
+- **What's new?** The version number in the header (on phones at the end of the page) opens the changes of each version, read from the changelog inside the image; nothing is fetched. A dot marks versions you have not looked at yet. After an update the open page loads the new version by itself.
+- Notifications and the nightly report know a failed update or rollback; the nightly report names a version that was gone back to.
+- Manual page [Updating](docs/manual/updating.md).
+
+### Changed
+- The heartbeat of the updater sidecar names its features and the version it keeps as the previous one. Older apps ignore the new fields, and the new app works with older sidecars.
+
 ## [1.33.0] – 2026-11-18
 
 ### Added

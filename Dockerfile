@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
  && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin lanloom \
  && mkdir -p /data /state && chown 10001:10001 /data /state && chmod 0750 /data && chmod 0700 /state
 
-COPY VERSION LICENSE THIRD-PARTY-NOTICES.md ./
+COPY VERSION LICENSE THIRD-PARTY-NOTICES.md CHANGELOG.md ./
 COPY lanloom ./lanloom
 COPY updater ./updater
 # The version argument comes late so a new version does not invalidate the dependency layer above.

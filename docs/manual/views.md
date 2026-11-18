@@ -5,7 +5,7 @@ live state in the header, the deep links and the keys. Each view has its own pag
 [manual](README.md):
 
 [Overview](overview.md) · [Map](map.md) · [Network](network.md) · [Devices](devices.md) · [Inventory](inventory.md) ·
-[Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Settings](settings.md) ·
+[Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Updating](updating.md) · [Settings](settings.md) ·
 [AI](ai.md)
 
 - [Right now](#right-now) · [About this view](#about-this-view) · [Live state and live grade](#live-state-and-live-grade) · [Deep links and the back key](#deep-links-and-the-back-key) · [Keys](#keys)

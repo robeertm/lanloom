@@ -180,6 +180,11 @@
    "site": "updater/runtimeapi.py::UnixHTTPConnection.connect::socket",
    "category": "container-runtime",
    "purpose": "updater: local socket of the container runtime (pull the new image, test, swap, roll back)"
+  },
+  {
+   "site": "updater/sigverify.py::default_opener::http",
+   "category": "update-signature",
+   "purpose": "updater: reads the signature of an update candidate (image index, signature bundle) from the registry of the official image, anonymously and only over https, during an update or rollback an administrator started"
   }
  ],
  "hosts": [
@@ -266,6 +271,24 @@
    "use": "link",
    "category": "link",
    "purpose": "XML/SVG namespace, an identifier that is never fetched"
+  },
+  {
+   "host": "in-toto.io",
+   "use": "link",
+   "category": "link",
+   "purpose": "statement type inside an image signature: an identifier that is never fetched"
+  },
+  {
+   "host": "sigstore.dev",
+   "use": "link",
+   "category": "link",
+   "purpose": "signature predicate type: an identifier that is never fetched"
+  },
+  {
+   "host": "token.actions.githubusercontent.com",
+   "use": "link",
+   "category": "link",
+   "purpose": "OIDC issuer named in the certificate of the publishing workflow: an identifier that is never fetched"
   }
  ]
 }

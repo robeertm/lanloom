@@ -7,4 +7,5 @@ tests
 .pytest_cache
 *.md
 !THIRD-PARTY-NOTICES.md
+!CHANGELOG.md
 deploy

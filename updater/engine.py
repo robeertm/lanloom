@@ -3,8 +3,14 @@
 The app and the sidecar talk only through files on the shared data volume:
 
     <data>/update/request.json   written by the app   {"version","nonce","requested"[,"rollback"]}
-    <data>/update/status.json    written by sidecar   {"state","version","from","message_key","log","nonce","t"}
-    <data>/update/sidecar.json   written by sidecar   {"version","t"}  (heartbeat every 30 s)
+    <data>/update/status.json    written by sidecar   {"state","version","from","message_key","log","nonce","t"
+                                                        [,"step","signature"]}
+    <data>/update/sidecar.json   written by sidecar   {"version","t"[,"features","previous"]}  (heartbeat every 30 s)
+
+Since 1.34.0 the sidecar checks the signature of an official candidate before it pulls (updater/sigverify.py) and
+pulls by the checked digest; "step" is "verify" meanwhile and "signature" holds the result. The heartbeat names its
+features (["signature", "previous"]) and the version of the image it keeps as "previous" (the rollback target).
+Older apps ignore the extra fields; older sidecars simply do not send them.
 
 Failures before the swap leave everything as it was (state "failed"). Failures after
 the swap began restore the previous container and, if needed, the database
@@ -33,6 +39,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import sidecar_version
+from .sigverify import AVAILABLE as SIGNATURE_AVAILABLE, KEYS as SIGNATURE_KEYS, OFFICIAL_REPO, SignatureError, verify_image
 from .runtimeapi import DEFAULT_SOCKET, RuntimeAPI, RuntimeAPIError, NotFound, Unreachable
 
 # ------------------------------------------------------------------ constants
@@ -93,7 +100,8 @@ MESSAGE_KEYS = (
     "update.err.interrupted",
     "update.err.internal",
     "update.err.busy",
-)
+) + SIGNATURE_KEYS
+FEATURES = ("signature", "previous") if SIGNATURE_AVAILABLE else ("previous",)
 
 
 class UpdateError(Exception):
@@ -360,6 +368,8 @@ class Settings:
     stale_request_s: float = 3600.0
     probe_ports: tuple[int, int] = (17380, 17399)
     data_mount: str = "/data"
+    official_repo: str = OFFICIAL_REPO   # the signature of a candidate from this repository is required
+    test_reject: tuple = ()              # bench only (with allow_local): versions whose signature check fails
 
     @classmethod
     def from_env(cls, env: dict | None = None) -> "Settings":
@@ -371,6 +381,8 @@ class Settings:
         s.allow_local = env.get("LANLOOM_UPDATER_ALLOW_LOCAL") == "1"
         s.health_url = env.get("LANLOOM_HEALTH_URL") or None
         s.poll_s = max(0.2, _env_float(env, "LANLOOM_UPDATER_POLL", 2.0))
+        if s.allow_local:
+            s.test_reject = tuple(v for v in (env.get("LANLOOM_UPDATER_TEST_REJECT") or "").split(",") if parse_semver(v))
         return s
 
 
@@ -393,6 +405,7 @@ class _Run:
     candidate_id: str | None = None
     moving_tag: str | None = None      # tag the compose file names (e.g. "latest"); kept on what runs
     moved: bool = False
+    digest: str | None = None          # checked digest of the candidate (official images): pulled by digest
 
 
 class Updater:
@@ -400,21 +413,28 @@ class Updater:
                  health_fn: Callable[[str], dict | None] = http_health,
                  clock: Callable[[], float] = time.time,
                  sleep: Callable[[float], None] = time.sleep,
-                 echo: Callable[[str], None] | None = None):
+                 echo: Callable[[str], None] | None = None,
+                 verify_fn: Callable[[str, str], Any] = verify_image):
         self.api = api
+        self.verify_fn = verify_fn
+        self.previous: str | None = None   # version of the image kept as "previous" (rollback target)
         self.s = settings
         self.health_fn = health_fn
         self.clock = clock
         self.sleep = sleep
         self.echo = echo if echo is not None else (lambda line: print(line, flush=True))
         self.redact = Redactor()
-        self.status: dict = {"state": "idle", "version": None, "from": None, "message_key": None,
-                             "log": [], "nonce": None, "t": 0}
+        self.status: dict = self.fresh_status("idle")
         self._stop = threading.Event()
         self._hb_thread: threading.Thread | None = None
         from .localai import LocalAI  # late import: localai builds on this module
         self.localai = LocalAI(api, settings, clock=clock, echo=self.echo, sleep=sleep,
                                find_target=self.find_target, owner=self.data_owner)
+
+    @staticmethod
+    def fresh_status(state: str) -> dict:
+        return {"state": state, "version": None, "from": None, "message_key": None,
+                "log": [], "nonce": None, "t": 0, "step": None, "signature": None}
 
     # ------------------------------------------------------------- paths
     @property
@@ -481,7 +501,8 @@ class Updater:
     def write_heartbeat(self) -> None:
         try:
             self.ensure_update_dir()
-            atomic_write_json(self.heartbeat_path, {"version": sidecar_version(), "t": round(self.clock(), 3)},
+            atomic_write_json(self.heartbeat_path, {"version": sidecar_version(), "t": round(self.clock(), 3),
+                                                    "features": list(FEATURES), "previous": self.previous},
                               self.data_owner())
         except (OSError, UpdateError) as exc:
             self.echo(f"updater: cannot write heartbeat: {type(exc).__name__}")
@@ -617,8 +638,7 @@ class Updater:
     def handle_request(self, req: dict | None) -> dict:
         """Validate and perform one request. Always ends in a terminal state."""
         previous = dict(self.status)
-        self.status = {"state": "pulling", "version": None, "from": None, "message_key": None,
-                       "log": [], "nonce": None, "t": 0}
+        self.status = self.fresh_status("pulling")
         try:
             if req is None:
                 raise UpdateError("update.err.invalid_request", "empty request")
@@ -671,6 +691,7 @@ class Updater:
         self.log(f"target {run.name} runs {run.current or 'unknown'}"
                  + (f", keeps tag {run.moving_tag}" if run.moving_tag else ""))
 
+        self.step_verify(run)
         self.step_pull(run)
         self.set_state("selftest", None, "selftest of candidate")
         self.step_selftest(run)
@@ -689,8 +710,37 @@ class Updater:
         if not is_qualified_repo(repo) and not self.s.allow_local:
             raise UpdateError("update.err.repository_not_allowed", "repository without registry host")
 
+    # ------------------------------------------------------------ verify
+    def step_verify(self, run: _Run) -> None:
+        """Signature of the candidate, before anything is pulled or touched (a failure changes nothing)."""
+        if self.s.allow_local and not is_qualified_repo(run.repo):
+            if run.version in self.s.test_reject:
+                raise UpdateError("update.err.signature_invalid", "signature: rejected by the bench")
+            self.status["signature"] = {"verified": False, "skipped": "local"}
+            self.log("signature check skipped: local test image")
+            return
+        if run.repo != self.s.official_repo:
+            self.status["signature"] = {"verified": False, "skipped": "unofficial"}
+            self.log("signature check skipped: not the official image")
+            return
+        self.status["step"] = "verify"
+        self.log(f"checking the signature of {run.candidate}")
+        try:
+            verified = self.verify_fn(run.repo, run.version)
+        except SignatureError as exc:
+            raise UpdateError(exc.key, f"signature: {exc.detail}") from None
+        finally:
+            self.status["step"] = None
+        run.digest = verified.digest
+        self.status["signature"] = verified.as_status()
+        self.log(f"signature verified: {verified.digest[:19]}, signed by the publishing workflow, "
+                 f"log entry {verified.log_index}")
+
     # -------------------------------------------------------------- pull
     def step_pull(self, run: _Run) -> None:
+        if run.digest:
+            self.step_pull_digest(run)
+            return
         local = self.api.image_inspect(run.candidate)
         if self.s.allow_local and not is_qualified_repo(run.repo):
             if not local:
@@ -718,6 +768,27 @@ class Updater:
             raise UpdateError("update.err.version_label_mismatch", f"image says {label}")
         run.candidate_id = local.get("Id")
         self.log("candidate image present")
+
+    def step_pull_digest(self, run: _Run) -> None:
+        """Pull exactly the checked digest, then give it the version tag (the bytes that run are the bytes checked)."""
+        pinned_ref = f"{run.repo}@{run.digest}"
+        self.log(f"pull {pinned_ref}")
+        try:
+            self.api.image_pull(run.repo, run.digest or "", None, deadline_s=self.s.pull_timeout)
+            pinned = self.api.image_inspect(pinned_ref)
+            if not pinned or not pinned.get("Id"):
+                raise UpdateError("update.err.pull_failed", "checked image missing after pull")
+            self.api.image_tag(pinned["Id"], run.repo, run.version)
+            local = self.api.image_inspect(run.candidate)
+        except RuntimeAPIError as exc:
+            raise UpdateError("update.err.pull_failed", f"pull failed: {exc.message}") from None
+        if not local or local.get("Id") != pinned.get("Id"):
+            raise UpdateError("update.err.pull_failed", "version tag does not point at the checked image")
+        label = ((local.get("Config") or {}).get("Labels") or {}).get(VERSION_LABEL)
+        if label and label != run.version:
+            raise UpdateError("update.err.version_label_mismatch", f"image says {label}")
+        run.candidate_id = local.get("Id")
+        self.log("checked image present")
 
     # ---------------------------------------------------------- selftest
     def _throwaway_labels(self, run: _Run) -> dict:
@@ -1304,15 +1375,27 @@ class Updater:
         try:
             req = self.take_request()
         except UpdateError as exc:
-            self.status = {"state": "failed", "version": None, "from": None, "message_key": exc.key,
-                           "log": [], "nonce": None, "t": 0}
+            self.status = dict(self.fresh_status("failed"), message_key=exc.key)
             self.log(f"failed: {exc.detail}")
             return True
         if req is None:
             # An AI request never runs during an update; an update request always goes first.
             return self.localai.poll_once()
         self.handle_request(req)
+        self.refresh_previous()
         return True
+
+    def refresh_previous(self) -> None:
+        """Version of the image kept as "previous" (named in the heartbeat as the rollback target)."""
+        try:
+            t = self.find_target()
+            repo, _ = split_ref((t.get("Config") or {}).get("Image") or "")
+            img = self.api.image_inspect(f"{repo}:{PREVIOUS_TAG}") if repo else None
+            label = (((img or {}).get("Config") or {}).get("Labels") or {}).get(VERSION_LABEL)
+            self.previous = label if parse_semver(label) else None
+        except Exception:  # noqa: BLE001 - the heartbeat must never fail because of this
+            self.previous = None
+        self.write_heartbeat()
 
     def run_forever(self) -> None:
         self.ensure_update_dir()
@@ -1322,6 +1405,7 @@ class Updater:
         except RuntimeAPIError:
             self.echo("updater: container runtime not reachable yet")
         self.recover()
+        self.refresh_previous()
         try:
             self.heal_moving_tag()
         except Exception as exc:  # pragma: no cover - never block the loop
@@ -1363,7 +1447,15 @@ class Updater:
         report["health_url"] = url
         h = self.health_fn(url) if url else None
         report["health_version"] = h.get("version") if h else None
+        report["signature_required"] = repo == self.s.official_repo
+        try:
+            from .sigverify import TrustRoot
+            TrustRoot.load()
+            report["trust_data"] = SIGNATURE_AVAILABLE
+        except (OSError, ValueError, AttributeError, TypeError):
+            report["trust_data"] = False
         report["local_ai"] = self.localai.check()
         report["ok"] = bool(report["data_writable"] and report["repository_allowed"]
-                            and report["target"]["has_data_mount"] and report["health_version"])
+                            and report["target"]["has_data_mount"] and report["health_version"]
+                            and (report["trust_data"] or not report["signature_required"]))
         return report

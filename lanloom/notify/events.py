@@ -70,6 +70,7 @@ register(make("integ_auth", "connections", 31, "warning", hold=True, recovery=Tr
 register(make("cert_expiring", "connections", 32, "warning", available=_has_integrations))
 register(make("backup_old", "lanloom", 40, "warning", available=_has_backups))
 register(make("update_available", "lanloom", 41, "info"))
+register(make("update_failed", "lanloom", 43, "warning"))                # update or rollback did not go through
 register(make("security_notice", "lanloom", 42, "warning", personal=True))
 register(make("incident", "incidents", 50, "warning", available=_later))
 register(make("vulnerability", "incidents", 51, "warning", available=lambda core: bool(getattr(core, "vulns", None))))

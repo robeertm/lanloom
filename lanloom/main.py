@@ -23,6 +23,8 @@ from .core import Core
 from .integrations import catalog
 from .crypto import Vault, load_or_create_key
 from .store import Store
+from . import updates as updates_mod
+from . import whatsnew
 from .updates import Updates
 
 log = logging.getLogger("lanloom")
@@ -990,6 +992,60 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         except ValueError as exc:
             return err(str(exc))
 
+    @app.post("/api/update/rollback")
+    async def update_rollback(request: Request):
+        data = await body(request)
+        note(request, target=str(data.get("version") or "")[:20], detail={"from": __version__})
+        try:
+            return state.updates.rollback(str(data.get("version") or ""))
+        except ValueError as exc:
+            return err(str(exc))
+
+    @app.put("/api/update/settings")
+    async def update_settings(request: Request):
+        data = await body(request)
+        patch = {k: data[k] for k in ("channel", "hold") if k in data}
+        note(request, target=",".join(sorted(patch)), detail={k: v for k, v in patch.items() if isinstance(v, (str, bool))})
+        try:
+            return state.updates.settings(patch)
+        except ValueError as exc:
+            return err(str(exc))
+
+    # ------------------------------------------------------------------ what's new (changelog in the image)
+    def seen_of(request: Request) -> Optional[str]:
+        user = getattr(request.state, "user", None) or {}
+        if not user.get("id"):
+            return None
+        seen = state.accounts.prefs(user["id"]).get("whatsnew_seen")
+        if not isinstance(seen, str) or not updates_mod.parse_version(seen):
+            # first look: start at the running version, so only later versions carry the dot
+            state.accounts.set_prefs(user["id"], {"whatsnew_seen": __version__})
+            seen = __version__
+        return seen
+
+    @app.get("/api/whatsnew")
+    async def whatsnew_view(request: Request):
+        try:
+            limit = int(request.query_params.get("limit") or whatsnew.DEFAULT_LIMIT)
+        except ValueError:
+            limit = whatsnew.DEFAULT_LIMIT
+        return whatsnew.view(seen_of(request), limit)
+
+    @app.post("/api/whatsnew/seen")
+    async def whatsnew_seen(request: Request):
+        data = await body(request)
+        user = getattr(request.state, "user", None) or {}
+        v = str(data.get("version") or "")
+        if not updates_mod.parse_version(v):
+            return err("update.err.invalid_version")
+        if updates_mod.is_older(__version__, v):
+            v = __version__                      # never ahead of what runs
+        seen = seen_of(request)
+        if user.get("id") and whatsnew.newer(v, seen):
+            state.accounts.set_prefs(user["id"], {"whatsnew_seen": v})
+            seen = v
+        return {"seen": seen, "unseen": whatsnew.view(seen, 1)["unseen"]}
+
     # ------------------------------------------------------------------ firewall editor
     from .firewall.model import Refused
 
@@ -1218,6 +1274,8 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
+        if not whatsnew.entries():
+            problems.append("CHANGELOG.md missing or unreadable (What's new?)")
         for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/history.js", "css/history.css", "js/automations.js", "css/automations.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)

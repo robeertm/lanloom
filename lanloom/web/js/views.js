@@ -80,6 +80,7 @@
     const header = h('header', { class: 'topbar' + (tabs.length > 8 ? ' topbar--many' : '') },   // ten tabs with a hub: narrower steps
       h('a', { class: 'topbar__brand', href: '#/map' }, LL.logo(26), h('span', { class: 'brand-name' }, 'Lanloom'),
         LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
+      LL.versionChip ? LL.versionChip() : null,
       nav, h('div', { class: 'topbar__right' }, LL.paletteButton ? LL.paletteButton() : null, LL.aiAskButton ? LL.aiAskButton() : null, updateBtn, reconnectBtn, gradePill,
         LL.railButtons ? LL.railButtons() : null, themeBtn));
     themeBtn.classList.add('theme-btn');
@@ -88,7 +89,8 @@
     const demoBar = LL.state && LL.state.demo_view ? h('div', { class: 'demo-bar', role: 'status' },
       h('span', { class: 'demo-bar__text' }, h('strong', {}, t('setup.demo.bar_title')), ' ', t('setup.demo.bar_text')),
       h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => LL.demoView(false) }, t('setup.demo.leave'))) : null;
-    app.replaceChildren(h('div', { class: 'frame' }, header, demoBar, notes, LL.shellBody ? LL.shellBody(main, active) : main));
+    const verFoot = active === 'map' || active === 'network' || !LL.versionFoot ? null : LL.versionFoot();   // phones: the version sits at the end of the page, not in the header
+    app.replaceChildren(h('div', { class: 'frame' }, header, demoBar, notes, LL.shellBody ? LL.shellBody(main, active) : main, verFoot));
     const pillText = gradePill.querySelector('.grade-pill__text');
     const narrow = window.matchMedia('(max-width: 1400px)');          // the short form: only the time
     function showState() {
@@ -607,38 +609,156 @@
   LL.openLiveGrade = openSources;
 
   // ------------------------------------------------------------------ update notice
-  let updateState = null;
+  let updateState = null, updatePill = null;
+  const PULL_CMD = 'docker compose pull && docker compose up -d';
+  const SIDECAR_CMD = 'docker compose pull && docker compose --profile updater up -d';
+  const cmdCallout = (text, cmd) => h('div', { class: 'callout' }, h('p', {}, text), h('code', { class: 'cmd' }, cmd));
+  function setUpdateState(u) { updateState = u; if (updatePill) updatePill.hidden = !u.available; }
   async function checkUpdate(btn) {
-    try { updateState = await api('/api/update'); } catch (e) { return; }
-    btn.hidden = !updateState.available;
+    updatePill = btn;
+    try { setUpdateState(await api('/api/update')); } catch (e) { /* the notice stays hidden */ }
   }
+  LL.updateInfo = () => updateState;
+  LL.checkUpdateNow = () => checkUpdate(updatePill || { hidden: true });
   function openUpdate() {
     const u = updateState; if (!u) return;
     const msg = h('div', { class: 'msg' });
+    const isPreview = !!(u.preview && u.preview.version === u.latest);
     const notes = h('pre', { class: 'release-notes' }, u.notes || '');
-    const manual = h('div', { class: 'callout' }, h('p', {}, t('update.manual')), h('code', { class: 'cmd' }, 'docker compose pull && docker compose up -d'));
+    const sig = u.signature || {};
     const apply = u.sidecar ? h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
       apply.disabled = true;
       try { const req = await api('/api/update/apply', { method: 'POST', body: { version: u.latest } }); followUpdate(msg, u.latest, req.nonce); }
       catch (e) { LL.msg(msg, LL.errText(e), 'error'); apply.disabled = false; }
     } }, t('update.apply', { v: u.latest })) : null;
-    dialog(t('update.title', { v: u.latest }), h('div', { class: 'stack' }, h('p', {}, t('update.lead', { cur: u.current, v: u.latest })), notes, u.sidecar ? h('p', { class: 'muted' }, t('update.sidecar_text')) : manual,
-      u.sidecar_old ? h('div', { class: 'callout' }, h('p', {}, t('update.sidecar_old')), h('code', { class: 'cmd' }, 'docker compose pull && docker compose --profile updater up -d')) : null, msg),
+    dialog(t('update.title', { v: u.latest }), h('div', { class: 'stack update-dialog' },
+      h('p', {}, t('update.lead', { cur: u.current, v: u.latest }), isPreview ? [' ', h('span', { class: 'chip chip--warn' }, t('update.preview_badge'))] : null),
+      isPreview ? h('div', { class: 'callout callout--warn update-preview' }, h('p', {}, t('update.preview_callout'))) : null,
+      notes,
+      u.sidecar ? h('p', { class: 'muted' }, t('update.sidecar_text')) : cmdCallout(t('update.manual'), PULL_CMD),
+      u.sidecar && sig.supported && sig.enforced ? h('p', { class: 'muted update-sig' }, t('update.signature.enforced')) : null,
+      u.sidecar && sig.supported === false ? cmdCallout(t('update.signature.unsupported'), SIDECAR_CMD) : null,
+      u.sidecar_old && sig.supported !== false ? cmdCallout(t('update.sidecar_old'), SIDECAR_CMD) : null, msg),
       h('div', { class: 'btn-row' }, u.url ? h('a', { class: 'btn btn--ghost', href: u.url, target: '_blank', rel: 'noopener noreferrer' }, t('update.notes_link')) : null, apply));
   }
   function followUpdate(msg, version, nonce) {
+    let trustShown = false;
     const timer = setInterval(async () => {
       let s; try { s = await api('/api/update', { allow401: true }); } catch (e) { LL.msg(msg, t('update.restarting'), 'info'); return; }
       const st = s.status || {};
-      if (s.current === version) { clearInterval(timer); LL.msg(msg, t('update.done', { v: version }), 'ok'); setTimeout(() => location.reload(), 1500); return; }
+      if (s.current === version) {
+        clearInterval(timer);
+        LL.msg(msg, t('update.done', { v: version }) + (st.signature && st.signature.verified ? ' ' + t('update.signature.verified') : ''), 'ok');
+        setTimeout(() => location.reload(), 1500); return;
+      }
       // until the sidecar picks up this request, status.json still describes an earlier run
       if (nonce && st.nonce !== nonce) { LL.msg(msg, t('update.state.idle'), 'info'); return; }
       const bad = st.state === 'failed' || st.state === 'rolled_back';
       if (st.state === 'idle' && st.message_key) { clearInterval(timer); LL.msg(msg, t(st.message_key), 'info'); return; }
-      LL.msg(msg, t('update.state.' + (st.state || 'idle')) + (st.message_key ? ' — ' + t(st.message_key) : ''), bad ? 'error' : 'info');
+      const label = st.state === 'pulling' && st.step === 'verify' ? t('update.state.verify') : t('update.state.' + (st.state || 'idle'));
+      LL.msg(msg, label + (st.message_key ? ' — ' + t(st.message_key) : ''), bad ? 'error' : 'info');
+      if (bad && st.message_key === 'update.err.signature_trust' && !trustShown) { trustShown = true; msg.after(cmdCallout(t('update.signature.manual'), PULL_CMD)); }
       if (bad) clearInterval(timer);
     }, 2000);
   }
+  // a confirmation in the app's own dialog (no browser pop-up); resolves true on "yes", false on every other way out
+  function askConfirm(title, body, yesLabel) {
+    return new Promise(resolve => {
+      let answered = false;
+      const yes = h('button', { class: 'btn btn--primary', type: 'button', onclick: () => { answered = true; d.close(); resolve(true); } }, yesLabel);
+      const no = h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => d.close() }, t('access.cancel'));
+      const d = dialog(title, body, h('div', { class: 'btn-row' }, no, yes));
+      const obs = new MutationObserver(() => { if (!d.el.isConnected) { obs.disconnect(); if (!answered) resolve(false); } });
+      obs.observe(document.body, { childList: true });
+      setTimeout(() => no.focus(), 30);
+    });
+  }
+
+  // ------------------------------------------------------------------ what's new (changelog of the installed image)
+  let wn = null, wnLoaded = false;
+  const wnDots = new Set();
+  const wnSync = () => { wnDots.forEach(d => { if (!d.isConnected && d.dataset.ready) { wnDots.delete(d); return; } d.dataset.ready = '1'; d.hidden = !(wn && wn.unseen); }); };
+  const wnDot = () => { const d = h('i', { class: 'wn-dot', 'aria-hidden': 'true', hidden: true }); wnDots.add(d); if (wnLoaded) wnSync(); return d; };
+  async function wnLoad(limit) {
+    try { wn = await api('/api/whatsnew' + (limit ? '?limit=' + limit : '')); } catch (e) { return null; }
+    wnLoaded = true; wnSync(); return wn;
+  }
+  // **bold**, *italic* and `code` become elements; everything else stays a text node (never markup from the server)
+  function miniMd(text) {
+    const out = [];
+    String(text == null ? '' : text).split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*)/).forEach(part => {
+      if (!part) return;
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) out.push(h('strong', {}, part.slice(2, -2)));
+      else if (part.startsWith('`') && part.endsWith('`') && part.length > 2) out.push(h('code', {}, part.slice(1, -1)));
+      else if (part.startsWith('*') && part.endsWith('*') && part.length > 2) out.push(h('em', {}, part.slice(1, -1)));
+      else out.push(document.createTextNode(part));
+    });
+    return out;
+  }
+  LL.miniMd = miniMd;
+  function wnEntry(e) {
+    const heads = [h('h3', { class: 'wn-entry__ver' }, `v${e.version}`)];
+    if (e.date) heads.push(h('span', { class: 'wn-entry__date muted' }, e.date));
+    if (e.current) heads.push(h('span', { class: 'chip chip--accent' }, t('whatsnew.installed')));
+    if (e.new) heads.push(h('span', { class: 'wn-new' }, h('i', { class: 'wn-dot', 'aria-hidden': 'true' }), t('whatsnew.new')));
+    return h('article', { class: 'wn-entry' + (e.new ? ' is-new' : '') + (e.current ? ' is-current' : '') }, h('header', { class: 'wn-entry__head' }, heads),
+      (e.sections || []).map(sec => h('section', { class: 'wn-sec' },
+        h('h4', { class: 'wn-sec__title' }, LL.strings['whatsnew.section.' + String(sec.title).toLowerCase()] ? t('whatsnew.section.' + String(sec.title).toLowerCase()) : sec.title),
+        h('ul', { class: 'wn-sec__list' }, (sec.items || []).map(it => h('li', {}, miniMd(it)))))));
+  }
+  async function openWhatsNew() {
+    const list = h('div', { class: 'wn-list' }, h('p', { class: 'muted' }, t('whatsnew.loading')));
+    const olderBtn = h('button', { class: 'btn btn--ghost btn--sm wn-older', type: 'button', hidden: true }, t('whatsnew.older'));
+    const draw = () => {
+      if (!wn) { list.replaceChildren(h('p', { class: 'muted' }, t('whatsnew.failed'))); olderBtn.hidden = true; return; }
+      list.replaceChildren(...(wn.entries.length ? wn.entries.map(wnEntry) : [h('p', { class: 'muted' }, t('whatsnew.empty'))]));
+      olderBtn.hidden = !wn.more;
+    };
+    olderBtn.onclick = async () => { olderBtn.disabled = true; await wnLoad(200); olderBtn.disabled = false; draw(); };
+    dialog(t('whatsnew.title'), h('div', { class: 'wn' }, h('p', { class: 'muted wn-source' }, t('whatsnew.source')), list, h('div', { class: 'wn-more' }, olderBtn)));
+    const first = await wnLoad();
+    draw();
+    if (first && first.unseen && first.current) {
+      try { const r = await api('/api/whatsnew/seen', { method: 'POST', body: { version: first.current } }); wn.unseen = !!r.unseen; wn.seen = r.seen; wnSync(); } catch (e) { /* the dot stays until the next try */ }
+    }
+  }
+  LL.openWhatsNew = openWhatsNew;
+  let wnAsked = false;
+  const wnOnce = () => { if (!wnAsked) { wnAsked = true; wnLoad(); } };   // once per page load, only to know whether the dot is due
+  const verText = () => (LL.state && LL.state.version) || '';
+  LL.versionChip = () => {
+    if (!verText() || !LL.state.authenticated) return null;
+    wnOnce();
+    return h('button', { class: 'ver-chip', type: 'button', title: t('whatsnew.title'), 'aria-label': t('whatsnew.title') + ' — ' + verText(), onclick: openWhatsNew }, `v${verText()}`, wnDot());
+  };
+  LL.versionFoot = () => {
+    if (!verText() || !LL.state.authenticated) return null;
+    wnOnce();
+    return h('footer', { class: 'ver-foot muted' }, `Lanloom ${verText()}`, h('span', { class: 'dot-sep' }, '·'),
+      h('button', { class: 'ver-foot__link', type: 'button', onclick: openWhatsNew }, t('whatsnew.btn'), wnDot()));
+  };
+  // the page follows the server: after an update the live connection returns, and the open page loads the new files once
+  let healthBusy = false;
+  async function checkInstalled() {
+    if (healthBusy || !LL.state || !LL.state.version) return;
+    healthBusy = true;
+    try {
+      const r = await fetch(LL.url('/api/health'), { cache: 'no-store', credentials: 'same-origin' });
+      const hv = await r.json();
+      if (hv && hv.version && hv.version !== LL.state.version) {
+        let done = null; try { done = sessionStorage.getItem('ll.reloaded'); } catch (e) { /* no storage */ }
+        if (done !== hv.version) {
+          try { sessionStorage.setItem('ll.reloaded', hv.version); } catch (e) { /* no storage */ }
+          LL.toast(t('whatsnew.reloading', { v: hv.version }), 'ok');
+          setTimeout(() => location.reload(), 1500);
+        }
+      }
+    } catch (e) { /* the server is still restarting */ }
+    healthBusy = false;
+  }
+  let wasOffline = false;
+  LL.live.onStatus(st => { if (st === 'offline') wasOffline = true; else if (st === 'live' && wasOffline) { wasOffline = false; checkInstalled(); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkInstalled(); });
 
   // ------------------------------------------------------------------ devices list
   async function devicesView(app, rest) {
@@ -789,15 +909,42 @@
     const updMsg = h('div', { class: 'msg' });
     const reportCard = LL.reportSettingsCard ? await LL.reportSettingsCard() : null;
     if (reportCard) page.append(reportCard);
-    page.append(card(t('settings.updates'), [
-      facts([[t('settings.version'), upd.current], [t('settings.latest'), upd.latest || '—'], [t('settings.checked'), upd.checked ? LL.fmtDate(upd.checked) : '—'],
-        [t('settings.sidecar'), upd.sidecar ? t('settings.sidecar.yes') : t('settings.sidecar.no')]]),
-      upd.sidecar_old ? h('div', { class: 'callout' }, h('p', {}, t('update.sidecar_old')), h('code', { class: 'cmd' }, 'docker compose pull && docker compose --profile updater up -d')) : null,
-      h('label', { class: 'check' }, updToggle, h('span', {}, t('settings.update_check'))), h('p', { class: 'field__hint' }, t('settings.update_check.hint')), updMsg,
-      h('div', { class: 'btn-row' }, h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => {
-        try { updateState = await api('/api/update/check', { method: 'POST', body: {} }); LL.msg(updMsg, updateState.available ? t('update.available', { v: updateState.latest }) : (updateState.error ? t('update.check_failed') : t('update.current')), updateState.available ? 'ok' : 'info'); if (updateState.available) openUpdate(); }
-        catch (e) { LL.msg(updMsg, LL.errText(e), 'error'); }
-      } }, t('update.check_now')))]));
+    setUpdateState(upd);
+    const updCard = u => {
+      const sig = u.signature || {};
+      const flash = (text, kind) => LL.msg(updMsg, text, kind);
+      const redraw = nu => { setUpdateState(nu); updSection.replaceWith(updCard(nu)); };
+      const put = async body => { try { redraw(await api('/api/update/settings', { method: 'PUT', body })); LL.toast(t('settings.saved'), 'ok'); } catch (e) { flash(LL.errText(e), 'error'); } };
+      const channel = h('select', { class: 'input', 'aria-label': t('update.channel') }, ['stable', 'preview'].map(c => h('option', { value: c }, t('update.channel.' + c))));
+      channel.value = u.channel === 'preview' ? 'preview' : 'stable';
+      channel.onchange = () => put({ channel: channel.value });
+      const hold = h('input', { type: 'checkbox', checked: !!u.held });
+      hold.onchange = () => put({ hold: hold.checked });
+      const versionBtn = h('button', { class: 'link-btn', type: 'button', title: t('whatsnew.title'), onclick: openWhatsNew }, u.current);
+      const prev = u.previous;
+      const rollback = prev ? h('button', { class: 'btn btn--ghost', type: 'button', disabled: !u.rollback_ok, onclick: async () => {
+        if (!await askConfirm(t('update.rollback.title', { v: prev.version }), h('div', { class: 'stack' }, h('p', {}, t('update.rollback.text'))), t('update.rollback.confirm'))) return;
+        rollback.disabled = true;
+        try { const req = await api('/api/update/rollback', { method: 'POST', body: { version: prev.version } }); flash(t('update.rollback.started', { v: prev.version }), 'info'); followUpdate(updMsg, prev.version, req.nonce); }
+        catch (e) { flash(LL.errText(e), 'error'); rollback.disabled = !u.rollback_ok; }
+      } }, t('update.rollback.btn', { v: prev.version })) : null;
+      return updSection = h('section', { class: 'card settings-card update-card' }, h('h2', {}, t('settings.updates')),
+        facts([[t('settings.version'), versionBtn], [t('settings.latest'), u.latest || '—'], [t('settings.channel'), t('update.channel.' + (u.channel === 'preview' ? 'preview' : 'stable'))],
+          [t('settings.checked'), u.checked ? LL.fmtDate(u.checked) : '—'], [t('settings.sidecar'), u.sidecar ? t('settings.sidecar.yes') : t('settings.sidecar.no')],
+          u.sidecar ? [t('settings.signature'), sig.supported ? t(sig.enforced ? 'settings.signature.enforced' : 'settings.signature.yes') : t('settings.signature.no')] : null]),
+        u.sidecar_old || (u.sidecar && sig.supported === false) ? cmdCallout(t(sig.supported === false ? 'update.signature.unsupported' : 'update.sidecar_old'), SIDECAR_CMD) : null,
+        h('div', { class: 'upd-group' }, LL.field(t('update.channel'), channel, t('update.channel.hint')), u.preview_none ? h('p', { class: 'field__hint upd-none' }, t('update.channel.none')) : null),
+        h('div', { class: 'upd-group' }, h('label', { class: 'check' }, hold, h('span', {}, t('update.hold'))), h('p', { class: 'field__hint' }, t('update.hold.hint')),
+          u.held ? h('p', { class: 'upd-held' + (u.held_newer ? ' is-newer' : '') }, u.held_newer ? t('update.held_newer', { v: u.held, n: u.held_newer }) : t('update.held', { v: u.held })) : null),
+        prev ? h('div', { class: 'upd-group' }, rollback, h('p', { class: 'field__hint' }, t(!u.sidecar ? 'update.rollback.no_sidecar' : u.rollback_unsigned ? 'update.rollback.unsigned' : 'update.rollback.hint'))) : null,
+        h('label', { class: 'check' }, updToggle, h('span', {}, t('settings.update_check'))), h('p', { class: 'field__hint' }, t('settings.update_check.hint')), updMsg,
+        h('div', { class: 'btn-row' }, h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => {
+          try { const nu = await api('/api/update/check', { method: 'POST', body: {} }); setUpdateState(nu); flash(nu.available ? t('update.available', { v: nu.latest }) : (nu.error ? t('update.check_failed') : t('update.current')), nu.available ? 'ok' : 'info'); if (nu.available) openUpdate(); else updSection.replaceWith(updCard(nu)); }
+          catch (e) { flash(LL.errText(e), 'error'); }
+        } }, t('update.check_now')), h('button', { class: 'btn btn--ghost', type: 'button', onclick: openWhatsNew }, t('whatsnew.btn'))));
+    };
+    let updSection = null;
+    page.append(updCard(upd));
     page.append(diagnosticsCard());
     page.append(card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy'))]));
     fr.main.append(page);

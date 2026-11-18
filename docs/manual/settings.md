@@ -1,6 +1,6 @@
 # Settings
 
-[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · [Network](network.md) · [Devices](devices.md) · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · Settings · [AI](ai.md)
+[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · [Network](network.md) · [Devices](devices.md) · [Inventory](inventory.md) · [Firewall](firewall.md) · [Data paths](data-paths.md) · [Nightly report](nightly-reports.md) · [Automations](automations.md) · [Updating](updating.md) · Settings · [AI](ai.md)
 
 ## Purpose
 
@@ -41,7 +41,7 @@ Administrators additionally:
   internet, and the NetFlow receiver (see [Data paths](data-paths.md)).
 - **Nightly report** - time, time zone, retention and the delivery channels (see [Nightly report](nightly-reports.md)).
 - **Updates** - version, the optional update check (the only outgoing connection of its own, at most every 6 hours; turn
-  it off here) and the one-click updater where the updater sidecar runs.
+  it off here) and the one-click updater where the updater sidecar runs. Channels, holding a version, going back and the signature check: [Updating](updating.md).
 - **Diagnostic export** - one redacted JSON file (version, kind of installation, counts, the state and reason of every connection; no addresses, names or credentials) to attach to an issue. The download is written to the audit log; see [Troubleshooting](../TROUBLESHOOTING.md#the-diagnostic-export).
 
 ![Diagnostic export card](../screenshots/diagnostics-light.png)

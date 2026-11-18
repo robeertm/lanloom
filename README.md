@@ -538,6 +538,11 @@ Sign-in is mandatory; there is no open mode. The first account can only be creat
 
 - **With the updater sidecar:** an "Update" button appears when a new version is available. It pulls the image, runs a self-test without network, starts a trial on a copy of your data, backs up the database and tags the previous image, swaps the container, checks health, and rolls back automatically on failure.
 - **Without it:** `docker compose pull && docker compose up -d`.
+- **Channels:** Stable (default) or Preview; Preview offers a pre-release only when it is newer than the newest stable release and went through the same gate and signing, never `:edge`. Details: [docs/manual/updating.md](docs/manual/updating.md).
+- **Hold this version:** no update notices until you release it; the nightly report notes when a newer version waits.
+- **Back to the previous version:** one click for administrators with a fresh confirmation, same checks as an update; not offered for versions before 1.29.0 (unsigned), which are restored by hand from the backup.
+- **Signature check:** the updater (1.34.0 and later) verifies the signature of the new image against the publishing workflow and the public transparency log before it swaps anything; on failure nothing changes.
+- **What's new?:** the version number in the header opens the changes of each version from the changelog inside the image; nothing is fetched online.
 
 Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move only after the published image has been tested; `:edge` is the latest build of the main branch.
 

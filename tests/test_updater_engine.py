@@ -696,7 +696,8 @@ def test_heartbeat_and_owner(env):
         time.sleep(0.01)
     upd.stop()
     hb = json.loads(upd.heartbeat_path.read_text())
-    assert set(hb) == {"version", "t"} and abs(hb["t"] - time.time()) < 5
+    assert set(hb) == {"version", "t", "features", "previous"} and abs(hb["t"] - time.time()) < 5
+    assert hb["features"] == ["signature", "previous"]
 
 
 def test_build_create_body_filters(env):

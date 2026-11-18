@@ -221,6 +221,10 @@ RULES = {
     ("GET", "/api/update"): R(V),
     ("POST", "/api/update/check"): R(A, "update.check"),
     ("POST", "/api/update/apply"): R(A, "update.apply"),
+    ("POST", "/api/update/rollback"): R(A, "update.rollback", stepup=True),
+    ("PUT", "/api/update/settings"): R(A, "update.settings"),
+    ("GET", "/api/whatsnew"): R(V),
+    ("POST", "/api/whatsnew/seen"): R(V, "whatsnew.seen"),
 
     # ---------------------------------------------------------------- firewall editor
     ("GET", "/api/firewall"): R(V),

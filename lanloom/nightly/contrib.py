@@ -418,14 +418,29 @@ def _certs(ctx: Ctx) -> dict:
 
 
 # ---------------------------------------------------------------------- Lanloom itself
+def _older(a: str, b: str) -> bool:
+    from ..updates import is_older
+    return is_older(a, b)
+
+
 def _lanloom(ctx: Ctx) -> dict:
     items = []
     upd = ctx.update or {}
     if upd.get("available") and upd.get("latest"):
         items.append(item("upd:%s" % upd["latest"], "report.self.update", "info", True, version=upd["latest"]))
+    elif upd.get("held") and upd.get("held_newer"):
+        items.append(item("held:%s" % upd["held_newer"], "report.self.held", "info", False, version=upd["held"],
+                          newer=upd["held_newer"]))
+    st = upd.get("status") or {}
+    if st.get("state") in ("failed", "rolled_back") and st.get("version") and ctx.since <= float(st.get("t") or 0) < ctx.until:
+        items.append(item("updfail:%s" % (st.get("nonce") or st.get("t")), "report.self.update_failed", "warn", True,
+                          version=st["version"], reason_key=st.get("message_key") or "update.err.internal"))
     for ev in ctx.events("app_start"):
         d = ev["data"]
-        if d.get("prev") and d.get("prev") != d.get("version"):
+        if d.get("prev") and d.get("version") and _older(d["version"], d["prev"]):
+            items.append(item("ver:%s" % d.get("version"), "report.self.rolled_back", "ok", False, at_at=ev["t"],
+                              version=d.get("version") or "", was=d.get("prev") or ""))
+        elif d.get("prev") and d.get("prev") != d.get("version"):
             items.append(item("ver:%s" % d.get("version"), "report.self.updated", "ok", False, at_at=ev["t"],
                               version=d.get("version") or "", was=d.get("prev") or ""))
         elif d.get("down_s") is not None:

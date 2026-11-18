@@ -319,6 +319,9 @@ class Accounts:
         data = self.prefs(user_id)
         if "language" in patch and patch["language"] in (None, "en", "de"):
             data["language"] = patch["language"]
+        seen = patch.get("whatsnew_seen")
+        if isinstance(seen, str) and re.fullmatch(r"\d{1,6}\.\d{1,6}\.\d{1,6}", seen):
+            data["whatsnew_seen"] = seen      # newest version this person looked at in "What's new?"
         self.store.execute("UPDATE users SET prefs=? WHERE id=?", (json.dumps(data, separators=(",", ":")), user_id))
         return data
 

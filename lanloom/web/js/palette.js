@@ -107,6 +107,15 @@
         if (s.available) LL.go('#/settings');
       } catch (e) { LL.toast(LL.errText(e), 'error'); }
     } });
+  LL.registerCommand({ id: 'whatsnew', group: 'commands', order: 19, label: 'cmdk.whatsnew', keywords: () => t('cmdk.kw.whatsnew'),
+    available: () => !!(LL.state && LL.state.authenticated && LL.openWhatsNew), run: () => LL.openWhatsNew() });
+  const holdCommand = (id, order, label, want) => LL.registerCommand({ id, group: 'commands', order, label, keywords: () => t('cmdk.kw.update'),
+    available: () => LL.can('admin') && !!(LL.updateInfo && LL.updateInfo()) && !!LL.updateInfo().held === !want,
+    run: async () => {
+      try { await api('/api/update/settings', { method: 'PUT', body: { hold: want } }); LL.toast(t('settings.saved'), 'ok'); if (LL.checkUpdateNow) LL.checkUpdateNow(); LL.route(); }
+      catch (e) { LL.toast(LL.errText(e), 'error'); }
+    } });
+  holdCommand('update-hold', 21, 'cmdk.hold', true); holdCommand('update-release', 22, 'cmdk.hold.release', false);
   LL.registerCommand({ id: 'recent-clear', group: 'commands', order: 30, label: 'cmdk.clear_recent', keywords: () => t('cmdk.kw.recent'), available: () => recents().length > 0,
     run: () => { forget(); LL.toast(t('cmdk.recent_cleared')); } });
   // one command per colour theme (the list of themes belongs to js/app.js, so it is read when the palette opens)
