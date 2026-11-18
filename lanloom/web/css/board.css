@@ -114,7 +114,7 @@
 .ll-trace.ll-k-virtual, .ll-trace.ll-k-virtual.is-unmeasured { stroke: var(--ll-pcb-trace-virtual); stroke-width: 2.2; stroke-dasharray: .5 3.5; opacity: var(--ll-pcb-trace-rest); }
 .ll-board.is-compact .ll-trace { stroke-width: 1.4; }
 .ll-board.is-compact .ll-trace.ll-k-uplink { stroke-width: 1.9; }
-.ll-talkline { stroke: var(--ll-pcb-trace-flow); stroke-dasharray: 7 6; stroke-linecap: round; opacity: .5; fill: none; transition: opacity var(--ll-dur) var(--ll-ease); }
+.ll-talkline { stroke: var(--ll-text-3); stroke-dasharray: 8 7; stroke-linecap: round; opacity: .5; fill: none; transition: opacity var(--ll-dur) var(--ll-ease); }
 .ll-board.is-focus .ll-talkline:not(.is-on) { opacity: .08; }
 .ll-board.is-focus .ll-talkline.is-on { opacity: .95; }
 .ll-pad { fill: var(--ll-pcb-copper); transition: opacity var(--ll-dur) var(--ll-ease); }

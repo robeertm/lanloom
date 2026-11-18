@@ -36,10 +36,15 @@ unusually much.
 - **Per-device figures.** The default source is the connections of the Lanloom host itself. For every device of the
   network, set up NetFlow / IPFIX export on your router and switch on the receiver under *Settings > General > NetFlow /
   IPFIX from your router* (administrators); see [DATA-PATHS.md](../DATA-PATHS.md#setting-up-netflow--ipfix).
+- **Where does it talk to?** Every device card has this section: the countries it talks to (EU or outside) and the devices
+  of your network it talks to, with the bytes in each direction and a period switch. The card of the *Internet* tile lists
+  which devices talk to the internet and how much.
 - In *Settings > General* administrators set the home country and list their own networks and tunnels and the networks that
   should have no internet access.
 
 ![Full screen with zoom](../screenshots/paths-zoom-dark.png)
+
+![The card of a device with Where does it talk to?](../screenshots/talk-card-light.png)
 
 ## Limits
 
@@ -50,6 +55,11 @@ unusually much.
   as *Unknown device*, and traffic between two local devices is not counted.
 - Country data is offline and approximate (a database that ships with each release). A country lights up with its main
   area only.
+- Conversations between devices (the map's *Who talks to whom* and the card's *In your network*) come from the router's
+  flows. Devices that talk inside one switch never reach the router and do not appear; a device that is not known never
+  becomes a line.
+- The controller adapters count bytes per client but not per destination, so the figures by country come only from the
+  host's connections and from NetFlow (see [DATA-PATHS.md](../DATA-PATHS.md#what-the-adapter-statistics-can-and-cannot-do)).
 - Hints never create a firewall rule and never block anything.
 - NetFlow receives only from the exporter addresses you allow; packets from any other address are dropped and counted.
 
@@ -58,7 +68,7 @@ unusually much.
 - **Read:** the TCP connections of the host (kernel socket diagnostics) and, if you switch it on, NetFlow / IPFIX
   records from the exporters you allow. Nothing is looked up online and Lanloom never contacts the destinations.
 - **Stored:** only country, device id and bytes per hour (49 hours) and per day (31 days), plus the first and last day a
-  device talked to a country. No peer addresses, host names or visited sites are kept; NetFlow records are read in
+  device talked to a country, and for a conversation between two devices the two ids and the bytes per direction. No peer addresses, ports, host names or visited sites are kept; NetFlow records are read in
   memory and dropped. Retention is adjustable under *Settings > Storage*.
 - **Sent:** nothing. The country data and the base map ship with the image.
 - **Roles:** every role looks. Admins set up NetFlow, own networks and the networks without internet.

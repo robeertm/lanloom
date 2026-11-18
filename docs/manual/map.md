@@ -31,6 +31,10 @@ there, what talks to what, and what is down, in one picture.
   back key closes it.
 - Use the area chips to look at one network or one cabinet at a time (`#/map?zone=<area>`), or *Problems only*
   (`#/map?only=problems`).
+- **Who talks to whom** (the first chip, `#/map?talk=1`) draws dashed lines in the air between devices that talk to each
+  other in the last 24 hours, width by bytes. It needs NetFlow from your router (see [Data paths](data-paths.md)); the
+  lines of the open card light up. The card's *Where does it talk to?* lists the same conversations by name, plus the
+  countries on the internet.
 - Magnify the board with the mouse wheel or two fingers.
 - Search (`Ctrl K`) finds components and devices and offers actions such as *Show availability* or *Show traffic
   history*.
@@ -41,6 +45,8 @@ there, what talks to what, and what is down, in one picture.
 
 ![The card of a device](../screenshots/detail-light.png)
 
+![Who talks to whom: dashed lines between devices that talk to each other](../screenshots/map-talk-light.png)
+
 ## Limits
 
 - Dots show measured bytes only. A trace without measurement stays still; it does not mean there is no traffic.
@@ -48,6 +54,7 @@ there, what talks to what, and what is down, in one picture.
   the physical order when sources for it exist.
 - Large networks are drawn with many traces bundled into trunks; the animation steps down on weak graphics (see
   *Map animation* under [Settings](settings.md#general)).
+- The dashed lines are conversations seen by the router, not cables, and traffic inside one switch is not seen.
 - *Simulate maintenance* is a simulation read from the known topology; nothing is switched off.
 
 ## Privacy

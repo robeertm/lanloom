@@ -1,8 +1,9 @@
 /* Lanloom — circuit-board map engine.
-   Lanloom.Board.mount(el, {view, theme, compact, onSelect, t, locale, bundle, port}) → {update, live, setTheme, highlight, destroy}
+   Lanloom.Board.mount(el, {view, theme, compact, onSelect, t, locale, bundle, port}) → {update, live, setTheme, highlight, setTalk, destroy}
    Load order: router.js, bundles.js, layout.js, icons.js, dots.js, endmarks.js, portmarks.js, board.js (plus css/tokens.css,
    css/board.css, board/endmarks.css and board/portmarks.css). End and port marks are optional: without their scripts the board
    works as before.
+   setTalk([{a, b, ab, ba}]) draws dashed lines in the air between the tiles of devices that talk to each other (empty list: none).
    Bundled traces: traces that end at the same tile with the same kind share one trunk there (their dots add up on it).
    port(trace, end) → port key at that end ('' = any, null = never bundle there); bundle: false switches bundling off.
    Zones and tiles are DOM (crisp text, focusable buttons), traces are SVG under the tiles, glow and dots are two
@@ -581,7 +582,7 @@
 
     // ---------------------------------------------------------------- conversations between devices ("Who talks to whom")
     /* Straight dashed lines in the air between the tiles of two devices that talk to each other (not wires: nothing is claimed about
-       the cable). The width follows the bytes (square root, 1.2 to 4 px); the tiles sit above the lines, so a line ends at the tile edge. */
+       the cable). The width follows the bytes (square root, 1 to 3.2 px); the tiles sit above the lines, so a line ends at the tile edge. */
     setTalk(pairs) {
       this.talk = Array.isArray(pairs) ? pairs : [];
       this.renderTalk();
@@ -593,7 +594,7 @@
         const top = Math.max(1, ...this.talk.map(p => (+p.ab || 0) + (+p.ba || 0)));
         this.talk.forEach(p => {
           const a = lay.tiles[p.a], b = lay.tiles[p.b]; if (!a || !b) return;
-          const bytes = (+p.ab || 0) + (+p.ba || 0), w = 1.2 + 2.8 * Math.sqrt(bytes / top);
+          const bytes = (+p.ab || 0) + (+p.ba || 0), w = 1 + 2.2 * Math.sqrt(bytes / top);
           rows.push(`<line class="ll-talkline" data-a="${esc(p.a)}" data-b="${esc(p.b)}" x1="${num(a.x + a.w / 2)}" y1="${num(a.y + a.h / 2)}" x2="${num(b.x + b.w / 2)}" y2="${num(b.y + b.h / 2)}" stroke-width="${num(w)}"/>`);
         });
       }
@@ -850,6 +851,7 @@
       live: f => b.live(f),
       setTheme: t => b.setTheme(t),
       highlight: id => b.highlight(id),
+      setTalk: pairs => b.setTalk(pairs),
       destroy: () => b.destroy(),
       ready: b.ready,
       stats: () => Object.assign({}, b.stats, { dots: Object.assign({}, b.dots.stats) }),

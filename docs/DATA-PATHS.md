@@ -12,6 +12,20 @@ The **Data paths** tab shows where the devices of your network send data on the 
 - **Zooming:** the mouse wheel inside the map zooms in and out at the pointer, up to 16 times; outside the map, or when it is fully zoomed out, the page scrolls as usual. Drag to move the zoomed map (a drag never selects a country). On a phone, pinch with two fingers; one finger moves the map only while it is zoomed, otherwise the page scrolls. A double click or the reset button at the top left shows the whole world again. With the keyboard, Tab to the map, then `+` and `-` zoom and `0` resets. Lines, dots and labels keep their size on screen, and the labels are laid out again for every zoom level, so neighbouring countries get their own label once you zoom in. The zoom works in the full screen too and stays when the map refreshes every minute.
 - **Overseas parts:** a country lights up only with its main area. A territory with its own country code (French Guiana, Réunion, Guadeloupe and others) is a shape or a dot of its own, and far-away parts of a country without an own code are drawn but never lit with it.
 
+## Where does it talk to? (on every card)
+
+The card of a device has the section **Where does it talk to?** with the period switch (24 hours, 7 days, 30 days, the same choice as the map): *On the internet* lists the countries with the bytes sent and received and whether the country is in the EU (own networks and tunnels and traffic without a country are listed as their own lines), and *In your network* lists the devices it talks to, by name, with the bytes in each direction. A click on a name opens that device's card. The card of the **Internet** tile has *Who talks to the internet?*: every device that exchanged data with the internet in the period, with its sums and the number of countries. Route: `GET /api/paths/device/<id>?window=` (`internet` for the tile).
+
+## Who talks to whom (on the map)
+
+On the map and on the network board the chip **Who talks to whom** (first in the row of filters; `#/map?talk=1`) draws dashed grey lines in the air between the tiles of two devices that talk to each other, for the last 24 hours. The width follows the bytes. They are not cables: nothing is claimed about the wiring, and the lines of the open card light up while the rest fades. The chip shows the number of conversations. Without conversations it says so and points to NetFlow. Route: `GET /api/paths/lan?window=`.
+
+Conversations come from the flows your router or firewall exports (see below), so they show only what crosses the router: traffic between networks (VLANs), and traffic to the router itself. **Devices that talk inside one switch never reach the router, and no flow exists for it.** Only flows whose two ends are both known devices are counted; an address that is not a known device never becomes a line. The conversations are not data paths, are not counted in the figures of the internet and not in the EU share, and the Lanloom host's own traffic is left out here as everywhere in flows.
+
+## What the adapter statistics can and cannot do
+
+Before the flow receiver was extended, the statistics of the controller adapters were checked as a second source for traffic by destination. The result for the read adapter of the switch controller family (checked against the recording of a real console and the published specifications of three releases): the client lists carry **byte totals per client and per port**, but no destination, no country and no peer; the official integration API offers the application and category **catalogues** and the country list, but no statistics; the classic per-client application statistics count by application category, not by country, are not part of the allow-list of the read adapter and need a view-only account plus DPI switched on in the controller. None of them answers *which country*, and an application category cannot be turned into a country honestly. So the adapters are not fed into the data paths; **NetFlow / IPFIX from the gateway is the source for traffic by destination and for conversations between devices**. Per-client totals stay what they are: the live traffic of the map and the counter check.
+
 ## What is counted where
 
 Every connection partner beyond your local network falls into exactly one bucket:
@@ -56,7 +70,7 @@ How flows are booked: a flow from a local address to an address on the internet 
 
 ## Privacy
 
-Stored are only country, device id and bytes per hour (49 hours) and per day (31 days), plus the first and last day a device talked to a country. No peer addresses, host names or visited sites are kept, also not from NetFlow records (they are read in memory and dropped). Nothing is looked up online.
+Stored are only country, device id and bytes per hour (49 hours) and per day (31 days), plus the first and last day a device talked to a country, and for conversations between two devices only the two device ids and the bytes per direction (same retention). No peer addresses, ports, protocols, host names or visited sites are kept, also not from NetFlow records (they are read in memory and dropped). Nothing is looked up online.
 
 ## Country data and map
 

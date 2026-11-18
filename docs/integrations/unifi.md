@@ -55,6 +55,10 @@ Exactly one code path sends requests, through an allow-list that is checked befo
 
 Sign-ins are capped (six per hour per controller and account) and a refused sign-in pauses further attempts for 15 minutes, so a wrong password cannot lock the account. After HTTP 401 Lanloom signs in again once; after 403 it never does. Clients and devices are read every minute, the configuration every five minutes.
 
+## Traffic statistics
+
+The adapter reads byte totals per client and per port for the live traffic of the map. It does **not** feed the data paths (traffic by country) or the conversations between devices: neither the official API nor the classic lists name a destination or country, and application categories cannot honestly be turned into countries. For those, let the gateway export NetFlow / IPFIX to Lanloom's receiver, see [DATA-PATHS.md](../DATA-PATHS.md#what-the-adapter-statistics-can-and-cannot-do).
+
 ## Releases
 
 | controller release | reads |

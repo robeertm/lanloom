@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.33.0] – 2026-11-18
+
+### Added
+- **Where does it talk to?** on every device card: the countries the device talks to on the internet (with EU or outside, own networks and tunnels and traffic without a country as their own lines) and the devices of your network it talks to, with the bytes in each direction, for 24 hours, 7 days or 30 days. The card of the **Internet** tile lists the devices that talk to the internet, with their sums and the number of countries. Routes `GET /api/paths/device/{id}` (`internet` for the tile) and `GET /api/paths/lan`, both for every role.
+- **Who talks to whom** on the map and the network board (first chip, `#/map?talk=1`, also in the command palette): dashed lines in the air between devices that talk to each other in the last 24 hours, width by bytes, the lines of the open card light up. Conversations come from the flows of your router (NetFlow / IPFIX) whose two ends are both known devices; they are not data paths and are not counted in the internet figures or the EU share. The board engine got `setTalk(pairs)`.
+- Demo network: nine conversations with a month of history, so the lines, the card section and the Internet tile show real figures.
+
+### Changed
+- The NetFlow receiver books flows between two local devices as conversations (two device ids and the bytes per direction, hourly and daily, with the retention of the data paths) instead of dropping them; the receiver status counts them. They are part of the storage area *Data paths*, the clean-up, forgetting a device and the backup of the history.
+- Docs: what the controller adapters' statistics can and cannot do for the data paths (byte totals per client, no destination or country; the gateway's NetFlow / IPFIX is the source), the manual pages *Data paths* and *Map*, README, command palette list.
+
+### Notes
+- Devices that talk inside one switch never reach the router, so no flow exists for them and they do not show as a line.
+
 ## [1.32.2] – 2026-11-17
 
 ### Fixed

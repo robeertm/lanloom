@@ -199,14 +199,18 @@
           drawFilter();
         };
         const chip = (label, on, fn, extra) => h('button', { class: 'mf-chip' + (on ? ' is-on' : '') + (extra || ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', onclick: fn }, label);
+        // the view toggle comes first: with many areas the row scrolls and a chip at the end would be out of sight
+        const nTalk = talkOn && talkInfo ? talkInfo.pairs.length : 0;
+        const talkChip = chip(t('talk.chip') + (nTalk ? ' · ' + nTalk : ''), talkOn, toggleTalk, ' mf-chip--talk');
+        if (nTalk) talkChip.title = t('talk.legend', { n: nTalk });
         filterBar.replaceChildren(...[
+          talkChip,
+          talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
+          h('span', { class: 'mf-sep', 'aria-hidden': 'true' }),
           zones.length > 1 ? chip(t('mapfilter.all'), !zone, () => set('zone', null)) : null,
           ...(zones.length > 1 ? zones.map(z => chip(z.title || '—', zone === z.id, () => set('zone', zone === z.id ? null : z.id))) : []),
-          h('span', { class: 'mf-sep', 'aria-hidden': 'true' }),
-          chip(t('mapfilter.problems'), only === 'problems', () => set('only', only === 'problems' ? null : 'problems'), ' mf-chip--problems'),
-          chip(t('talk.chip'), talkOn, toggleTalk, ' mf-chip--talk')].filter(Boolean));
-        if (talkOn && talkInfo) filterBar.append(h('span', { class: 'mf-talk muted' }, talkInfo.pairs.length
-          ? t('talk.legend', { n: talkInfo.pairs.length }) : t('talk.none')));
+          zones.length > 1 ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
+          chip(t('mapfilter.problems'), only === 'problems', () => set('only', only === 'problems' ? null : 'problems'), ' mf-chip--problems')].filter(Boolean));
         const n = filtered(data).components.filter(c => c.zone !== 'edge').length;
         if ((zone || only) && !n) filterBar.append(h('span', { class: 'mf-empty muted' }, t(only ? 'mapfilter.none_problems' : 'mapfilter.none')));
       }
