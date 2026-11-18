@@ -76,6 +76,9 @@ its date, the row shows *Back on the network* and the nightly report says so; *P
   "unknown", not "supported" - and the page shows its date.
 - **Your own table:** drop a file with the same format into the data directory (`<data>/eol/eol.json`); its entries are
   added, an entry with the same id replaces the bundled one. A bad entry is skipped and logged.
+- **Vulnerability hints:** the maker, model and firmware of a device (your own firmware first) are also compared with the
+  offline vulnerability feed; see [VULNERABILITIES.md](VULNERABILITIES.md). Entering the firmware of a device lets Lanloom
+  check it when the device does not report its firmware itself.
 
 Entry format: `{"id": "example-os-1", "match": ["\\bexample os 1\\b"], "until": "2025-10-14"}` - `match` is a list of
 regular expressions tested against the lower-cased text, `until` a date, `name` (optional) a label, `sample` (optional)

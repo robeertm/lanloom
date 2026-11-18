@@ -11,6 +11,7 @@ guides in [docs/](../)). The *About this view* rail of the app (key `I`) links t
 | Network | [network.md](network.md) | The same devices ordered by cabling: switch ports, access points, hypervisor guests. |
 | Devices | [devices.md](devices.md) | Every device with type, certainty, maker and services, plus the stability list. |
 | Inventory | [inventory.md](inventory.md) | Purpose, room, warranty, firmware and life cycle of every device. |
+| Vulnerabilities | [vulnerabilities.md](vulnerabilities.md) | Published vulnerabilities that match a device's maker, model and firmware, from an offline feed, with what to do. |
 | Firewall | [firewall.md](firewall.md) | Zones, networks and rules read from the controller; drafts with a dry run. |
 | Data paths | [data-paths.md](data-paths.md) | Which countries your devices exchange data with, on a world map. |
 | Nightly report | [nightly-reports.md](nightly-reports.md) | A short report of every night with points to tick off. |

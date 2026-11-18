@@ -18,6 +18,7 @@ Open **Settings → Notifications**. Everybody (viewer, operator, admin) has the
 | Sign-in refused by a connection | warning | yes | yes |
 | Certificate expires within 14 days (expired: critical) | warning | – | – |
 | Backup too old | warning | – | – |
+| Vulnerability hint (a published vulnerability matches a device's firmware; certain or exploited in the wild: warning, otherwise note; only with the [vulnerability hints](VULNERABILITIES.md)) | warning | – | – |
 | Host agent silent (no report for 90 seconds; only with a [host agent](HOST-AGENT.md)) | warning | yes | yes |
 | Failed service or timer on a host with an agent | warning | – | yes |
 | Container unhealthy or restarting (host agent or container source) | warning | yes | yes |
@@ -27,7 +28,7 @@ Open **Settings → Notifications**. Everybody (viewer, operator, admin) has the
 
 The three events about hosts (*Host agent silent*, *Service or timer failed*, *Container unhealthy*) are in the group **Hosts and containers** and are offered only once a host agent or container source exists. The name of the host and of the unit or container is in the message; nothing from inside a container ever is.
 
-*Incident* and *Vulnerability* are already in the register and appear as soon as the features that report them are there. New devices found by the very first scan are no news; neither are rows about the past.
+*Vulnerability hint* (group *Incidents*) comes from the [vulnerability hints](VULNERABILITIES.md): once per device and hint, a warning when the hint is certain or exploited in the wild, otherwise information. *Incident* is already in the register and appears as soon as the feature that reports it is there. New devices found by the very first scan are no news; neither are rows about the past.
 
 **Protected networks** (administrators, *Shared limits*): a new device in one of these networks (for example management or servers) is its own critical event.
 

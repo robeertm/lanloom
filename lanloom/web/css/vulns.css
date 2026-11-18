@@ -1,0 +1,80 @@
+/* Lanloom — Vulnerability hints: list of hint cards, the device-card block, devices not checked, the feed card.
+   Design tokens only, so light and dark (and the accent palettes) follow tokens.css. A hint is calm: colour marks the
+   severity chip and the "exploited in the wild" mark, never the whole card. */
+.vl-page { min-width: 0; }
+.vl-lead { max-width: 90ch; }
+.vl-list { margin-top: var(--ll-space-1); }
+.vl-chip--exploited.is-on { background: var(--ll-danger-soft); color: var(--ll-danger-text); }
+.vl-chip--certain.is-on, .vl-chip--possible.is-on { background: var(--ll-accent-soft); color: var(--ll-accent-text); }
+
+/* one hint */
+.vl-hint { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; position: relative; }
+.vl-hint.is-wild { box-shadow: inset 3px 0 0 var(--ll-danger), var(--ll-shadow-1); }
+.vl-hint.is-aside { opacity: .8; }
+.vl-hint__top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.vl-hint__id { margin-left: auto; font-size: var(--ll-fs-sm); }
+.vl-id { color: var(--ll-text-2); text-decoration: none; white-space: nowrap; }
+a.vl-id:hover { color: var(--ll-accent-text); text-decoration: underline; }
+.vl-hint p { margin: 0; }
+.vl-hint__title { font-weight: var(--ll-fw-semibold); color: var(--ll-text); overflow-wrap: anywhere; }
+.vl-hint__dev { font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.vl-hint__dev a { font-weight: var(--ll-fw-semibold); color: var(--ll-text); text-decoration: none; }
+.vl-hint__dev a:hover { color: var(--ll-accent-text); text-decoration: underline; }
+.vl-hint__why { font-size: var(--ll-fs-sm); color: var(--ll-text-2); }
+.vl-hint__do { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: var(--ll-fs-sm); padding: 8px 10px;
+  background: var(--ll-surface-2); border-radius: var(--ll-radius-sm); color: var(--ll-text); }
+.vl-hint__dolabel { font-weight: var(--ll-fw-semibold); color: var(--ll-text-2); }
+.vl-hint__aside { font-size: var(--ll-fs-sm); }
+.vl-hint__acts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.vl-aside { width: 100%; max-width: 560px; }
+.vl-aside .fineprint { margin: 0 0 6px; }
+
+/* chips */
+.vl-sev { white-space: nowrap; }
+.vl-sev--medium, .vl-sev--low, .vl-sev--unknown { background: var(--ll-surface-3); color: var(--ll-text-2); }
+.vl-cert { background: transparent; border: 1px solid var(--ll-border-strong); color: var(--ll-text-2); font-weight: var(--ll-fw-medium); }
+.vl-cert--certain { border-color: var(--ll-text-3); color: var(--ll-text); }
+.vl-wild { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--ll-radius-pill);
+  font-size: var(--ll-fs-xs); font-weight: var(--ll-fw-semibold); color: var(--ll-danger-text); background: var(--ll-danger-soft);
+  border: 1px solid var(--ll-danger); white-space: nowrap; }
+.vl-wild__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ll-danger); flex: none; }
+.vl-wild__ransom { font-weight: var(--ll-fw-medium); }
+
+/* empty, not checked, feed */
+.vl-empty p { margin: 0; }
+.vl-empty p + p { margin-top: 6px; }
+.vl-empty .fineprint { margin-left: auto; margin-right: auto; }
+.vl-unchecked:empty, .vl-feedhost:empty { display: none; }
+.vl-fold { padding: 0; }
+.vl-fold > summary { cursor: pointer; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; list-style: none; }
+.vl-fold > summary::-webkit-details-marker { display: none; }
+.vl-fold > summary::before { content: '▸'; color: var(--ll-text-3); width: 12px; flex: none; }
+.vl-fold[open] > summary::before { content: '▾'; }
+.vl-fold > summary:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: -2px; border-radius: var(--ll-radius-lg); }
+.vl-fold__title { font-weight: var(--ll-fw-semibold); }
+.vl-fold .fineprint { max-width: none; }
+.vl-unchecked__list { margin: 0; padding: 0 16px 12px; }
+.vl-unchecked__row { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--ll-border); font-size: var(--ll-fs-sm); }
+.vl-unchecked__row > a:first-child { font-weight: var(--ll-fw-semibold); color: var(--ll-text); text-decoration: none; }
+.vl-unchecked__row > a:first-child:hover { text-decoration: underline; }
+.vl-unchecked__why { flex: 1 1 260px; }
+.vl-unchecked__fix { white-space: nowrap; }
+.vl-feed { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.vl-feed p { margin: 0; }
+.vl-feed__title { font-size: var(--ll-fs-md); margin: 0 0 2px; }
+.vl-feed .fineprint { max-width: none; }
+.vl-feed .btn-row { margin-top: 6px; }
+
+/* device card */
+.vl-mini { display: flex; flex-direction: column; gap: 8px; }
+.vl-mini .vl-hint { padding: 12px; box-shadow: none; }
+.vl-mini .vl-hint.is-wild { box-shadow: inset 3px 0 0 var(--ll-danger); }
+.vl-mini p { margin: 0; }
+.vl-mini__none { font-size: var(--ll-fs-sm); }
+
+@media (max-width: 700px) {
+  .vl-lead { display: block; margin-top: 0; font-size: var(--ll-fs-sm); }
+  .vl-hint { padding: 12px; }
+  .vl-hint__id { margin-left: 0; flex-basis: 100%; }
+  .inv-filters .inv-filter { grid-column: 1 / -1; }
+}

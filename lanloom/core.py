@@ -157,6 +157,8 @@ class Core:
         self.overview = Overview(self)
         from .inventory import Inventory
         self.inventory = Inventory(self)                # own fields, life cycle states, end-of-updates hints
+        from .vulns import Vulns
+        self.vulns = Vulns(self)                        # vulnerability hints from the offline feed
         self._refresh_index()
 
     # ------------------------------------------------------------------ settings
@@ -299,6 +301,7 @@ class Core:
             await self.netflow_apply()
             self._tasks.append(asyncio.create_task(self.storage.loop()))
             self._tasks.append(asyncio.create_task(self.inventory.loop()))
+            self._tasks.append(asyncio.create_task(self.vulns.loop()))
         self._tasks.append(asyncio.create_task(self._tick_loop()))
         self._tasks.append(asyncio.create_task(self.agents.loop()))
         self._tasks.append(asyncio.create_task(self.reports.loop()))
@@ -626,6 +629,7 @@ class Core:
             self.availability.forget("dev:" + device_id)
         self.store.execute("DELETE FROM phys_manual WHERE device_id=? OR parent_id=?", (device_id, device_id))
         self.inventory.forget(device_id)
+        self.vulns.forget_device(device_id)
         self._manual_ver += 1
         self._refresh_index()
         return ok

@@ -29,7 +29,7 @@ def _port(port, service, title=None, server=None):
 HOSTS = [
     {"ip": "192.168.50.1", "n": 1, "gw": True, "names": ["gateway.lan"],
      "ports": [_port(53, "dns"), _port(80, "http", "Router"), _port(443, "https", "Router")],
-     "ssdp": [{"st": "urn:schemas-upnp-org:device:InternetGatewayDevice:1", "friendly_name": "Router", "model": "Home gateway",
+     "ssdp": [{"st": "urn:schemas-upnp-org:device:InternetGatewayDevice:1", "friendly_name": "Router", "model": "Home gateway HG-1",
                "manufacturer": "Example Networks", "device_type": "urn:schemas-upnp-org:device:InternetGatewayDevice:1", "server": None}]},
     {"ip": "192.168.50.2", "n": 2, "names": ["core-switch.lan"],
      "ports": [_port(80, "http", "Switch management"), _port(443, "https", "Switch management")],

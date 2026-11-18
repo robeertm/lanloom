@@ -75,6 +75,8 @@ class DemoView:
         core.demo.seed(core)
         from .inventory_demo import seed as seed_inventory
         seed_inventory(core)
+        from .vulns_demo import seed as seed_vulns
+        seed_vulns(core)
         core.demo.seed_integrations(core)
         core.demo.seed_reports(core)
         from .notify.demo import seed as seed_notify

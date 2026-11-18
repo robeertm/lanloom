@@ -128,6 +128,7 @@ class App:
         from . import availability_report as _availability_report  # noqa: F401 - registers the availability section
         from . import storage_report as _storage_report  # noqa: F401 - registers the storage + counter check sections
         from . import inventory_report as _inventory_report  # noqa: F401 - registers the inventory section
+        from . import vulns_report as _vulns_report  # noqa: F401 - registers the vulnerability section
         self.backups = Backups(self)
         self.core.backups = self.backups
         if cfg.demo:
@@ -137,6 +138,8 @@ class App:
                 self.core.demo.seed(self.core)
                 from .inventory_demo import seed as seed_inventory
                 seed_inventory(self.core)
+                from .vulns_demo import seed as seed_vulns
+                seed_vulns(self.core)
                 self.core.demo.seed_integrations(self.core)
                 self.core.demo.seed_reports(self.core)
                 self.core.demo.seed_access(self)
@@ -400,6 +403,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     web_history.register(app, web_history.Ctx(state=state, err=err))
     from . import web_inventory
     web_inventory.register(app, web_inventory.Ctx(state=state, body=body, err=err, note=note))
+    from . import web_vulns
+    web_vulns.register(app, web_vulns.Ctx(state=state, body=body, err=err, note=note))
     from . import web_notify
     web_notify.register(app, web_notify.Ctx(state=state, body=body, err=err, note=note,
                                             agent=lambda r: auth.agent_label(r.headers.get("user-agent", ""))))
@@ -420,6 +425,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if data.get("setup_done") and cfg.demo and state.core.demo:
             from .inventory_demo import seed as seed_inventory
             seed_inventory(state.core)
+            from .vulns_demo import seed as seed_vulns
+            seed_vulns(state.core)
             state.core.demo.seed_integrations(state.core)
             state.core.demo.seed_reports(state.core)
             state.core.demo.seed_access(state)

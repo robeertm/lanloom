@@ -42,6 +42,8 @@ def register(app: FastAPI, c: Ctx) -> None:
             item = st.core.inventory.set_fields(device_id, {k: v for k, v in data.items() if k in OWN_FIELDS})
         except ValueError as exc:
             return c.err(str(exc))
+        if item and "firmware" in data:
+            st.core.vulns.invalidate()            # the own firmware decides vulnerability hints
         return item if item else c.err("device.err.missing", 404)
 
     @app.post("/api/devices/{device_id}/lifecycle")

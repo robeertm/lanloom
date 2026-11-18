@@ -496,7 +496,7 @@
       } catch (e) { LL.toast(LL.errText(e), 'error'); }
     } }, t('device.forget')) : null;
     return h('div', {}, section(t('detail.device'), facts(rows)), LL.aiHintSection ? LL.aiHintSection(dev) : null, identitySection(dev, may),
-      LL.integrateSection ? LL.integrateSection(dev) : null, LL.protectSection ? LL.protectSection(dev, may) : null, LL.inventorySection ? LL.inventorySection(dev) : null, ports ? section(t('device.ports'), ports) : null,
+      LL.integrateSection ? LL.integrateSection(dev) : null, LL.protectSection ? LL.protectSection(dev, may) : null, LL.inventorySection ? LL.inventorySection(dev) : null, LL.vulnsSection ? LL.vulnsSection(dev) : null, ports ? section(t('device.ports'), ports) : null,
       ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, hide || forget ? h('div', { class: 'detail__foot' }, forget, hide) : null);
   }
 

@@ -285,6 +285,12 @@
    "purpose": "attribution link of the bundled location database, shown only (the database ships in the image)"
   },
   {
+   "host": "nvd.nist.gov",
+   "use": "link",
+   "category": "link",
+   "purpose": "public record of a vulnerability, shown as a link beside a vulnerability hint and opened only when clicked (the feed itself ships in the image)"
+  },
+  {
    "host": "standards-oui.ieee.org",
    "use": "link",
    "category": "link",

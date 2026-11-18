@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.39.0] – 2026-11-18
+
+### Added
+- **Vulnerability hints from an offline feed.** A new view *Vulnerabilities* (the *Devices | Inventory | Vulnerabilities* switch, `#/vulnerabilities`) lists published vulnerabilities that match the maker, model and firmware Lanloom knows for a device, most serious first: severity with score, a mark for **exploited in the wild** (and ransomware use), the certainty, why Lanloom thinks so, and what to do - update the firmware to the first fixed version, look for an update, or disconnect or replace the device when no fixed firmware is known. Never phrased as an alarm.
+- **Strict matching, better no hint than a wrong one.** The model must match exactly (no partial matches, no model without a digit), the maker must be the catalog's maker (whole words, never part of a word), and the firmware must lie inside an affected range and be comparable (another hardware branch or a pre-release is never compared). *Certain* needs firmware from a person (inventory), a connected controller, the hub or SNMP; firmware read from an announcement, a maker known only from the hardware address, or a catalog entry for every version gives *possible*. Devices that cannot be checked are listed with the reason (maker, model or firmware unknown, firmware not comparable) and a link to enter the firmware in the inventory.
+- **The feed** (`lanloom/data/vulnfeed.json.gz`, about 0.3 MB) is built by `scripts/build_vulnfeed.py` from the public catalog of known exploited vulnerabilities and the affected-version ranges of the national vulnerability database: every catalog entry that names device firmware plus the critical device-firmware records since 2020 (3,717 entries, 250 of them exploited in the wild, as of 2026-11-18). It is read offline and renewed with every release; administrators can import a newer feed file built with the same script, and go back to the bundled one.
+- Device card: a *Vulnerabilities* block with the open hints of the device, or why it was not checked, or that its firmware is outside every affected range.
+- *Does not apply …* (operators) sets a hint aside with a note; it stays under *Set aside* and can be brought back. Audit entries `vulns.dismiss`, `vulns.restore`, `vulns.feed_import`, `vulns.feed_remove` (the length of a note, never its text).
+- Nightly report section **Vulnerability hints** (hints first seen that night with what to do, the open total, a note when the feed is older than 180 days) and the notification event **Vulnerability hint** (once per device and hint; certain or exploited: warning, otherwise note).
+- Command palette: *Open Vulnerabilities*, *Show hints exploited in the wild*, *Show devices not checked for vulnerabilities*.
+- Demo: a sample feed with invented entries and every case (certain and exploited with a fixed firmware, certain from the hub's firmware, possible for every version, a hint set aside, a listed model with unknown firmware, devices not checked).
+- Documentation: [Vulnerability hints](docs/VULNERABILITIES.md) (feed, building and importing a feed file, matching rules, API and roles, limits), manual page [Vulnerabilities](docs/manual/vulnerabilities.md), nightly report, notifications, command palette, inventory, README; screenshots; the sources and licences in THIRD-PARTY-NOTICES.
+
+### Changed
+- The sample gateway of the demo reports a model number (*Home gateway HG-1*).
+- The no-telemetry allow-list names the public vulnerability record as a link (opened only when clicked).
+
 ## [1.38.0] – 2026-11-18
 
 ### Added

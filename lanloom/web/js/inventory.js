@@ -31,7 +31,8 @@
   LL.inventorySwitch = function (active) {
     return h('nav', { class: 'seg inv-switch', 'aria-label': t('inventory.switch') },
       h('a', { href: '#/devices', class: 'seg__btn' + (active === 'devices' ? ' is-active' : ''), 'aria-current': active === 'devices' ? 'page' : null }, t('nav.devices')),
-      h('a', { href: '#/inventory', class: 'seg__btn' + (active === 'inventory' ? ' is-active' : ''), 'aria-current': active === 'inventory' ? 'page' : null }, t('inventory.title')));
+      h('a', { href: '#/inventory', class: 'seg__btn' + (active === 'inventory' ? ' is-active' : ''), 'aria-current': active === 'inventory' ? 'page' : null }, t('inventory.title')),
+      h('a', { href: '#/vulnerabilities', class: 'seg__btn' + (active === 'vulnerabilities' ? ' is-active' : ''), 'aria-current': active === 'vulnerabilities' ? 'page' : null }, t('vulns.title')));
   };
 
   // ------------------------------------------------------------------ compact block in the device card
