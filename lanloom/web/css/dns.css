@@ -1,0 +1,19 @@
+/* Lanloom — DNS filter card and the DNS section of a device */
+.dns { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dns-filter + .dns-filter { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--ll-border); }
+.dns-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.dns-big { font-size: var(--ll-fs-xl, 1.4rem); font-variant-numeric: tabular-nums; }
+.dns-sub { margin: 10px 0 2px; font-size: var(--ll-fs-sm); color: var(--ll-text-2); font-weight: 600; }
+.dns-finding { margin: 0; padding: 6px 10px; border-radius: var(--ll-radius-xs); background: var(--ll-surface-2); border-left: 3px solid var(--ll-border); font-size: var(--ll-fs-sm); }
+.dns-finding--warn { border-left-color: var(--ll-warn); }
+.dns-finding--alert { border-left-color: var(--ll-danger); }
+.dns-bars { display: flex; align-items: flex-end; gap: 2px; height: 56px; width: 100%; }
+.dns-bars--days { height: 40px; }
+.dns-bar { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; border-radius: 2px; background: var(--ll-surface-2); }
+.dns-bar.is-empty { background: var(--ll-surface-3); opacity: .5; }
+.dns-bar__all { display: flex; align-items: flex-end; width: 100%; background: var(--ll-ok); border-radius: 2px; min-height: 0; }
+.dns-bar__blk { display: block; width: 100%; background: var(--ll-warn); border-radius: 2px; }
+.dns-axis { display: flex; justify-content: space-between; font-size: var(--ll-fs-xs); margin-top: -4px; }
+.dns-table td, .dns-table th { overflow-wrap: anywhere; }
+.dns-table td.truncate { max-width: 0; }
+.dns-none, .dns-note { margin: 0; font-size: var(--ll-fs-xs); }

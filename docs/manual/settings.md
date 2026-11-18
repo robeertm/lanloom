@@ -34,7 +34,7 @@ Administrators additionally:
 
 - **Network scan** - which networks to scan, *Scan now*, the rescan interval (never, or every 1, 3, 6, 12 or 24 hours),
   the optional deep scan (only with your consent) and the switch for the default SNMP read community (off by default).
-- **Connections** - the hub, MQTT broker, SNMP, switch controller and device-family adapters. Credentials are stored
+- **Connections** - the hub, MQTT broker, SNMP, switch controller, DNS filters and device-family adapters. Credentials are stored
   encrypted and never shown again. *Test connection* checks before you save.
 - **Set up again** - starts the setup assistant over, or the demo.
 - **Appearance** - speed unit (bytes or bits) next to language and theme.

@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import adapter_inventory, availability as availability_mod, classify, counters as counters_mod, datapaths, geo as geo_mod, hub_privacy, hubauto, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
+from . import adapter_inventory, availability as availability_mod, classify, counters as counters_mod, datapaths, dnsfilter, geo as geo_mod, hub_privacy, hubauto, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
 from .agents import AgentHub
 from .crypto import Vault
 from .scan import protect as protect_mod
@@ -134,6 +134,8 @@ class Core:
         self.paths = datapaths.DataPaths(store, self.geo, self.settings)
         self.availability = availability_mod.Availability(store)     # 5-minute slots per device/connection (S2)
         self.traffic_log = trafficlog_mod.TrafficLog(store)           # bytes per minute per trace (plot ranges up to 7 days)
+        self.dns: dict = {}                                           # DNS filters: integration id -> {"state", "t"} (last reading)
+        self.dns_log = dnsfilter.DnsLog(store)                        # their sums per hour and day (never single queries)
         self.ip6_to_device: dict = {}
         self._nf_lan = (0.0, [])           # (ts, detected local networks) for the NetFlow direction check
         self.netflow = netflow.Collector(self.paths, self._netflow_device, self._netflow_lan, self._netflow_skip)
@@ -1070,8 +1072,9 @@ class Core:
         ok = self.store.execute("DELETE FROM integrations WHERE id=?", (integ_id,)).rowcount > 0
         if self.vault:
             self.vault.delete_prefix("int:%d:" % integ_id)
-        for d in (self.hub, self.mqtt, self.snmp, self.topic_order):
+        for d in (self.hub, self.mqtt, self.snmp, self.topic_order, self.dns):
             d.pop(integ_id, None)
+        self.dns_log.forget(integ_id)
         self.topo_obs.pop("int:%d" % integ_id, None)
         self.live_cfg.pop(integ_id, None)
         self._topo_cache = None
@@ -1409,6 +1412,9 @@ class Core:
         elif etype == "config":
             cad.tick(now)
             self._book_config(integ_id, ev, now)
+        elif etype == "dns":
+            cad.tick(now)
+            self._book_dns(integ_id, ev, now)
         elif etype == "topology":
             cad.tick(now)
             self.topo_obs[key] = {"integ": integ_id, "ev": ev}
@@ -1421,6 +1427,27 @@ class Core:
             if sig != self._topo_sig:
                 self._topo_sig = sig
                 self.structure_version += 1
+
+    def dns_kinds(self) -> list:
+        """Ids of the built-in families that read a DNS filter (one per supported product)."""
+        from . import integrations
+        return integrations.families_reading("dns")
+
+    def _book_dns(self, integ_id, ev: dict, now: float) -> None:
+        """One reading of a DNS filter: kept for the views, its hour and day sums written (totals only)."""
+        try:
+            st = dnsfilter.clean(ev.get("state"))
+        except (dnsfilter.ModelError, TypeError, ValueError):
+            self.source_status["int:%d" % integ_id] = {"ok": False, "key": "source.family.protocol", "t": now}
+            return
+        first = integ_id not in self.dns
+        self.dns[integ_id] = {"state": st, "t": now}
+        try:
+            self.dns_log.record(integ_id, st, now)
+        except Exception:
+            log.exception("writing DNS filter sums failed")
+        if first:
+            self.structure_version += 1
 
     def _book_config(self, integ_id, ev: dict, now: float) -> None:
         """Neutral configuration from a family read half (shown read-only in the firewall tab)."""

@@ -8,7 +8,7 @@
                also configure (an executor half) comes from its capabilities;
 ``catalog``  - a class with its own signs in the JSON: it is either ``available`` through one of the kinds above (a
                storage device or a mobile router is read over SNMP) or ``planned`` (a UPS over a UPS-monitoring
-               service, a printer, a camera, a container host, a DNS filter): shown with a read-only account guide and
+               service, a printer, a camera, a container host): shown with a read-only account guide and
                the topic it belongs to, without a button that would do nothing.
 
 Everything is derived from stored scan data - nothing is sent to a device to build a suggestion.
@@ -99,6 +99,10 @@ def _decorate(s: dict, cls: dict, fam) -> dict:
 
 def _class_for(s: dict, by_id: dict):
     if s["family"]:
+        from .. import integrations as registry
+        own = registry.get(s["family"]).catalog           # a family may belong to a class of its own (a DNS filter)
+        if own and own in by_id:
+            return by_id[own]
         return by_id["hypervisor" if s["guide"] == "hv" else "controller"]
     return by_id.get(s["kind"])
 

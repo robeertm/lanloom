@@ -58,6 +58,10 @@ class IntegrationManifest:
     # sign; a sign matches when all of its keys match: "port" (open TCP port), "title" (lower-case part of a web page
     # title), "mdns" (announced DNS-SD type), "ssdp" (lower-case part of an SSDP server/type). Never a sign-in.
     detect: tuple = ()
+    # the class of the connection catalog this family belongs to (``catalog.json``); empty = controller/hypervisor rules
+    catalog: str = ""
+    # scheme of the address the setup assistant pre-fills for a detected device (a DNS filter usually has no TLS)
+    prefill_scheme: str = "https"
 
     def validate(self) -> "IntegrationManifest":
         if not FAMILY_RE.match(self.family or ""):
@@ -75,6 +79,8 @@ class IntegrationManifest:
                 raise ManifestError("%s half must be %s%s:<Class>" % (half, prefix, half))
         if self.docs and self.docs != "docs/integrations/%s.md" % self.family:
             raise ManifestError("docs")
+        if self.prefill_scheme not in ("http", "https") or (self.catalog and not re.fullmatch(r"[a-z][a-z0-9_]{1,31}", self.catalog)):
+            raise ManifestError("catalog/prefill")
         if set(self.secret_fields) & set(self.write_secret_fields):
             raise ManifestError("read and write credentials must be different fields")
         caps_mod.validate(self.capabilities, self.family)
@@ -101,7 +107,7 @@ class IntegrationManifest:
                 "read_half": bool(self.read), "write_half": bool(self.write),
                 "config_fields": list(self.config_fields), "secret_fields": list(self.secret_fields),
                 "form": [dict(f) for f in self.form], "detect": [dict(d) for d in self.detect],
-                "capabilities": caps_mod.public(caps_mod.validate(self.capabilities, self.family))}
+                "catalog": self.catalog or None, "capabilities": caps_mod.public(caps_mod.validate(self.capabilities, self.family))}
 
 
 def _builtin() -> tuple:

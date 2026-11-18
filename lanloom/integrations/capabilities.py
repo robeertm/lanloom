@@ -23,7 +23,7 @@ from ..firewall.steps import MAX_OBJECTS
 
 READ_AREAS = ("inventory", "clients", "topology", "networks", "zones", "policies", "acl", "ports", "port_profiles",
               "ssids", "wans", "vpn", "dhcp_reservations", "port_forwards", "stats", "guests", "bridges", "storage",
-              "backups", "firewall")
+              "backups", "firewall", "dns")
 API_KINDS = ("official-local", "classic-local", "local", "simulation")
 STAGES = ("B", "B*", "C")
 STAGE_RANK = {"B": 1, "B*": 2, "C": 3}

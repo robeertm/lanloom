@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.38.0] – 2026-11-18
+
+### Added
+- **DNS filters, read only** (product names identify compatible products only; no affiliation or endorsement): read adapters for Pi-hole (version 6 and later) and AdGuard Home. They read **totals only** - queries and blocked queries per hour, the most blocked names, the busiest clients, the upstream resolvers with their answer times, the block lists with entries and last update, whether blocking is on - and never single queries: no path of a query log is on either allow-list (a static test checks it), the only request that is not a plain `GET` is the sign-in with the password, and after a refused sign-in the half waits 15 minutes. One reading every two minutes (block lists and version every 15 minutes). Guides: [Pi-hole](docs/integrations/pihole.md), [AdGuard Home](docs/integrations/adguard.md); overview: [DNS-FILTER.md](docs/DNS-FILTER.md).
+- **The filter on the map.** The device the filter runs on gets a *DNS* mark; a filter on an address no scan has found is a component of its own with the blocked share under its name and the live grade of the connection. Its card has the section **DNS filter**: the blocked share of 24 hours as the big figure, 24 hours as bars (queries, the blocked part inside), plain findings, the facts, the most blocked names, the busiest clients (each linked to its device card), the resolvers, the block lists and the last days; a table below the bars for screen readers. A device that is among the busiest clients gets the section **DNS** (queries, share of all queries, blocked share where the filter tells) - never which names it asked for.
+- **What is kept.** Per filter and hour two numbers (queries, blocked) for 35 days and per day the same sums for 400 days, in two small tables that count with the *Availability* area of the storage page; the top lists and per-client counts live in memory only. Deleting the connection deletes its sums.
+- **Findings and the night report.** The filter does not answer, blocking is switched off, the name server is not running, the upstream resolvers do not answer, no query at all for three hours although there usually are some, an unusual blocked share (24 hours against the median of the days before, needs five days), block lists older than three weeks. The night report has the section *DNS filter* while a filter is connected (one calm line otherwise); the card shows the same findings.
+- **Setup assistant and catalog.** The scan recognises a filter's web page (page title) and suggests the connection with the address filled in (`http://`, no TLS assumed), a four-step guide for the separate read access and the form; the catalog class *DNS filter* is now available instead of planned. A connection test shows version, queries, blocked queries and clients.
+- **For dashboards.** `GET /api/dns` (every filter in short: totals, blocked share, health, findings, the 24 hours, the map component) and `GET /api/dns/<connection>` (one filter in full), for every signed-in role; command palette *Show the DNS filter*; the app state tells whether a filter exists. Everything in German and English.
+- Demo: a sample filter with 35 days of sums, ten clients matched to sample devices, resolvers, block lists and one finding. Documentation: [DNS-FILTER.md](docs/DNS-FILTER.md), the two guides, compatibility matrix, troubleshooting, night report, palette, performance, security model, manual pages; screenshots.
+
+### Changed
+- The family manifest may name its catalog class and the address scheme the setup assistant pre-fills; the capability list knows the read area *dns*.
+
 ## [1.37.1] – 2026-11-18
 
 ### Fixed

@@ -60,6 +60,7 @@ every value within a multiple of it, so a change that makes something much slowe
 
 ## What keeps it light
 
+- **A DNS filter is read every two minutes** with a handful of small requests (block lists and version every 15 minutes); Lanloom keeps per filter one latest reading in memory and two numbers per hour (35 days) and day (400 days).
 - **Host agents are light on both sides.** An optional [host agent](HOST-AGENT.md) sends one report of a few kB every 10 seconds; Lanloom keeps per host one latest state and one 5-minute sample for 35 days, and a container source is read once every 30 seconds.
 
 - **Search is indexed.** The search box ([PALETTE.md](PALETTE.md)) keeps the searchable text of every device and of every hub entity and rebuilds an entry only when it changed; a search over 3000 hub entities takes a few milliseconds, and `scripts/benchmark.py` measures it as `search_ms` (kept in budget by `tests/test_budget.py`).

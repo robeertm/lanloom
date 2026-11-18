@@ -75,6 +75,7 @@ there, what talks to what, and what is down, in one picture.
 - [DISCOVERY.md](../DISCOVERY.md) - how devices are recognised and grouped
 - [AVAILABILITY.md](../AVAILABILITY.md) - availability, traffic plots, hover window and *Simulate maintenance*
 - [Running](running.md) and [HOST-AGENT.md](../HOST-AGENT.md) - containers and "talks to" lines
+- [DNS-FILTER.md](../DNS-FILTER.md) - the card of a DNS filter and the *DNS* section of a device
 - [TOPOLOGY.md](../TOPOLOGY.md) - where the traces come from
 - [PERFORMANCE.md](../PERFORMANCE.md#the-map-in-the-browser) - the frame budget of the map
 - [PALETTE.md](../PALETTE.md) - search and commands

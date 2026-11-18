@@ -147,6 +147,8 @@ RULES = {
     ("GET", "/api/component/{comp_id:path}"): R(V),
     ("GET", "/api/stability"): R(V),
     ("GET", "/api/availability/{subject:path}"): R(V),
+    ("GET", "/api/dns"): R(V),
+    ("GET", "/api/dns/{integ_id}"): R(V),
     ("GET", "/api/traffic/{comp_id:path}"): R(V),
     ("GET", "/api/maintenance/{comp_id:path}"): R(V),
 

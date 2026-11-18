@@ -37,7 +37,7 @@ BUILTIN_SIGNS = {
     "mqtt": ({"port": 1883}, {"port": 8883}, {"mdns": "_mqtt._tcp"}),
 }
 # guide per kind of source: the text keys live under setup.guide.<guide>.* (steps 1..n)
-GUIDE_STEPS = {"hub": 4, "mqtt": 4, "snmp": 4, "controller": 4, "hv": 4, "family": 4}
+GUIDE_STEPS = {"hub": 4, "mqtt": 4, "snmp": 4, "controller": 4, "hv": 4, "family": 4, "dns": 4}
 
 # result key of a connection test -> what the person should look at
 _REJECTED = ("auth_failed", "forbidden", "key_refused", "token_refused", "subscribe_denied")
@@ -239,6 +239,8 @@ def _configured_hosts(core) -> dict:
 def _guide_of(kind: str, fam) -> str:
     if fam is None:
         return kind
+    if "dns" in (fam.capabilities.get("read") or []):
+        return "dns"
     return "hv" if "guests" in (fam.capabilities.get("read") or []) else "family"
 
 
@@ -251,6 +253,9 @@ def _prefill(kind: str, fam, dev: dict, port) -> dict:
         return {"host": ip}
     if kind == "hub":
         return {"url": "http://%s:%d" % (ip, port or 8123)}
+    if fam is not None and fam.prefill_scheme == "http" and any(f.get("k") == "url" for f in fam.form):
+        # a DNS filter's web page usually runs without TLS, on port 80 or on its own port
+        return {"url": "http://%s" % ip if port in (None, 80) else "http://%s:%d" % (ip, port)}
     if fam is not None and any(f.get("k") == "url" for f in fam.form):
         # family APIs use TLS; devices on a home network usually have a self-signed certificate
         return {"url": "https://%s" % ip if port in (None, 443) else "https://%s:%d" % (ip, port), "allow_self_signed": True}

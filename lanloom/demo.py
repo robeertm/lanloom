@@ -440,7 +440,7 @@ class Demo:
     def test_details(self, kind: str) -> dict:
         return {"hub": {"version": "demo", "entities": 121, "devices": 27}, "mqtt": {"topics": len(TOPICS)},
                 "snmp": {"name": "router", "descr": "Demo router", "ifaces": 4, "lldp": 1, "fdb": 0},
-                "controller": {"clients": len(WIRED) - 1 + len(RADIO), "devices": 3}}.get(kind, {})
+                "controller": {"clients": len(WIRED) - 1 + len(RADIO), "devices": 3}}.get(kind, {"queries": 9400, "blocked": 3100, "clients": 10})
 
     async def scan(self, plan: dict, progress, preview=None) -> dict:
         hosts = [scan_host(h) for h in HOSTS]
@@ -514,6 +514,11 @@ class Demo:
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
                                (fw, "Sample firewall", _json.dumps({"url": "https://192.168.50.1:4444", "username": "map-reader"}),
                                 time.time()))
+        dns = _demo_family("dns")
+        if dns:                            # a DNS filter family reading totals of queries and blocked queries (read only)
+            from .demo_dns import FILTER_URL
+            core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
+                               (dns, "DNS filter", _json.dumps({"url": FILTER_URL}), time.time()))
 
     def report_certs(self) -> list:
         """Certificates of the demo connections (nightly report): one runs out soon."""
@@ -674,6 +679,11 @@ class Demo:
             fw_before, fw_now = firewall_sample(fw), firewall_sample(fw, extra_rule=True)
             fw_states = [fw_before, fw_before, fw_now]
         self.seed_storage(core, planned)
+        dns = _demo_family("dns")
+        if dns and dns in ids:                 # the DNS filter: 35 days of sums per hour and its first reading
+            from . import demo_dns, dnsfilter
+            demo_dns.seed_history(core, ids[dns], time.time())
+            core.dns[ids[dns]] = {"state": dnsfilter.clean(demo_dns.reading(time.time(), dns)), "t": time.time()}
         prev = None
         for i, day in enumerate(days):
             if fam and fam in ids:
@@ -779,6 +789,11 @@ class Demo:
                     core.on_event("int:%d" % ids[fw], ids[fw], {"type": "config", "source": "family", "family": fw, "t": now,
                                                                "state": firewall_sample(fw, extra_rule=True),
                                                                "capabilities": firewall_capabilities(fw)})
+                dns = _demo_family("dns")
+                if dns and dns in ids:
+                    from .demo_dns import reading as dns_reading
+                    core.on_event("int:%d" % ids[dns], ids[dns], {"type": "dns", "source": "family", "family": dns, "t": now,
+                                                                 "state": dns_reading(now, dns)})
                 if fam and fam in ids:
                     core.on_event("int:%d" % ids[fam], ids[fam], {"type": "config", "source": "family", "family": fam, "t": now,
                                                                  "state": live_sample(), "capabilities": live_capabilities(fam)})

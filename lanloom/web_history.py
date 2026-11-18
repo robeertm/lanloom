@@ -5,6 +5,9 @@ Read-only, for everybody who sees the map:
 * ``GET /api/stability``            the "Stability" list (35 daily bars, shares, incidents, repair time, wobbly)
 * ``GET /api/availability/{id}``    one subject: ``dev:<device id>`` or ``src:<connection key>`` - 24 h in 5-minute slots, 35 days
 * ``GET /api/traffic/{comp_id}``    bytes per second of one board node over ``?range=1h|6h|24h|7d``
+* ``GET /api/dns``                  every DNS filter in short (totals of 24 hours, health, findings, hours); data of the leitstand card
+* ``GET /api/dns/{integration}``    one filter: totals, hours and days, top blocked names, top clients (matched to devices), upstreams,
+                                    block lists, findings. Totals only: single queries are never read or stored.
 * ``GET /api/maintenance/{comp_id}`` "Simulate maintenance": what would lose its way if this device were switched off (reads the
                                     resolved topology; nothing is switched, nothing is sent)
 """
@@ -14,7 +17,7 @@ from typing import Any, Callable
 
 from fastapi import FastAPI
 
-from . import mapmodel, trafficlog
+from . import dnsfilter, mapmodel, trafficlog
 
 
 @dataclass
@@ -62,6 +65,16 @@ def register(app: FastAPI, c: Ctx) -> None:
         if traces is None:
             return c.err("component.err.missing", 404)
         return await asyncio.to_thread(core.traffic_log.series, traces, range)
+
+    @app.get("/api/dns")
+    async def dns_overview():
+        core = c.state.core
+        return {"filters": await asyncio.to_thread(dnsfilter.overview, core)}
+
+    @app.get("/api/dns/{integ_id}")
+    async def dns_filter(integ_id: int):
+        core = c.state.core
+        return await asyncio.to_thread(dnsfilter.filter_view, core, integ_id) or c.err("component.err.missing", 404)
 
     @app.get("/api/maintenance/{comp_id:path}")
     async def maintenance(comp_id: str):

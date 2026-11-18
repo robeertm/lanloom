@@ -375,7 +375,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                "notices": len(state.notices.unseen(user["id"])) if full else 0,
                "hubs": [{"id": i["id"], "name": i["name"]} for i in state.core.integrations() if i["kind"] == "hub"]
                if full and state.core else [],
-               "agents": len(state.core.agents.live) if full and state.core else 0}     # host agents + container sources (E4)
+               "agents": len(state.core.agents.live) if full and state.core else 0,     # host agents + container sources (E4)
+               "dns": sum(1 for i in state.core.integrations() if i["kind"] in state.core.dns_kinds()) if full and state.core else 0}
         return out
 
     @app.get("/api/i18n/{lang}")

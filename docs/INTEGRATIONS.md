@@ -83,6 +83,10 @@ A step names one object and the values of the fields it changes, as read (`befor
 
 **Hard limits** (fixed in the code, not configurable): at most 10 objects per plan; no firmware, restarts, accounts, keys, remote access, VPN or WAN settings, port mirroring or factory resets (there is no step kind for them); no change to the management network, uplink ports, built-in rules or objects Lanloom did not create (deletes); one plan at a time per device.
 
+## DNS filters
+
+A family may read something that is not a configuration at all: a DNS filter's read half hands the core one neutral reading per poll (`{"type": "dns", ...}`, shape in `lanloom/dnsfilter.py`: totals, hours, top lists, resolvers, block lists) instead of a `config` state. Its capability list says `read: ["dns"]`, its manifest names the catalog class `dns_filter` (the setup assistant and the catalog use it) and a default address scheme for the suggestion. Totals only - no path of a query log is on any allow-list. See [DNS-FILTER.md](DNS-FILTER.md).
+
 ## Credentials
 
 | | web app (read half) | executor (write half) |

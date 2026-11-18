@@ -7,7 +7,7 @@ import re
 import time
 from urllib.parse import urlparse
 
-from . import hubmerge, live, topology, zones as zones_mod
+from . import dnsfilter, hubmerge, live, topology, zones as zones_mod
 from .core import FLOW_KEEP, PRESENCE_INTERVAL, flow_trace, lan_trace, topic_trace, uplink_trace
 
 ZONE_OF_KIND = {
@@ -38,7 +38,8 @@ def _visible_devices(core) -> list:
 def _special_components(core, devices: list) -> dict:
     """Integration-backed components: which device is the hub / broker / SNMP target (or a virtual one)."""
     by_ip = {d["ip"]: d for d in devices}
-    out = {"hub": {}, "broker": {}, "snmp": {}}
+    out = {"hub": {}, "broker": {}, "snmp": {}, "dns": {}}
+    dns_kinds = set(core.dns_kinds())
     for integ in core.integrations():
         host = _host_of(integ["config"].get("url") or integ["config"].get("host") or "")
         dev = by_ip.get(host)
@@ -49,6 +50,8 @@ def _special_components(core, devices: list) -> dict:
             out["broker"][integ["id"]] = dev["id"] if dev else "broker:%d" % integ["id"]
         elif kind == "snmp":
             out["snmp"][integ["id"]] = dev["id"] if dev else "snmp:%d" % integ["id"]
+        elif kind in dns_kinds:
+            out["dns"][integ["id"]] = dev["id"] if dev else "dns:%d" % integ["id"]
     return out
 
 
@@ -80,6 +83,10 @@ def _mesh_fact(kind: str) -> dict:
 def _lane_fact() -> dict:
     """A radio device behind its coordinator: dashed like a wireless link; the radio mark sits on the network's own lane."""
     return {"port": None, "own_port": None, "medium": "radio", "band": None, "ssid": None, "source": "hub", "uplink": False}
+
+
+def _dns_badge(comp: dict) -> None:
+    comp["badges"] = (["DNS"] + [b for b in comp.get("badges") or [] if b != "DNS"])[:3]
 
 
 def _hub_badge(comp: dict) -> None:
@@ -176,6 +183,7 @@ def build(core, view: str = "overview") -> dict:
     devices = _visible_devices(core)
     special = _special_components(core, devices)
     merge = core.hub_merge() if core.hub else {"by_net": {}, "by_hub": {}, "suggest": {}}
+    dns_hosts = set(special["dns"].values())
     special_kind = {}
     for dev_id in special["hub"].values():
         special_kind[dev_id] = "hub"
@@ -242,6 +250,8 @@ def build(core, view: str = "overview") -> dict:
             comp = _device_component(core, dev, special_kind.get(dev["id"]))
             if dev["id"] in merge["by_net"]:
                 _hub_badge(comp)
+            if dev["id"] in dns_hosts:
+                _dns_badge(comp)
             link = phys["links"].get(dev["id"])
             if dev["is_gateway"]:
                 comp["zone"] = "edge"
@@ -304,6 +314,8 @@ def build(core, view: str = "overview") -> dict:
             comp = _device_component(core, dev, special_kind.get(dev["id"]))
             if dev["id"] in merge["by_net"]:
                 _hub_badge(comp)
+            if dev["id"] in dns_hosts:
+                _dns_badge(comp)
             zid = ZONE_OF_KIND.get(comp["kind"], "other")
             zone(zid, "zone." + zid, span="full" if zid == "edge" else None, order=ZONE_ORDER.index(zid))
             comp["zone"] = zid
@@ -355,6 +367,14 @@ def build(core, view: str = "overview") -> dict:
                               "subtitle_key": "comp.topic.sub", "status": "up", "grade": "unknown", "metric": None,
                               "badges": []})
                 add_trace(topic_trace(integ_id, root), broker_comp, cid, "integration", True)
+
+        for integ_id, dns_comp in special["dns"].items():
+            if dns_comp.startswith("dns:"):          # a filter on an address no scan has found (yet): a component of its own
+                zone("services", "zone.services", order=ZONE_ORDER.index("services"))
+                health = dnsfilter.health(core, integ_id, core.dns.get(integ_id), now)
+                comps.append({"id": dns_comp, "zone": "services", "kind": "service", "title": _integ_name(core, integ_id),
+                              "subtitle": _integ_host(core, integ_id), "status": {"ok": "up", "down": "down"}.get(health, "unknown"),
+                              "grade": "unknown", "metric": None, "badges": ["DNS"]})
 
         for integ_id, snmp_comp in special["snmp"].items():
             if snmp_comp.startswith("snmp:"):
@@ -584,6 +604,13 @@ def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
             grades[cid] = topic["cad"].grade(now) if topic["cad"].last else "unknown"
             total += topic["msgs"]
         metrics["broker:%d" % integ_id] = "%.0f msg/s" % total if total >= 1 else None
+    for integ_id, comp_id in (_special_components(core, _visible_devices(core))["dns"].items() if core.dns else ()):
+        g = core._source_grade("int:%d" % integ_id)
+        metric = dnsfilter.metric_of(core.dns.get(integ_id))
+        if comp_id.startswith("dns:"):         # a device keeps its own traffic grade and rate
+            grades[comp_id] = g
+            if metric:
+                metrics[comp_id] = metric
     return grades, metrics
 
 
@@ -693,6 +720,13 @@ def component_detail(core, comp_id: str) -> dict:
     if comp_id == core.ip_to_device.get(core.self_ip or ""):
         out["ifaces"] = core.self_iface
     out.update(hypervisor_detail(core, comp_id, dev))
+    for integ_id, dns_comp in (_special_components(core, _visible_devices(core))["dns"].items() if core.dns else ()):
+        if comp_id == dns_comp:               # the filter's card: totals, top lists, upstreams, block lists, findings
+            out.setdefault("dns", []).append(dnsfilter.filter_view(core, integ_id, now))
+    if dev:
+        client = dnsfilter.client_view(core, comp_id, now)
+        if client:
+            out["dns_client"] = client
     hub = getattr(core, "agents", None)
     if hub is not None:
         if comp_id.startswith("ct:"):

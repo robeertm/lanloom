@@ -5,7 +5,7 @@ Start here when something does not work. The page is ordered the way problems us
 - [Read the status of a source](#read-the-status-of-a-source)
 - [The diagnostic export](#the-diagnostic-export)
 - [This host](#this-host) · [SNMP](#snmp) · [MQTT broker](#mqtt-broker) · [Switch controller](#switch-controller) · [Home-automation hub](#home-automation-hub)
-- [Device-family adapters](#device-family-adapters) · [AI services](#ai-services) · [Host agent and container source](#host-agent-and-container-source)
+- [Device-family adapters](#device-family-adapters) · [DNS filter](#dns-filter) · [AI services](#ai-services) · [Host agent and container source](#host-agent-and-container-source)
 - [Data paths and NetFlow](#data-paths-and-netflow)
 - [Scanning and devices](#scanning-and-devices)
 - [Sign-in and access](#sign-in-and-access)
@@ -145,6 +145,18 @@ The adapters of device families (controller, hypervisor, firewall; the list is i
 | Devices are missing on the map | only devices that are also in Lanloom's device list are placed; run a scan and include the device's network |
 | Rules show a zone "?" | the account may not read zones; rules still show, zone names are missing |
 | A change through the executor is refused | by design: guests that keep the network running, wired clients (their network follows the switch port) and accounts that cannot write are refused; see the *Firewall* manual page |
+
+## DNS filter
+
+A [DNS filter](DNS-FILTER.md) is a device-family connection; its reasons are the ones in the table above, and the guide of the product has the exact menu names.
+
+| Symptom | Cause and fix |
+|---|---|
+| The card says *No recent reading* or *Not answering* | the filter did not answer for 15 minutes (off, rebooted, address changed); Lanloom keeps trying and the night report says it |
+| *Sign-in paused for a while after repeated attempts* | the password was refused; check it in the connection, then wait 15 minutes (a wrong password never locks the account because Lanloom does not retry in between) |
+| The share of blocked queries looks wrong right after connecting | the filter's own window is 24 hours at most; the hours are complete at once, the days fill up over the following days |
+| A busy device is missing under *Busiest clients* or shows the filter's name for it | the filter reports a client by name when it has one, or the device uses another resolver; only addresses can be matched to devices |
+| *No query at all for three hours* in the night report | devices no longer use the filter as their name server (a router handing out another one, a changed lease), or the filter lost its network; check the DHCP settings |
 
 ## Host agent and container source
 

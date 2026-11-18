@@ -399,7 +399,7 @@
       btn.textContent = body.hidden ? (sg.configured ? t('setup.suggest.again') : t('integ.setup')) : t('integ.close');
     } }, sg.configured ? t('setup.suggest.again') : t('integ.setup'));
     return h('article', { class: 'setup-suggest card card--flat' + (sg.configured ? ' is-configured' : '') },
-      h('header', { class: 'setup-suggest__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch', family: 'switch', hv: 'server' }[sg.guide] || sg.device_kind || 'unknown'),
+      h('header', { class: 'setup-suggest__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch', family: 'switch', hv: 'server', dns: 'service' }[sg.guide] || sg.device_kind || 'unknown'),
         h('div', { class: 'setup-suggest__titles' }, h('h3', {}, t(titleKey) === titleKey ? LL.integTitle(sg.kind) : t(titleKey)),
           h('p', { class: 'muted' }, h('span', {}, sg.title), ' · ', h('span', { class: 'mono' }, sg.ip)), reasons),
         sg.configured ? h('span', { class: 'chip chip--ok' }, t('setup.suggest.connected')) : LL.certaintyChip(sg.certainty), btn),

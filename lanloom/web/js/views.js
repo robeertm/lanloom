@@ -364,6 +364,8 @@
       sections.push(trafficSec);
     }
     if (d.device && LL.availabilitySection) sections.push(LL.availabilitySection(id));
+    if (d.dns && LL.dnsSection) sections.push(LL.dnsSection(d.dns));
+    if (d.dns_client && LL.dnsClientSection) sections.push(LL.dnsClientSection(d.dns_client));
     if (d.container && LL.containerSection) sections.push(LL.containerSection(d.container));
     if (d.agent && LL.agentSection) sections.push(LL.agentSection(d.agent, d.device ? d.device.id : null));
     if (d.hypervisor) sections.push(LL.hvHostSection(d.hypervisor));

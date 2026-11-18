@@ -52,12 +52,12 @@ def test_every_selectable_family_and_every_builtin_source_has_a_class():
         suggestion = {"kind": fam.family, "family": fam.family, "guide": setup_assist._guide_of(fam.family, fam)}
         cls = catalog._class_for(suggestion, by_id)
         assert cls is not None and cls["source"] == "family", fam.family
-    assert {c["guide"] for c in by_id.values() if c["source"] == "family"} == {"family", "hv"}
+    assert {c["guide"] for c in by_id.values() if c["source"] == "family"} == {"family", "hv", "dns"}
 
 
 def test_planned_classes_have_a_topic_and_no_connect_button():
     planned = [c for c in catalog.classes() if c["status"] == "planned"]
-    assert {c["id"] for c in planned} >= {"ups", "printer", "camera", "container_host", "dns_filter"}
+    assert {c["id"] for c in planned} >= {"ups", "printer", "camera", "container_host"}
     for c in planned:
         assert c["topic"] in catalog.TOPICS and "kind" not in c and c["source"] == "catalog", c["id"]
     for p in catalog.public():

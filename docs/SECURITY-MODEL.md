@@ -107,6 +107,10 @@ Someone tampers with what users install: a dependency, the base image, the build
   could publish a signed image; the transparency log would show it. Verify the signature (SECURITY.md) if you pull
   images through mirrors.
 
+### DNS filters
+
+A [DNS filter](DNS-FILTER.md) connection is a device-family read half like the others (one send path, GET-only allow-list, secrets wrapped, a sign-in pause after a refusal) with one more promise: **no query log**. Neither family's allow-list holds a path that returns single queries, a static test fails if one appears, and the browser tests check that the page never asks for one. What the core keeps is two numbers per hour and day; the top lists and per-client counts stay in memory. A client the filter reports is matched to a device by its address only.
+
 ### Host agents and container sources
 
 The optional [host agent](HOST-AGENT.md) is a separate program in the same signed image on another host, so it is part of

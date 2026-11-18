@@ -392,6 +392,42 @@ def _families(ctx: Ctx) -> list:
     return out
 
 
+# ---------------------------------------------------------------------- DNS filters (totals only, never single queries)
+DNS_LEVELS = {"alert": ("danger", True), "warn": ("warn", True), "info": ("info", False)}
+
+
+def _dns_filters(ctx: Ctx) -> list:
+    from .. import dnsfilter
+    try:
+        return [v for v in (dnsfilter.filter_view(ctx.core, i["id"], ctx.until) for i in ctx.core.integrations()
+                            if i["kind"] in ctx.core.dns_kinds()) if v]
+    except Exception:
+        return []
+
+
+def _dns_available(ctx: Ctx) -> bool:
+    return bool(_dns_filters(ctx))
+
+
+def _dns(ctx: Ctx) -> dict:
+    items, queries, blocked = [], 0, 0
+    filters = _dns_filters(ctx)
+    for v in filters:
+        name = _short(v["name"])
+        if v["health"] in ("down", "stale"):
+            items.append(item("dns:%d:down" % v["integ"], "report.dns.down", "danger", True, name=name))
+        tot = v.get("totals") or {}
+        queries += tot.get("queries") or 0
+        blocked += tot.get("blocked") or 0
+        for f in v["findings"]:
+            level, point = DNS_LEVELS.get(f["level"], ("info", False))
+            params = {k: x for k, x in (f.get("params") or {}).items() if isinstance(x, (str, int, float))}
+            items.append(item("dns:%d:%s" % (v["integ"], f["kind"]), f["report"], level, point, name=name, **params))
+    points = len([i for i in items if i["point"]])
+    return section("dns", "report.sec.dns", "report.dns.summary" if points else "report.dns.calm", items,
+                   n=points, filters=len(filters), queries=queries, blocked=blocked, pct=_pct(blocked / queries) if queries else 0)
+
+
 # ---------------------------------------------------------------------- certificates
 def _certs_available(ctx: Ctx) -> bool:
     return bool(ctx.certs)
@@ -476,6 +512,7 @@ for _c in (Contribution("internet", 10, "report.sec.internet", _internet_availab
            Contribution("paths", 40, "report.sec.paths", _paths_available, _paths),
            Contribution("controller", 50, "report.sec.controller", _controller_available, _controller),
            Contribution("families", 55, "report.sec.controller", _families_available, _families),
+           Contribution("dns", 56, "report.sec.dns", _dns_available, _dns),
            Contribution("certificates", 60, "report.sec.certificates", _certs_available, _certs),
            Contribution("lanloom", 90, "report.sec.lanloom", lambda ctx: True, _lanloom)):
     register(_c)
