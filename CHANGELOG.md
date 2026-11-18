@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.45.0] – 2026-11-19
+
+1.44.0 and 1.44.1 below were not released on their own; they are part of this release.
+
 ### Added
 - **Firewall board.** For a zone firewall that is read, the Firewall tab opens with three figures (*Blocked today*, *Own rules*, *Checks*), the rules that blocked most, and the zones as pads on a board with one line per pair that may talk: thin for the built-in defaults, thick for rules of your own or a busy pair (with the hits of the last hour), red dashed where traffic was blocked. A zone and a second one, or a line, filter the rule list to the rules between them; *Show as list* is the table form for keyboard and screen reader.
 - **May one reach the other?** Two places (the internet, a zone, a network, a device or an address), optionally a protocol and a port, and the rules answer in their order: allowed, blocked or rejected, by which rule, as a sentence. A rule that depends on chosen devices, applications, regions, schedules or port groups makes the answer *Depends* and is listed with the reason. A palette command opens it. Read only, nothing is sent.
