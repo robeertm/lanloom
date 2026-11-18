@@ -15,6 +15,9 @@
 * Rollback: back to the version that ran before the last update (the updater keeps its image as "previous" and names
   it in its heartbeat; older updaters are covered by the backups it made). The request goes through the same checks
   as an update (signature, self-test, probe start, backup, health) and holds the version it goes back to.
+* Add-on mode (LANLOOM_ADDON=1): the hub's add-on system updates the add-on. The release feed is never asked, the
+  sidecar is never used (update, rollback and the channel answer ``update.err.addon``), and the page shows where updates
+  come from instead (``mode: "addon"``).
 * Since 1.34.0 the sidecar checks the signature of an official candidate before it pulls; `signature.supported`
   says whether the running sidecar can (older sidecars update without the check until they are renewed).
 """
@@ -103,14 +106,18 @@ class Updates:
         self.dir = Path(cfg.data_dir) / "update"
         self._lock = asyncio.Lock()
 
+    def addon(self) -> bool:
+        return bool(getattr(self.cfg, "addon", False))
+
     def enabled(self) -> bool:
-        return bool(self.cfg.update_check) and bool(self.store.get_setting("update_check", True))
+        return (not self.addon() and bool(self.cfg.update_check)
+                and bool(self.store.get_setting("update_check", True)))
 
     def cached(self) -> dict:
         return self.store.get_setting("update_cache", {}) or {}
 
     async def check(self, force: bool = False) -> dict:
-        if not self.enabled() or self.cfg.demo:
+        if self.addon() or not self.enabled() or self.cfg.demo:
             return self.state()
         async with self._lock:
             cache = self.cached()
@@ -168,6 +175,8 @@ class Updates:
 
     def settings(self, data: dict) -> dict:
         """Channel and hold (administrators). Returns the new state."""
+        if self.addon():
+            raise ValueError("update.err.addon")
         if "channel" in data:
             if data["channel"] not in CHANNELS:
                 raise ValueError("update.err.channel")
@@ -213,6 +222,14 @@ class Updates:
         return {"version": older[0], "when": time.time() - 9 * 86400} if older else None
 
     def state(self) -> dict:
+        if self.addon():
+            # the add-on system shows and installs new versions; nothing here asks the feed or touches the sidecar
+            return {"current": __version__, "mode": "addon", "enabled": False, "latest": None, "available": False,
+                    "notes": "", "url": None, "checked": None, "error": None, "sidecar": False, "status": {"state": "idle"},
+                    "sidecar_version": None, "sidecar_old": False, "channel": "stable", "stable": None, "preview": None,
+                    "preview_none": False, "held": None, "held_newer": None, "previous": None, "rollback_ok": False,
+                    "rollback_unsigned": False, "signature": {"supported": False, "enforced": False},
+                    "image": self.cfg.image_repo, "demo": self.cfg.demo}
         cache = self.cached()
         side = self.sidecar()
         demo = bool(self.cfg.demo)
@@ -248,7 +265,7 @@ class Updates:
                 "previous": prev, "rollback_ok": bool(prev and side is not None and not unsigned_prev),
                 "rollback_unsigned": unsigned_prev,
                 "signature": {"supported": "signature" in features, "enforced": self.cfg.image_repo == OFFICIAL_REPO},
-                "image": self.cfg.image_repo, "demo": self.cfg.demo}
+                "image": self.cfg.image_repo, "demo": self.cfg.demo, "mode": "container"}
 
     def busy(self) -> bool:
         """True while a request waits for the sidecar or a run is still going."""
@@ -263,6 +280,8 @@ class Updates:
 
     def rollback(self, version: str) -> dict:
         """Back to the previous version: same checks as an update; the version it goes back to is held."""
+        if self.addon():
+            raise ValueError("update.err.addon")
         prev = self.previous()
         if not prev:
             raise ValueError("update.err.no_previous")
@@ -275,6 +294,8 @@ class Updates:
         return payload
 
     def request(self, version: str, rollback: bool = False) -> dict:
+        if self.addon():
+            raise ValueError("update.err.addon")
         if not parse_version(version):
             raise ValueError("update.err.invalid_version")
         if not rollback and self.held():

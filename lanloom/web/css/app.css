@@ -453,3 +453,32 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .upd-held { margin: 0; font-size: var(--ll-fs-sm); color: var(--ll-text-2); }
 .upd-held.is-newer { color: var(--ll-warn-text); }
 .update-dialog .chip { vertical-align: middle; }
+
+/* Settings > MQTT output (js/mqttout.js) and the add-on note in Settings > Updates */
+.mqo-card [hidden] { display: none !important; }
+.mqo-card .mqo-manual { display: flex; flex-direction: column; gap: var(--ll-space-4); }
+.mqo-checks { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.mqo-adv { border-top: 1px solid var(--ll-border); padding-top: 12px; }
+.mqo-adv > summary { cursor: pointer; font-weight: var(--ll-fw-medium); color: var(--ll-text-2); }
+.mqo-topics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ll-space-4); margin-top: 12px; }
+.mqo-status { border-top: 1px solid var(--ll-border); padding-top: 12px; }
+.mqo-state { display: inline-flex; align-items: center; gap: 6px; font-weight: var(--ll-fw-semibold); }
+.mqo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ll-text-3); flex: none; }
+.mqo-ok { color: var(--ll-ok-text); } .mqo-ok .mqo-dot { background: var(--ll-ok); }
+.mqo-bad { color: var(--ll-warn-text); } .mqo-bad .mqo-dot { background: var(--ll-warn); }
+.mqo-idle { color: var(--ll-text-2); }
+.mqo-sub { margin: 4px 0 0; font-size: var(--ll-fs-sm); color: var(--ll-text-2); }
+.mqo-wrap { overflow-x: auto; }
+.mqo-table th:nth-child(1) { width: 44%; } .mqo-table th:nth-child(2) { width: 22%; }
+.mqo-name { display: block; overflow: hidden; text-overflow: ellipsis; }
+.mqo-comp { display: block; font-size: var(--ll-fs-xs); }
+.mqo-topic { color: var(--ll-text-2); font-size: var(--ll-fs-xs); }
+.mqo-table td { vertical-align: top; }
+.mqo-table th.num, .mqo-table td.num { text-align: right; }
+.upd-addon { margin: 0; padding: 10px 12px; border-radius: var(--ll-radius-sm); background: var(--ll-surface-2); border: 1px solid var(--ll-border); }
+@media (max-width: 860px) {
+  .mqo-topics { grid-template-columns: 1fr; }
+  .mqo-table th:nth-child(3), .mqo-table td:nth-child(3) { display: none; }
+  .mqo-table th:nth-child(1) { width: 58%; } .mqo-table th:nth-child(2) { width: 42%; }
+  .mqo-table td:nth-child(2) { white-space: normal; overflow-wrap: anywhere; }
+}

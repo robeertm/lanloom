@@ -40,6 +40,10 @@ Administrators additionally:
 - **Appearance** - speed unit (bytes or bits) next to language and theme.
 - **Data paths** and **NetFlow / IPFIX from your router** - home country, own networks and tunnels, networks without
   internet, and the NetFlow receiver (see [Data paths](data-paths.md)).
+- **MQTT output** - optional, off by default: a few of Lanloom's figures (devices online, new devices, internet line, open
+  issues, health, vulnerability hints, nightly report) as sensors of your home-automation hub through MQTT discovery, with
+  the broker, the topics, the sensors and their current value and the state of the connection. Only counts, a level, a
+  flag and a time are published (see [Add-on and MQTT output](add-on.md)).
 - **Nightly report** - time, time zone, retention and the delivery channels (see [Nightly report](nightly-reports.md)).
 - **Updates** - version, the optional update check (the only outgoing connection of its own, at most every 6 hours; turn
   it off here) and the one-click updater where the updater sidecar runs. Channels, holding a version, going back and the signature check: [Updating](updating.md).
@@ -151,7 +155,7 @@ limit for cloud requests. Off by default. See [AI](ai.md).
   the instance key `secret.key`, the audit log (names of changed fields, never secret values).
 - **Stored in the browser:** language, theme, colour theme, map animation and the open state of the rails.
 - **Sent:** nothing by default. Outgoing connections exist only where you switch them on: the update check (public
-  release feed), report delivery and notifications, the heartbeat, push, and AI. The list of every place that can open a
+  release feed), report delivery and notifications, the heartbeat, push, the MQTT output, and AI. The list of every place that can open a
   connection is `security/egress.json` in the repository, checked by the tests.
 - **Roles:** viewer, operator and administrator as described per sub page above; every route is checked against one
   central table on the server.
@@ -164,6 +168,7 @@ limit for cloud requests. Off by default. See [AI](ai.md).
 - [NOTIFICATIONS.md](../NOTIFICATIONS.md) - rules, quiet hours, maintenance, push, heartbeat
 - [HOST-AGENT.md](../HOST-AGENT.md) - the optional host agent, the container source and the *Agents* page
 - [BACKUP.md](../BACKUP.md) - backup, restore and moving to another host
+- [Add-on and MQTT output](add-on.md) - running as an add-on of a home-automation hub, sensors over MQTT
 - [PERFORMANCE.md](../PERFORMANCE.md#storage-and-retention) - retention and the nightly clean-up
 - [DISCOVERY.md](../DISCOVERY.md#networks-and-vlans) - networks, scan protection, what can be connected
 - [integrations/ai.md](../integrations/ai.md) - AI services

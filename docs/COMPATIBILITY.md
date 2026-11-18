@@ -14,6 +14,8 @@ Family by stage by checked firmware. **Read** is stage A (Lanloom only reads); *
 | MQTT 3.1.1 broker | yes | none (cannot publish) | brokers speaking MQTT 3.1.1 | protocol tests with a stand-in broker |
 | Switch controller (local JSON API) | yes | none | console and classic API layouts | automatic adapter tests with stand-ins |
 | Home-automation hub (WebSocket API) | yes | none (cannot call services) | releases with the documented WebSocket API | protocol tests with a stand-in hub |
+| Home-automation hub (add-on system with ingress) | runs as an add-on | none (the add-on only reads the network) | add-on systems that build local add-ons from a Dockerfile, with ingress and the MQTT service; amd64 and aarch64 | add-on build on amd64 and arm64, ingress with a stand-in proxy from the add-on network, tests |
+| MQTT output (discovery) | – | only Lanloom's own topics on the broker (sensors with counts), never a device | brokers speaking MQTT 3.1.1; hubs that read MQTT discovery | protocol tests with a stand-in broker and a real broker |
 | Sample network (built in) | yes | yes, B | – | simulation, tests |
 | UniFi Network | yes | yes, B (wireless clients: network, fixed address, name; internal networks: create, rename, address service, delete own; fixed addresses; port forwards), B* (new or changed port forwards) | classic API: Network 11.0; integration API: 9.3, 10.0, 10.1; write: self-hosted 10.0.162 | 11.0 on a live console (read); published specifications; adapter tests; self-hosted application (write) |
 | Proxmox VE | yes | yes, B and B* (guests only, executor only) | 9.2 and 7.3 (schema); 8.2 (adapter tests) | published API schema, adapter tests, stateful stand-in; no real host yet for writing |

@@ -101,6 +101,20 @@ Counts messages and bytes per topic group; payloads are read off the socket and 
 | TLS / certificate problem | tick *Accept a self-signed certificate*, or fix the broker's certificate chain |
 | Connected but no topics | the account may subscribe but nothing is published right now, or retained messages only: those are counted apart from new traffic |
 
+## MQTT output
+
+The optional output that publishes Lanloom's figures as sensors of a hub ([MQTT-OUTPUT.md](MQTT-OUTPUT.md)). Its state is
+on its card under *Settings › MQTT output*.
+
+| Reason | Cause and fix |
+|---|---|
+| The broker cannot be reached | address or port wrong (1883 plain, 8883 TLS by convention), or the broker listens only on localhost |
+| The broker refused the user name or password | wrong credentials, or the account is not allowed to connect |
+| The encrypted connection failed | tick *Accept a self-signed certificate*, or fix the broker's certificate chain |
+| The connection to the broker was lost | the broker restarted or dropped the client; Lanloom reconnects with growing pauses (up to five minutes) |
+| The add-on system offers no broker | in the add-on, install and start a broker add-on, or enter an address |
+| Connected, but no sensors in the hub | the hub listens on another discovery prefix (*Topics*), MQTT discovery is switched off in the hub, or the broker's access list does not let the account publish to `<discovery prefix>/#` and `<base topic>/#` |
+
 ## Switch controller
 
 Reads which client sits on which switch port or access point through a local JSON API with a view-only account. See [TOPOLOGY.md](TOPOLOGY.md).
@@ -221,6 +235,10 @@ See [DATA-PATHS.md](DATA-PATHS.md#setting-up-netflow--ipfix).
 | A page or button is missing | the role decides what is shown; the *About this view* rail and [ACCESS.md](ACCESS.md) list what each role may do |
 
 ## Install, update and backup
+
+**Add-on:** the side panel stays empty or shows a refusal - open Lanloom from the side panel, not by the host address
+and port 7380 (that answers only with `direct_access` on). Updates come from the add-on store; *Settings › Updates*
+has no update button in the add-on. See [ADDON.md](ADDON.md).
 
 | Symptom | Cause and fix |
 |---|---|

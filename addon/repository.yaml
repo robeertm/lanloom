@@ -1,0 +1,5 @@
+# Add-on repository description. This folder is laid out so it can be published as the root of a separate add-on
+# repository (copy repository.yaml and lanloom/ there). See docs/ADDON.md.
+name: Lanloom add-ons
+url: https://github.com/robeertm/lanloom
+maintainer: Lanloom maintainers

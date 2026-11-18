@@ -261,6 +261,17 @@ The card of the hub shows what the bridge reads, which private data stays out (p
 </tr>
 </table>
 
+### Add-on and sensors in the hub
+
+Lanloom can run as an add-on of a home-automation hub: opened from the hub's side panel, signed in with the hub account, updated by its add-on system. The optional MQTT output publishes a few figures (devices online, new devices, internet line, open issues, health, vulnerability hints, nightly report) as sensors through MQTT discovery - counts only, never names or addresses. See [Add-on and MQTT output](#add-on-and-mqtt-output).
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/mqtt-output-light.png" width="100%" alt="Settings, MQTT output: broker, state of the connection, the sensors with their current values"><br><sub>MQTT output: the sensors and what they carry right now</sub></td>
+<td width="50%"><img src="docs/screenshots/addon-updates-dark.png" width="100%" alt="Updates card in the add-on: updates come through the add-on system"><br><sub>In the add-on, updates come from the add-on system</sub></td>
+</tr>
+</table>
+
 ### Search and commands
 
 Press `Ctrl K`, `⌘ K` or `/` anywhere, or use the Search button. Views and commands are matched in the page; devices, services, automations and hub entities are searched on the server. A comparison such as `> 20 °C` filters hub values, and the arrow to the right (or the dots on a phone) opens the actions of a hit.
@@ -540,12 +551,18 @@ Dots appear only where bytes are actually measured:
 - **Router or switch (SNMP v2c or v3)** gives interface counters, which animate the internet uplink, and LLDP neighbours plus the switch address table for the cabling. Only Get, GetNext and GetBulk are used.
 - **Switch controller** (the local controller application of a switch and access point product line) tells which client sits on which switch port or access point. A local view-only account is enough. Lanloom signs in and then only reads two lists; one code path makes every request and refuses everything else.
 - **Device-family adapters** read a controller's configuration and state through its local APIs (an API key and/or a local view-only account): zones, networks, firewall rules with hit counters, ports, wireless networks, clients and their ports. They only send read requests through one allow-listed code path, refuse an account that can change settings where that is checkable, and cap sign-ins. A zone firewall adapter reads zones, interfaces, rules, NAT, DHCP and VPN through query documents that can only read. A hypervisor adapter reads nodes, guests, their network cards, bridges, firewall, storage and backups with a token that can only read (checked against the token's own permission list). Which families exist: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). The read half never writes; a family that can also change something (so far: clients of one controller family - move, fixed address, name - and guests of the hypervisor family - start, clean shutdown, network card bridge and VLAN, guest firewall and rules) does it only through the separate executor service with its own account, after the gate and your passkey signature.
-- **MQTT broker** topics are grouped; Lanloom only counts messages and lengths per group. It connects, subscribes to `#`, and cannot publish. Payloads are never stored. TLS is optional.
+- **MQTT broker** topics are grouped; Lanloom only counts messages and lengths per group. It connects, subscribes to `#`, and cannot publish. Payloads are never stored. TLS is optional. (Publishing a few of Lanloom's own figures is a separate, optional output, see below.)
 - **Home-automation hub (WebSocket API)** adds rooms, devices and entities, state changes and automation runs, using a long-lived access token (a non-admin user is enough). A strict allow-list limits it to read commands; it cannot call services and never renders templates. Optional **admin mode** also reads which entities each automation and script uses and, on request, their last runs – within budgets per minute, never looking up scripts that call each other in a loop. People, trackers, zones, cameras, calendars and notifications are kept out by default. See [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md).
 
 Supported integrations: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 All integrations are optional. Credentials are encrypted at rest with a key file (`secret.key`, mode 0600) in the data volume, never displayed again and never logged.
+
+## Add-on and MQTT output
+
+**Add-on.** If your home-automation hub has an add-on system with ingress, Lanloom runs there as an add-on: copy [`addon/lanloom`](addon/lanloom) into the hub's folder for local add-ons, install it from the add-on store and open it from the side panel. You are signed in with your hub account (the user header is believed only from the add-on system's ingress proxy), Lanloom's own updater is switched off because the add-on system updates it, and the data lives in the add-on volume, so the hub's backups include it. Host networking is the only extra it asks for. Details: [docs/ADDON.md](docs/ADDON.md).
+
+**MQTT output (off by default).** *Settings › MQTT output* publishes ten figures as sensors of the hub through MQTT discovery: devices, devices online and offline, new devices, the internet line, open issues, the network health, open vulnerability hints, the last nightly report and its open points. Only counts, a level, a flag and a time leave Lanloom - never a device name, address, person or place. Its own small client sends only CONNECT, PUBLISH, PINGREQ and DISCONNECT and only to the topics of its own node (checked twice, tested against the source); it never subscribes, so nothing comes back. Switching off removes the sensors again. In the add-on it can use the broker the add-on system offers. Details: [docs/MQTT-OUTPUT.md](docs/MQTT-OUTPUT.md).
 
 ## AI – local or cloud
 
@@ -573,6 +590,7 @@ Sign-in is mandatory; there is no open mode. The first account can only be creat
 
 - **With the updater sidecar:** an "Update" button appears when a new version is available. It pulls the image, runs a self-test without network, starts a trial on a copy of your data, backs up the database and tags the previous image, swaps the container, checks health, and rolls back automatically on failure.
 - **Without it:** `docker compose pull && docker compose up -d`.
+- **As an add-on:** the hub's add-on system updates Lanloom; the built-in updater and the release check are off.
 - **Channels:** Stable (default) or Preview; Preview offers a pre-release only when it is newer than the newest stable release and went through the same gate and signing, never `:edge`. Details: [docs/manual/updating.md](docs/manual/updating.md).
 - **Hold this version:** no update notices until you release it; the nightly report notes when a newer version waits.
 - **Back to the previous version:** one click for administrators with a fresh confirmation, same checks as an update; not offered for versions before 1.29.0 (unsigned), which are restored by hand from the backup.
@@ -609,6 +627,8 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/VULNERABILITIES.md](docs/VULNERABILITIES.md): vulnerability hints: the offline feed and its sources, building and importing a feed file, the matching rules (certain, possible, not checked), what to do, events, roles and API
 - [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces, networks and VLANs, devices without an address, scan protection, what can be connected
 - [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md): the home-automation bridge: what is read, admin mode, sparing the hub, privacy filter
+- [docs/ADDON.md](docs/ADDON.md): Lanloom as an add-on of a home-automation hub: installing, sign-in through the side panel, options, network, updates, data
+- [docs/MQTT-OUTPUT.md](docs/MQTT-OUTPUT.md): the optional MQTT output: sensors, topics, payloads, privacy, the write rules, API
 - [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md): the tree view of the network, the keyboard, screen readers, colours and contrast, how it is tested
 - [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md): the Automations tab: plain words, flow, findings, dependency board, who switches what, timeline, day plan, rooms, hub health
 - [docs/TOPOLOGY.md](docs/TOPOLOGY.md): physical topology, sources, view-only account, how shared ports are read

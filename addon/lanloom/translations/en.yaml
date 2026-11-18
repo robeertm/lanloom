@@ -1,0 +1,11 @@
+configuration:
+  ingress_role:
+    name: Role of people who open the side panel
+    description: >-
+      Lanloom role (viewer, operator or admin) for people who open Lanloom from the side panel. The first person
+      needs admin to set things up. Only administrators of the hub see the panel.
+  direct_access:
+    name: Direct access from the network
+    description: >-
+      Also answer requests from the network on port 7380 (sign-in with Lanloom's own accounts). Off: Lanloom is only
+      reachable through the side panel.

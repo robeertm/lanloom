@@ -144,6 +144,10 @@ environment:
 - The role follows the groups: it is synced on every request, and a change is logged.
 - **The proxy must remove these headers from client requests** and set them itself. Otherwise anybody could claim to be anybody.
 
+**As an add-on** of a home-automation hub this is set up by itself and cannot be changed: the only trusted proxy is the
+ingress proxy of the add-on system (its fixed address in the add-on network), the header is the one it sets for the
+signed-in person, and the role comes from the add-on option `ingress_role`. See [ADDON.md](ADDON.md#sign-in-through-the-side-panel).
+
 ## Serving Lanloom below a path
 
 The web page derives every address (API, live connection, map worker) from its own location, so a reverse proxy can serve Lanloom below a path such as `/lanloom/` and strip the prefix. Alternatively set `LANLOOM_BASE_PATH=/lanloom` and Lanloom accepts the prefix itself: requests without the prefix still work, and `/lanloom` redirects to `/lanloom/`. The AI set-up script for another computer includes the prefix.

@@ -990,6 +990,8 @@
       paletteField(), h('div', { class: 'grid-2' }, LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint')), motionField())]));
     if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
     if (LL.netflowSettingsCard) page.append(LL.netflowSettingsCard(s));
+    const mqttCard = LL.mqttOutCard ? LL.mqttOutCard() : null;
+    if (mqttCard) page.append(mqttCard);
     // updates + about
     const updToggle = h('input', { type: 'checkbox', checked: !!s.update_check, onchange: () => api('/api/settings', { method: 'PUT', body: { update_check: updToggle.checked } }).then(() => LL.toast(t('settings.saved'), 'ok')) });
     const updMsg = h('div', { class: 'msg' });
@@ -1014,6 +1016,13 @@
         try { const req = await api('/api/update/rollback', { method: 'POST', body: { version: prev.version } }); flash(t('update.rollback.started', { v: prev.version }), 'info'); followUpdate(updMsg, prev.version, req.nonce); }
         catch (e) { flash(LL.errText(e), 'error'); rollback.disabled = !u.rollback_ok; }
       } }, t('update.rollback.btn', { v: prev.version })) : null;
+      if (u.mode === 'addon') {
+        // add-on of a home-automation hub: its add-on system shows and installs new versions; no feed, no sidecar here
+        return updSection = h('section', { class: 'card settings-card update-card' }, h('h2', {}, t('settings.updates')),
+          facts([[t('settings.version'), versionBtn], [t('update.addon.source'), t('update.addon.source.value')]]),
+          h('p', { class: 'upd-addon' }, t('update.addon.text')),
+          h('div', { class: 'btn-row' }, h('button', { class: 'btn btn--ghost', type: 'button', onclick: openWhatsNew }, t('whatsnew.btn'))));
+      }
       return updSection = h('section', { class: 'card settings-card update-card' }, h('h2', {}, t('settings.updates')),
         facts([[t('settings.version'), versionBtn], [t('settings.latest'), u.latest || '—'], [t('settings.channel'), t('update.channel.' + (u.channel === 'preview' ? 'preview' : 'stable'))],
           [t('settings.checked'), u.checked ? LL.fmtDate(u.checked) : '—'], [t('settings.sidecar'), u.sidecar ? t('settings.sidecar.yes') : t('settings.sidecar.no')],
@@ -1035,6 +1044,7 @@
     page.append(card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy'))]));
     fr.main.append(page);
     if (rest && rest[0] === 'reports' && reportCard) setTimeout(() => reportCard.scrollIntoView({ block: 'start' }), 30);
+    if (rest && rest[0] === 'mqtt' && mqttCard) setTimeout(() => mqttCard.scrollIntoView({ block: 'start' }), 400);
     return fr;
   }
   // Settings > General > Diagnostic export: one redacted JSON file for an issue (lanloom/diagnostics.py); the download is audited

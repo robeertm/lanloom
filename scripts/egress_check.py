@@ -43,6 +43,8 @@ CATEGORIES = {
     "executor-link": "between the app and its own executor container",
     "own-connection-check": "TLS handshake to the addresses of the connections set up (certificate expiry)",
     "listener": "a socket that only receives (no outbound connection)",
+    "addon-system": "the API of the add-on system inside the add-on network (add-on mode only, after an administrator "
+                    "picks the broker it offers)",
     "local-host": "the host itself (loopback, own interfaces, kernel tables)",
 }
 

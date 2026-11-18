@@ -25,6 +25,7 @@ from .crypto import Vault, load_or_create_key
 from .store import Store
 from . import updates as updates_mod
 from . import whatsnew
+from . import mqtt_out as mqtt_out_mod
 from .updates import Updates
 
 log = logging.getLogger("lanloom")
@@ -49,6 +50,10 @@ SECURITY_HEADERS = {
     "Cross-Origin-Resource-Policy": "same-origin",
 }
 HSTS = "max-age=31536000"
+# Add-on mode: the hub shows the add-on inside its own page (ingress frame on the same origin), so framing by the same
+# origin is allowed there - and only there; a plain install keeps "never in a frame".
+ADDON_FRAME_HEADERS = {"Content-Security-Policy": CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'"),
+                       "X-Frame-Options": "SAMEORIGIN"}
 # FastAPI's built-in OpenTelemetry hooks stay off: no spans, metrics or log records, and no exporter from OTEL_*
 # environment variables. (No telemetry SDK or exporter is installed either; tests/test_egress.py checks both.)
 NO_TELEMETRY = {"tracing": False, "metrics": False, "logs": False, "operation_spans": False, "auto_configure": False}
@@ -131,6 +136,9 @@ class App:
         from . import vulns_report as _vulns_report  # noqa: F401 - registers the vulnerability section
         self.backups = Backups(self)
         self.core.backups = self.backups
+        from .mqtt_out import MqttOut
+        self.mqtt_out = MqttOut(self.real_core, store, vault, cfg)     # opt-in MQTT output (off by default)
+        self.real_core.mqtt_out = self.mqtt_out
         if cfg.demo:
             from .demo import Demo
             self.core.demo = Demo()
@@ -146,6 +154,8 @@ class App:
                 from .notify.demo import seed as seed_notify
                 seed_notify(self.core)
                 self.ai.seed_demo_hint()            # one open identification suggestion to look at
+                from .mqtt_out import seed_demo as seed_mqtt_out
+                seed_mqtt_out(store)
                 store.set_setting("setup_done", True)
 
 
@@ -168,9 +178,15 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             log.warning("First start: open the web page and enter the setup code %s (also in %s)", code, state.setup_code.path)
         await state.core.start()
         state.backups.start()
+        mqtt_task = asyncio.create_task(state.mqtt_out.run())
         try:
             yield
         finally:
+            mqtt_task.cancel()
+            try:
+                await mqtt_task
+            except (asyncio.CancelledError, Exception):
+                pass
             await state.backups.stop()
             await state.demo_view.stop()
             await state.core.stop()
@@ -248,10 +264,23 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         except Exception:        # the audit log must never break the request; a failure is visible in the log
             log.exception("audit log write failed (%s)", action)
 
+    headers_of_mode = dict(SECURITY_HEADERS, **(ADDON_FRAME_HEADERS if getattr(cfg, "addon", False) else {}))
+
+    def origin_ok(conn) -> bool:
+        """Origin check of state-changing requests and the live socket. In add-on mode the ingress proxy forwards the
+        hub's own address as X-Forwarded-Host; it is believed from that proxy only."""
+        origin, host = conn.headers.get("origin"), conn.headers.get("host")
+        if auth.origin_allowed(origin, host, cfg.trusted_origins):
+            return True
+        if getattr(cfg, "addon", False) and auth.from_trusted_proxy(peer_of(conn), proxies):
+            fwd = (conn.headers.get("x-forwarded-host") or "").split(",")[0].strip()
+            return bool(fwd) and auth.origin_allowed(origin, fwd, ())
+        return False
+
     @app.middleware("http")
     async def guard(request: Request, call_next):
         response = await guarded(request, call_next)
-        for name, value in SECURITY_HEADERS.items():
+        for name, value in headers_of_mode.items():
             response.headers[name] = value
         if over_https(request):
             response.headers["Strict-Transport-Security"] = HSTS
@@ -270,7 +299,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             if request.method in STATE_CHANGING:
                 if request.headers.get("x-lanloom") != "1":
                     return JSONResponse({"error": "auth.err.header"}, status_code=403)
-                if not auth.origin_allowed(request.headers.get("origin"), request.headers.get("host"), cfg.trusted_origins):
+                if not origin_ok(request):
                     return JSONResponse({"error": "auth.err.origin"}, status_code=403)
             template, params = match_route(request.scope)
             rule = access.rule_for(request.method, template) if template else None
@@ -366,6 +395,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             language = state.accounts.prefs(user["id"]).get("language") or language
         demo_view = bool(user) and demoview.ACTIVE.get()
         out = {"version": __version__, "setup_needed": state.store.user_count() == 0, "authenticated": bool(user),
+               "addon": bool(getattr(cfg, "addon", False)),
                "user": user["username"] if user else None, "demo": cfg.demo or demo_view, "demo_view": demo_view,
                "setup_done": demo_view or bool(state.store.get_setting("setup_done", False)),
                "language": language,
@@ -448,6 +478,33 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.get("/api/netflow")
     async def get_netflow():
         return state.core.netflow_status()
+
+    # ------------------------------------------------------------------ MQTT output (opt-in sensors for a hub, lanloom/mqtt_out.py)
+    @app.get("/api/mqtt-out")
+    async def mqtt_out_view():
+        return await asyncio.to_thread(state.mqtt_out.view)
+
+    @app.put("/api/mqtt-out")
+    async def mqtt_out_update(request: Request):
+        data = await body(request)
+        keys = sorted(k for k in data if k in mqtt_out_mod.DEFAULTS or k == "password")
+        note(request, target=",".join(keys),
+             detail={k: data[k] for k in keys if k in ("enabled", "broker", "tls", "allow_self_signed", "node_id")})
+        try:
+            return state.mqtt_out.update({k: data[k] for k in keys})
+        except ValueError as exc:
+            return err(str(exc))
+
+    @app.post("/api/mqtt-out/test")
+    async def mqtt_out_test(request: Request):
+        data = await body(request)
+        patch = {k: data[k] for k in data if k in mqtt_out_mod.DEFAULTS or k == "password"}
+        try:
+            res = await state.mqtt_out.test(patch)
+        except ValueError as exc:
+            return err(str(exc))
+        note(request, detail={"ok": bool(res.get("ok")), "error": res.get("error") or ""})
+        return res
 
     @app.get("/api/networks")
     async def networks():
@@ -1265,7 +1322,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     # ------------------------------------------------------------------ live
     @app.websocket("/api/live")
     async def live_feed(ws: WebSocket):
-        if not auth.origin_allowed(ws.headers.get("origin"), ws.headers.get("host"), cfg.trusted_origins):
+        if not origin_ok(ws):
             await ws.close(code=4403)
             return
         user = identify(ws)
@@ -1305,7 +1362,40 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     base = getattr(cfg, "base_path", "") or ""
     if base:
         app.add_middleware(BasePath, base=base)
+    if getattr(cfg, "addon", False) and not getattr(cfg, "addon_lan", False):
+        app.add_middleware(PeerGate, allowed=proxies)
     return app
+
+
+class PeerGate:
+    """Add-on mode without direct access: only the ingress proxy (and this host's own health check over loopback) is
+    answered; anybody else in the network gets a short refusal that points to the hub's side panel. Covers HTTP and
+    the live WebSocket, before any route or file."""
+
+    REFUSAL = (b"Lanloom runs as an add-on here. Open it from the side panel of your home-automation hub, "
+               b"or switch on direct access in the add-on options.\n")
+
+    def __init__(self, app, allowed):
+        self.app = app
+        self.allowed = allowed
+
+    def admits(self, scope) -> bool:
+        client = scope.get("client") or ("", 0)
+        peer = auth._ip(str(client[0] or ""))
+        return peer is not None and (peer.is_loopback or auth.from_trusted_proxy(str(peer), self.allowed))
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket") and not self.admits(scope):
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
+                return
+            await send({"type": "http.response.start", "status": 403,
+                        "headers": [(b"content-type", b"text/plain; charset=utf-8"),
+                                    (b"content-length", str(len(self.REFUSAL)).encode("ascii")),
+                                    (b"cache-control", b"no-store")]})
+            await send({"type": "http.response.body", "body": self.REFUSAL})
+            return
+        await self.app(scope, receive, send)
 
 
 class BasePath:

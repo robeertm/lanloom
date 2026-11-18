@@ -8,6 +8,10 @@ Keep Lanloom current without risk: a notice when a new version exists, a one-cli
 a choice between stable and preview versions, a way to hold a version, a way back to the previous one, a signature
 check before anything is swapped, and a "What's new?" panel that shows what each version changed.
 
+Running as an add-on of a home-automation hub? Then the hub's add-on system updates Lanloom, and the parts below that
+need the updater sidecar (notice, one-click update, channels, hold, going back) are switched off; see
+[Add-on](../ADDON.md#updates).
+
 ## What you see
 
 - **Update notice.** When a newer version exists, an *Update* button appears (administrators) with the release notes.

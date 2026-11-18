@@ -37,6 +37,16 @@
    "purpose": "adapters of device families: read half in the app, write half only in the executor; address entered by an administrator"
   },
   {
+   "site": "lanloom/mqtt_out.py::Publisher.connect::socket",
+   "category": "configured-channel",
+   "purpose": "optional MQTT output (off by default): connects to the broker an administrator entered or picked and publishes only Lanloom's own topics (counts, no names or addresses)"
+  },
+  {
+   "site": "lanloom/mqtt_out.py::addon_broker::http",
+   "category": "addon-system",
+   "purpose": "add-on mode only, after an administrator picks the broker of the add-on system: asks the add-on system's API inside the add-on network for that broker's address and credentials"
+  },
+  {
    "site": "lanloom/netflow.py::Collector.start::socket",
    "category": "listener",
    "purpose": "optional NetFlow/IPFIX receiver (off by default): binds a UDP port, sends nothing"

@@ -1,0 +1,11 @@
+configuration:
+  ingress_role:
+    name: Rolle für Personen, die die Seitenleiste öffnen
+    description: >-
+      Lanloom-Rolle (Betrachter, Bediener oder Admin) für Personen, die Lanloom über die Seitenleiste öffnen. Die
+      erste Person braucht Admin, um alles einzurichten. Nur Administratoren des Hubs sehen die Seitenleiste.
+  direct_access:
+    name: Direkter Zugriff aus dem Netz
+    description: >-
+      Auch Anfragen aus dem Netz auf Port 7380 beantworten (Anmeldung mit Lanlooms eigenen Konten). Aus: Lanloom ist
+      nur über die Seitenleiste erreichbar.

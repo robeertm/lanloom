@@ -77,6 +77,11 @@ Full feature set with host networking (neighbour table, mDNS, SSDP, byte counter
 
 Create a project from `compose.yaml` and keep the host network. If you replace the named volume with a bind mount, the folder must be writable by uid 10001. Or simply keep the named volume.
 
+### As an add-on of a home-automation hub
+
+If your hub has an add-on system with ingress, Lanloom can run there: opened from the side panel, signed in with the
+hub account, updated by the add-on system, data in the add-on volume. See [ADDON.md](ADDON.md).
+
 ### macOS and Windows desktop container runtimes
 
 Host networking is limited on these systems. Run in bridge mode instead, without `--network host`, and publish the port:

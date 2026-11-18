@@ -136,8 +136,10 @@ the model:
 
 Lanloom does not phone home. The only outbound connection of its own is the optional update check against the public
 release feed. Everything else connects only when someone sets it up: integrations to the addresses an administrator
-entered, delivery channels, web push to a browser's push service, the heartbeat, a cloud AI service, and one TLS
-handshake per morning to the connections set up (certificate expiry).
+entered, delivery channels, web push to a browser's push service, the heartbeat, the MQTT output (only Lanloom's own
+topics, counts only), a cloud AI service, and one TLS handshake per morning to the connections set up (certificate
+expiry). As an add-on, Lanloom asks the add-on system's API for its MQTT broker only after an administrator picks it,
+and it never asks the release feed.
 
 This is a checked rule, not a promise: `scripts/egress_check.py` reads the shipped code (without running it) and lists
 every place that can open a connection and every fixed public host name. Each one must be listed in
@@ -158,6 +160,12 @@ writes, compose snippets in the documentation and the containers the updater cre
 - the only exception is the optional updater sidecar: it runs as root because it needs the container runtime socket
   (root-equivalent on the host), is opt-in through its own profile, and still has a read-only file system and
   `no-new-privileges`. Leave it out if you do not want that.
+- the add-on image (`addon/lanloom`, add-on mode) starts as root only to create `/data/lanloom` in the add-on volume and
+  give it to uid 10001; the start script then drops every group and privilege before Lanloom's code runs (checked by
+  `tests/test_addon.py`). The add-on asks for host networking and ingress only: no added capabilities, no devices, no
+  privileged mode, no access to the add-on system's API beyond the MQTT service lookup. The add-on system decides the
+  rest of the container settings (it offers no read-only root file system), so the dropped privileges are what keeps
+  Lanloom unprivileged there.
 
 ## Web interface
 
