@@ -467,35 +467,59 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 
 <table>
 <tr>
-<td><img src="docs/screenshots/phone-overview.png" width="200" alt="Phone: overview start page"></td>
-<td><img src="docs/screenshots/phone-rail.png" width="200" alt="Phone: the Right now rail"></td>
-<td><img src="docs/screenshots/phone-map-light.png" width="200" alt="Phone map, light"></td>
-<td><img src="docs/screenshots/phone-map-dark.png" width="200" alt="Phone map, dark"></td>
-<td><img src="docs/screenshots/phone-detail.png" width="200" alt="Phone component card"></td>
-<td><img src="docs/screenshots/phone-connection.png" width="200" alt="Phone: connection of a device"></td>
-<td><img src="docs/screenshots/phone-identity.png" width="200" alt="Phone: two addresses that may be one device"></td>
-<td><img src="docs/screenshots/phone-devices.png" width="200" alt="Phone device list"></td>
-<td><img src="docs/screenshots/phone-paths.png" width="200" alt="Phone: data paths"></td>
-<td><img src="docs/screenshots/phone-paths-full.png" width="200" alt="Phone: world map in full screen"></td>
-<td><img src="docs/screenshots/phone-netflow-settings.png" width="200" alt="Phone: NetFlow / IPFIX receiver settings"></td>
-<td><img src="docs/screenshots/phone-onsite.png" width="200" alt="Phone: sensors on site, batteries and silent radio devices"></td>
-<td><img src="docs/screenshots/phone-sensor-page.png" width="200" alt="Phone: sensor page with the course of one sensor"></td>
-<td><img src="docs/screenshots/phone-reports.png" width="200" alt="Phone: nightly report"></td>
-<td><img src="docs/screenshots/phone-storage.png" width="200" alt="Phone: storage settings"></td>
-<td><img src="docs/screenshots/phone-api.png" width="200" alt="Phone: webhooks in Settings, API"></td>
-<td><img src="docs/screenshots/phone-ai-explain.png" width="200" alt="Phone: AI explanation of a device"></td>
-<td><img src="docs/screenshots/phone-ask.png" width="200" alt="Phone: Ask your network"></td>
-<td><img src="docs/screenshots/phone-palette-search.png" width="200" alt="Phone: search and commands"></td>
-<td><img src="docs/screenshots/phone-palette-values.png" width="200" alt="Phone: value filter in the search"></td>
-<td><img src="docs/screenshots/phone-report-plain.png" width="200" alt="Phone: nightly report in plain words"></td>
-<td><img src="docs/screenshots/phone-wizard-scan.png" width="200" alt="Phone wizard scan step"></td>
-<td><img src="docs/screenshots/phone-firewall-move.png" width="200" alt="Phone: move a device to another network"></td>
-<td><img src="docs/screenshots/phone-firewall-device.png" width="200" alt="Phone: rename a device or give it a fixed address"></td>
-<td><img src="docs/screenshots/phone-firewall-preview.png" width="200" alt="Phone: firewall preview"></td>
-<td><img src="docs/screenshots/phone-firewall-rules.png" width="200" alt="Phone: firewall rules read from the controller"></td>
-<td><img src="docs/screenshots/phone-hypervisor-nic.png" width="200" alt="Phone: move a guest's network card to another VLAN"></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-overview.png" width="100%" alt="Phone: overview start page"><br><sub>Overview start page</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-rail.png" width="100%" alt="Phone: the Right now rail"><br><sub>The Right now rail</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-map-light.png" width="100%" alt="Phone: map, light"><br><sub>Map, light</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><img src="docs/screenshots/phone-detail.png" width="100%" alt="Phone: component card"><br><sub>Component card</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-devices.png" width="100%" alt="Phone: device list"><br><sub>Device list</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-paths.png" width="100%" alt="Phone: data paths"><br><sub>Data paths</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><img src="docs/screenshots/phone-reports.png" width="100%" alt="Phone: nightly report"><br><sub>Nightly report</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-firewall-rules.png" width="100%" alt="Phone: firewall rules read from the controller"><br><sub>Firewall rules read from the controller</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-ask.png" width="100%" alt="Phone: Ask your network"><br><sub>Ask your network</sub></td>
 </tr>
 </table>
+
+<details>
+<summary>More phone screenshots</summary>
+
+<table>
+<tr>
+<td width="33%" align="center"><img src="docs/screenshots/phone-map-dark.png" width="100%" alt="Phone: map, dark"><br><sub>Map, dark</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-connection.png" width="100%" alt="Phone: connection of a device"><br><sub>Connection of a device</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-identity.png" width="100%" alt="Phone: two addresses that may be one device"><br><sub>Two addresses that may be one device</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><img src="docs/screenshots/phone-paths-full.png" width="100%" alt="Phone: world map in full screen"><br><sub>World map in full screen</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-netflow-settings.png" width="100%" alt="Phone: NetFlow / IPFIX receiver settings"><br><sub>NetFlow / IPFIX receiver settings</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-onsite.png" width="100%" alt="Phone: sensors on site, batteries and silent radio devices"><br><sub>Sensors on site, batteries and silent radio devices</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><img src="docs/screenshots/phone-sensor-page.png" width="100%" alt="Phone: sensor page with the course of one sensor"><br><sub>Sensor page with the course of one sensor</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-storage.png" width="100%" alt="Phone: storage settings"><br><sub>Storage settings</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-api.png" width="100%" alt="Phone: webhooks in Settings, API"><br><sub>Webhooks in Settings, API</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><img src="docs/screenshots/phone-ai-explain.png" width="100%" alt="Phone: AI explanation of a device"><br><sub>AI explanation of a device</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-palette-search.png" width="100%" alt="Phone: search and commands"><br><sub>Search and commands</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-palette-values.png" width="100%" alt="Phone: value filter in the search"><br><sub>Value filter in the search</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><img src="docs/screenshots/phone-report-plain.png" width="100%" alt="Phone: nightly report in plain words"><br><sub>Nightly report in plain words</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-wizard-scan.png" width="100%" alt="Phone: wizard scan step"><br><sub>Wizard scan step</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-firewall-move.png" width="100%" alt="Phone: move a device to another network"><br><sub>Move a device to another network</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><img src="docs/screenshots/phone-firewall-device.png" width="100%" alt="Phone: rename a device or give it a fixed address"><br><sub>Rename a device or give it a fixed address</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-firewall-preview.png" width="100%" alt="Phone: firewall preview"><br><sub>Firewall preview</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-hypervisor-nic.png" width="100%" alt="Phone: move a guest's network card to another VLAN"><br><sub>Move a guest's network card to another VLAN</sub></td>
+</tr>
+</table>
+
+</details>
 
 ## Quick start
 
