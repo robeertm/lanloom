@@ -49,6 +49,22 @@ Only what the connected controller can change is offered (its capability list); 
 
 The command palette (Ctrl K) has *Change a device (network, name, fixed address) …*, and a device found there offers *Move to … / change*; both open this sheet. Changing needs the **Operator** role (drafts and previews); applying needs an **Admin** with a passkey. Every draft change is written to the audit log.
 
+### Changing the gateway: networks, fixed addresses, port forwards
+
+When the executor's adapter can change the gateway (the simulation's sample gateway can; for real writes see the family guide listed in [COMPATIBILITY.md](COMPATIBILITY.md)), **Change** mode adds three cards:
+
+- **Networks** - every network with address range, VLAN, address service, zone and what uses it (devices, fixed addresses, wireless networks, switch ports, port forwards). *New network* starts from a template (IoT, Cameras, Work, LAN) with a free private /24, a VLAN no other network uses (the third number of the address where it is free) and an address service from .100 to .199 filled in; the new network lands in the internal zone (zones of its own come with the zone firewall stage). *Change* renames a network or changes its address service (on/off, range). *Delete* appears only for networks Lanloom created that nothing uses any more.
+- **Fixed addresses** - the gateway's reservations; *Release* frees one, *Reserve an address* gives a known device a fixed address inside its own network.
+- **Port forwarding** - *New port forward* (name, protocol, outside port or list or range, target device or address, target port), *Change*, *Switch on* / *Switch off*, and *Delete* for forwards Lanloom created.
+
+The preview names every field old → new and warns in plain words: a device outside a new address range gets a new address at its next lease, a switched-off address service stops handing out addresses, a renamed network keeps its old name in rules and dashboards, a released fixed address may change, and **what uses the device by its address** - a hub integration whose device page points to it, a presence tracker, an automation with the address written in its configuration, or one of Lanloom's own sources. A new port forward (or a change other than its name) says which port becomes reachable from the internet and needs its own tick.
+
+Refused right in the preview, and again by the executor right before it writes: a range that is not private, not between /16 and /29 or overlaps another network; a VLAN outside 2 to 4094 or already used; an address service range outside the network or over the gateway address; a range or VLAN change of a network in use; switching off the address service while devices take dynamic addresses; changes of the management network, internet uplinks, VPN and guest-portal networks; deleting a network or forward Lanloom did not create; a fixed address outside the device's network, on the gateway or already taken; a forward to a public address, a gateway, the controller or network equipment, or on an outside port another forward uses.
+
+### Network plan
+
+The **Network plan** card keeps, per device, the network it should end up in - an existing network, or the name of one still to come (*IoT*). It shows the progress (*X of Y moved*), one row per target with its devices (moved ones ticked) and marks each device tile that still has to move (*→ IoT*). *Plan targets* opens a dialog: choose the target, tick the devices, save. When a target network does not exist yet, *Create this network* opens *New network* with the name filled in; once it exists, *Draft N moves* puts the moves that are possible now into the draft (at most one plan's worth, 10 objects). The plan is Lanloom's own note, stored by the devices' opaque ids, never a controller setting; it works with a read-only connection too, needs the **Operator** role to change and is in the audit log. The nightly report has a section **Network plan** with the progress and the devices moved since the last report.
+
 ### Changing a guest: start, shut down, network card, firewall
 
 With a hypervisor family behind the editor (the simulation has a sample hypervisor next to the sample network; for real writes see the guide of the hypervisor family listed in [COMPATIBILITY.md](COMPATIBILITY.md)), **Change** mode adds a **Guests** card:

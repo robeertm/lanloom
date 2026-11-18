@@ -20,7 +20,11 @@ Type a few words; **every word has to match**. A word that starts a word of the 
 
 | Group | What | Where it is matched |
 | --- | --- | --- |
+<<<<<<< HEAD
 | Views and commands | every view, the settings pages, light/dark, colour themes, rate unit, update check, *Change a device (network, name, fixed address) …*, *Change a guest (start, shut down, network card, firewall) …*, *Open Stability*, *Go to Automations* (typed: *Who switches what*, *Timeline*, *Day plan*, *Rooms*, *Hub health*, *Show automations with findings*), *Who talks to whom* (typed; the map with the conversation lines), *Open Running*, *Pair a host agent*, *Show containers on the map* and *Hide containers on the map* (the last two unfold or fold the containers of every host on the map; see [HOST-AGENT.md](HOST-AGENT.md)), *Open Inventory*, *Show devices that need attention*, *Show missing devices*, *Show warranties that end soon*, *Show devices whose updates end* | in the page |
+=======
+| Views and commands | every view, the settings pages, light/dark, colour themes, rate unit, update check, *Change a device (network, name, fixed address) …*, *Change a guest (start, shut down, network card, firewall) …*, *Networks and VLANs*, *Port forwarding*, *Fixed addresses*, *Network plan*, *Open Stability*, *Go to Automations* (typed: *Who switches what*, *Timeline*, *Day plan*, *Rooms*, *Hub health*, *Show automations with findings*), *Who talks to whom* (typed; the map with the conversation lines), *Open Inventory*, *Show devices that need attention*, *Show missing devices*, *Show warranties that end soon*, *Show devices whose updates end* | in the page |
+>>>>>>> 731ffc4 (U3 wip: gateway cards (networks, fixed addresses, port forwards), network plan card, what uses a device by address, palette commands, translations, manual and screenshots)
 | Devices | name, address, hardware address, kind, host names, maker and model, and what you wrote down in the inventory (room, purpose, person, shop) | the server |
 | Virtual machines and containers | name, id, addresses, host (from a hypervisor connection) | the server |
 | Services | which device offers which service, with the port | the server |

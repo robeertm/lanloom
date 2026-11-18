@@ -23,6 +23,8 @@
   // one line for a change of a job (progress card, history): "Phone → Media" or "Phone · name, fixed address"
   function sumText(x) {
     if (x.to && !x.kind) return x.name + ' → ' + x.to;
+    const nc = LL.ncSumText ? LL.ncSumText(x) : null;
+    if (nc) return nc;
     if (x.kind === 'guest.power') return x.name + ' · ' + t(x.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
     if (x.kind === 'guest.firewall') return x.name + ' · ' + t(x.on ? 'fw.sum.fw_on' : 'fw.sum.fw_off');
     if (x.kind === 'guest.fw_rule_create') return x.name + ' · ' + t('fw.sum.rule_new');
@@ -97,8 +99,14 @@
       function canMove(v) { const w = v.capabilities && v.capabilities.write; return LL.can('operate') && (!w || Object.prototype.hasOwnProperty.call(w, 'move')); }
       function canEdit(v, field) { return LL.can('operate') && v.mode !== 'live' && hasKey(v, 'client.set.' + field); }
       function canGuest(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!(v.state && (v.state.guests || []).length) && Object.keys(w).some(k => k.startsWith('guest.')); }
-      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip') || canGuest(v); }
+      function canNet(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.netconf && Object.keys(w).some(k => /^(network|dhcp|forward)\./.test(k)); }
+      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip') || canGuest(v) || canNet(v); }
       function hasBoard(v) { return (v.state.zones || []).length > 0 && (v.state.networks || []).length > 0; }
+      function netCtx(v) {
+        return { change: st.mode === 'change', can: key => LL.can('operate') && hasKey(v, key), ops: v.draft.ops || {}, setOp, dropOp,
+          canMove: canMove(v) && v.mode !== 'live', operate: LL.can('operate'), reload: load,
+          stageMoves: moves => setMoves(Object.assign({}, v.draft.moves, moves)) };
+      }
       function guestCtx(v) {
         return { change: st.mode === 'change', can: key => LL.can('operate') && hasKey(v, key), ops: v.draft.ops || {},
           critical: (v.guests && v.guests.critical) || {}, bridges: (v.guests && v.guests.bridges) || {}, setOp, dropOp };
@@ -117,6 +125,9 @@
         if (v.quiet) kids.push(h('div', { class: 'callout callout--warn' }, t('fw.quiet.now', { hours: v.quiet_hours })));
         if (v.running) kids.push(progressCard(v.running));
         if (!(v.mode === 'live' && v.state.hosts && v.state.hosts.length) && hasBoard(v)) kids.push(board(v));
+        const seg = !(v.state.hosts && v.state.hosts.length && v.mode === 'live') && LL.segCard ? LL.segCard(v, netCtx(v)) : null;
+        if (seg) kids.push(seg);
+        if (v.mode !== 'live' && v.netconf && LL.ncCards) kids.push(...LL.ncCards(v, netCtx(v)));
         if (v.mode !== 'live' && v.state.hosts && v.state.hosts.length) kids.push(...LL.hvEditCards(v.state, guestCtx(v)));
         st.pol.source = v.mode === 'live' ? v.source : null;     // "Explain" (AI) reads the rule from this live source
         if (v.state.policies && v.state.policies.length) kids.push(LL.fwPolicies(v.state, st.pol, render));
@@ -207,7 +218,8 @@
           h('div', { class: 'fw-tile__main' },
             h('div', { class: 'fw-tile__name' }, edit && edit.name ? edit.name : d.name),
             h('div', { class: 'fw-tile__meta mono' }, moved ? ['→ ', h('b', {}, change.new_ip)]
-              : edit && edit.fixed_ip != null ? (edit.fixed_ip ? [pin(), h('b', {}, edit.fixed_ip)] : h('s', {}, d.fixed_ip || d.ip)) : [d.fixed_ip ? pin() : null, d.ip || '—'])),
+              : edit && edit.fixed_ip != null ? (edit.fixed_ip ? [pin(), h('b', {}, edit.fixed_ip)] : h('s', {}, d.fixed_ip || d.ip)) : [d.fixed_ip ? pin() : null, d.ip || '—']),
+            !moved && LL.ncTileMark ? LL.ncTileMark(v, d) : null),
           moved ? h('span', { class: 'chip chip--accent fw-tile__badge' }, t('fw.tile.new'))
             : edit ? h('span', { class: 'chip chip--accent fw-tile__badge' }, t('fw.tile.edited'))
             : locked ? h('span', { class: 'fw-tile__lock', role: 'img', 'aria-label': t('fw.tile.stays') }, svg(ICON.lock))
@@ -290,6 +302,7 @@
           h('p', { class: 'muted fw-dev__lead' }, [d.ip || '—', d.online === false ? t('fw.dev.offline') : null].filter(Boolean).join(' · ')),
           netRow,
           editName ? LL.field(t('fw.dev.name'), nameIn) : null,
+          LL.ncUses ? LL.ncUses(v, d) : null,
           editIp ? h('div', { class: 'fw-dev__fixed' },
             h('label', { class: 'check' }, fixedCb, h('span', {}, t('fw.dev.fixed'))),
             LL.field(t('fw.dev.fixed_ip'), ipIn, t('fw.dev.fixed_hint', { cidr: (s.networks.find(n => n.id === (pick || d.network)) || {}).cidr || '' }))) : null,
@@ -365,6 +378,8 @@
       }
 
       function opLabel(s, o) {
+        const nc = LL.ncOpLabel ? LL.ncOpLabel(s, o) : null;
+        if (nc) return nc;
         const g = id => (s.guests || []).find(x => x.id === id) || {};
         const a = o.after || {};
         if (o.kind === 'guest.power') return g(o.object).name + ' · ' + t(a.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
@@ -391,11 +406,12 @@
         const ext = v.mode === 'external';
         const applyBtn = h('button', { class: 'btn btn--primary btn--block fw-apply', type: 'button' }, t(ext ? 'fw.preview.apply_passkey' : 'fw.preview.apply_sim'));
         const refresh = () => { applyBtn.disabled = !LL.can('admin') || pv.blocks.length > 0 || [...needs].some(k => !confirm.has(k)) || (ext && !LL.passkeySupported()); };
-        const mono = f => ['fixed_ip', 'ports', 'source', 'bridge', 'vlan'].includes(f) ? 'mono' : '';
+        const mono = f => ['fixed_ip', 'ports', 'source', 'bridge', 'vlan', 'cidr', 'dhcp', 'ip', 'wan_port', 'dst_ip', 'dst_port'].includes(f) ? 'mono' : '';
+        const val = LL.ncValText || LL.hvValText;
         const editRows = c => (c.edit || []).length ? h('ul', { class: 'fw-pv__edits' }, c.edit.map(e => h('li', {},
           h('span', { class: 'fw-pv__field' }, t(e.field === 'name' && /^guest\.fw_rule/.test(c.kind || '') ? 'hv.rule.name' : 'fw.field.' + e.field)), ' ',
-          c.kind === 'guest.fw_rule_create' ? null : h('s', { class: mono(e.field) }, LL.hvValText(e.field, e.from)), c.kind === 'guest.fw_rule_create' ? null : ' → ',
-          h(c.kind === 'guest.fw_rule_delete' ? 's' : 'b', { class: mono(e.field) }, LL.hvValText(e.field, c.kind === 'guest.fw_rule_delete' ? e.from : e.to))))) : null;
+          /[._](create|reserve|delete|release)$/.test(c.kind || '') ? null : [h('s', { class: mono(e.field) }, val(e.field, e.from)), ' → '],
+          h(/[._](delete|release)$/.test(c.kind || '') ? 's' : 'b', { class: mono(e.field) }, val(e.field, /[._](delete|release)$/.test(c.kind || '') ? e.from : e.to))))) : null;
         const changes = h('div', { class: 'fw-pv__changes' }, pv.changes.map(c => !c.to ? h('div', { class: 'fw-pv__change' },
           h('div', { class: 'fw-pv__what' }, h('strong', {}, c.name), h('span', { class: 'muted' }, ' · ' + t(c.what || 'fw.preview.settings'))), editRows(c)) : h('div', { class: 'fw-pv__change' },
           h('div', { class: 'fw-pv__what' }, h('strong', {}, c.name), h('span', { class: 'muted' }, ' · ' + t('fw.preview.from_to', { from: c.from, to: c.to }))),
@@ -520,6 +536,14 @@
         const box = page.querySelector('#fw-guests');
         if (box) box.scrollIntoView({ block: 'start' }); else LL.toast(t('hv.edit.none_here'), 'info');
       }
+      if (['networks', 'reservations', 'forwards', 'plan'].includes(want) && st.view) {
+        if (want !== 'plan' && st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; try { localStorage.setItem('ll-fw-source', 'editor'); } catch (e) { /* ignore */ } await load(); }
+        window.history.replaceState(null, '', LL.base + '#/firewall');
+        if (canChange(st.view)) { st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ } render(); }
+        const box = page.querySelector('#fw-' + want);
+        if (box) box.scrollIntoView({ block: 'start' }); else LL.toast(t('nc.none_here'), 'info');
+        if (box && want === 'plan' && rest[1] === 'edit' && LL.can('operate') && LL.segPlanDialog) LL.segPlanDialog(st.view, netCtx(st.view));
+      }
       if ((want === 'device' || want === 'pick') && st.view && st.view.state) {
         if (st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; await load(); }
         window.history.replaceState(null, '', LL.base + '#/firewall');
@@ -542,6 +566,14 @@
   LL.registerAction = LL.registerAction || function (act) { LL.actions = (LL.actions || []).filter(a => a.id !== act.id).concat([act]); };
   LL.registerCommand({ id: 'firewall-change-device', group: 'commands', order: 40, label: 'fw.cmd.change', keywords: 'fw.cmd.change_keywords',
     available: () => LL.can('operate'), run: () => LL.go('#/firewall/pick') });
+  LL.registerCommand({ id: 'firewall-networks', group: 'commands', order: 43, label: 'nc.cmd.networks', keywords: 'nc.cmd.networks_keywords',
+    available: () => LL.can('operate'), run: () => LL.go('#/firewall/networks') });
+  LL.registerCommand({ id: 'firewall-forwards', group: 'commands', order: 44, label: 'nc.cmd.forwards', keywords: 'nc.cmd.forwards_keywords',
+    available: () => LL.can('operate'), run: () => LL.go('#/firewall/forwards') });
+  LL.registerCommand({ id: 'firewall-reservations', group: 'commands', order: 45, label: 'nc.cmd.reservations', keywords: 'nc.cmd.reservations_keywords',
+    available: () => LL.can('operate'), run: () => LL.go('#/firewall/reservations') });
+  LL.registerCommand({ id: 'firewall-plan', group: 'commands', order: 46, label: 'seg.cmd.plan', keywords: 'seg.cmd.plan_keywords',
+    run: () => LL.go('#/firewall/plan') });
   LL.registerCommand({ id: 'firewall-guests', group: 'commands', order: 42, label: 'fw.cmd.guests', keywords: 'fw.cmd.guests_keywords',
     available: () => LL.can('operate'), run: () => LL.go('#/firewall/guests') });
   // "Firewall checks": opens the first live source with checks of its own (a zone firewall read by an adapter)

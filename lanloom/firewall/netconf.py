@@ -577,13 +577,14 @@ def preview(state: dict, ops: dict, *, deps: dict = None, critical=(), lockout=N
     return {"steps": steps, "changes": changes, "warnings": warnings, "blocks": blocks, "confirm": confirm}
 
 
-VIA = ("integration", "tracker", "automation", "lanloom")
+ADDR_WARN = {"integration": "fw.warn.addr_integration", "tracker": "fw.warn.addr_tracker",
+             "automation": "fw.warn.addr_automation", "lanloom": "fw.warn.addr_lanloom"}
 
 
 def dep_warning(name: str, dep: dict) -> list:
     """The warning for something that uses a device by its address (hub integration, presence tracker, automation,
     a source of Lanloom itself); a dependency without a kind keeps the plain text of earlier releases."""
-    via = dep.get("via")
-    if via in VIA:
-        return ["fw.warn.addr_" + via, {"name": name, "by": str(dep.get("by") or "?")[:80]}]
+    key = ADDR_WARN.get(dep.get("via"))
+    if key:
+        return [key, {"name": name, "by": str(dep.get("by") or "?")[:80]}]
     return ["fw.warn.dependency", {"name": name, "by": str(dep.get("by") or "?")[:80]}]

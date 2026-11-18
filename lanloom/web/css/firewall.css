@@ -350,3 +350,53 @@
   .hv-edit__nic .hv-edit__tools, .hv-edit__rule .hv-edit__tools { width: 100%; }
   .hv-dlg__pair { grid-template-columns: 1fr; gap: 0; }
 }
+
+/* gateway changes (networks, fixed addresses, port forwards) and the segmentation plan */
+.nc-card__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.nc-card__head h2 { margin: 0; font-size: var(--ll-fs-lg); }
+.nc-row__facts { font-size: var(--ll-fs-sm); min-width: 0; overflow-wrap: anywhere; }
+.nc-row.is-planned, .seg-group.is-planned { outline: 1px dashed var(--ll-accent); outline-offset: -1px; }
+.nc-row.is-gone { opacity: .65; }
+.nc-row.is-off .hv-edit__who strong { color: var(--ll-text-3); }
+.nc-gone .hv-edit__what { color: var(--ll-text-3); }
+.nc-fwd__route { display: inline-flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; }
+.btn.nc-danger { color: var(--ll-danger-text, var(--ll-danger)); }
+.nc-list { margin-top: 2px; }
+.nc-dlg { display: flex; flex-direction: column; gap: 12px; }
+.nc-dlg__pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nc-dlg__pair .field { min-width: 0; }
+.nc-dlg__dhcp { display: flex; flex-direction: column; gap: 8px; }
+.nc-dlg__warn { margin: 0; font-size: var(--ll-fs-sm); }
+.nc-tpl { flex-wrap: wrap; }
+.nc-uses { display: flex; flex-direction: column; gap: 6px; }
+.nc-uses__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--ll-fs-sm); }
+.nc-uses__list .chip { height: 20px; font-size: 10px; }
+.nc-uses .fw-hint { margin: 0; }
+.fw-tile__plan { display: inline-flex; align-items: center; margin-top: 4px; height: 18px; padding: 0 7px; font-size: 10px; border: 0;
+  background: var(--ll-accent-soft); color: var(--ll-accent-text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fw-tile__plan.is-planned { background: transparent; box-shadow: 0 0 0 1px var(--ll-accent) inset; }
+.seg-total { display: flex; flex-direction: column; gap: 8px; }
+.seg-total__text { font-size: var(--ll-fs-md, 15px); }
+.seg-bar { height: 6px; border-radius: var(--ll-radius-pill); background: var(--ll-surface-3); overflow: hidden; }
+.seg-bar i { display: block; height: 100%; background: var(--ll-accent); border-radius: inherit; }
+.seg-bar--big { height: 10px; }
+.seg-group.is-done .seg-bar i { background: var(--ll-ok); }
+.seg-group__count { font-size: var(--ll-fs-sm); color: var(--ll-text-2); white-space: nowrap; }
+.seg-devs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.seg-dev { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: var(--ll-radius-pill); background: var(--ll-surface-2);
+  font-size: var(--ll-fs-xs); color: var(--ll-text-2); }
+.seg-dev.is-moved { color: var(--ll-text-3); }
+.seg-dev__ok { color: var(--ll-ok); font-weight: var(--ll-fw-semibold); }
+.seg-dlg { display: flex; flex-direction: column; gap: 10px; }
+.seg-dlg > p { margin: 0; }
+.seg-pick { display: flex; flex-direction: column; gap: 2px; max-height: 46vh; overflow-y: auto; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); padding: 4px; }
+.seg-pick__row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: var(--ll-radius-sm); min-height: 40px; }
+.seg-pick__row:hover { background: var(--ll-surface-2); }
+.seg-pick__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg-pick__meta { font-size: var(--ll-fs-xs); white-space: nowrap; }
+@media (max-width: 560px) {
+  .nc-dlg__pair { grid-template-columns: 1fr; }
+  .seg-pick__meta { display: none; }
+}
+.nc-list.is-folded > li:nth-child(n+9) { display: none; }
+.btn.nc-more { align-self: flex-start; }

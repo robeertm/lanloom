@@ -1,6 +1,6 @@
 # UniFi Network (local API): read adapter and client write half
 
-Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) below). Nothing else is ever written.
+Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - and since 1.33.0 **internal networks**, **fixed addresses** and **port forwards**, each after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) and [Changing networks, fixed addresses and port forwards](#changing-networks-fixed-addresses-and-port-forwards-stage-b) below). Nothing else is ever written.
 
 What you get:
 
@@ -80,7 +80,21 @@ The write half runs only inside the executor service (its own container, see [FI
 | fixed address | fixed address on (with the address) or off | the address must lie inside the client's network, must not be the network's own address or its gateway, and must not belong to another client; the client picks it up when it renews its address |
 | name | the client's name (alias) | 1 to 64 characters |
 
-Everything else - blocking clients, networks, firewall rules, port settings, wireless networks, firmware, restarts, accounts - is refused by the allow-list below the adapter, whatever a plan says.
+Everything else - blocking clients, zones and firewall rules, port settings, wireless networks, firmware, restarts, accounts - is refused by the allow-list below the adapter, whatever a plan says.
+
+## Changing networks, fixed addresses and port forwards (stage B)
+
+| change | what is written | notes |
+|---|---|---|
+| new network | `rest/networkconf`: an internal (corporate) LAN network with a VLAN of its own, its gateway address and range, the address service (on/off, range) | private IPv4, /16 to /29, overlapping nothing; VLAN 2 to 4009 (the controller keeps 4010 and above), not used by another network; it lands in the internal zone |
+| change a network | name and address service (on/off, range) | never WAN, VPN or guest networks; the address service stays on while clients take dynamic addresses there |
+| delete a network | the network | only networks the executor created itself (remembered in `unifi-own.json` in its state directory) and only when nothing refers to them any more |
+| fixed address | `rest/user`: fixed address on (with the address) or off | inside the client's own network, not its gateway, not taken by another client |
+| new port forward | `rest/portforward`: name, protocol (TCP, UDP or both), outside port(s), target address and port, on, from any source, on the internet uplink | the target is a private address inside a local network, never a gateway address or the controller; an outside port is used by one forward only |
+| change a port forward | name, on/off, protocol, ports, target | switching off and renaming need no confirmation of their own, everything else does |
+| delete a port forward | the forward | only forwards the executor created itself |
+
+Each body is checked field by field by the allow-list before it is sent (a new network and a new forward must carry every field, each value in its range), each object is read back after writing, and a rollback puts back exactly the fields that were changed (a created object is deleted again, a deleted one created again from the backup). Tested against a self-hosted Network application 10.0.162 (create, rename, address range, delete own, forward with and without its confirmation, switch off, delete, release and reserve, refused deletion of a foreign network, partial write, crash after creating and the restart that removes it again).
 
 **Checks the controller does not make itself.** Tested on a self-hosted Network application 10.0: it stores a network id that does not exist, an address that does not fit the named network, an empty or a very long name without a word. The write half checks all of these before it sends anything, reads every client back after writing and stops (the executor rolls back) when the values did not take.
 
