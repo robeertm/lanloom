@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.41.1] – 2026-11-18
+
+1.41.0 below was not released on its own; it is part of this release.
+
+### Fixed
+- **A scan no longer stops with "The scan stopped with an internal error." when a device's hardware address is already known.** A device seen once without its hardware address (the neighbour entry was missing at that moment) is stored by its address; when the hardware address came back and a row with it already existed, the address row was renamed onto it and the database refused the duplicate. Now the address row is merged into the existing row: the row with the hardware address stays, a name or type set on the address row fills only what it lacks, a hidden mark is not carried over, its manual link wins, links that pointed to the address row move to it, and the leftovers of the address row (inventory entry, signs of life, data paths, availability) are dropped.
+- **One device can no longer cost the whole scan.** Each scanned host is stored on its own: a host that cannot be stored is written to the log and skipped, the rest of the scan result is kept (before, the whole result was discarded).
+- Troubleshooting: an entry for the internal error of a scan.
 ## [1.41.0] – 2026-11-18
 
 ### Added

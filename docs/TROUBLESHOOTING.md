@@ -219,6 +219,7 @@ See [DATA-PATHS.md](DATA-PATHS.md#setting-up-netflow--ipfix).
 | Devices from another VLAN are missing | Lanloom only scans networks it can reach and that an administrator allowed; list them under *Settings > Network* |
 | Many devices are "unknown" | classification uses what a device reveals; open the card to see the reasons, then name or re-type the device yourself |
 | Phones appear with a different address every day | the device uses a private (random) hardware address; the overview calls it so under *New devices* |
+| A scan ends with *The scan stopped with an internal error.* | up to 1.41.0 a device that had been stored once without its hardware address and then came back with an already known one stopped the scan; update to 1.41.1 or later (the two rows are merged, and one device never costs the whole scan). If it persists, `docker logs lanloom` names the cause; attach the [diagnostic export](#the-diagnostic-export) to a report |
 | A device appears twice | it has two interfaces, or a wireless repeater rewrote its hardware address; join them on the card (*One device, several interfaces* in [DISCOVERY.md](DISCOVERY.md#one-device-several-interfaces)) or forget the old entry on its card |
 | IPv6 devices are missing | scanning is IPv4 only; IPv6 neighbours are learned only where a source tells |
 | The scan seems slow | probing is rate-limited on purpose (about 40 new connections per second, 4 per host); a /24 takes 10 to 60 seconds |

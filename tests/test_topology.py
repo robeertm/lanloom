@@ -439,6 +439,78 @@ def test_ingest_renames_ip_ids_and_moves_manual_rows(core):
     assert rows[STORAGE]["parent"] == new_b
 
 
+def _host77(with_mac, n=77):
+    h = demo.scan_host({"ip": "192.168.50.%d" % n, "n": n, "names": [], "ports": []})
+    if not with_mac:
+        h["mac"] = None
+    return h
+
+
+def test_ingest_merges_ip_row_into_existing_hardware_address_row(core):
+    """Issue: a host known by its hardware address, then once without it (neighbour entry missing), then with it again:
+    the address row must be merged into the existing row, not renamed onto it (that broke the whole scan)."""
+    new, old = did(77), "d-ip-192-168-50-77"
+    core.ingest({"hosts": [_host77(True)]}, None)
+    core.ingest({"hosts": [_host77(False)]}, None)
+    assert core.store.one("SELECT id FROM devices WHERE id=?", (new,))
+    assert core.store.one("SELECT id FROM devices WHERE id=?", (old,))
+    core.store.execute("UPDATE devices SET user_title='Washer plug', user_kind='plug', hidden=1 WHERE id=?", (old,))
+    core.store.execute("UPDATE devices SET first_seen=1 WHERE id=?", (old,))
+    # both rows have a manual link of their own, and the address row is the parent of the hardware-address row
+    core.set_manual_link(new, {"parent": SWITCH, "port": "5"})
+    core.set_manual_link(old, {"parent": SWITCH, "port": "6"})
+    core.set_manual_link(STORAGE, {"parent": old, "port": "1"})
+    core.store.execute("INSERT OR REPLACE INTO inventory(device_id, data, updated) VALUES(?, '{\"room\":\"hall\"}', 1)", (new,))
+    core.store.execute("INSERT OR REPLACE INTO inventory(device_id, data, updated) VALUES(?, '{\"room\":\"attic\"}', 1)", (old,))
+    core.store.execute("INSERT OR REPLACE INTO device_alive(device_id, t) VALUES(?, 5)", (new,))
+    core.store.execute("INSERT OR REPLACE INTO device_alive(device_id, t) VALUES(?, 6)", (old,))
+
+    assert core.ingest({"hosts": [_host77(True), _host77(True, 78)]}, None) == 2
+
+    assert not core.store.one("SELECT id FROM devices WHERE id=?", (old,))
+    row = core.store.one("SELECT * FROM devices WHERE id=?", (new,))
+    assert row["user_title"] == "Washer plug" and row["user_kind"] == "plug"     # gaps filled from the address row
+    assert row["hidden"] == 0 and row["first_seen"] == 1
+    assert core.store.one("SELECT id FROM devices WHERE id=?", (did(78),))     # the rest of the scan is stored
+    links = core.manual_links()
+    assert old not in links and links[new]["port"] == "5"                       # the hardware-address row's link wins
+    assert links[STORAGE]["parent"] == new
+    assert not core.store.query("SELECT * FROM phys_manual WHERE device_id=parent_id OR device_id=? OR parent_id=?",
+                                (old, old))
+    assert core.store.one("SELECT data FROM inventory WHERE device_id=?", (new,))["data"] == '{"room":"hall"}'
+    assert not core.store.query("SELECT * FROM inventory WHERE device_id=?", (old,))
+    assert not core.store.query("SELECT * FROM device_alive WHERE device_id=?", (old,))
+
+
+def test_ingest_merge_keeps_the_user_edits_of_the_hardware_address_row(core):
+    new, old = did(77), "d-ip-192-168-50-77"
+    core.ingest({"hosts": [_host77(True)]}, None)
+    core.ingest({"hosts": [_host77(False)]}, None)
+    core.store.execute("UPDATE devices SET user_title='Plug in the hall' WHERE id=?", (new,))
+    core.store.execute("UPDATE devices SET user_title='Old name', user_kind='plug' WHERE id=?", (old,))
+    core.ingest({"hosts": [_host77(True)]}, None)
+    row = core.store.one("SELECT * FROM devices WHERE id=?", (new,))
+    assert row["user_title"] == "Plug in the hall" and row["user_kind"] == "plug"
+
+
+def test_one_host_that_cannot_be_stored_never_costs_the_scan(core, monkeypatch):
+    real = core._ingest_host
+
+    def flaky(host, scan_id):
+        if host.get("ip") == "192.168.50.79":
+            core.store.execute("UPDATE devices SET user_title='half written' WHERE id=?", (SWITCH,))
+            raise RuntimeError("broken host")
+        return real(host, scan_id)
+
+    monkeypatch.setattr(core, "_ingest_host", flaky)
+    before = core.store.one("SELECT user_title FROM devices WHERE id=?", (SWITCH,))["user_title"]
+    assert core.ingest({"hosts": [_host77(True), _host77(True, 79), _host77(True, 78)]}, None) == 3
+    assert core.store.one("SELECT id FROM devices WHERE id=?", (did(77),))
+    assert core.store.one("SELECT id FROM devices WHERE id=?", (did(78),))
+    assert not core.store.one("SELECT id FROM devices WHERE id=?", (did(79),))
+    assert core.store.one("SELECT user_title FROM devices WHERE id=?", (SWITCH,))["user_title"] == before   # rolled back
+
+
 def test_forget_device_drops_rows_of_child_and_parent(core):
     assert PRINTER in core.manual_links()          # seeded manual entry
     assert core.forget_device(PRINTER)

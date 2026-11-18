@@ -822,38 +822,78 @@ class Core:
         self.store.set_setting("setup_first_picture_s", round(max(0.0, time.time() - t0), 1))
 
     def ingest(self, result: dict, scan_id: Optional[int]) -> int:
-        """Classify every host of a ScanResult and store it; returns the number of hosts."""
+        """Classify every host of a ScanResult and store it; returns the number of hosts. Each host is stored on its
+        own savepoint: a host that cannot be stored is logged and skipped, it never costs the rest of the scan."""
         hosts = result.get("hosts") or []
+        merged = []
         with self.store.transaction():
             for host in hosts:
-                if not host.get("ip") and classify.device_id(host).startswith("d-ip-"):
-                    continue                  # neither an address nor a hardware address: nothing to identify it by
-                verdict = classify.classify(host, vendor=self.registry().lookup(host.get("mac")))
-                data = dict(host)
-                data.update({"certainty": verdict["certainty"], "reasons": verdict["reasons"],
-                             "runner_up": verdict["runner_up"]})
-                dev_id = classify.device_id(host)
-                if "adapter" not in data:     # what an adapter told about the device stays until the next booking
-                    old_row = self.store.one("SELECT data FROM devices WHERE id=?", (dev_id,))
-                    old_adapter = json.loads(old_row["data"]).get("adapter") if old_row else None
-                    if old_adapter:
-                        data["adapter"] = old_adapter
-                # a device first seen by IP and now with a MAC keeps its user edits
-                if dev_id.startswith("d-") and not dev_id.startswith("d-ip-") and host.get("ip"):
-                    old = self.store.one("SELECT id, user_title, user_kind, hidden FROM devices WHERE id=?",
-                                         ("d-ip-" + host["ip"].replace(".", "-").replace(":", "-"),))
-                    if old:
-                        self.store.execute("UPDATE devices SET id=? WHERE id=?", (dev_id, old["id"]))
-                        self.store.execute("UPDATE phys_manual SET device_id=? WHERE device_id=?", (dev_id, old["id"]))
-                        self.store.execute("UPDATE phys_manual SET parent_id=? WHERE parent_id=?", (dev_id, old["id"]))
-                        self.inventory.rename_device(old["id"], dev_id)
-                        self._manual_ver += 1
-                self.store.upsert_device({"id": dev_id, "ip": host.get("ip") or "", "mac": host.get("mac"), "data": data,
-                                          "kind": verdict["kind"], "confidence": verdict["confidence"],
-                                          "title": verdict["title"]}, scan_id)
-                self.presence[dev_id] = time.time()
+                self.store.execute("SAVEPOINT ingest_host")
+                try:
+                    gone = self._ingest_host(host, scan_id)
+                except Exception:
+                    self.store.execute("ROLLBACK TO ingest_host")
+                    log.exception("could not store a scanned host, skipped (the rest of the scan is kept)")
+                    gone = None
+                self.store.execute("RELEASE ingest_host")
+                if gone:
+                    merged.append(gone)
+        for old_id in merged:       # outside the transaction: these take their own locks
+            self.paths.forget_device(old_id)
+            self.availability.forget("dev:" + old_id)
+            self.vulns.forget_device(old_id)
         self._refresh_index()
         return len(hosts)
+
+    def _ingest_host(self, host: dict, scan_id: Optional[int]) -> Optional[str]:
+        """Store one scanned host. Returns the id of an address-only row that was merged into an existing row with
+        the hardware address (its leftovers elsewhere are dropped after the transaction), else None."""
+        if not host.get("ip") and classify.device_id(host).startswith("d-ip-"):
+            return None               # neither an address nor a hardware address: nothing to identify it by
+        verdict = classify.classify(host, vendor=self.registry().lookup(host.get("mac")))
+        data = dict(host)
+        data.update({"certainty": verdict["certainty"], "reasons": verdict["reasons"],
+                     "runner_up": verdict["runner_up"]})
+        dev_id = classify.device_id(host)
+        if "adapter" not in data:     # what an adapter told about the device stays until the next booking
+            old_row = self.store.one("SELECT data FROM devices WHERE id=?", (dev_id,))
+            old_adapter = json.loads(old_row["data"]).get("adapter") if old_row else None
+            if old_adapter:
+                data["adapter"] = old_adapter
+        gone = None
+        # a device first seen by IP and now with a MAC keeps its user edits
+        if dev_id.startswith("d-") and not dev_id.startswith("d-ip-") and host.get("ip"):
+            old = self.store.one("SELECT id, user_title, user_kind, first_seen FROM devices WHERE id=?",
+                                 ("d-ip-" + host["ip"].replace(".", "-").replace(":", "-"),))
+            if old:
+                old_id = old["id"]
+                if self.store.one("SELECT id FROM devices WHERE id=?", (dev_id,)):
+                    # the hardware address is known already (the neighbour entry was missing in an earlier scan):
+                    # merge - the row with the hardware address stays, the address row only fills its gaps. Hidden
+                    # is not carried over: a device that answers does not vanish because an old leftover was hidden.
+                    self.store.execute(
+                        "UPDATE devices SET user_title=CASE WHEN COALESCE(user_title, '')='' THEN ? ELSE user_title END,"
+                        " user_kind=CASE WHEN COALESCE(user_kind, '')='' THEN ? ELSE user_kind END,"
+                        " first_seen=MIN(first_seen, ?) WHERE id=?",
+                        (old["user_title"], old["user_kind"], old["first_seen"], dev_id))
+                    self.store.execute("DELETE FROM devices WHERE id=?", (old_id,))
+                    gone = old_id
+                else:
+                    self.store.execute("UPDATE devices SET id=? WHERE id=?", (dev_id, old_id))
+                # a manual link of the device itself: the one of the hardware-address row wins
+                self.store.execute("UPDATE OR IGNORE phys_manual SET device_id=? WHERE device_id=?", (dev_id, old_id))
+                self.store.execute("DELETE FROM phys_manual WHERE device_id=?", (old_id,))
+                self.store.execute("UPDATE phys_manual SET parent_id=? WHERE parent_id=?", (dev_id, old_id))
+                self.store.execute("DELETE FROM phys_manual WHERE device_id=parent_id")
+                self.inventory.rename_device(old_id, dev_id)
+                if gone:
+                    self.inventory.forget(old_id)       # entries the hardware-address row had already win
+                self._manual_ver += 1
+        self.store.upsert_device({"id": dev_id, "ip": host.get("ip") or "", "mac": host.get("mac"), "data": data,
+                                  "kind": verdict["kind"], "confidence": verdict["confidence"],
+                                  "title": verdict["title"]}, scan_id)
+        self.presence[dev_id] = time.time()
+        return gone
 
     async def _rescan_loop(self) -> None:
         while True:
