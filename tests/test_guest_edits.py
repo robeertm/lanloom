@@ -258,6 +258,11 @@ def test_draft_preview_apply_and_undo_of_guest_changes(c):
     assert job["status"] == "done", job
     assert {x["kind"] for x in job["summary"]} == {"guest.nic", "guest.power"}
     assert next(x for x in job["summary"] if x["kind"] == "guest.power")["status"] == "running"
+    for _ in range(100):             # the editor's picture follows the finished job a moment later on a busy test runner
+        if next(n for n in v["state"]["guest_nics"] if n["id"] == NIC_TEST)["vlan"] == 30:
+            break
+        time.sleep(0.1)
+        v = c.get("/api/firewall?source=editor").json()
     assert next(n for n in v["state"]["guest_nics"] if n["id"] == NIC_TEST)["vlan"] == 30, (job, v["history"][:3])
     assert next(g for g in v["state"]["guests"] if g["id"] == G["test"])["status"] == "running"
     d = c.post("/api/firewall/undo", json={"plan": job["plan"]}, headers=HDR).json()

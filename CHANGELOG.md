@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.39.1] – 2026-11-18
+
+This is the first release since 1.19.0; everything in 1.20.0 to 1.39.0 below is part of it: the overview as the start page, one component with two sides, calm notifications, changing clients, networks and VLANs and guests through the executor, inventory and life cycle, availability over time, signed images, the Automations tab, a manual with one page per view, forgetting a device, data paths for devices, update channels with a way back, the tree view and accessibility, the optional host agent and container source, gateway changes in the firewall editor, read-only DNS filters and vulnerability hints from an offline feed.
+
+### Fixed
+- Tests: the guest-change test waits for the editor's picture to follow a finished job (it read it a moment too early on a busy test runner; 1.38.0 and 1.39.0 were not released on their own).
+
 ## [1.39.0] – 2026-11-18
 
 ### Added
