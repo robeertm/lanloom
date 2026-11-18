@@ -157,7 +157,7 @@ def test_stage_c_is_refused_whatever_the_adapter_declares():
     ({"kind": "policy.delete", "object": "pol_1", "before": {"name": "Cameras stay inside"}, "after": {}}, "fw.block.not_own"),
     ({"kind": "policy.update", "object": "pol_builtin", "before": {"enabled": True}, "after": {"enabled": False}}, "fw.block.builtin"),
     ({"kind": "policy.update", "object": "pol_own", "before": {"dst": {"zone": "z_devices"}, "action": "allow"},
-      "after": {"dst": {"zone": "z_mgmt"}, "action": "block"}}, "fw.block.management"),
+      "after": {"dst": {"zone": "z_mgmt"}, "action": "block"}}, "zf.block.mgmt_rule"),
     ({"kind": "network.update", "object": "n_mgmt", "before": {"vlan": 10}, "after": {"vlan": 11}}, "fw.block.management"),
     ({"kind": "network.delete", "object": "n_cams", "before": {"name": "Cameras"}, "after": {}}, "fw.block.not_own"),
 ])

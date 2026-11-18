@@ -98,3 +98,30 @@ def uninstall() -> None:
 
 def active() -> bool:
     return _STATE["on"]
+
+
+def first_address(host: str, port: int):
+    """The first address a host name stands for (an address stays as it is); None when it cannot be resolved."""
+    try:
+        return str(ipaddress.ip_address(str(host)))
+    except ValueError:
+        pass
+    try:
+        return socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)[0][4][0]
+    except (OSError, IndexError):
+        return None
+
+
+def source_address(ip: str, port: int):
+    """The local address the system would use to reach ``ip``: a datagram socket is connected (which sends nothing)
+    and asked for its own address. Allowed by the guard because the target is the controller itself."""
+    fam = socket.AF_INET6 if ":" in str(ip) else socket.AF_INET
+    try:
+        s = socket.socket(fam, socket.SOCK_DGRAM)
+        try:
+            s.connect((ip, port))
+            return s.getsockname()[0]
+        finally:
+            s.close()
+    except OSError:
+        return None

@@ -27,6 +27,10 @@
   // values in the preview: the address service as a range, a forward's protocol in words, the rest like guest values
   LL.ncValText = function (field, v) {
     if (field === 'dhcp' && v && typeof v === 'object') return dhcpText(v);
+    if ((field === 'src' || field === 'dst') && v && typeof v === 'object' && LL.zfSideText) return LL.zfSideText(v);
+    if (field === 'zone' && typeof v === 'string' && v && LL.zfZoneName) return LL.zfZoneName(v);
+    if (field === 'order' && typeof v === 'number') return '#' + v;
+    if (field === 'proto' && v === 'any') return t('zf.proto.any');
     if (field === 'proto' && typeof v === 'string' && v) return protoText(v);
     return LL.hvValText(field, v);
   };
@@ -41,6 +45,7 @@
     const res = (s.dhcp_reservations || []).find(r => r.id === o.object) || {};
     const devName = id => ((s.devices || []).find(d => d.id === id) || {}).name || res.name || '?';
     if (o.kind === 'network.create') return t('nc.chip.net_new', { name: a.name || '?' });
+    if (o.kind === 'network.update' && Object.keys(a).length === 1 && a.zone && LL.zfZoneName) return t('zf.chip.net_zone', { name: net.name || '?', zone: LL.zfZoneName(a.zone) });
     if (o.kind === 'network.update') return t('nc.chip.net_update', { name: net.name || '?' });
     if (o.kind === 'network.delete') return t('nc.chip.net_gone', { name: net.name || '?' });
     if (o.kind === 'dhcp.reserve') return t('nc.chip.reserve', { name: devName(a.client), ip: a.ip || '?' });

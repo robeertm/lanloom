@@ -12,6 +12,16 @@
    "purpose": "executor connection guard: resolves the controller address entered by the operator to pin the only allowed destinations"
   },
   {
+   "site": "lanloom/connguard.py::first_address::dns",
+   "category": "executor-link",
+   "purpose": "executor: resolves the controller address entered by the operator, for the zone firewall lockout check (the path from the executor to the controller must stay open)"
+  },
+  {
+   "site": "lanloom/connguard.py::source_address::socket",
+   "category": "local-host",
+   "purpose": "executor: asks the system which own address reaches the controller (a datagram socket is connected, nothing is sent), for the same lockout check"
+  },
+  {
    "site": "lanloom/core.py::Core._presence_round.probe::socket",
    "category": "lan-scan",
    "purpose": "presence check: one TCP connect to an already known device in the local network"

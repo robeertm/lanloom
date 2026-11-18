@@ -139,7 +139,9 @@ def test_network_rules_before_anything_is_written(fake, tmp_path):
     assert blocked(w, [dict(NEW_NET, after=dict(after, vlan=4050))]) == ["fw.block.net_vlan"]
     assert blocked(w, [dict(NEW_NET, after=dict(after, cidr="100.64.0.0/24"))]) == ["fw.block.net_cidr"]
     assert blocked(w, [dict(NEW_NET, after=dict(after, cidr="10.0.0.0/8"))]) == ["fw.block.net_cidr"]
-    assert blocked(w, [dict(NEW_NET, after=dict(after, zone=model.oid("z", fx.O_ZONE_GUEST)))]) == ["fw.block.zone_later"]
+    # a zone of its own is fine since the zone firewall stage; a system zone other than the internal one is not
+    assert blocked(w, [dict(NEW_NET, after=dict(after, zone=model.oid("z", fx.O_ZONE_GUEST)))]) == []
+    assert blocked(w, [dict(NEW_NET, after=dict(after, zone=model.oid("z", fx.O_ZONE_EXT)))]) == ["zf.block.zone_system"]
     assert blocked(w, [dict(NEW_NET, after=dict(after, dhcp={"on": True, "range": ["192.168.60.1", "192.168.60.20"]}))]) == ["fw.block.dhcp_range"]
     # the address service of a network with clients that have no fixed address stays on; guest networks stay as they are
     assert blocked(w, [{"kind": "network.update", "object": LAN, "after": {"name": "Home"}}]) == ["fw.block.management"]
@@ -176,7 +178,7 @@ def test_rollback_after_a_partial_write_removes_the_new_network(fake, tmp_path):
     res = runner(w, tmp_path).run(p)
     assert res["status"] == "rolled_back" and res["reason"] == "fw.res.apply_failed"
     assert net_named(fake, "Smart home") is None and not [f for f in fake.classic["portforward"]["data"] if f["name"] == "Cam"]
-    assert json.loads((tmp_path / "unifi-own.json").read_text()) == {"networkconf": [], "portforward": []}
+    assert json.loads((tmp_path / "unifi-own.json").read_text()) == {"networkconf": [], "portforward": [], "zone": [], "policy": []}
 
 
 def test_network_loss_mid_write_rolls_back(fake, tmp_path):

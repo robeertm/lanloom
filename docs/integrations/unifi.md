@@ -1,6 +1,6 @@
 # UniFi Network (local API): read adapter and client write half
 
-Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - and since 1.37.0 **internal networks**, **fixed addresses** and **port forwards**, each after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) and [Changing networks, fixed addresses and port forwards](#changing-networks-fixed-addresses-and-port-forwards-stage-b) below). Nothing else is ever written.
+Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - and since 1.37.0 **internal networks**, **fixed addresses** and **port forwards** and then **zones and zone rules**, each after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) and [Changing networks, fixed addresses and port forwards](#changing-networks-fixed-addresses-and-port-forwards-stage-b) below). Zones and rules are described under [Zone firewall](#zone-firewall-stage-b). Nothing else is ever written.
 
 What you get:
 
@@ -80,7 +80,7 @@ The write half runs only inside the executor service (its own container, see [FI
 | fixed address | fixed address on (with the address) or off | the address must lie inside the client's network, must not be the network's own address or its gateway, and must not belong to another client; the client picks it up when it renews its address |
 | name | the client's name (alias) | 1 to 64 characters |
 
-Everything else - blocking clients, zones and firewall rules, port settings, wireless networks, firmware, restarts, accounts - is refused by the allow-list below the adapter, whatever a plan says.
+Everything else - blocking clients, port settings, wireless networks, firmware, restarts, accounts - is refused by the allow-list below the adapter, whatever a plan says.
 
 ## Changing networks, fixed addresses and port forwards (stage B)
 
@@ -115,6 +115,33 @@ Each body is checked field by field by the allow-list before it is sent (a new n
 **Connection guard.** The executor process can connect only to the app and to the controller's address (resolved at start); anything else is refused before a connection is made. A rehearsal executor that writes to a test controller lists the real console under `LANLOOM_EXECUTOR_DENY_HOSTS`, so a run against the test controller can never reach the real one.
 
 **Before the first real change:** keep local console access at hand, try the change on the sample network (simulation) first, and read the warnings in the preview. Use at your own risk; Lanloom never writes without your passkey.
+
+## Zone firewall (stage B)
+
+Zones and zone rules are written over the **classic zone-firewall API** of the controller (`v2/api/site/<site>/firewall/zone`, `firewall-policies` and `firewall-policies/batch-reorder`) with the **same local site-administrator write account** as the other stage-B changes; no further account or option is needed. Rules of the official integration API stay read-only in the app (the app shows them; writes go through the executor's classic account).
+
+| change | what is written | notes |
+|---|---|---|
+| new zone | a zone with its name | the zone starts empty |
+| rename a zone | the zone's name | not for built-in zones |
+| move a network | the zone's list of networks (the network leaves its old zone and joins the new one) | into a zone of its own or back into the internal zone; never the management network, never into another system zone |
+| delete a zone | the zone | only zones the executor created (remembered in `unifi-own.json`, area `zone`), only when empty and no rule refers to it |
+| new rule | a rule in the zone-firewall rule list | allow, block or reject; protocol any, TCP, UDP or both; sides are a zone, optionally one network; ports only on the destination |
+| change a rule | name, on or off, action, protocol, sides, ports, return traffic | only rules whose every setting Lanloom can carry over |
+| reorder rules | `firewall-policies/batch-reorder` | within the own rules of one zone pair |
+| delete a rule | the rule | only rules the executor created (area `policy`) |
+
+**Whole bodies, field-exact.** The controller takes rule updates only whole, so the write half always sends the complete, checked set of fields. The allow-list below the adapter checks every request field by field: a zone carries `name`, `network_ids` and, on update, `_id`; a rule carries name, enabled, action (`ALLOW`, `BLOCK`, `REJECT`), `create_allow_respond`, logging (kept as it was), protocol (`all`, `tcp`, `udp`, `tcp_udp`), `ip_version` (`BOTH` or `IPV4`, kept), connection state `ALL`, schedule `ALWAYS`, and the two sides with a zone id plus either any network or one network, ports only on the destination. Anything else is refused whatever a plan says. Every object is read back after writing and the plan stops (and rolls back) when the values did not take.
+
+**Backup and way back.** Before a plan the executor backs up all zones (with their networks) and the own rules. The way back restores names, network membership, rule settings and the order per zone pair; created zones and rules are deleted again, which the executor does only for what it remembers creating.
+
+**Own path stays open.** The executor determines the local address it reaches the controller from (without sending anything) and checks that its own path to the controller stays open after the plan; together with the other lockout rules (see [FIREWALL-EDITOR.md](../FIREWALL-EDITOR.md#zone-firewall-zones-and-rules)) it refuses a plan that would cut it.
+
+**Requirements and limits.** Network 9.0 or later on a gateway that runs the zone-based firewall. Older controllers with classic firewall rules stay read-only. Rules with schedules, connection-state filters, address, region, app or domain matches, source ports, an IPsec match or an ICMP type are shown but never changed, and built-in rules are never changed.
+
+**Tested** against a self-hosted Network application 10.0.162 test twin switched to the zone-based firewall: a zone created, a network moved into it, a block rule and an exception for one network and TCP 445, a reorder so that the exception decides first, switching a rule off, renaming it and undoing all of it, lockout scenarios refused with nothing sent, a partial write rolled back, and a crash after creating a zone recovered; the end state equaled the start state.
+
+**How to test safely.** Rehearse in the simulation first (its sample network has zone rules). Then run the executor with `LANLOOM_EXECUTOR_TARGET=simulation` as described above, so the whole signed path is exercised without a controller. For the first real change pick a harmless one, for example renaming a zone Lanloom created, and keep local console access at hand. Use at your own risk; Lanloom never writes without your passkey.
 
 ## Troubleshooting
 

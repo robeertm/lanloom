@@ -400,3 +400,44 @@
 }
 .nc-list.is-folded > li:nth-child(n+9) { display: none; }
 .btn.nc-more { align-self: flex-start; }
+
+/* ---------------------------------------------------------------- zone firewall (stage B): zones card, rule tools */
+.zf-card { padding: 18px; display: flex; flex-direction: column; gap: 12px; margin-top: 16px; min-width: 0; }
+.zf-card > p { margin: 0; font-size: var(--ll-fs-sm); }
+.zf-card__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.zf-card__head h2 { margin: 0; font-size: var(--ll-fs-lg); }
+.zf-zones__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.zf-zone { border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); background: var(--ll-surface); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.zf-zone.is-new { outline: 1px dashed var(--ll-accent); outline-offset: -1px; }
+.zf-zone.is-gone { opacity: .65; }
+.zf-zone__head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.zf-zone__name { font-size: var(--ll-fs-md, 15px); overflow-wrap: anywhere; }
+.zf-zone__head .chip { height: 20px; font-size: 10px; }
+.zf-zone__count { font-size: var(--ll-fs-xs); margin-top: -4px; }
+.zf-zone__tools { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; justify-content: flex-end; align-items: center; }
+.zf-hint { font-size: var(--ll-fs-xs); }
+.zf-nets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.zf-net { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--ll-fs-sm); min-width: 0; padding: 4px 0; border-top: 1px solid var(--ll-border); }
+.zf-net:first-child { border-top: 0; }
+.zf-net.is-staged { color: var(--ll-text); }
+.zf-net .chip { height: 20px; font-size: 10px; }
+.zf-net__name { font-weight: var(--ll-fw-medium); }
+.zf-net__cidr { font-size: var(--ll-fs-xs); }
+.zf-net__pick { margin-left: auto; width: auto; max-width: 100%; min-height: 32px; padding-top: 2px; padding-bottom: 2px; font-size: var(--ll-fs-sm); }
+.zf-nets__none { margin: 0; font-size: var(--ll-fs-sm); }
+.zf-rule__tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.zf-rule__on { font-size: var(--ll-fs-xs); gap: 4px; }
+.zf-btn-icon { min-width: 32px; padding-left: 8px; padding-right: 8px; font-weight: var(--ll-fw-semibold); }
+.fw-rule.is-new { outline: 1px dashed var(--ll-accent); outline-offset: -1px; }
+.zf-ruledraft { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.zf-ruledraft__list { list-style: none; margin: 0; padding: 0; width: 100%; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); overflow: hidden; }
+.zf-dlg { display: flex; flex-direction: column; gap: 12px; }
+.zf-side { border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); padding: 8px 12px 12px; margin: 0; min-width: 0; }
+.zf-side legend { font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); padding: 0 4px; }
+@media (max-width: 640px) {
+  .zf-card { padding: 14px; }
+  .zf-zones__list { grid-template-columns: 1fr; }
+  .zf-net__pick { margin-left: 0; width: 100%; min-height: 44px; }
+  .zf-rule__tools { justify-content: flex-start; }
+  .zf-rule__tools .btn { min-height: 40px; }
+}

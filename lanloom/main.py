@@ -1230,11 +1230,27 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         """"May A reach B?" from the read rules. Nothing is sent anywhere."""
         from .firewall import insight
         q = request.query_params
-        entry = fw_live_state(str(q.get("source") or "")[:24] or None)
+        args = (str(q.get("from") or "")[:80], str(q.get("to") or "")[:80], str(q.get("proto") or "")[:8] or None,
+                str(q.get("port") or "")[:6] or None)
+        source = str(q.get("source") or "")[:24] or None
+        if source == "editor":       # the firewall editor (simulation or executor): the answer now and after the draft
+            from .firewall import zonefw
+            st = state.firewall.state()
+            if st is None or not st.get("zones"):
+                return JSONResponse({"error": "fw.ask.no_rules"}, status_code=404)
+            res = insight.ask(st, *args)
+            if res.get("error"):
+                return JSONResponse({"error": "fw.ask.err." + res["error"]}, status_code=400)
+            steps = state.firewall.draft_steps(request.state.user)
+            if steps:
+                after = insight.ask(zonefw.after_state(st, steps), *args)
+                res["after"] = None if after.get("error") else {k: after.get(k) for k in ("verdict", "verdict_label", "reason", "rule", "certain")}
+            res["source"] = "editor"
+            return res
+        entry = fw_live_state(source)
         if entry is None:
             return JSONResponse({"error": "fw.ask.no_rules"}, status_code=404)
-        res = insight.ask(entry["state"], str(q.get("from") or "")[:80], str(q.get("to") or "")[:80],
-                          str(q.get("proto") or "")[:8] or None, str(q.get("port") or "")[:6] or None)
+        res = insight.ask(entry["state"], *args)
         if res.get("error"):
             return JSONResponse({"error": "fw.ask.err." + res["error"]}, status_code=400)
         res["source"] = entry["key"]

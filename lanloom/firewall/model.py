@@ -17,7 +17,7 @@ import ipaddress
 import secrets
 import time
 
-from . import neutral, netconf, steps as stepkinds
+from . import neutral, netconf, steps as stepkinds, zonefw
 from .canon import digest_hex, fingerprint
 
 from .steps import MAX_OBJECTS  # noqa: E402  (re-exported: model.MAX_OBJECTS)
@@ -468,7 +468,7 @@ def lockout_reason(state: dict, step: dict):
     if obj.get("protected"):
         return "fw.block.protected"
     if obj.get("editable") is False or obj.get("builtin"):
-        return "fw.block.builtin"
+        return "zf.block.zone_builtin" if kind.area == "zones" else "fw.block.builtin"
     if kind.verb == "delete" and not obj.get("own") and kind.area != "dhcp_reservations":
         return "fw.block.not_own"                 # (a fixed address is released, not deleted: any may go)
     if kind.area == "networks" and obj.get("management"):
@@ -477,10 +477,12 @@ def lockout_reason(state: dict, step: dict):
         return "fw.block.uplink"
     if kind.area == "policies" and kind.verb != "delete":
         after = dict(obj, **step["after"])
-        mgmt = neutral.management_zones(state)
-        zones = {(after.get("src") or {}).get("zone"), (after.get("dst") or {}).get("zone")}
-        if after.get("action") in ("block", "reject") and zones & (mgmt | {"*"}):
-            return "fw.block.management"
+        # never a blocking rule from or to the management network or zone, or towards the gateway itself
+        prot = zonefw.protected_zones(state) | {"*"}
+        mnets = zonefw.management_networks(state)
+        sides = [after.get("src") or {}, after.get("dst") or {}]
+        if after.get("action") in ("block", "reject") and any(s.get("zone") in prot or s.get("net") in mnets for s in sides):
+            return "zf.block.mgmt_rule"
     if kind.area == "devices":
         nets = {n["id"]: n for n in state.get("networks") or []}
         target = step["after"].get("network")
@@ -547,13 +549,18 @@ def _gate_v2(state, plan, *, target, now, quiet, busy, healthy, caps) -> None:
                 raise Refused("fw.block.conflict")
         if kind.area == "devices" and kind.name in ("move", "client.set"):
             _gate_device(state, obj, st)
-        why = lockout_reason(state, st)
+        why = lockout_reason(state, st) or zonefw.step_lockout(state, st)
         if why:
-            raise Refused(why, name=(obj or {}).get("name", ""), reason=(obj or {}).get("protected") or "")
+            raise Refused(why, name=(obj or {}).get("name", "") or st["after"].get("name", ""), reason=(obj or {}).get("protected") or "")
         if req and oid == req and "self" not in plan["confirmed"]:
             raise Refused("fw.block.confirm")
-        if stepkinds.needs_confirmation(st) and stepkinds.confirm_token(st) not in plan["confirmed"]:
+        if (stepkinds.needs_confirmation(st) or zonefw.needs_confirmation(state, st)) and \
+                stepkinds.confirm_token(st) not in plan["confirmed"]:
             raise Refused("fw.block.confirm")
+    # rules over the whole plan: rule order, and the approver's device keeps its way to the gateway
+    why, vars_ = zonefw.plan_lockout_vars(state, plan["steps"], requester=req)
+    if why:
+        raise Refused(why, **vars_)
     if quiet and "quiet" not in plan["confirmed"]:
         raise Refused("fw.block.quiet")
 

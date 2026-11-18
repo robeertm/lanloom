@@ -25,6 +25,8 @@
     if (x.to && !x.kind) return x.name + ' → ' + x.to;
     const nc = LL.ncSumText ? LL.ncSumText(x) : null;
     if (nc) return nc;
+    const zf = LL.zfSumText ? LL.zfSumText(x) : null;
+    if (zf) return zf;
     if (x.kind === 'guest.power') return x.name + ' · ' + t(x.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
     if (x.kind === 'guest.firewall') return x.name + ' · ' + t(x.on ? 'fw.sum.fw_on' : 'fw.sum.fw_off');
     if (x.kind === 'guest.fw_rule_create') return x.name + ' · ' + t('fw.sum.rule_new');
@@ -105,7 +107,8 @@
       function canEdit(v, field) { return LL.can('operate') && v.mode !== 'live' && hasKey(v, 'client.set.' + field); }
       function canGuest(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!(v.state && (v.state.guests || []).length) && Object.keys(w).some(k => k.startsWith('guest.')); }
       function canNet(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.netconf && Object.keys(w).some(k => /^(network|dhcp|forward)\./.test(k)); }
-      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip') || canGuest(v) || canNet(v); }
+      function canZone(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.zonefw && Object.keys(w).some(k => /^(zone|policy)\./.test(k) || k === 'network.update.zone'); }
+      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip') || canGuest(v) || canNet(v) || canZone(v); }
       function hasBoard(v) { return (v.state.zones || []).length > 0 && (v.state.networks || []).length > 0; }
       function netCtx(v) {
         return { change: st.mode === 'change', can: key => LL.can('operate') && hasKey(v, key), ops: v.draft.ops || {}, setOp, dropOp,
@@ -135,10 +138,15 @@
         const seg = !(v.state.hosts && v.state.hosts.length && v.mode === 'live') && LL.segCard ? LL.segCard(v, netCtx(v)) : null;
         if (seg) kids.push(seg);
         if (v.mode !== 'live' && v.netconf && LL.ncCards) kids.push(...LL.ncCards(v, netCtx(v)));
+        if (LL.zfRemember) LL.zfRemember(v.state);
+        if (v.mode !== 'live' && v.zonefw && LL.zfCards) kids.push(...LL.zfCards(v, netCtx(v)));
         if (v.mode !== 'live' && v.state.hosts && v.state.hosts.length) kids.push(...LL.hvEditCards(v.state, guestCtx(v)));
         st.pol.source = v.mode === 'live' ? v.source : null;     // "Explain" (AI) reads the rule from this live source
         st.pol.insight = insight;                                 // rules in plain words and hit chips (js/fwinsight.js)
-        if (v.state.policies && v.state.policies.length) kids.push(LL.fwPolicies(v.state, st.pol, render));
+        st.pol.edit = canZone(v) && st.mode === 'change' ? netCtx(v) : null;   // rule tools in change mode (stage B, js/zonefw.js)
+        if ((v.state.policies && v.state.policies.length) || st.pol.edit) kids.push(LL.fwPolicies(v.state, st.pol, render));
+        // "May one reach the other?" in the editor too: the answer now and after the draft (the same card as for a read firewall)
+        if (v.mode !== 'live' && LL.fwAskCard && (v.state.zones || []).length && v.state.policies) kids.push(LL.fwAskCard(v, { source: 'editor' }));
         if (v.mode === 'live') kids.push(...LL.fwLiveExtras(v.state, { checksShown: !!insight }));
         const hist = history(v);
         if (hist) kids.push(hist);
@@ -389,6 +397,8 @@
       function opLabel(s, o) {
         const nc = LL.ncOpLabel ? LL.ncOpLabel(s, o) : null;
         if (nc) return nc;
+        const zf = LL.zfOpLabel ? LL.zfOpLabel(s, o) : null;
+        if (zf) return zf;
         const g = id => (s.guests || []).find(x => x.id === id) || {};
         const a = o.after || {};
         if (o.kind === 'guest.power') return g(o.object).name + ' · ' + t(a.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
@@ -468,7 +478,7 @@
       }
 
       function fwErr(e) {
-        if (e && e.key && e.key.startsWith('fw.') && LL.strings[e.key]) return t(e.key, e.vars || {});
+        if (e && e.key && /^(fw|zf)\./.test(e.key) && LL.strings[e.key]) return tr([e.key, e.vars || {}]);
         return LL.errText(e);
       }
 
@@ -553,6 +563,14 @@
         if (box) box.scrollIntoView({ block: 'start' }); else LL.toast(t('nc.none_here'), 'info');
         if (box && want === 'plan' && rest[1] === 'edit' && LL.can('operate') && LL.segPlanDialog) LL.segPlanDialog(st.view, netCtx(st.view));
       }
+      if (['zones', 'rules', 'ask'].includes(want) && st.view) {     // zone firewall: zones card, rule list, "May one reach the other?"
+        if (want !== 'ask' && st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; try { localStorage.setItem('ll-fw-source', 'editor'); } catch (e) { /* ignore */ } await load(); }
+        window.history.replaceState(null, '', LL.base + '#/firewall');
+        if (want !== 'ask' && canZone(st.view)) { st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ } render(); }
+        const box = page.querySelector(want === 'zones' ? '#zf-zones' : want === 'ask' ? '#fw-ask' : '.fw-pol');
+        if (box) box.scrollIntoView({ block: 'start' }); else LL.toast(t('zf.none_here'), 'info');
+        if (box && want === 'rules' && rest[1] === 'new' && canZone(st.view) && LL.zfNewRule) LL.zfNewRule(st.view.state, netCtx(st.view));
+      }
       if ((want === 'device' || want === 'pick') && st.view && st.view.state) {
         if (st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; await load(); }
         window.history.replaceState(null, '', LL.base + '#/firewall');
@@ -583,6 +601,10 @@
     available: () => LL.can('operate'), run: () => LL.go('#/firewall/reservations') });
   LL.registerCommand({ id: 'firewall-plan', group: 'commands', order: 46, label: 'seg.cmd.plan', keywords: 'seg.cmd.plan_keywords',
     run: () => LL.go('#/firewall/plan') });
+  LL.registerCommand({ id: 'firewall-zones', group: 'commands', order: 47, label: 'zf.cmd.zones', keywords: 'zf.cmd.zones_keywords',
+    available: () => LL.can('operate'), run: () => LL.go('#/firewall/zones') });
+  LL.registerCommand({ id: 'firewall-rule-new', group: 'commands', order: 48, label: 'zf.cmd.rule_new', keywords: 'zf.cmd.rule_new_keywords',
+    available: () => LL.can('operate'), run: () => LL.go('#/firewall/rules/new') });
   LL.registerCommand({ id: 'firewall-guests', group: 'commands', order: 42, label: 'fw.cmd.guests', keywords: 'fw.cmd.guests_keywords',
     available: () => LL.can('operate'), run: () => LL.go('#/firewall/guests') });
   // "Firewall checks": opens the first live source with checks of its own (a zone firewall read by an adapter)
@@ -655,7 +677,7 @@
   LL.fwPolicies = function (s, f, rerender) {
     const zones = s.zones;
     const allow = new Set((s.allow || []).map(([a, b]) => a + '>' + b));
-    const pols = s.policies.slice().sort((a, b) => (a.order - b.order) || (a.name < b.name ? -1 : 1));
+    const pols = (s.policies || []).slice().sort((a, b) => (a.order - b.order) || (a.name < b.name ? -1 : 1));
     const custom = {};
     pols.forEach(p => { if (!p.builtin && !wholeZone(p)) { const k = p.src.zone + '>' + p.dst.zone; custom[k] = (custom[k] || 0) + 1; } });
     const pick = k => { f.pair = f.pair === k ? null : k; rerender(); };
@@ -698,9 +720,11 @@
             ...insightChips(f.insight, p),
             p.hits != null ? h('span', { class: 'fw-rule__hits', title: t('fw.pol.hits', { n: p.hits }) }, t('fw.pol.hits', { n: fmtCount(p.hits) })) : null,
             !p.enabled ? h('span', { class: 'chip chip--muted' }, t('fw.pol.disabled')) : null,
+            f.edit && LL.zfRuleMark ? LL.zfRuleMark(p, f.edit) : null,
             p.scheduled ? h('span', { class: 'chip chip--muted' }, t('fw.pol.scheduled')) : null,
             p.builtin ? h('span', { class: 'chip chip--muted' }, t('fw.pol.builtin')) : null,
-            f.source && LL.aiExplainButton ? LL.aiExplainButton('rule', { source: f.source, id: p.id }, { small: true, title: p.name }) : null))))))
+            f.source && LL.aiExplainButton ? LL.aiExplainButton('rule', { source: f.source, id: p.id }, { small: true, title: p.name }) : null,
+            f.edit && LL.zfRuleTools ? LL.zfRuleTools(s, p, f.edit) : null))))))
         : [h('p', { class: 'muted fw-pol__none' }, t('fw.pol.none'))]));
     }
     q.addEventListener('input', () => { f.q = q.value; drawList(); });
@@ -713,6 +737,7 @@
       h('h3', { class: 'fw-sub' }, t('fw.pol.matrix')), h('p', { class: 'muted fw-hint' }, t('fw.pol.matrix_hint')), matrix,
       h('div', { class: 'fw-pol__tools' }, q, h('label', { class: 'check' }, bi, h('span', {}, t('fw.pol.builtin_show'))),
         f.pair ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => pick(f.pair) }, t('fw.pol.all_pairs')) : null),
+      f.edit && LL.zfRuleDraft ? LL.zfRuleDraft(s, f.edit) : null,
       listBox);
   };
 

@@ -60,6 +60,7 @@ class Ctx:
     data_dir: object = None
     snapshot: dict = field(default_factory=dict)   # controller configuration seen now (filled by the controller section)
     families: dict = field(default_factory=dict)   # family states seen now (filled by the family sections)
+    keep: dict = field(default_factory=dict)       # small state a section compares with next night ({section id: ...})
 
     def events(self, *kinds) -> list:
         return self.journal.between(self.since, self.until, kinds or None)

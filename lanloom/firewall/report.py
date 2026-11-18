@@ -82,6 +82,74 @@ def _plan_build(ctx) -> dict:
 register(Contribution("netplan", 53, "report.sec.netplan", _plan_available, _plan_build))
 
 
+# Section "Zone matrix": which zone pairs of a zone firewall opened or closed since the last report (whole zones, any
+# traffic, the same evaluation as the lockout check), and whole zones that take traffic from the internet. There only when a
+# connection reads zones and rules. Zone names only - no addresses.
+ZM_MAX_PAIRS = 400
+
+
+def _zm_sources(ctx) -> list:
+    out = []
+    try:
+        live = ctx.core.live_configs() or []
+    except Exception:
+        live = []
+    for cfg in live:
+        st = cfg.get("state") or {}
+        if st.get("zones") and st.get("policies"):
+            out.append(cfg)
+    return out
+
+
+def _zm_available(ctx) -> bool:
+    return bool(_zm_sources(ctx))
+
+
+def _zm_build(ctx) -> dict:
+    from . import zonefw
+    before = ((ctx.prev or {}).get("keep") or {}).get("zonematrix") or {}
+    now, items, opened, inbound = {}, [], 0, 0
+    first = not before
+    for cfg in _zm_sources(ctx):
+        st = cfg["state"]
+        names = {z["id"]: str(z.get("name") or "?")[:40] for z in st.get("zones") or []}
+        allowed = sorted("%s>%s" % k for k, v in zonefw.zone_matrix(st).items() if v == "allow")[:ZM_MAX_PAIRS]
+        src = str(cfg.get("name") or "?")[:40]
+        now[cfg["key"]] = {"allowed": allowed, "names": names}
+        old = before.get(cfg["key"])
+        if old is not None:
+            was = set(old.get("allowed") or [])
+            for pair in sorted(set(allowed) - was):
+                a, b = pair.split(">", 1)
+                opened += 1
+                items.append(item("zm:o:%s:%s" % (cfg["key"], pair), "report.zm.opened", "warn", True, source=src,
+                                  **{"from": names.get(a, "?"), "to": names.get(b, "?")}))
+            for pair in sorted(was - set(allowed)):
+                a, b = pair.split(">", 1)
+                old_names = old.get("names") or {}
+                items.append(item("zm:c:%s:%s" % (cfg["key"], pair), "report.zm.closed", "info", False, source=src,
+                                  **{"from": names.get(a) or old_names.get(a) or "?", "to": names.get(b) or old_names.get(b) or "?"}))
+        ext = zonefw.system_zone(st, "external")
+        for pair in allowed:
+            a, b = pair.split(">", 1)
+            if ext and a == ext and b != ext:
+                inbound += 1
+                items.append(item("zm:in:%s:%s" % (cfg["key"], pair), "report.zm.inbound", "danger", True, source=src,
+                                  zone=names.get(b, "?")))
+    ctx.keep["zonematrix"] = now
+    n_allowed = sum(len(v["allowed"]) for v in now.values())
+    if first and not inbound:
+        return section("zonematrix", "report.sec.zonematrix", "report.zm.baseline", items, n=n_allowed)
+    if not items:
+        return section("zonematrix", "report.sec.zonematrix", "report.zm.calm", items, n=n_allowed)
+    if inbound:
+        return section("zonematrix", "report.sec.zonematrix", "report.zm.summary_bad", items, n=opened, bad=inbound)
+    return section("zonematrix", "report.sec.zonematrix", "report.zm.summary", items, n=opened)
+
+
+register(Contribution("zonematrix", 54, "report.sec.zonematrix", _zm_available, _zm_build))
+
+
 def _executor_configured(core) -> bool:
     return os.environ.get("LANLOOM_FW_EXECUTOR", "").strip().lower() == "external"
 

@@ -328,6 +328,9 @@ class Reports:
             out["controller_snapshot"] = ctx.snapshot or (prev or {}).get("controller_snapshot")
         if ctx.families or (prev or {}).get("family_states"):
             out["family_states"] = ctx.families or (prev or {}).get("family_states")
+        keep = dict((prev or {}).get("keep") or {}, **ctx.keep)
+        if keep:
+            out["keep"] = keep
         return out
 
     def _update(self) -> dict:
@@ -398,6 +401,7 @@ class Reports:
         data = json.loads(row["data"])
         data.pop("controller_snapshot", None)
         data.pop("family_states", None)
+        data.pop("keep", None)
         marks = self._marks(day)
         for s in data["sections"]:
             for i in s["items"]:
@@ -438,6 +442,7 @@ class Reports:
         rep = await self.build(since, now, prev, datetime.fromtimestamp(now, self.tz()).date().isoformat(), preview=True)
         rep.pop("controller_snapshot", None)
         rep.pop("family_states", None)
+        rep.pop("keep", None)
         for s in rep["sections"]:
             for i in s["items"]:
                 if i["point"]:

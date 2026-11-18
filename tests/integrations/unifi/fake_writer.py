@@ -7,7 +7,15 @@ an empty or very long name are stored without a word - the write half has to che
 
 Faults on order: ``fail_put`` (the n-th PUT answers 500), ``drop_put`` (the n-th PUT is applied and then the
 connection is cut without a reply - network loss mid-write), ``ignore_put`` (200, nothing stored), ``stuck``
-(a moved wireless client stays in its old network)."""
+(a moved wireless client stays in its old network).
+
+Zone firewall (``v2/api/site/default/firewall/zone`` and ``firewall-policies``), as measured on a self-hosted
+application after the switch to zones: a zone update needs its ``_id`` in the body (else 500) and takes no other
+fields than ``_id``, ``name`` and ``network_ids`` (400); a network belongs to exactly one zone (adding it to one takes
+it out of the other; taken out of a zone of its own it goes back to the internal zone); a default zone cannot be
+deleted (400); deleting a zone puts its networks back into the internal zone **and deletes every rule that names it,
+without a word**; rule bodies are taken only whole (400 for a missing field); new rules go to the end of their zone
+pair (``index`` 10000 upwards); ``batch-reorder`` numbers the rules of one pair again."""
 import copy
 import ipaddress
 import json
@@ -52,6 +60,8 @@ class WritableFake(FakeController):
         self.config_writes = []          # (method, area, id) of every network / port forward write
         self.fail_config = 0             # the n-th network / port forward write answers 500
         self.drop_config = 0             # ... is applied and then the connection is cut
+        self.classic.setdefault("zone", [])
+        self.classic.setdefault("policies", [])
 
     # ------------------------------------------------------------------ data
     def users(self) -> list:
@@ -66,7 +76,111 @@ class WritableFake(FakeController):
     def net(self, cid):
         return next((n for n in self.classic["networkconf"]["data"] if n.get("_id") == cid), None)
 
+    # ------------------------------------------------------------------ zone firewall
+    def zones(self) -> list:
+        return self.classic["zone"]
+
+    def zone(self, zid):
+        return next((z for z in self.zones() if z.get("_id") == zid), None)
+
+    def policies(self) -> list:
+        return self.classic["policies"]
+
+    def policy(self, pid):
+        return next((p for p in self.policies() if p.get("_id") == pid), None)
+
+    def _internal(self):
+        return next((z for z in self.zones() if z.get("zone_key") == "internal" or z.get("name") == "Internal"), None)
+
+    def _place(self, zone, network_ids):
+        """A network sits in exactly one zone."""
+        for z in self.zones():
+            if z is not zone:
+                z["network_ids"] = [n for n in z.get("network_ids") or [] if n not in network_ids]
+        dropped = [n for n in zone.get("network_ids") or [] if n not in network_ids]
+        zone["network_ids"] = list(network_ids)
+        inner = self._internal()
+        if inner is not None and inner is not zone:
+            inner["network_ids"] = list(inner.get("network_ids") or []) + [n for n in dropped if n not in inner.get("network_ids", [])]
+        for n in self.classic["networkconf"]["data"]:
+            for z in self.zones():
+                if n.get("_id") in (z.get("network_ids") or []):
+                    n["firewall_zone_id"] = z["_id"]
+
+    POLICY_NEEDED = ("name", "enabled", "action", "ip_version", "schedule", "source", "destination", "protocol")
+
+    def write_v2(self, method, area, oid, body):
+        """(status, reply) of the zone firewall API like the controller."""
+        if area == "firewall/zone":
+            if method == "POST":
+                if set(body) - {"name", "network_ids"}:
+                    return 400, {"errorCode": 400, "message": "JSON parse error"}
+                self.next_id += 1
+                new = {"_id": "5f0000000000000000000a%02x" % self.next_id, "external_id": "zone-%d" % self.next_id,
+                       "name": body.get("name"), "network_ids": [], "default_zone": False, "attr_no_edit": False, "zone_key": None}
+                if not self.ignore_put:
+                    self.zones().append(new)
+                    self._place(new, list(body.get("network_ids") or []))
+                return 201, copy.deepcopy(new)
+            z = self.zone(oid)
+            if z is None:
+                return 404, {"code": "api.err.FirewallZoneNotFound", "errorCode": 404}
+            if method == "DELETE":
+                if z.get("default_zone"):
+                    return 400, {"code": "api.err.DefaultFirewallZoneDeleteNotAllowed", "errorCode": 400}
+                if not self.ignore_put:
+                    self._place(z, [])
+                    self.zones().remove(z)
+                    self.classic["policies"] = [p for p in self.policies() if z["_id"] not in
+                                                ((p.get("source") or {}).get("zone_id"), (p.get("destination") or {}).get("zone_id"))]
+                return 204, None
+            if set(body) - {"_id", "name", "network_ids"}:
+                return 400, {"errorCode": 400, "message": "JSON parse error: Unrecognized field"}
+            if body.get("_id") != oid or z.get("attr_no_edit"):
+                return 500, None
+            if not self.ignore_put:
+                z["name"] = body.get("name", z["name"])
+                self._place(z, list(body.get("network_ids") or []))
+            return 200, copy.deepcopy(z)
+        if area == "firewall-policies/batch-reorder":
+            src, dst = body.get("source_zone_id"), body.get("destination_zone_id")
+            order = list(body.get("before_predefined_ids") or []) + list(body.get("after_predefined_ids") or [])
+            if not self.ignore_put:
+                for i, pid in enumerate(order):
+                    p = self.policy(pid)
+                    if p is not None and (p["source"]["zone_id"], p["destination"]["zone_id"]) == (src, dst):
+                        p["index"] = 10000 + i
+            return 200, [copy.deepcopy(p) for p in self.policies() if (p["source"]["zone_id"], p["destination"]["zone_id"]) == (src, dst)]
+        if method == "POST":
+            if any(k not in body for k in self.POLICY_NEEDED):
+                return 400, {"errorCode": 400, "message": "Validation failed"}
+            pair = (body["source"].get("zone_id"), body["destination"].get("zone_id"))
+            mine = [p.get("index", 0) for p in self.policies() if (p["source"].get("zone_id"), p["destination"].get("zone_id")) == pair
+                    and not p.get("predefined")]
+            self.next_id += 1
+            new = dict(copy.deepcopy(body), _id="5f0000000000000000000b%02x" % self.next_id, predefined=False,
+                       index=(max(mine) + 1) if mine else 10000)
+            if not self.ignore_put:
+                self.policies().append(new)
+            return 201, copy.deepcopy(new)
+        p = self.policy(oid)
+        if p is None:
+            return 404, {"code": "api.err.FirewallPolicyNotFound", "errorCode": 404}
+        if method == "DELETE":
+            if not self.ignore_put:
+                self.policies().remove(p)
+            return 204, None
+        if any(k not in body for k in self.POLICY_NEEDED):
+            return 400, {"errorCode": 400, "message": "Validation failed"}
+        if not self.ignore_put:
+            p.update(copy.deepcopy(body))
+        return 200, copy.deepcopy(p)
+
     def classic_reply(self, path):
+        m = re.fullmatch(re.escape(self.prefix) + r"/v2/api/site/default/firewall-policies/([0-9a-f]{24})", path)
+        if m:
+            p = self.policy(m.group(1))
+            return copy.deepcopy(p) if p else None
         m = re.fullmatch(re.escape(self.prefix) + r"/api/s/default/rest/(user|networkconf|portforward)/([0-9a-f]{24})", path)
         if m:
             area, oid = m.groups()
@@ -143,6 +257,40 @@ class WritableFake(FakeController):
         fake = self
 
         class H(base):
+            def _v2(self, method):
+                n = int(self.headers.get("Content-Length") or 0)
+                try:
+                    body = json.loads(self.rfile.read(n) or b"{}") if n else None
+                except ValueError:
+                    body = None
+                self.record(body)
+                m = re.fullmatch(re.escape(fake.prefix) + r"/v2/api/site/default/(firewall/zone|firewall-policies/batch-reorder|"
+                                 r"firewall-policies)(?:/([0-9a-f]{24}))?", self.path)
+                cookie = self.headers.get("Cookie") or ""
+                sid = next((c.split("=", 1)[1] for c in cookie.split("; ") if c.split("=", 1)[0] in ("TOKEN", "unifises")), None)
+                if sid not in fake.sessions:
+                    return self.reply(401, {"meta": {"rc": "error", "msg": "api.err.LoginRequired"}})
+                if fake.require_csrf and self.headers.get("X-CSRF-Token") != CSRF:
+                    return self.reply(403, {"meta": {"rc": "error", "msg": "api.err.Csrf"}})
+                if not m:
+                    return self.reply(404, {})
+                fake.config_writes.append((method, m.group(1), m.group(2)))
+                count = len(fake.config_writes)
+                if fake.fail_config and count == fake.fail_config:
+                    return self.reply(500, {"errorCode": 500})
+                status, reply = fake.write_v2(method, m.group(1), m.group(2), body or {})
+                if fake.drop_config and count == fake.drop_config:
+                    self.close_connection = True
+                    self.wfile.flush()
+                    self.connection.close()
+                    return None
+                if status == 204:
+                    self.send_response(204)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return None
+                return self.reply(status, reply)
+
             def _config(self, method):
                 n = int(self.headers.get("Content-Length") or 0)
                 try:
@@ -174,12 +322,18 @@ class WritableFake(FakeController):
             def do_POST(self):
                 if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)", self.path):
                     return self._config("POST")
+                if self.path.startswith(fake.prefix + "/v2/api/site/default/firewall"):
+                    return self._v2("POST")
                 return base.do_POST(self)
 
             def do_DELETE(self):
+                if self.path.startswith(fake.prefix + "/v2/api/site/default/firewall"):
+                    return self._v2("DELETE")
                 return self._config("DELETE")
 
             def do_PUT(self):
+                if self.path.startswith(fake.prefix + "/v2/api/site/default/firewall"):
+                    return self._v2("PUT")
                 if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)/[0-9a-f]{24}", self.path):
                     return self._config("PUT")
                 n = int(self.headers.get("Content-Length") or 0)

@@ -209,6 +209,7 @@ def test_every_key_the_code_names_exists():
         "zone.create": "firewall step identifier (firewall/steps.py), not a text",
         "zone.update": "firewall step identifier (firewall/steps.py), not a text",
         "zone.delete": "firewall step identifier (firewall/steps.py), not a text",
+        "zone.update.name": "capability key of a firewall step and field (integrations/capabilities.py), not a text",
         "backup.lan": "host name of a sample device (demo.py)",
         "backup.json": "file name of the updater's record of an update (updater/engine.py)",
         "storage.local": "host name of a sample device (demo.py)",

@@ -446,7 +446,20 @@
           h('p', { class: 'muted fwi-maybe__hint' }, t('fwi.ask.uncertain')),
           maybe.length ? h('ul', { class: 'fwi-maybe__list' }, maybe.map(m => h('li', { class: 'fwi-maybe__row' },
             h('span', { class: 'fw-rule__act fw-rule__act--' + (['allow', 'block', 'reject'].includes(m.verdict) ? m.verdict : 'other') }, t('fw.pol.action.' + (['allow', 'block', 'reject'].includes(m.verdict) ? m.verdict : 'other'))),
-            h('div', { class: 'fwi-maybe__main' }, h('strong', {}, m.name), h('div', {}, plain(m.plain)), h('div', { class: 'muted fwi-note' }, plain(m.why)))))) : null) : null));
+            h('div', { class: 'fwi-maybe__main' }, h('strong', {}, m.name), h('div', {}, plain(m.plain)), h('div', { class: 'muted fwi-note' }, plain(m.why)))))) : null) : null),
+      draftBlock(r));
+  }
+
+  function draftBlock(r) {
+    // the editor: the answer after the current draft, next to the answer now (same evaluation, on the state after the plan)
+    if (!r || !r.after) return null;
+    const v = ['allow', 'block', 'reject', 'depends'].includes(r.after.verdict) ? r.after.verdict : 'depends';
+    return h('div', { class: 'fwi-ask__after' },
+      h('div', { class: 'fwi-ask__after-title muted' }, t('fwi.ask.after_draft')),
+      h('div', { class: 'fwi-verdict fwi-verdict--' + v },
+        h('span', { class: 'fwi-verdict__ico', 'aria-hidden': 'true' }, v === 'allow' ? '✓' : v === 'depends' ? '?' : '✕'),
+        h('span', { class: 'fwi-verdict__text' }, plain(r.after.verdict_label) || t('fwi.verdict.' + v))),
+      h('p', { class: 'fwi-ask__reason' }, plain(r.after.reason)));
   }
 
   function askCard(view, insight, ctx) {
@@ -456,7 +469,7 @@
     const valid = new Set(['internet'].concat(opts.zones.map(o => o.v), opts.nets.map(o => o.v), opts.devs.map(o => o.v)));
     if (!valid.has(a.from)) a.from = '';
     if (!valid.has(a.to)) a.to = '';
-    const out = card('fw-ask', t('fwi.ask.title'), t('fwi.ask.lead'));
+    const out = card('fw-ask', t('fwi.ask.title'), t(ctx.source === 'editor' ? 'fwi.ask.lead_editor' : 'fwi.ask.lead'));
     const uid = 'fwi-' + Math.random().toString(36).slice(2, 7);
     const from = selectOf(opts, a.from, t('fwi.ask.from'), uid + '-from');
     const to = selectOf(opts, a.to, t('fwi.ask.to'), uid + '-to');
@@ -504,6 +517,10 @@
     return out;
   }
 
+  // the same card in the firewall editor (simulation or executor): ctx.source = 'editor'; the server adds the answer after
+  // the current draft
+  LL.fwAskCard = (view, ctx) => askCard(view, null, Object.assign({ source: 'editor' }, ctx || {}));
+
   // ------------------------------------------------------------------ checks
   function checksCard(insight) {
     const list = sortFindings(insight.findings);
@@ -539,7 +556,8 @@
     run: async () => {
       try {
         const x = await LL.api('/api/firewall/insight');       // the first live source that has rules
-        if (x && x.source) localStorage.setItem('ll-fw-source', x.source);
+        if (!(x && x.source)) { LL.go('#/firewall/ask'); return; }   // none read: the editor's card (simulation or executor)
+        localStorage.setItem('ll-fw-source', x.source);
         sessionStorage.setItem('ll-fw-focus', 'ask');
       } catch (e) { /* the tab opens anyway */ }
       LL.go('#/firewall');

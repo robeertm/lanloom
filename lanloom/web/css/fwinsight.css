@@ -152,3 +152,8 @@
 @media (prefers-reduced-motion: reduce) {
   .fwi-edge__line, .fwi-ask__out { transition: none; }
 }
+/* the editor: the answer after the current draft, under the answer now */
+.fwi-ask__after { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; padding-top: 10px; border-top: 1px dashed var(--ll-border); }
+.fwi-ask__after-title { font-size: var(--ll-fs-xs); text-transform: uppercase; letter-spacing: .03em; }
+.fwi-ask__after .fwi-ask__reason { margin: 0; }
+.fwi-ask__after .fwi-verdict { align-self: flex-start; }

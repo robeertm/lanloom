@@ -286,6 +286,54 @@ def _side_classic(s, ids, groups) -> tuple:
     return side, ports
 
 
+# a classic rule the write half can carry over unchanged in every field it does not touch (zone firewall stage): only
+# these keys, each with a value Lanloom can express; anything else keeps the rule shown but read-only
+POLICY_KEYS = frozenset(("_id", "action", "connection_state_type", "connection_states", "create_allow_respond", "destination",
+                         "enabled", "icmp_typename", "icmp_v6_typename", "index", "ip_version", "logging", "match_ip_sec",
+                         "match_opposite_protocol", "name", "predefined", "protocol", "schedule", "source"))
+SIDE_KEYS = frozenset(("zone_id", "matching_target", "port_matching_type", "match_opposite_ports", "port", "network_ids",
+                       "match_opposite_networks"))
+WRITE_PROTOCOLS = {"all": "any", "tcp": "tcp", "udp": "udp", "tcp_udp": "tcp_udp"}
+
+
+def _side_editable(s, dst: bool) -> bool:
+    if not isinstance(s, dict) or set(s) - SIDE_KEYS or not s.get("zone_id"):
+        return False
+    target = str(s.get("matching_target") or "ANY").upper()
+    if target == "NETWORK":
+        if len(s.get("network_ids") or []) != 1 or s.get("match_opposite_networks"):
+            return False
+    elif target != "ANY":
+        return False
+    pm = str(s.get("port_matching_type") or "ANY").upper()
+    if s.get("match_opposite_ports"):
+        return False
+    if pm == "SPECIFIC":
+        return dst and bool(re.match(r"\A\d{1,5}(?:-\d{1,5})?(?:,\d{1,5}(?:-\d{1,5})?){0,31}\Z", str(s.get("port") or "")))
+    return pm == "ANY" and not s.get("port")
+
+
+def classic_editable(r) -> bool:
+    """Can the write half change this classic rule without losing anything it does not understand?"""
+    if not isinstance(r, dict) or set(r) - POLICY_KEYS or r.get("predefined"):
+        return False
+    if str(r.get("action") or "").upper() not in ("ALLOW", "BLOCK", "REJECT"):
+        return False
+    if str(_d(r.get("schedule")).get("mode") or "ALWAYS").upper() != "ALWAYS" or set(_d(r.get("schedule"))) - {"mode"}:
+        return False
+    if str(r.get("connection_state_type") or "ALL").upper() != "ALL" or r.get("connection_states"):
+        return False
+    if r.get("match_ip_sec") or r.get("match_opposite_protocol"):
+        return False
+    if str(r.get("protocol") or "all").lower() not in WRITE_PROTOCOLS:
+        return False
+    if str(r.get("ip_version") or "BOTH").upper() not in ("BOTH", "IPV4"):
+        return False
+    if str(r.get("icmp_typename") or "ANY").upper() != "ANY" or str(r.get("icmp_v6_typename") or "ANY").upper() != "ANY":
+        return False
+    return _side_editable(r.get("source"), False) and _side_editable(r.get("destination"), True)
+
+
 def _proto(value, opposite=False) -> str:
     p = str(value or "all").lower()
     p = "any" if p in ("all", "any", "") else p
@@ -300,6 +348,12 @@ def _policies_classic(raw, ids) -> list:
         dst, dports = _side_classic(r.get("destination"), ids, groups)
         if sports:
             src["ports"] = sports
+        editable = classic_editable(r)
+        if editable:                    # one network of the zone: the plan step shape {"zone", "net"}
+            for side, s in ((src, r.get("source")), (dst, r.get("destination"))):
+                if side.get("match", {}).get("kind") == "network":
+                    side.pop("match")
+                    side["net"] = ids.net_id((s.get("network_ids") or [None])[0])
         hit = num(r.get("hits"))
         out.append({"id": oid("r", r.get("_id")), "name": text(r.get("name"), 120) or "?", "src": src, "dst": dst,
                     "action": ACTIONS.get(str(r.get("action") or "").upper(), "other"),
@@ -312,7 +366,29 @@ def _policies_classic(raw, ids) -> list:
                     "scheduled": str(_d(r.get("schedule")).get("mode") or "ALWAYS").upper() != "ALWAYS",
                     "states": sorted(str(x).lower() for x in r.get("connection_states") or [] if isinstance(x, str))[:4]
                     if str(r.get("connection_state_type") or "ALL").upper() != "ALL" else [],
-                    "editable": False, "vendor_ref": oid("v", r.get("_id"))})
+                    "editable": editable, "vendor_ref": oid("v", r.get("_id"))})
+    return out
+
+
+def zone_refs(raw) -> dict:
+    """Neutral zone id -> {"id": classic id, "key": system key or "", "builtin", "record": {"name", "network_ids"}}."""
+    ids = _Ids(raw)
+    out = {}
+    for z in items(raw, "zone"):
+        if z.get("_id"):
+            builtin = bool(z.get("default_zone")) or bool(z.get("attr_no_edit"))
+            out[ids.zone_id(z["_id"])] = {"id": str(z["_id"]), "key": str(z.get("zone_key") or _zone_kind(z.get("name"), builtin) or ""),
+                                          "builtin": builtin,
+                                          "record": {"name": z.get("name"), "network_ids": list(z.get("network_ids") or [])}}
+    return out
+
+
+def policy_refs(raw) -> dict:
+    """Neutral rule id -> {"id": classic id, "record": the rule as stored now}."""
+    out = {}
+    for r in items(raw, "policies"):
+        if r.get("_id"):
+            out[oid("r", r["_id"])] = {"id": str(r["_id"]), "record": dict(r)}
     return out
 
 

@@ -39,12 +39,23 @@ def _items_text(items) -> str:
     return shown + (" +%d" % (len(items) - MAX_ITEMS_SHOWN) if len(items) > MAX_ITEMS_SHOWN else "")
 
 
+def side_match(side: dict):
+    """The narrowing of a rule side: its ``match``, or the one network of a rule a family can change (``{"zone", "net"}``,
+    the shape of a plan step) as a network match."""
+    side = side or {}
+    if side.get("match"):
+        return side["match"]
+    if side.get("net"):
+        return {"kind": "network", "items": [side["net"]]}
+    return None
+
+
 def side_text(state: dict, side: dict) -> dict:
     """One side of a rule ("who" or "to what") as a message."""
     side = side or {}
     zid = side.get("zone")
     zone = msg("fw.plain.any_zone") if zid == ANY else msg("fw.plain.zone", zone=_zone_name(state, zid))
-    m = side.get("match")
+    m = side_match(side)
     if m:
         kind, items = m.get("kind"), m.get("items") or []
         if kind == "network":
@@ -212,7 +223,7 @@ def _side_matches(side: dict, who: dict):
     zid = side.get("zone")
     if zid not in (ANY, who.get("zone")):
         return False
-    m = side.get("match")
+    m = side_match(side)
     if not m:
         return True
     kind, items = m.get("kind"), m.get("items") or []
@@ -299,8 +310,12 @@ def ask(state: dict, src, dst, proto=None, port=None) -> dict:
         break
     else:
         pair = [a.get("zone"), b.get("zone")]
-        ok = pair in (state.get("allow") or [])
-        out.update(verdict="allow" if ok else "block", rule=None, default=True, reason=msg("fw.ask.by_default"))
+        if a.get("zone") and a.get("zone") == b.get("zone") and not a.get("internet") and not b.get("internet"):
+            # within one zone the controllers let traffic through unless a rule says otherwise (the board's diagonal)
+            out.update(verdict="allow", rule=None, default=True, reason=msg("fw.ask.same_zone"))
+        else:
+            ok = pair in (state.get("allow") or [])
+            out.update(verdict="allow" if ok else "block", rule=None, default=True, reason=msg("fw.ask.by_default"))
     if out["maybe"]:                                   # every rule listed here comes before the deciding one
         out["certain"] = False
         if any(m["verdict"] != out["verdict"] for m in out["maybe"]):
@@ -316,7 +331,7 @@ SUGGEST = {"admin_on_wan": "fwr.suggest.admin_on_wan", "any_any": "fwr.suggest.a
 
 
 def _whole(p: dict) -> bool:
-    return (not (p.get("src") or {}).get("match") and not (p.get("dst") or {}).get("match") and not p.get("ports")
+    return (not side_match(p.get("src")) and not side_match(p.get("dst")) and not p.get("ports")
             and str(p.get("proto") or "any").lower() == "any" and not p.get("states") and not p.get("scheduled")
             and not (p.get("src") or {}).get("ports") and not (p.get("dst") or {}).get("ports"))
 
@@ -355,7 +370,7 @@ def findings(state: dict) -> list:
     inside = {z["id"] for z in state.get("zones") or [] if z.get("system") == "internal" or z.get("kind") == "internal"}
     for p in on:
         s, d = p.get("src") or {}, p.get("dst") or {}
-        if p.get("action") == "allow" and s.get("zone") in untrusted and d.get("zone") in inside and not s.get("match") and not d.get("match") \
+        if p.get("action") == "allow" and s.get("zone") in untrusted and d.get("zone") in inside and not side_match(s) and not side_match(d) \
                 and not p.get("ports") and str(p.get("proto") or "any").lower() == "any" and not p.get("builtin"):
             out.append({"id": "x_guest_" + str(p["id"]), "kind": "guest_reaches_inside", "level": "alert", "subject": p["id"],
                         "params": {"rule": p.get("name") or "?", "from": _zone_name(state, s["zone"]), "to": _zone_name(state, d["zone"])}})

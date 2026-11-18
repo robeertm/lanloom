@@ -14,6 +14,13 @@ What it can change - nothing else, whatever a plan says:
 * ``dhcp.reserve|release`` a fixed address for a known client inside its own network, or release it
 * ``forward.create|update|delete`` port forwards to a private address of a local network (never a gateway address);
                           delete only forwards this write half created
+* ``zone.create|update|delete`` zones of its own (name only); delete only a zone this write half created, with no
+                          network and no rule left in it (the controller would delete such rules without a word)
+* ``network.update.zone`` move a local network into a zone of its own or back into the internal zone (also when a new
+                          network is created)
+* ``policy.create|update|delete|reorder`` rules between zones (any traffic or a few ports, a whole zone or one network
+                          of it); change only rules whose every setting Lanloom can carry over; delete only rules this
+                          write half created; reorder the own rules of one zone pair
 
 Client settings, networks and port forwards are written over the classic API (the official integration API has no
 client or port forward writes, and network writes only on recent releases), so the write half signs in with a local
@@ -37,6 +44,11 @@ Sessions: one sign-in per need, one new sign-in after HTTP 401 and never after 4
 controller's own session limit, and at most four sign-ins an hour across processes with a 15-minute pause after a
 refused session (``session.FileLedger``). Product names are used only to identify compatible products; no
 affiliation or endorsement.
+
+Zones and rules are written over the classic API of the zone-based firewall (``v2/api/site/<site>/firewall/zone``,
+``firewall-policies``, ``firewall-policies/batch-reorder``), with the same account; a rule body always carries the
+complete, checked set of fields (the controller does not take partial rule updates). Before a plan with zone or rule
+steps runs, the half checks that the path from its own address to the controller stays open (``firewall.zonefw``).
 """
 import ipaddress
 import json
@@ -51,7 +63,7 @@ from . import WRITE_CAPABILITIES, model, session
 from .. import capabilities
 from ..credentials import Secret, vet_write_account
 from ..transport import Forbidden, Rule, Transport, TransportError, write_allowlist
-from ...firewall import netconf
+from ...firewall import netconf, zonefw
 from ...firewall import steps as stepkinds
 from ...firewall.adapter import ControllerAdapter
 
@@ -132,6 +144,46 @@ def _short_name(v):
     return _name_ok(v) and bool(v.strip()) and len(v) <= 64
 
 
+def _oid(v):
+    return isinstance(v, str) and bool(_OID_RE.match(v))
+
+
+def _oid_list(v):
+    return isinstance(v, list) and len(v) <= 256 and len(set(v)) == len(v) and all(_oid(x) for x in v)
+
+
+def _false(v):
+    return v is False
+
+
+def _empty_list(v):
+    return v == []
+
+
+def _always(v):
+    return v == {"mode": "ALWAYS"}
+
+
+def _pol_side(v):
+    """One side of a rule: a zone, optionally one network of it, optionally ports (destination only, checked again in
+    the body builder); nothing else."""
+    if not isinstance(v, dict) or not set(v) <= set(model.SIDE_KEYS) or not _oid(v.get("zone_id")):
+        return False
+    if v.get("matching_target") not in ("ANY", "NETWORK") or v.get("port_matching_type") not in ("ANY", "SPECIFIC"):
+        return False
+    if v.get("match_opposite_ports") is not False:
+        return False
+    if v["matching_target"] == "NETWORK":
+        if not (isinstance(v.get("network_ids"), list) and len(v["network_ids"]) == 1 and _oid(v["network_ids"][0])) \
+                or v.get("match_opposite_networks") is not False:
+            return False
+    elif "network_ids" in v or "match_opposite_networks" in v:
+        return False
+    if v["port_matching_type"] == "SPECIFIC":
+        return _ports(v.get("port"))
+    return "port" not in v
+
+
 USER_VALUES = {"name": _name_ok, "use_fixedip": _bool, "fixed_ip": _ip_or_empty, "network_id": _oid_or_empty,
                "virtual_network_override_enabled": _bool, "virtual_network_override_id": _oid_or_empty}
 # a new internal network: nothing but these fields, each with its only allowed values (never WAN, VPN or a guest portal)
@@ -144,10 +196,21 @@ FWD_VALUES = {"name": _short_name, "enabled": _bool, "src": _const("any"), "dst_
               "fwd_port": _ports_or_empty, "proto": _const("tcp", "udp", "tcp_udp"), "log": _bool,
               "pfwd_interface": _const("wan")}
 FWD_UPDATE_VALUES = {k: FWD_VALUES[k] for k in ("name", "enabled", "dst_port", "fwd", "fwd_port", "proto")}
+ZONE_CREATE_VALUES = {"name": _short_name, "network_ids": _oid_list}
+ZONE_UPDATE_VALUES = {"_id": _oid, "name": _short_name, "network_ids": _oid_list}
+# a complete rule: the controller takes rule bodies only whole; every field has its only allowed values
+POLICY_VALUES = {"name": _short_name, "enabled": _bool, "action": _const("ALLOW", "BLOCK", "REJECT"),
+                 "create_allow_respond": _bool, "logging": _bool, "protocol": _const("all", "tcp", "udp", "tcp_udp"),
+                 "ip_version": _const("BOTH", "IPV4"), "connection_state_type": _const("ALL"), "connection_states": _empty_list,
+                 "match_ip_sec": _false, "match_opposite_protocol": _false, "icmp_typename": _const("ANY"),
+                 "icmp_v6_typename": _const("ANY"), "schedule": _always, "source": _pol_side, "destination": _pol_side}
+REORDER_VALUES = {"source_zone_id": _oid, "destination_zone_id": _oid, "before_predefined_ids": _oid_list,
+                  "after_predefined_ids": _oid_list}
 READ_PATHS = (
     _P + r"/api/s/%s/(?:self|stat/(?:sta|device|sysinfo)|rest/(?:networkconf|user|portforward|wlanconf|portconf))" % _S,
     _P + r"/api/s/%s/rest/(?:user|networkconf|portforward)/%s" % (_S, OID),
     _P + r"/v2/api/site/%s/(?:firewall/zone|firewall-policies)" % _S,
+    _P + r"/v2/api/site/%s/firewall-policies/%s" % (_S, OID),
 )
 ALLOW = write_allowlist(
     [Rule("GET", p) for p in READ_PATHS]
@@ -162,7 +225,19 @@ ALLOW = write_allowlist(
        Rule("POST", _P + r"/api/s/%s/rest/portforward" % _S, fields=tuple(FWD_VALUES), values=FWD_VALUES, exact=True),
        Rule("PUT", _P + r"/api/s/%s/rest/portforward/%s" % (_S, OID), fields=tuple(FWD_UPDATE_VALUES),
             values=FWD_UPDATE_VALUES, nonempty=True),
-       Rule("DELETE", _P + r"/api/s/%s/rest/portforward/%s" % (_S, OID))])
+       Rule("DELETE", _P + r"/api/s/%s/rest/portforward/%s" % (_S, OID)),
+       Rule("POST", _P + r"/v2/api/site/%s/firewall/zone" % _S, fields=tuple(ZONE_CREATE_VALUES), values=ZONE_CREATE_VALUES,
+            exact=True),
+       Rule("PUT", _P + r"/v2/api/site/%s/firewall/zone/%s" % (_S, OID), fields=tuple(ZONE_UPDATE_VALUES),
+            values=ZONE_UPDATE_VALUES, exact=True),
+       Rule("DELETE", _P + r"/v2/api/site/%s/firewall/zone/%s" % (_S, OID)),
+       Rule("POST", _P + r"/v2/api/site/%s/firewall-policies" % _S, fields=tuple(POLICY_VALUES), values=POLICY_VALUES,
+            exact=True),
+       Rule("PUT", _P + r"/v2/api/site/%s/firewall-policies/%s" % (_S, OID), fields=tuple(POLICY_VALUES),
+            values=POLICY_VALUES, exact=True),
+       Rule("DELETE", _P + r"/v2/api/site/%s/firewall-policies/%s" % (_S, OID)),
+       Rule("PUT", _P + r"/v2/api/site/%s/firewall-policies/batch-reorder" % _S, fields=tuple(REORDER_VALUES),
+            values=REORDER_VALUES, exact=True)])
 LOGIN = {"console": "/api/auth/login", "classic": "/api/login"}
 LOGOUT = {"console": "/api/auth/logout", "classic": "/api/logout"}
 PREFIX = {"console": "/proxy/network", "classic": ""}
@@ -173,6 +248,10 @@ AREAS = {"sysinfo": "api/s/{site}/stat/sysinfo", "networkconf": "api/s/{site}/re
          "zone": "v2/api/site/{site}/firewall/zone", "policies": "v2/api/site/{site}/firewall-policies"}
 NEEDED = ("networkconf", "user")
 CLIENT_KINDS = ("move", "client.set", "dhcp.reserve", "dhcp.release")
+ZONE_AREA = "v2/api/site/{site}/firewall/zone"
+POLICY_AREA = "v2/api/site/{site}/firewall-policies"
+ACTIONS_OUT = {"allow": "ALLOW", "block": "BLOCK", "reject": "REJECT"}
+PROTOCOLS_OUT = {"any": "all", "tcp": "tcp", "udp": "udp", "tcp_udp": "tcp_udp"}
 
 
 class OwnLedger:
@@ -181,7 +260,7 @@ class OwnLedger:
 
     def __init__(self, path=None):
         self.path = Path(path) if path else None
-        self.data = {"networkconf": [], "portforward": []}
+        self.data = {"networkconf": [], "portforward": [], "zone": [], "policy": []}
         if self.path is not None:
             try:
                 fd = os.open(self.path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
@@ -247,6 +326,7 @@ class UnifiWriter(ControllerAdapter):
         if not m:
             raise ValueError("url: https://<address of the console or controller>")
         self._host = m.group(2).strip("[]")
+        self._port = int(m.group(3)) if m.group(3) else (443 if m.group(1).lower() == "https" else 80)
         base = "%s://%s%s" % (m.group(1).lower(), m.group(2), ":" + m.group(3) if m.group(3) else "")
         site = str(site or "default").strip()
         if not SITE_RE.match(site):
@@ -266,6 +346,8 @@ class UnifiWriter(ControllerAdapter):
         self._ledger = session.FileLedger(ledger, per_hour=WRITE_CAPABILITIES["limits"]["logins_per_hour"], clock=clock)
         self._own = OwnLedger(Path(state_dir) / "unifi-own.json" if state_dir else None)
         self._fwds = {}
+        self._zones = {}
+        self._pols = {}
         self._created = {}                     # "new:" id of a plan step -> neutral id of the object it created
         self._relogin_free = False
         self._dead = None
@@ -421,6 +503,8 @@ class UnifiWriter(ControllerAdapter):
         self._nets = model.network_refs(raw)
         self._refs = model.client_refs(raw)
         self._fwds = model.forward_refs(raw)
+        self._zones = model.zone_refs(raw)
+        self._pols = model.policy_refs(raw)
 
     def read(self) -> dict:
         raw = self._read_raw()
@@ -437,6 +521,14 @@ class UnifiWriter(ControllerAdapter):
             ref = self._fwds.get(f["id"])
             if ref and self._own.has("portforward", ref["id"]):
                 f["own"] = True
+        for z in state.get("zones") or []:
+            ref = self._zones.get(z["id"])
+            if ref and self._own.has("zone", ref["id"]):
+                z["own"] = True
+        for p in state.get("policies") or []:
+            ref = self._pols.get(p["id"])
+            if ref and self._own.has("policy", ref["id"]):
+                p["own"] = True
         self._state = state
         return state
 
@@ -547,8 +639,6 @@ class UnifiWriter(ControllerAdapter):
         """The complete body of a new internal network (every field of the allow-list, each checked there again)."""
         after = step["after"]
         cidr = ipaddress.ip_network(after["cidr"], strict=False)
-        if after.get("zone") not in (None, self._default_zone()):
-            raise WriteError("unifi.zone_later")         # zones of its own come with the zone firewall stage
         dhcp = after.get("dhcp") or {"on": False, "range": None}
         rng = dhcp.get("range") or [str(cidr.network_address + min(6, cidr.num_addresses - 3)), str(cidr.broadcast_address - 1)]
         return {"name": after["name"], "purpose": "corporate", "networkgroup": "LAN",
@@ -565,7 +655,7 @@ class UnifiWriter(ControllerAdapter):
             body["dhcpd_enabled"] = bool(after["dhcp"].get("on"))
             if after["dhcp"].get("range"):
                 body["dhcpd_start"], body["dhcpd_stop"] = after["dhcp"]["range"]
-        if set(after) - {"name", "dhcp"}:
+        if set(after) - {"name", "dhcp", "zone"}:
             raise WriteError("unifi.field_not_supported")
         return body
 
@@ -634,6 +724,9 @@ class UnifiWriter(ControllerAdapter):
         nid = self._neutral_net_id(rec)
         self._created[step["object"]] = nid
         self._fresh("networkconf")
+        zone = step["after"].get("zone")
+        if zone is not None and zone != self._internal_zone():
+            self._move_network_zone(nid, zone)
         return {"id": nid}
 
     def _create_forward(self, step: dict) -> dict:
@@ -714,8 +807,24 @@ class UnifiWriter(ControllerAdapter):
         self._index(raw)
         res_ids = {r["reservation"]: cid for cid, r in self._refs.items() if r.get("reservation")}
         out = {"devices": [], "dhcp_reservations": [], "networks": [], "port_forwards": []}
+        real = [oid for oid in ids if not stepkinds.NEW_ID.match(str(oid))]
+        if any(oid in self._zones or oid in self._pols or oid in self._nets for oid in real) or len(real) < len(list(ids)):
+            # zones (with the networks in them) and every own rule of the site: the way back of a zone or rule step,
+            # of a network moved between zones and of a new network placed into a zone
+            for area in ("zone", "policies"):
+                body = self._get(area)
+                if body is not None:
+                    raw[area] = body
+            self._raw = raw
+            self._index(raw)
+            out["zones"] = [{"id": zid, "ref": r["id"], "own": self._own.has("zone", r["id"]), "builtin": r["builtin"],
+                             "record": dict(r["record"])} for zid, r in self._zones.items()]
+            out["policies"] = [{"id": pid, "ref": r["id"], "own": self._own.has("policy", r["id"]), "record": dict(r["record"])}
+                               for pid, r in self._pols.items() if not r["record"].get("predefined")]
         for oid in ids:
             if stepkinds.NEW_ID.match(str(oid)):
+                continue
+            if oid in self._zones or oid in self._pols:
                 continue
             if oid in self._refs:
                 ref = self._refs[oid]
@@ -733,7 +842,7 @@ class UnifiWriter(ControllerAdapter):
                                              "record": dict(ref.get("record") or {})})
             else:
                 raise WriteError("unifi.object_unknown")
-        return {k: v for k, v in out.items() if v or k == "devices"}
+        return {k: v for k, v in out.items() if v or k in ("devices", "zones", "policies") and k in out}
 
     def apply(self, step: dict):
         kind = step["kind"]
@@ -752,7 +861,33 @@ class UnifiWriter(ControllerAdapter):
             ref = self._net_ref(step["object"])
             if ref["purpose"] not in LOCAL_PURPOSES:
                 raise WriteError("unifi.network_not_local")
-            self._update("networkconf", ref["id"], self._network_update(step["after"]))
+            plain = {k: v for k, v in step["after"].items() if k != "zone"}
+            if plain:
+                self._update("networkconf", ref["id"], self._network_update(plain))
+            if "zone" in step["after"]:
+                self._move_network_zone(step["object"], step["after"]["zone"])
+            return None
+        if kind == "zone.create":
+            return self._create_zone(step)
+        if kind == "zone.update":
+            ref = self._zone_ref(step["object"])
+            if ref["builtin"]:
+                raise WriteError("unifi.zone_builtin")
+            self._put_zone(ref, name=step["after"]["name"])
+            return None
+        if kind == "zone.delete":
+            self._delete_zone(step["object"])
+            return None
+        if kind == "policy.create":
+            return self._create_policy(step)
+        if kind == "policy.update":
+            self._update_policy(step)
+            return None
+        if kind == "policy.delete":
+            self._delete_policy(step["object"])
+            return None
+        if kind == "policy.reorder":
+            self._reorder(step["object"], step["after"]["order"])
             return None
         if kind == "network.delete":
             ref = self._net_ref(step["object"])
@@ -772,6 +907,318 @@ class UnifiWriter(ControllerAdapter):
             self._delete("portforward", self._fwd_ref(step["object"])["id"])
             return None
         raise WriteError("unifi.kind_not_supported")
+
+    # ------------------------------------------------------------------ plan steps -> zones and rules
+    def _internal_zone(self):
+        return next((k for k, r in self._zones.items() if r.get("key") == "internal"), None)
+
+    def _zone_ref(self, zid: str) -> dict:
+        ref = self._zones.get(zid)
+        if not ref:
+            raise WriteError("unifi.zone_unknown")
+        return ref
+
+    def _pol_ref(self, pid: str) -> dict:
+        ref = self._pols.get(pid)
+        if not ref:
+            raise WriteError("unifi.rule_unknown")
+        return ref
+
+    def _v2(self, method: str, rel: str, body=None):
+        """One write of the zone firewall API (plain JSON replies, no envelope)."""
+        status, reply = self._call(method, rel, body)
+        if not 200 <= status < 300:
+            code = reply.get("code") if isinstance(reply, dict) else ""
+            raise WriteError("unifi.write_refused", code if isinstance(code, str) and MSG_RE.match(code) else "")
+        self.writes.append((rel.rsplit("/", 1)[-1], sorted(body) if isinstance(body, dict) else method))
+        return reply if isinstance(reply, (dict, list)) else {}
+
+    def _fresh_fw(self) -> None:
+        self._fresh("zone")
+        self._fresh("policies")
+
+    def _pol_record(self, vid: str):
+        status, body = self._call("GET", POLICY_AREA + "/" + vid)
+        if status == 404:
+            return None
+        if status != 200 or not isinstance(body, dict):
+            raise WriteError("unifi.read_failed")
+        return body
+
+    def _zone_now(self, vid: str):
+        return next((r for r in self._zones.values() if r["id"] == vid), None)
+
+    def _create_zone(self, step: dict) -> dict:
+        name = step["after"]["name"]
+        self._fresh("zone")
+        for zid, ref in self._zones.items():               # already there (a repeated step): nothing to write
+            if ref["record"].get("name") == name and self._own.has("zone", ref["id"]):
+                self._created[step["object"]] = zid
+                return {"id": zid}
+        made = self._v2("POST", ZONE_AREA, {"name": name, "network_ids": []})
+        vid = str(made.get("_id") or "") if isinstance(made, dict) else ""
+        if not _OID_RE.match(vid):
+            raise WriteError("unifi.write_refused", "no id")
+        self._own.add("zone", vid)                         # remembered before anything else can go wrong
+        self._fresh("zone")
+        zid = next((k for k, r in self._zones.items() if r["id"] == vid), None)
+        if zid is None or self._zones[zid]["record"].get("name") != name:
+            raise WriteError("unifi.not_applied")
+        self._created[step["object"]] = zid
+        return {"id": zid}
+
+    def _put_zone(self, ref: dict, name=None, network_ids=None) -> None:
+        if ref.get("builtin"):
+            raise WriteError("unifi.zone_builtin")
+        rec = ref["record"]
+        body = {"_id": ref["id"], "name": rec.get("name") if name is None else name,
+                "network_ids": list(rec.get("network_ids") or []) if network_ids is None else list(network_ids)}
+        if body["name"] == rec.get("name") and sorted(body["network_ids"]) == sorted(rec.get("network_ids") or []):
+            return
+        self._v2("PUT", ZONE_AREA + "/" + ref["id"], body)
+        self._fresh("zone")
+        now = self._zone_now(ref["id"])
+        if now is None or now["record"].get("name") != body["name"] or \
+                sorted(now["record"].get("network_ids") or []) != sorted(body["network_ids"]):
+            raise WriteError("unifi.not_applied")
+
+    def _move_network_zone(self, net_id: str, zone_id: str) -> None:
+        """A network goes into a zone of its own (added to its list) or back into the internal zone (taken out of the
+        list of the zone it is in); the controller keeps every network in exactly one zone."""
+        vid = self._net_ref(net_id)["id"]
+        self._fresh("zone")
+        target = self._zone_ref(zone_id)
+        current = next((r for r in self._zones.values() if vid in (r["record"].get("network_ids") or [])), None)
+        if current is not None and current["id"] == target["id"]:
+            return
+        if target.get("key") == "internal":
+            if current is None:
+                return
+            self._put_zone(current, network_ids=[n for n in current["record"].get("network_ids") or [] if n != vid])
+        else:
+            self._put_zone(target, network_ids=list(target["record"].get("network_ids") or []) + [vid])
+        self._fresh("zone")
+        now = next((r for r in self._zones.values() if vid in (r["record"].get("network_ids") or [])), None)
+        if (now["id"] if now else None) != target["id"]:
+            raise WriteError("unifi.not_applied")
+
+    def _delete_zone(self, zid: str, force: bool = False) -> None:
+        """Only a zone this write half created; refused while a network or a rule is in it (``force``, for the way
+        back of a zone the plan itself created: take its networks out first; its rules are removed before)."""
+        self._fresh_fw()
+        ref = self._zone_ref(zid)
+        if not self._own.has("zone", ref["id"]) or ref.get("builtin"):
+            raise WriteError("unifi.not_own")
+        if ref["record"].get("network_ids"):
+            if not force:
+                raise WriteError("unifi.zone_in_use")
+            self._put_zone(ref, network_ids=[])
+        for r in self._pols.values():
+            rec = r["record"]
+            if ref["id"] in ((rec.get("source") or {}).get("zone_id"), (rec.get("destination") or {}).get("zone_id")):
+                raise WriteError("unifi.zone_in_use")      # the controller would delete the rule with the zone
+        self._v2("DELETE", ZONE_AREA + "/" + ref["id"])
+        self._fresh("zone")
+        if self._zone_now(ref["id"]) is not None:
+            raise WriteError("unifi.not_applied")
+        self._own.drop("zone", ref["id"])
+
+    def _side_out(self, side: dict, ports: str = "") -> dict:
+        if not isinstance(side, dict) or side.get("group"):
+            raise WriteError("unifi.field_not_supported")
+        z = self._zone_ref(side.get("zone"))
+        out = {"zone_id": z["id"], "matching_target": "ANY", "port_matching_type": "ANY", "match_opposite_ports": False}
+        if side.get("net"):
+            out.update(matching_target="NETWORK", network_ids=[self._net_ref(side["net"])["id"]], match_opposite_networks=False)
+        if ports:
+            out.update(port_matching_type="SPECIFIC", port=ports)
+        return out
+
+    def _policy_body(self, merged: dict, record: dict = None) -> dict:
+        """The complete classic body of a rule from its neutral settings; fields Lanloom does not set keep the value
+        the rule has (logging, address family)."""
+        record = record or {}
+        proto = PROTOCOLS_OUT.get(merged.get("proto") or "any")
+        action = ACTIONS_OUT.get(merged.get("action"))
+        ports = merged.get("ports") or ""
+        if proto is None or action is None or (ports and proto == "all"):
+            raise WriteError("unifi.field_not_supported")
+        ipv = str(record.get("ip_version") or "BOTH").upper()
+        return {"name": merged["name"], "enabled": bool(merged.get("enabled", True)), "action": action,
+                "create_allow_respond": bool(merged.get("return_traffic")), "logging": bool(record.get("logging")),
+                "protocol": proto, "ip_version": ipv if ipv in ("BOTH", "IPV4") else "BOTH", "connection_state_type": "ALL",
+                "connection_states": [], "match_ip_sec": False, "match_opposite_protocol": False, "icmp_typename": "ANY",
+                "icmp_v6_typename": "ANY", "schedule": {"mode": "ALWAYS"},
+                "source": self._side_out(merged.get("src")), "destination": self._side_out(merged.get("dst"), ports)}
+
+    @staticmethod
+    def _pol_same(rec: dict, body: dict) -> bool:
+        def side(x):
+            x = x if isinstance(x, dict) else {}
+            net = str(x.get("matching_target") or "ANY").upper() == "NETWORK"
+            spec = str(x.get("port_matching_type") or "ANY").upper() == "SPECIFIC"
+            return (x.get("zone_id"), tuple(x.get("network_ids") or []) if net else (), str(x.get("port") or "") if spec else "")
+        if not isinstance(rec, dict):
+            return False
+        return all(rec.get(k) == body.get(k) for k in ("name", "enabled", "action", "create_allow_respond", "protocol")) and \
+            side(rec.get("source")) == side(body.get("source")) and side(rec.get("destination")) == side(body.get("destination"))
+
+    def _neutral_policy(self, pid: str) -> dict:
+        return next((p for p in (self._state or {}).get("policies") or [] if p.get("id") == pid), None) or {}
+
+    def _create_policy(self, step: dict) -> dict:
+        body = self._policy_body(dict(zonefw.POLICY_DEFAULTS, **step["after"]))
+        self._fresh("policies")
+        for pid, ref in self._pols.items():                 # already there (a repeated step)
+            if self._own.has("policy", ref["id"]) and self._pol_same(ref["record"], body):
+                self._created[step["object"]] = pid
+                return {"id": pid}
+        made = self._v2("POST", POLICY_AREA, body)
+        vid = str(made.get("_id") or "") if isinstance(made, dict) else ""
+        if not _OID_RE.match(vid):
+            raise WriteError("unifi.write_refused", "no id")
+        self._own.add("policy", vid)
+        rec = self._pol_record(vid)
+        if rec is None or not self._pol_same(rec, body):
+            raise WriteError("unifi.not_applied")
+        self._fresh("policies")
+        pid = model.oid("r", vid)
+        self._created[step["object"]] = pid
+        return {"id": pid}
+
+    def _update_policy(self, step: dict) -> None:
+        ref = self._pol_ref(step["object"])
+        rec = self._pol_record(ref["id"])
+        if rec is None:
+            raise WriteError("unifi.not_applied")
+        if not model.classic_editable(rec):
+            raise WriteError("unifi.rule_not_editable")
+        cur = self._neutral_policy(step["object"])
+        merged = dict(zonefw.POLICY_DEFAULTS, **{k: cur[k] for k in ("name", "src", "dst", "action", "proto", "ports",
+                                                                    "return_traffic", "enabled") if k in cur})
+        merged.update(step["after"])
+        body = self._policy_body(merged, rec)
+        if self._pol_same(rec, body):
+            return                                          # already as planned
+        self._v2("PUT", POLICY_AREA + "/" + ref["id"], body)
+        rec = self._pol_record(ref["id"])
+        if rec is None or not self._pol_same(rec, body):
+            raise WriteError("unifi.not_applied")
+
+    def _delete_policy(self, pid: str) -> None:
+        ref = self._pol_ref(pid)
+        if not self._own.has("policy", ref["id"]):
+            raise WriteError("unifi.not_own")               # nothing Lanloom did not create itself is ever deleted
+        if self._pol_record(ref["id"]) is not None:
+            self._v2("DELETE", POLICY_AREA + "/" + ref["id"])
+            if self._pol_record(ref["id"]) is not None:
+                raise WriteError("unifi.not_applied")
+        self._own.drop("policy", ref["id"])
+
+    def _pair_lists(self, st: dict, pair: tuple, order_of) -> tuple:
+        """(before the built-in rules, after them) - the classic ids of a zone pair's own rules in the given order;
+        each rule stays on its side of the pair's built-in rules."""
+        group = [p for p in st.get("policies") or [] if zonefw.pair_of(p) == pair]
+        pre = [p.get("order", 0) for p in group if p.get("builtin")]
+        first = min(pre) if pre else None
+        own = sorted((p for p in group if not p.get("builtin")), key=lambda p: (order_of(p), p["id"]))
+        ids = lambda ps: [self._pols[p["id"]]["id"] for p in ps if p["id"] in self._pols]
+        before = [p for p in own if first is None or p.get("order", 0) < first]
+        return ids(before), ids([p for p in own if p not in before])
+
+    def _put_order(self, pair: tuple, before: list, after: list) -> None:
+        body = {"source_zone_id": self._zone_ref(pair[0])["id"], "destination_zone_id": self._zone_ref(pair[1])["id"],
+                "before_predefined_ids": before, "after_predefined_ids": after}
+        self._v2("PUT", POLICY_AREA + "/batch-reorder", body)
+
+    def _reorder(self, pid: str, target: int) -> None:
+        self._fresh_fw()
+        st = model.to_neutral(self._raw)
+        p = next((q for q in st.get("policies") or [] if q["id"] == pid), None)
+        if p is None:
+            raise WriteError("unifi.rule_unknown")
+        if p.get("order") == target:
+            return                                          # already as planned
+        moved = zonefw.reorder(st, pid, target)
+        if not moved:
+            raise WriteError("unifi.order_range")
+        pair = zonefw.pair_of(p)
+        before, after = self._pair_lists(st, pair, lambda q: moved.get(q["id"], q.get("order", 0)))
+        self._put_order(pair, before, after)
+        self._fresh("policies")
+        st = model.to_neutral(self._raw)
+        now = next((q for q in st.get("policies") or [] if q["id"] == pid), None)
+        if now is None or now.get("order") != target:
+            raise WriteError("unifi.not_applied")
+
+    def _restore_zones(self, items: list) -> None:
+        """Zones as saved: names and the networks in them (a zone of its own the plan deleted comes back)."""
+        if not items:
+            return
+        self._fresh_fw()
+        nets = {r["id"] for r in self._nets.values()}
+        for item in items:
+            if not isinstance(item, dict) or item.get("builtin") or not _OID_RE.match(str(item.get("ref") or "")):
+                continue
+            saved = item.get("record") or {}
+            keep = [n for n in saved.get("network_ids") or [] if n in nets]
+            now = self._zone_now(item["ref"])
+            if now is not None:
+                self._put_zone(now, name=saved.get("name"), network_ids=keep)
+            elif item.get("own") and _short_name(saved.get("name") or ""):
+                made = self._v2("POST", ZONE_AREA, {"name": saved["name"], "network_ids": keep})
+                if isinstance(made, dict) and _OID_RE.match(str(made.get("_id") or "")):
+                    self._own.add("zone", str(made["_id"]))
+                self._fresh("zone")
+
+    def _restore_policies(self, items: list) -> None:
+        """Rules as saved (settings, then the order of each zone pair); an own rule the plan deleted comes back."""
+        if not items:
+            return
+        self._fresh_fw()
+        renamed = {}
+        pairs = {}
+        for item in items:
+            if not isinstance(item, dict) or not _OID_RE.match(str(item.get("ref") or "")):
+                continue
+            saved = item.get("record") or {}
+            if saved.get("predefined") or not model.classic_editable(saved):
+                continue
+            body = {k: saved[k] for k in POLICY_VALUES if k in saved}
+            if set(body) != set(POLICY_VALUES):
+                continue
+            now = self._pol_record(item["ref"])
+            if now is not None:
+                if not self._pol_same(now, body):
+                    self._v2("PUT", POLICY_AREA + "/" + item["ref"], body)
+                ref_id = item["ref"]
+            elif item.get("own"):
+                made = self._v2("POST", POLICY_AREA, body)
+                ref_id = str(made.get("_id") or "") if isinstance(made, dict) else ""
+                if not _OID_RE.match(ref_id):
+                    continue
+                self._own.add("policy", ref_id)
+                renamed[item["ref"]] = ref_id
+            else:
+                continue
+            key = ((saved.get("source") or {}).get("zone_id"), (saved.get("destination") or {}).get("zone_id"))
+            pairs.setdefault(key, []).append((saved.get("index") or 0, ref_id))
+        self._fresh("policies")
+        current = {}
+        for r in self._pols.values():
+            rec = r["record"]
+            if rec.get("predefined"):
+                continue
+            key = ((rec.get("source") or {}).get("zone_id"), (rec.get("destination") or {}).get("zone_id"))
+            current.setdefault(key, []).append((rec.get("index") or 0, r["id"]))
+        zone_by_vid = {r["id"]: k for k, r in self._zones.items()}
+        for key, saved_list in pairs.items():
+            want = [vid for _, vid in sorted(saved_list)]
+            have = [vid for _, vid in sorted(current.get(key) or []) if vid in want]
+            if have == want or key[0] not in zone_by_vid or key[1] not in zone_by_vid:
+                continue
+            extra = [vid for _, vid in sorted(current.get(key) or []) if vid not in want]
+            self._put_order((zone_by_vid[key[0]], zone_by_vid[key[1]]), want + extra, [])
 
     def _restore_body(self, saved: dict, now: dict) -> dict:
         body = {}
@@ -800,6 +1247,15 @@ class UnifiWriter(ControllerAdapter):
         networks as they were (a network or forward the plan deleted is created again)."""
         snapshot = snapshot or {}
         created = [c for c in snapshot.get("created") or [] if isinstance(c, str)]
+        if created and ("zones" in snapshot or "policies" in snapshot):
+            self._fresh_fw()
+            for cid in created:                             # rules first: a zone is removed only once nothing names it
+                if cid in self._pols and self._own.has("policy", self._pols[cid]["id"]):
+                    self._delete_policy(cid)
+            self._fresh_fw()
+            for cid in created:
+                if cid in self._zones and self._own.has("zone", self._zones[cid]["id"]):
+                    self._delete_zone(cid, force=True)
         if created:
             self._fresh("networkconf")
             self._fresh("portforward")
@@ -822,6 +1278,10 @@ class UnifiWriter(ControllerAdapter):
             self._restore_object("portforward", item, model.FORWARD_FIELDS, FWD_UPDATE_VALUES, FWD_VALUES)
         for item in snapshot.get("networks") or []:
             self._restore_object("networkconf", item, model.NET_FIELDS, NET_UPDATE_VALUES, NET_CREATE_VALUES)
+        if snapshot.get("zones") or snapshot.get("policies"):
+            self._fresh("networkconf")
+            self._restore_zones(snapshot.get("zones"))
+            self._restore_policies(snapshot.get("policies"))
 
     def _prune_own(self) -> None:
         """Forget own objects that no longer exist on the controller (removed there by hand)."""
@@ -881,7 +1341,7 @@ class UnifiWriter(ControllerAdapter):
         for st in steps:
             ref = self._refs.get(stepkinds.step_object(st)) or {}
             if st["kind"] not in ("move", "client.set"):
-                wait = max(wait, min(self.settle_s, SETTLE_CONFIG_S) if st["kind"].startswith(("network.", "forward."))
+                wait = max(wait, min(self.settle_s, SETTLE_CONFIG_S) if st["kind"].startswith(("network.", "forward.", "zone.", "policy."))
                            else SETTLE_ADDRESS_S if self.settle_s else 0)
             elif st["kind"] == "move" or "network" in st["after"]:
                 if ref.get("online") and not ref.get("wired"):
@@ -937,12 +1397,32 @@ class UnifiWriter(ControllerAdapter):
         self._fresh("networkconf")
         self._fresh("portforward")
         self._fresh("user")
+        fw = None
+        if any(st["kind"] in zonefw.ZONE_KINDS or "zone" in st["after"] for st in steps):
+            self._fresh_fw()
+            fw = model.to_neutral(self._raw)
         res_ids = {r["reservation"]: r for r in self._refs.values() if r.get("reservation")}
         missing = []
         for st in steps:
             kind, after = st["kind"], st["after"]
             oid = self._created.get(st["object"], st["object"])
             ok = True
+            if fw is not None and (kind in zonefw.ZONE_KINDS or (kind.startswith("network.") and "zone" in after)):
+                area = "zones" if kind.startswith("zone.") else "policies" if kind.startswith("policy.") else "networks"
+                obj = next((o for o in fw.get(area) or [] if o.get("id") == oid), None)
+                if kind.endswith(".delete"):
+                    ok = obj is None
+                elif obj is None:
+                    ok = False
+                elif kind.startswith("network."):
+                    ok = obj.get("zone") == after["zone"]
+                else:
+                    ok = all(obj.get(f) == v for f, v in after.items() if f in ("name", "action", "proto", "ports", "enabled",
+                                                                               "return_traffic", "src", "dst", "order"))
+                if not ok:
+                    missing.append(oid)
+                if not ok or not kind.startswith("network."):
+                    continue
             if kind == "network.create":
                 ref = self._nets.get(oid)
                 ok = bool(ref) and (ref.get("record") or {}).get("name") == after["name"] and ref.get("vlan") == after["vlan"]
@@ -969,31 +1449,100 @@ class UnifiWriter(ControllerAdapter):
                 missing.append(oid)
         return missing
 
+    def _controller_ip(self):
+        from ...connguard import first_address
+        return first_address(self._host, self._port)
+
+    def self_address(self):
+        """The address this executor reaches the controller from (see ``connguard.source_address``; nothing is sent)."""
+        from ...connguard import source_address
+        ip = self._controller_ip()
+        return source_address(ip, self._port) if ip else None
+
     def plan_lockout(self, state: dict, steps: list):
-        return netconf.plan_lockout(state, steps)
+        """The gateway rules over the whole plan, then the zone firewall: rule order, and this executor keeps its way
+        to the controller."""
+        why = netconf.plan_lockout(state, steps)
+        if why:
+            return why
+        if not any(st.get("kind") in zonefw.ZONE_KINDS or "zone" in (st.get("after") or {}) for st in steps):
+            return None
+        ctl = self._controller_ip()
+        me = self.self_address()
+        why, _ = zonefw.plan_lockout_vars(state, steps, sources=[me] if me else [],
+                                          targets=[(ctl, self._port, "zf.path.controller")] if ctl else [])
+        return why
+
+    def _zone_lockout(self, state: dict, step: dict):
+        """Family rules for zones and rules: names only for zones; no address groups, no ICMP rules; only rules whose
+        every setting can be carried over; delete only own zones and rules; reorder within one side of the pair's
+        built-in rules."""
+        kind, after = step.get("kind"), step.get("after") or {}
+        obj = step.get("object")
+        if kind in ("zone.create", "zone.update") and set(after) - {"name"}:
+            return "fw.block.capability"
+        if kind == "zone.delete":
+            ref = self._zones.get(obj) or {}
+            return None if self._own.has("zone", ref.get("id", "")) else "fw.block.not_own"
+        if kind in ("policy.create", "policy.update"):
+            old = next((p for p in state.get("policies") or [] if p.get("id") == obj), None) or {}
+            merged = dict(zonefw.POLICY_DEFAULTS, **dict(old, **after))
+            if merged.get("proto") not in PROTOCOLS_OUT:
+                return "fw.block.capability"
+            for side in ("src", "dst"):
+                sd = merged.get(side) or {}
+                if sd.get("group") or sd.get("match") or (side == "src" and sd.get("ports")):
+                    return "fw.block.capability"
+                if sd.get("zone") not in self._zones:
+                    return "fw.block.unknown"
+            if kind == "policy.update":
+                ref = self._pols.get(obj)
+                if not ref or not model.classic_editable(ref["record"]):
+                    return "fw.block.builtin"
+            return None
+        if kind == "policy.delete":
+            ref = self._pols.get(obj) or {}
+            return None if self._own.has("policy", ref.get("id", "")) else "fw.block.not_own"
+        if kind == "policy.reorder":
+            p = next((q for q in state.get("policies") or [] if q.get("id") == obj), None)
+            if not p:
+                return "fw.block.unknown"
+            holder = next((q for q in state.get("policies") or [] if zonefw.pair_of(q) == zonefw.pair_of(p)
+                           and not q.get("builtin") and q.get("order") == after.get("order")), None)
+            pre = [q.get("order", 0) for q in state.get("policies") or [] if zonefw.pair_of(q) == zonefw.pair_of(p) and q.get("builtin")]
+            if holder is None:
+                return "zf.block.order_range"
+            if pre and (p.get("order", 0) < min(pre)) != (holder.get("order", 0) < min(pre)):
+                return "zf.block.order_range"
+            return None
+        return None
 
     def lockout(self, state: dict, step: dict):
         """Family rules on top of the neutral ones: a wired client changes its network through its switch port (port
         settings come with a later stage), and only local networks take clients; the gateway rules of
-        ``firewall.netconf`` with the controller's own address; VLANs up to 4009; new networks land in the internal
-        zone (zones of their own come with the zone firewall stage); only networks and forwards this write half
-        created may be deleted."""
+        ``firewall.netconf`` with the controller's own address; VLANs up to 4009; a network goes into a zone of its
+        own or the internal zone, never into another system zone; only networks, forwards, zones and rules this write
+        half created may be deleted; the zone and rule rules of ``_zone_lockout``."""
         kind = step.get("kind")
+        if kind in zonefw.ZONE_KINDS:
+            return self._zone_lockout(state, step)
         if kind in netconf.NET_KINDS:
             why = netconf.step_lockout(state, step, critical=[self._host])
             if why:
                 return why
             after = step.get("after") or {}
+            if after.get("zone") is not None and kind in ("network.create", "network.update"):
+                ref = self._zones.get(after["zone"]) or {}
+                if not ref or (ref.get("builtin") and ref.get("key") != "internal"):
+                    return "zf.block.zone_system"
             if kind == "network.create":
                 if isinstance(after.get("vlan"), int) and after["vlan"] > VLAN_MAX:
                     return "fw.block.net_vlan"
-                if after.get("zone") not in (None, netconf.default_zone(state)):
-                    return "fw.block.zone_later"
             if kind == "network.update":
                 ref = self._nets.get(step.get("object")) or {}
                 if ref.get("purpose") not in LOCAL_PURPOSES:
                     return "fw.block.network_kind"
-                if set(after) - {"name", "dhcp"}:
+                if set(after) - {"name", "dhcp", "zone"}:
                     return "fw.block.capability"
             if kind in ("network.delete", "forward.delete"):
                 refs = self._nets if kind == "network.delete" else self._fwds
