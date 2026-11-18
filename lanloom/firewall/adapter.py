@@ -172,12 +172,50 @@ SAMPLE_FORWARDS = [
 ]
 
 
-def with_sample_gateway(state: dict) -> dict:
-    """The sample network plus the sample gateway's settings: an address range per network and two port forwards.
-    Fixed addresses are not stored separately: the sample derives them from its devices (as a gateway does from its
-    client list). A state that already has port forwards is returned unchanged."""
-    if "port_forwards" in state:
+def _pol(pid, name, src, dst, order, action="allow", **kw):
+    return dict({"id": pid, "name": name, "src": {"zone": src}, "dst": {"zone": dst}, "action": action, "proto": "any",
+                 "ports": "", "return_traffic": False, "enabled": True, "order": order, "builtin": False, "editable": True},
+                **kw)
+
+
+# the sample's zone rules: exactly the allowed zone pairs of the sample (first match wins, everything else is blocked),
+# plus one rule for a few ports (printing for guests) that Lanloom "created" earlier (it may be deleted)
+SAMPLE_POLICIES = [
+    _pol("pol_int_work", "Main and media to work", "z_internal", "z_work", 10000),
+    _pol("pol_int_dev", "Main and media to smart devices", "z_internal", "z_devices", 10001),
+    _pol("pol_int_cam", "Main and media to cameras", "z_internal", "z_cameras", 10002),
+    _pol("pol_int_mgmt", "Main and media to management", "z_internal", "z_mgmt", 10003),
+    _pol("pol_work_dev", "Work to smart devices", "z_work", "z_devices", 10004),
+    _pol("pol_mgmt_int", "Management to main and media", "z_mgmt", "z_internal", 10005),
+    _pol("pol_mgmt_work", "Management to work", "z_mgmt", "z_work", 10006),
+    _pol("pol_mgmt_dev", "Management to smart devices", "z_mgmt", "z_devices", 10007),
+    _pol("pol_mgmt_cam", "Management to cameras", "z_mgmt", "z_cameras", 10008),
+    _pol("pol_mgmt_guest", "Management to guests", "z_mgmt", "z_guests", 10009),
+    _pol("pol_guest_print", "Printing for guests", "z_guests", "z_internal", 10010, proto="tcp", ports="631,9100", own=True),
+]
+
+
+def with_sample_rules(state: dict) -> dict:
+    """The sample plus its zone rules (and the internal zone marked as the family's system zone). A state that already
+    has rules is returned unchanged; one whose zones are not the sample's gets none."""
+    if "policies" in state:
         return state
+    ids = {z.get("id") for z in state.get("zones") or []}
+    if not {"z_internal", "z_work", "z_devices", "z_cameras", "z_mgmt", "z_guests"} <= ids:
+        return state
+    out = dict(state)
+    out["zones"] = [dict(z, system="internal", builtin=True) if z.get("id") == "z_internal" else dict(z)
+                    for z in state.get("zones") or []]
+    out["policies"] = copy.deepcopy(SAMPLE_POLICIES)
+    return out
+
+
+def with_sample_gateway(state: dict) -> dict:
+    """The sample network plus the sample gateway's settings: an address range per network, two port forwards and
+    the zone rules. Fixed addresses are not stored separately: the sample derives them from its devices (as a gateway
+    does from its client list). A state that already has port forwards keeps them."""
+    if "port_forwards" in state:
+        return with_sample_rules(state)
     out = dict(state)
     nets = []
     for n in state.get("networks") or []:
@@ -189,7 +227,7 @@ def with_sample_gateway(state: dict) -> dict:
         nets.append(n)
     out["networks"] = nets
     out["port_forwards"] = copy.deepcopy(SAMPLE_FORWARDS)
-    return out
+    return with_sample_rules(out)
 
 
 def sample_reservations(state: dict) -> list:
@@ -294,6 +332,16 @@ class SimulatedController(ControllerAdapter):
                     from . import netconf
                     item.setdefault("zone", netconf.default_zone(self._state))
                     item.update(management=False, vlan=item.get("vlan"))
+                if kind.area == "zones":
+                    item.update(builtin=False, internet=bool(item.get("internet")), discovery=bool(item.get("discovery")))
+                if kind.area == "policies":            # a new rule goes to the end of its zone pair, like on a gateway
+                    from . import zonefw
+                    probe = zonefw.after_state({"policies": items, "zones": self._state.get("zones")},
+                                               [dict(step, object=new_id)])
+                    made = next(p for p in probe["policies"] if p["id"] == new_id)
+                    item.update(order=made["order"], editable=True, builtin=False)
+                    for k, v in zonefw.POLICY_DEFAULTS.items():
+                        item.setdefault(k, v)
                 if kind.area == "guest_rules":          # a sample guest rule, appended like on a real host
                     mine = [r for r in items if r.get("owner") == item.get("guest")]
                     item.update(scope="guest", owner=item.get("guest"), plain=True, direction=item.get("direction", "in"),
@@ -301,9 +349,21 @@ class SimulatedController(ControllerAdapter):
                 items.append(item)
                 self.writes.append(new_id)
                 self._sync_hv()
+                self._rules_changed(kind.area)
                 self._save()
                 return {"id": new_id}
             obj = next((o for o in items if o.get("id") == oid), None)
+            if step["kind"] == "policy.reorder":
+                from . import zonefw
+                moved = zonefw.reorder(self._state, oid, step["after"]["order"])
+                if moved:
+                    for p in items:
+                        if p.get("id") in moved:
+                            p["order"] = moved[p["id"]]
+                    self.writes.append(oid)
+                self._rules_changed(kind.area)
+                self._save()
+                return None
             if kind.verb == "delete":
                 if obj is not None:
                     items.remove(obj)
@@ -316,8 +376,16 @@ class SimulatedController(ControllerAdapter):
                         obj["ip"] = obj["fixed_ip"]       # the sample device takes its new address at once
                 self.writes.append(oid)
             self._sync_hv()
+            self._rules_changed(kind.area)
             self._save()
             return None
+
+    def _rules_changed(self, area: str) -> None:
+        """A zone or rule change: the allowed zone pairs follow the rules (board and device abilities)."""
+        if area in ("zones", "policies") or (area == "networks" and self._state.get("policies") is not None):
+            if self._state.get("policies") is not None:
+                from . import zonefw
+                zonefw.refresh_allow(self._state)
 
     def _apply_reservation(self, step: dict):
         """A fixed address of the sample lives on its device (``r_<device>``)."""
@@ -349,10 +417,13 @@ class SimulatedController(ControllerAdapter):
                 r["comment"] = ("lanloom: %s" % r["name"]).strip() if r.get("own") else (r.get("name") or None)
 
     def lockout(self, state: dict, step: dict):
-        """The guest rules of a hypervisor family, with the sample's own critical addresses; the gateway rules."""
-        from . import netconf
+        """The guest rules of a hypervisor family, with the sample's own critical addresses; the gateway rules; the
+        zone firewall rules."""
+        from . import netconf, zonefw
         if step.get("kind") in netconf.NET_KINDS:
             return netconf.step_lockout(state, step)
+        if step.get("kind") in zonefw.ZONE_KINDS:
+            return zonefw.step_lockout(state, step)
         if not str(step.get("kind", "")).startswith("guest."):
             return None
         from . import guests
@@ -384,6 +455,7 @@ class SimulatedController(ControllerAdapter):
                 if created and isinstance(items, list):
                     items[:] = [o for o in items if not (isinstance(o, dict) and o.get("id") in created)]
             self._sync_hv()
+            self._rules_changed("policies")
             self._save()
 
     def settle(self, steps: list) -> None:

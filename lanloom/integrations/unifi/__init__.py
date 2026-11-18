@@ -15,7 +15,8 @@ At least one of the two credentials is needed; both together give the full pictu
 
 The write half (``write.py``) runs only in the executor service, with a local account of its own that the app never
 sees, and changes clients (network, fixed address, name), internal networks (create, rename, address range, delete own
-ones), fixed addresses and port forwards. See docs/integrations/unifi.md.
+ones), fixed addresses, port forwards, and the zone firewall (zones of its own, networks in zones, rules between zones
+and their order). See docs/integrations/unifi.md.
 """
 from .. import IntegrationManifest
 
@@ -38,10 +39,14 @@ NETWORK_WRITE = {"network.create": "B", "network.update.name": "B", "network.upd
                  "forward.create": "B*", "forward.update.name": "B", "forward.update.enabled": "B*",
                  "forward.update.wan_port": "B*", "forward.update.dst_ip": "B*", "forward.update.dst_port": "B*",
                  "forward.update.proto": "B*", "forward.delete": "B"}
+# the zone firewall (written over the classic zone firewall API with the same account): zones of its own, networks in
+# zones, rules between zones and their order
+ZONE_WRITE = {"network.update.zone": "B", "zone.create": "B", "zone.update.name": "B", "zone.delete": "B",
+              "policy.create": "B", "policy.update": "B", "policy.delete": "B", "policy.reorder": "B"}
 WRITE_CAPABILITIES = dict(CAPABILITIES, api={"kind": "classic-local", "version": ""},
                           read=["inventory", "clients", "topology", "networks", "zones", "policies", "dhcp_reservations",
                                 "port_forwards", "ssids", "port_profiles"],
-                          write=dict(CAPABILITIES["write"], **NETWORK_WRITE))
+                          write=dict(CAPABILITIES["write"], **NETWORK_WRITE, **ZONE_WRITE))
 # The read half itself never writes: what it publishes carries no write keys (the editor takes them from the executor).
 READ_ONLY_WRITE_KEYS = ("move", "client.set")
 

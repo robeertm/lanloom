@@ -53,13 +53,58 @@ The command palette (Ctrl K) has *Change a device (network, name, fixed address)
 
 When the executor's adapter can change the gateway (the simulation's sample gateway can; for real writes see the family guide listed in [COMPATIBILITY.md](COMPATIBILITY.md)), **Change** mode adds three cards:
 
-- **Networks** - every network with address range, VLAN, address service, zone and what uses it (devices, fixed addresses, wireless networks, switch ports, port forwards). *New network* starts from a template (IoT, Cameras, Work, LAN) with a free private /24, a VLAN no other network uses (the third number of the address where it is free) and an address service from .100 to .199 filled in; the new network lands in the internal zone (zones of its own come with the zone firewall stage). *Change* renames a network or changes its address service (on/off, range). *Delete* appears only for networks Lanloom created that nothing uses any more.
+- **Networks** - every network with address range, VLAN, address service, zone and what uses it (devices, fixed addresses, wireless networks, switch ports, port forwards). *New network* starts from a template (IoT, Cameras, Work, LAN) with a free private /24, a VLAN no other network uses (the third number of the address where it is free) and an address service from .100 to .199 filled in; the new network lands in the internal zone (it can be moved to a zone of its own, see [Zone firewall](#zone-firewall-zones-rules-may-a-reach-b)). *Change* renames a network or changes its address service (on/off, range). *Delete* appears only for networks Lanloom created that nothing uses any more.
 - **Fixed addresses** - the gateway's reservations; *Release* frees one, *Reserve an address* gives a known device a fixed address inside its own network.
 - **Port forwarding** - *New port forward* (name, protocol, outside port or list or range, target device or address, target port), *Change*, *Switch on* / *Switch off*, and *Delete* for forwards Lanloom created.
 
 The preview names every field old → new and warns in plain words: a device outside a new address range gets a new address at its next lease, a switched-off address service stops handing out addresses, a renamed network keeps its old name in rules and dashboards, a released fixed address may change, and **what uses the device by its address** - a hub integration whose device page points to it, a presence tracker, an automation with the address written in its configuration, or one of Lanloom's own sources. A new port forward (or a change other than its name) says which port becomes reachable from the internet and needs its own tick.
 
 Refused right in the preview, and again by the executor right before it writes: a range that is not private, not between /16 and /29 or overlaps another network; a VLAN outside 2 to 4094 or already used; an address service range outside the network or over the gateway address; a range or VLAN change of a network in use; switching off the address service while devices take dynamic addresses; changes of the management network, internet uplinks, VPN and guest-portal networks; deleting a network or forward Lanloom did not create; a fixed address outside the device's network, on the gateway or already taken; a forward to a public address, a gateway, the controller or network equipment, or on an outside port another forward uses.
+
+### Zone firewall: zones, rules, "May A reach B?"
+
+When the executor's adapter can change zones and rules (the simulation can; for real writes see the family guide listed in [COMPATIBILITY.md](COMPATIBILITY.md); the gateway must run a zone-based firewall), **Change** mode adds a **Zones** card and tools on the rule list. Real writes still go only through the executor, every plan is signed with a passkey, and backup, rollback and watch work as for every other change.
+
+**Zones card.** Every zone with its networks and how many networks and rules refer to it. Built-in zones carry a *built-in* chip, zones Lanloom created *created by Lanloom*.
+
+- *New zone* - a name only. The zone starts empty; networks come in by *Move to zone …*.
+- *Rename* - zones that are not built in.
+- *Remove* - only zones Lanloom created, and only when no network and no rule is in them any more. The controller would delete the rules of a removed zone without a word; Lanloom refuses instead and the card says *empty it first*.
+- *Move to zone …* - a select per local network: into a zone of its own or back into the internal zone. Never the management network, never into another system zone (external, gateway, VPN, hotspot, DMZ).
+
+**Rule tools.** In Change mode each changeable rule row of the *Firewall rules* card offers:
+
+- an *on* checkbox - switch the rule off or on;
+- *Change* - name, action (allow, block, reject), *From* zone and optionally one network of it, *To* zone and optionally one network, protocol (any, TCP, UDP, TCP and UDP), ports (a list or ranges, only with TCP or UDP) and *allow answers back* (return traffic);
+- up and down - move the rule within the own rules of its zone pair; one move per pair and plan, not together with a new or removed rule of that pair;
+- *Remove* - only rules Lanloom created.
+
+*New rule* above the list opens the same dialog; planned new rules are shown above the list marked *planned*. Only rules whose every setting Lanloom can carry over are changeable: rules with schedules, connection-state filters, address, region, app or domain matches, source ports, an IPsec match or an ICMP type stay read-only, and built-in rules of the controller are never changed.
+
+**May A reach B?** (card `#zf-ask`, also on read-only live configurations). Pick *From* and *To* - the internet, the gateway itself, a zone, a network or a device - and optionally a protocol and a port. The answer is one of:
+
+| answer | meaning |
+|---|---|
+| Allowed | a rule allows it, or the traffic stays within one zone (allowed) |
+| Blocked | a rule blocks it, or no rule matches between two zones (the controller blocks by default) |
+| Depends | a rule could apply only for some ports or protocols, or matches something Lanloom cannot evaluate; those rules are named and *Everything else is allowed / blocked* is shown |
+| Unknown | the configuration does not allow an answer |
+
+The deciding rule or the default is named. In the editor the answer is shown **Now** and **After your draft**. Nothing is sent anywhere. API (role viewer): `GET /api/firewall/reach?src=<device:id|net:id|zone:id|internet|gateway>&dst=...&proto=any|tcp|udp|icmp&port=1-65535&source=<live source key>` returns `{"before": answer, "after": answer|null}`, where an answer is `{"verdict", "by": {"id","name","action"}|null, "default": key|null, "depends": [...], "otherwise"?, "src", "dst"}`.
+
+**Preview.** New, changed and removed zones and rules are listed field by field, old → new. Warnings name the zone pairs that open or close (*Internal → Cameras will be blocked*), a network that moves zone and a rule that is switched off. A rule that lets traffic in from the internet (the external zone) or from another zone into the management zone needs its own confirmation tick.
+
+**Lockout rules** - the same rules in the app's preview and again in the executor right before it writes, against its own fresh read. A refusal stops the plan and nothing is sent:
+
+- never a blocking (block or reject) rule whose source or target is the management network, the management zone or the gateway (it would cut address service, name service and the controller);
+- a reachability check after the plan: the device of the person who approves, Lanloom itself and the executor must still reach the gateway (name service, UDP 53) and the controller (TCP on its port) if they could before; a plan that would cut such a path is refused and the path is named;
+- a zone is deleted only when Lanloom created it and it is empty;
+- the management network never moves to another zone;
+- at most 10 objects per plan, as before.
+
+**Capability keys.** The new step write keys are `network.update.zone`, `zone.create`, `zone.update.name`, `zone.delete`, `policy.create`, `policy.update`, `policy.delete` and `policy.reorder`. The simulation and the write half of a device family with a zone firewall declare them. An executor of an earlier release does not, so the controls are not offered until the executor is updated by hand.
+
+**Roles.** Viewers may use *May A reach B?*; drafting needs the **Operator** role, building and approving a plan an **Admin** with a passkey. Changes are in the audit log. The command palette has *Zones of the firewall*, *New firewall rule* and *May A reach B?* (deep links `#/firewall/zones`, `#/firewall/rules/new`, `#/firewall/ask`). The nightly report has a section **Zone matrix**.
 
 ### Network plan
 
@@ -109,9 +154,9 @@ Right before writing, against a fresh controller read:
 
 1. Plan shape valid, target is the executor's own target, not expired, nonce never seen.
 2. Signature valid for a pinned key (simulation in the app: no signature, nothing is written).
-3. At most **10 objects** per change.
+3. At most **10 objects** per change. Step kinds are checked against the capability list, for example `network.update.zone`, `zone.create`, `zone.update.name`, `zone.delete`, `policy.create`, `policy.update`, `policy.delete` and `policy.reorder` for the zone firewall.
 4. The controller state still matches the plan (`base` fingerprint and every `before`), otherwise "the network changed in the meantime".
-5. **Lockout protection:** protected devices (gateway, network equipment, servers others depend on, the host running Lanloom) never move or change; management networks are no target; wired devices that share a port with others do not move alone, and devices whose network follows their switch port are not moved by a client setting; the device you approve from must keep its internet.
+5. **Lockout protection:** protected devices (gateway, network equipment, servers others depend on, the host running Lanloom) never move or change; management networks are no target; wired devices that share a port with others do not move alone, and devices whose network follows their switch port are not moved by a client setting; the device you approve from must keep its internet. For zones and rules the lockout rules are listed under [Zone firewall](#zone-firewall-zones-rules-may-a-reach-b), including the reachability check of the gateway and the controller.
 6. **Addresses:** a new or fixed address lies inside its network, is not the network's own address or its gateway, belongs to no other device and is not used twice in the same plan (the gate checks this itself; not every controller does).
 7. Marked points (private address, your own device, quiet hours) were confirmed in the preview.
 8. The adapter reports the controller healthy and no other change is still running or being watched.

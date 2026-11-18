@@ -277,7 +277,7 @@ def step_lockout(state: dict, step: dict, critical=()):
     nets = _by_id(state, "networks")
     devs = _by_id(state, "devices")
     if kind == "network.create":
-        return _new_network_problem(state, after)
+        return _new_network_problem(state, after) or _zone_problem(state, step)
     if kind in ("network.update", "network.delete"):
         net = nets.get(step.get("object"))
         if net is None:
@@ -304,6 +304,10 @@ def step_lockout(state: dict, step: dict, critical=()):
                 return prob
         if "purpose" in after and after["purpose"] not in ("lan", "iot"):
             return "fw.block.network_kind"
+        if "zone" in after:
+            why = _zone_problem(state, step)
+            if why:
+                return why
         if "dhcp" in after:
             prob = _range_problem(merged, after["dhcp"])
             if prob:
@@ -354,6 +358,14 @@ def step_lockout(state: dict, step: dict, critical=()):
     if set(after) <= {"name"} or (set(after) <= {"name", "enabled"} and not merged.get("enabled")):
         return None                                     # renaming or switching off never opens anything
     return _forward_problem(state, merged, skip=fwd["id"], critical=critical)
+
+
+def _zone_problem(state: dict, step: dict):
+    """A network placed into a zone (new network or moved one): the zone firewall rules of ``zonefw``."""
+    if (step.get("after") or {}).get("zone") is None:
+        return None
+    from . import zonefw
+    return zonefw.step_lockout(state, step)
 
 
 def plan_lockout(state: dict, steps: list):
@@ -552,6 +564,11 @@ def preview(state: dict, ops: dict, *, deps: dict = None, critical=(), lockout=N
                         warnings.append(["fw.warn.dhcp_range", {"name": name, "n": len(out)}])
             if "name" in after:
                 warnings.append(["fw.warn.net_rename", {"name": net.get("name") or name, "new": after["name"]}])
+            if "zone" in after:
+                zones = _by_id(state, "zones")
+                warnings.append(["zf.warn.net_zone_move", {"name": net.get("name") or name,
+                                                           "from": (zones.get(net.get("zone")) or {}).get("name") or "?",
+                                                           "to": (zones.get(after["zone"]) or {}).get("name") or "?"}])
         elif kind == "network.delete":
             warnings.append(["fw.warn.net_delete", {"name": name}])
         elif kind == "dhcp.reserve":

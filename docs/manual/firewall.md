@@ -7,7 +7,7 @@
 Shows which zone and network every device sits in and what each zone may reach, read from your controller. In **Change**
 mode you can draft a change (move a device to another network, give it a fixed address or a new name, create a network
 with a VLAN of its own, change an address service, reserve or release a fixed address, add or switch off a port forward,
-start or shut down a hypervisor guest), see in plain words what it would do, and apply it as one signed change. A
+start or shut down a hypervisor guest; with a zone firewall also zones and rules), see in plain words what it would do, and apply it as one signed change. A
 **network plan** keeps the target network of each device and shows how far the move has come. By default nothing is
 written anywhere: the editor is a simulation.
 
@@ -68,10 +68,11 @@ More:
 - **On the phone** the sheet opens from the bottom; *Move to ...* leads to the list of networks.
 - **From the search** (`Ctrl K`): *Change a device (network, name, fixed address) ...*, a device hit then offers *Move to
   ... / change*; *Change a guest (start, shut down, network card, firewall) ...* opens the *Guests* card; *Networks and
-  VLANs*, *Port forwarding*, *Fixed addresses* and *Network plan* open their cards.
+  VLANs*, *Port forwarding*, *Fixed addresses* and *Network plan* open their cards; *Zones of the firewall*, *New
+  firewall rule* and *May A reach B?* open the zone cards and the rule dialog.
 - **Deep links:** `#/firewall/device/<address>` opens change mode with the sheet of that device,
   `#/firewall/pick` a searchable list of the devices that can be changed, `#/firewall/networks`,
-  `#/firewall/forwards`, `#/firewall/reservations` and `#/firewall/plan` (`#/firewall/plan/edit` with the plan
+  `#/firewall/forwards`, `#/firewall/reservations`, `#/firewall/zones`, `#/firewall/rules/new`, `#/firewall/ask` and `#/firewall/plan` (`#/firewall/plan/edit` with the plan
   dialog open) their cards.
 - **AI suggestions** (optional, operators): *AI suggestions* proposes moves the editor itself would allow; they join the
   draft only when you choose *Take over as draft* (see [AI](ai.md)).
@@ -79,6 +80,57 @@ More:
 ![Preview of a change](../screenshots/firewall-preview-light.png)
 
 ![Preview of a new network, a port forward and a released fixed address](../screenshots/gateway-preview-dark.png)
+
+### Zones
+
+The **Zones** card (Change mode, when the executor can change the zone firewall) lists every zone with its networks and how many networks and rules refer to it. Built-in zones carry a *built-in* chip, zones Lanloom created *created by Lanloom*.
+
+![The Zones card with networks per zone](../screenshots/zone-firewall-zones-light.png)
+
+<img src="../screenshots/zone-firewall-zones-phone-light.png" width="45%" alt="The Zones card on a phone">
+
+1. Press **New zone**, type a name, add it to the draft.
+2. **Rename** works for zones that are not built in.
+3. **Remove** is offered only for zones Lanloom created and only when no network and no rule is in them any more; otherwise the card says *empty it first*. The controller would delete the rules of a removed zone without a word, so Lanloom refuses.
+4. To move a network, use the select **Move to zone ...** on its row: into a zone of its own or back into the internal zone. The management network and the system zones (external, gateway, VPN, hotspot, DMZ) are never offered.
+
+On a phone every control is finger-sized and the zone select wraps below the row.
+
+### Changing rules
+
+In Change mode each changeable row of the rule list has an **on** checkbox, **Change**, up and down arrows and, for rules Lanloom created, **Remove**. **New rule** sits above the list; planned new rules appear above the list marked *planned*.
+
+![The rule list with the tools in Change mode](../screenshots/zone-firewall-rules-dark.png)
+
+1. **New rule** or **Change** opens a dialog: name, action (allow, block, reject), *From* zone and optionally one network, *To* zone and optionally one network, protocol (any, TCP, UDP, TCP and UDP), ports (a list or ranges, only with TCP or UDP) and *Allow answers back* (return traffic).
+2. The arrows move a rule within the own rules of its zone pair - one move per pair and plan.
+3. The **on** checkbox switches a rule off or on.
+4. Press **Preview**. Every zone and rule change is shown field by field, old to new, with warnings which zone pairs open or close.
+
+![A new rule in the dialog](../screenshots/zone-firewall-rule-new-light.png)
+
+![Preview of zone and rule changes](../screenshots/zone-firewall-preview-dark.png)
+
+A rule that lets traffic in from the internet or from another zone into the management zone needs its own confirmation tick.
+
+![The confirmation of a rule that opens the management zone](../screenshots/zone-firewall-confirm-light.png)
+
+Only rules whose every setting Lanloom can carry over are changeable; rules with schedules, connection-state filters, address, region, app or domain matches, source ports, an IPsec match or an ICMP type stay read-only, and built-in rules of the controller are never changed. Lanloom refuses a blocking rule that involves the management network, the management zone or the gateway, and a plan after which you, Lanloom or the executor could no longer reach the gateway or the controller; the refusal names the path and nothing is sent.
+
+### May A reach B?
+
+The **May A reach B?** card works on every configuration that shows zones and rules, also on read-only live configurations.
+
+![May A reach B? with the deciding rule](../screenshots/zone-firewall-ask-light.png)
+
+<img src="../screenshots/zone-firewall-ask-phone-light.png" width="45%" alt="May A reach B? on a phone">
+
+1. Pick *From* and *To*: the internet, the gateway itself, a zone, a network or a device.
+2. Optionally choose a protocol and a port.
+3. Read the answer: **Allowed**, **Blocked**, **Depends** or **Unknown**, with the deciding rule or the default (traffic within one zone is allowed; between zones the controller blocks when no rule matches). *Depends* names the rules that apply only for some ports or protocols or match something Lanloom cannot evaluate, and shows what is allowed or blocked otherwise.
+4. In the editor the answer is shown *Now* and *After your draft*.
+
+Nothing is sent anywhere. Viewers may use it.
 
 ## Limits
 
@@ -118,7 +170,7 @@ More:
 - **Roles:** viewers look. Operators prepare drafts and previews and undo drafts. Admins apply plans; with the external
   executor each change needs a passkey signature. Operators also keep the network plan. Every draft, plan change,
   approval and undo is in the audit log, and changes on a real controller appear in the nightly report under *Changes
-  written*; the progress of the network plan has a section *Network plan*.
+  written*; the progress of the network plan has a section *Network plan* and the zone pairs that opened or closed a section *Zone matrix*. Viewers may use *May A reach B?*.
 
 ## See also
 

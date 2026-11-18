@@ -12,7 +12,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import guests, model, netconf, segplan
+from . import guests, model, netconf, segplan, zonefw
 from . import steps as stepkinds
 from .adapter import SimulatedController, with_sample_gateway, with_sample_hypervisor
 from .canon import digest
@@ -136,6 +136,7 @@ class Editor:
         raw_ops = prev.get("ops") if ops is None else ops
         gops = guests.clean_ops(st, raw_ops)
         gops.update(netconf.clean_ops(st, raw_ops))
+        gops.update(zonefw.clean_ops(st, raw_ops))
         n = len(set(clean) | set(ed)) + len(gops)
         if n > model.MAX_OBJECTS:
             raise model.Refused("fw.block.too_many", n=n, max=model.MAX_OBJECTS)
@@ -203,6 +204,9 @@ class Editor:
             except Exception:
                 pass
             out["uses"] = self.dependencies(st)
+            zf = self.zone_info(st)
+            if zf:
+                out["zonefw"] = zf
             if any(k.startswith(("network.", "dhcp.", "forward.")) for k in (self.capabilities().get("write") or {})):
                 out["netconf"] = {"templates": [netconf.suggest(st, t["id"]) for t in netconf.TEMPLATES],
                                   "default_zone": netconf.default_zone(st),
@@ -212,6 +216,54 @@ class Editor:
                 crit = self.critical(st)
                 out["guests"] = {"critical": crit, "bridges": {g["id"]: sorted(guests.target_bridges(st, g)) for g in st["guests"]
                                                               if not g.get("template")}}
+        return out
+
+    def zone_info(self, st: dict):
+        """What the zone firewall cards need (only when the adapter can change zones or rules): zones with what refers
+        to them, the system zones, the network zones may hold."""
+        write = self.capabilities().get("write") or {}
+        if not any(k.startswith(("zone.", "policy.")) or k == "network.update.zone" for k in write) or not st.get("zones"):
+            return None
+        return {"refs": {z["id"]: zonefw.zone_refs(st, z["id"]) for z in st.get("zones") or []},
+                "internal": zonefw.system_zone(st, "internal"), "external": zonefw.system_zone(st, "external"),
+                "gateway": zonefw.system_zone(st, "gateway"),
+                "targets": [z["id"] for z in st.get("zones") or [] if zonefw.zone_target_problem(st, z["id"]) is None],
+                "rules": bool(st.get("policies") is not None)}
+
+    def guard(self, st: dict) -> dict:
+        """Paths a plan must keep open, from what the app knows: Lanloom's own address to the gateway and to the
+        controllers and hubs it reads (the approver's device is added by the preview)."""
+        addrs = {}
+        if self.identity:
+            try:
+                addrs, _ = self.identity()
+            except Exception:
+                addrs = {}
+        sources = sorted(ip for ip, why in addrs.items() if why == "hv.why.self")
+        targets = [(ip, 443, "zf.path.controller") for ip, why in sorted(addrs.items()) if why == "hv.why.controller"]
+        return {"sources": sources, "targets": targets}
+
+    def reach(self, user, src: str, dst: str, proto: str = None, port: int = None, source: str = None) -> dict:
+        """"May A reach B?": the answer for the shown configuration and, in the editor, after the current draft."""
+        if source and source != "editor":
+            entry = next((e for e in self.live_sources() if e["key"] == source), None)
+            if entry is None:
+                raise model.Refused("fw.err.no_state")
+            return {"before": zonefw.ask(entry["state"], src, dst, proto, port), "after": None}
+        st = self.state()
+        if st is None:
+            raise model.Refused("fw.err.no_state")
+        out = {"before": zonefw.ask(st, src, dst, proto, port), "after": None}
+        d = self.draft(user)
+        steps = []
+        try:
+            pv = model.preview(st, d.get("moves") or {}, edits=model.clean_edits(st, d.get("edits")))
+            steps = list(pv["steps"])
+        except model.Refused:
+            steps = []
+        steps += list(netconf.clean_ops(st, d.get("ops")).values()) + list(zonefw.clean_ops(st, d.get("ops")).values())
+        if steps:
+            out["after"] = zonefw.ask(zonefw.after_state(st, steps), src, dst, proto, port)
         return out
 
     def set_segplan(self, items: dict) -> dict:
@@ -249,11 +301,14 @@ class Editor:
                            edits=model.clean_edits(st, d.get("edits")))
         gops = guests.clean_ops(st, d.get("ops"))
         nops = netconf.clean_ops(st, d.get("ops"))
+        zops = zonefw.clean_ops(st, d.get("ops"))
         parts = []
         if gops:
             parts.append(guests.preview(st, gops, self.critical(st)))
         if nops:
             parts.append(netconf.preview(st, nops, deps=self.dependencies(st), critical=self.forward_critical(st)))
+        if zops:
+            parts.append(zonefw.preview(st, zops))
         for g in parts:
             pv["steps"] = pv["steps"] + g["steps"]
             pv["changes"] = pv["changes"] + g["changes"]
@@ -267,6 +322,14 @@ class Editor:
             if self.is_quiet() and any(g["steps"] for g in parts) and "quiet" not in pv["confirm"]:
                 pv["warnings"].append(["fw.warn.quiet", {}])
                 pv["confirm"].append("quiet")
+        if pv["steps"]:
+            # which zone pairs open or close, and the paths that must stay open (approver, Lanloom, controller)
+            g = self.guard(st)
+            rv = zonefw.review(st, pv["steps"], requester=pv.get("requester"), sources=g["sources"], targets=g["targets"])
+            pv["warnings"] = pv["warnings"] + rv["warnings"]
+            pv["blocks"] = pv["blocks"] + rv["blocks"]
+            if rv["pairs"]:
+                pv["reach"] = rv["pairs"]
         return pv
 
     def _with_deps(self, st: dict) -> dict:
@@ -370,11 +433,11 @@ class Editor:
         job = next((j for j in self.history() if j["plan"] == plan_id), None)
         if not job or job.get("status") != "done" or not job.get("inverse") or not job.get("undo_until") or time.time() > job["undo_until"]:
             raise model.Refused("fw.err.undo_gone")
-        if any(s.get("kind") not in ("move", "client.set") + guests.GUEST_KINDS + netconf.NET_KINDS for s in job["inverse"]):
+        if any(s.get("kind") not in ("move", "client.set") + guests.GUEST_KINDS + netconf.NET_KINDS + zonefw.ZONE_KINDS for s in job["inverse"]):
             raise model.Refused("fw.err.undo_gone")      # only kinds this editor drafts
         moves, edits, ops = {}, {}, {}
         for s in job["inverse"]:
-            if s["kind"] in guests.GUEST_KINDS or s["kind"] in netconf.NET_KINDS:
+            if s["kind"] in guests.GUEST_KINDS or s["kind"] in netconf.NET_KINDS or s["kind"] in zonefw.ZONE_KINDS:
                 ops[guests.op_key(s["kind"], s["object"])] = {"kind": s["kind"], "object": s["object"], "after": s["after"]}
                 continue
             if s["kind"] == "move":

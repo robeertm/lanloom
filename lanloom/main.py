@@ -1201,6 +1201,30 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         src = str(request.query_params.get("source") or "")[:24] or None
         return state.firewall.view(request.state.user, requester_ip(request), src)
 
+    @app.get("/api/firewall/reach")
+    async def fw_reach(request: Request):
+        """"May A reach B?" for the shown configuration and after the current draft (read only)."""
+        q = request.query_params
+        proto = str(q.get("proto") or "") or None
+        if proto not in (None, "any", "tcp", "udp", "icmp"):
+            return err("proto")
+        port = None
+        if q.get("port"):
+            try:
+                port = int(str(q.get("port")))
+            except ValueError:
+                return err("port")
+            if not 1 <= port <= 65535:
+                return err("port")
+        src, dst = str(q.get("src") or "")[:120], str(q.get("dst") or "")[:120]
+        if not src or not dst:
+            return err("src/dst")
+        source = str(q.get("source") or "")[:24] or None
+        try:
+            return state.firewall.reach(request.state.user, src, dst, proto, port, source)
+        except Refused as exc:
+            return refused(exc)
+
     @app.put("/api/firewall/draft")
     async def fw_draft(request: Request):
         data = await body(request)

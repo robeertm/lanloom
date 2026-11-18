@@ -27,8 +27,11 @@ SIM_WRITE = {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "c
              "network.create": "B", "network.update.name": "B", "network.update.dhcp": "B", "network.delete": "B",
              "dhcp.reserve": "B", "dhcp.release": "B", "forward.create": "B*", "forward.update.name": "B",
              "forward.update.enabled": "B*", "forward.update.wan_port": "B*", "forward.update.dst_ip": "B*",
-             "forward.update.dst_port": "B*", "forward.update.proto": "B*", "forward.delete": "B"}
-# the sample family: clients, the sample hypervisor's guests and the sample gateway (networks, fixed addresses, forwards)
+             "forward.update.dst_port": "B*", "forward.update.proto": "B*", "forward.delete": "B",
+             "network.update.zone": "B", "zone.create": "B", "zone.update.name": "B", "zone.delete": "B",
+             "policy.create": "B", "policy.update": "B", "policy.delete": "B", "policy.reorder": "B"}
+# the sample family: clients, the sample hypervisor's guests, the sample gateway (networks, fixed addresses, forwards)
+# and its zone firewall (zones, networks in zones, rules and their order)
 
 
 def sign_in(c, data_dir):
