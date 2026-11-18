@@ -312,7 +312,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if cfg.probe and path.startswith("/api/") and path != "/api/health":
             # trial start of an update candidate: the updater only reads the health check
             return JSONResponse({"error": "app.err.probe"}, status_code=503)
-        token = apitokens.parse_bearer(request.headers.get("authorization", "")) if path.startswith("/api/") else None
+        # an API token (llt_...); the bearer tokens of the executor service and the host agents keep their own routes
+        token = (apitokens.parse_bearer(request.headers.get("authorization", ""))
+                 if path.startswith("/api/") and not path.startswith(("/api/agent/", "/api/executor/")) else None)
         if token is not None:
             return await token_request(request, call_next, token)
         if path.startswith("/api/"):
@@ -388,10 +390,14 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         try:
             user = state.tokens.authenticate(token, requester_ip(request))
         except apitokens.TokenError as exc:
+            if exc.status == 401:
+                wait = public_flood.hit(client_of(request))      # guessing tokens is capped per client like the public routes
+                if wait:
+                    return flooded(wait)
             headers = {"Retry-After": str(int(exc.wait) + 1)} if exc.status == 429 else {"WWW-Authenticate": "Bearer"}
             return JSONResponse({"error": exc.key, **({"wait": int(exc.wait) + 1} if exc.wait else {})}, status_code=exc.status, headers=headers)
         template, params = match_route(request.scope)
-        if template is None:
+        if template is None or not (template == api_v1.BASE or template.startswith(api_v1.BASE + "/")):
             return JSONResponse({"error": "api.err.not_found"}, status_code=404)
         rule = access.rule_for(request.method, template)
         need = rule.role if rule else "admin"

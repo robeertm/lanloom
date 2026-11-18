@@ -211,3 +211,17 @@ def test_changes_through_a_token_are_in_the_audit_log_without_the_token(cl, capl
     for blob in blobs:
         assert tok["token"] not in blob
         assert tok["token"][4:] not in blob
+
+
+def test_unknown_routes_under_v1_are_404_and_guessing_is_capped(cl):
+    tok = make(cl, "viewer", "read")
+    r = cl.get("/api/v1/nothing-here", headers=bearer(tok))
+    assert r.status_code == 404 and r.json()["error"] == "api.err.not_found"
+    from lanloom import flood
+    codes = [cl.get("/api/v1", headers=bearer("llt_" + "%043d" % i)).status_code for i in range(flood.PUBLIC_LIMIT + 2)]
+    assert codes[0] == 401 and codes[-1] == 429
+
+
+def test_the_bearer_tokens_of_agents_and_the_executor_are_not_taken_for_api_tokens(cl):
+    r = cl.post("/api/agent/report", json={}, headers=dict(HDR, Authorization="Bearer llt_" + "x" * 43))
+    assert r.status_code == 401 and r.json()["error"] == "auth.err.required"
