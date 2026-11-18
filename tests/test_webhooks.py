@@ -239,7 +239,7 @@ def test_test_ping_secret_rotation_and_masked_address(wh, rx):
 
 
 def test_bad_addresses_and_limits(wh):
-    for url in ("", "ftp://x.example/", "http:///nohost", "https://user:pw@x.example/", "https://x.example/a b", "x" * 600):
+    for url in ("", "ftp://x.example/", "http:///nohost", "https://user:pw@x.example/", "https://x.example/a b", "x" * 600):  # secret-scan: fake (a refused address with user info)
         with pytest.raises(ValueError):
             add(wh, url)
     with pytest.raises(ValueError):
