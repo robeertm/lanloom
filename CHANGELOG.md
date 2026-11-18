@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Services and web interfaces per device.** The *Services* section of a device card lists what the device offers: name, port, protocol, the version where the device names it itself (a `Server` header, a DNS-SD text record, the UPnP product line, never guessed from a port) and whether it is a web interface. Sources: the scan and its banners, mDNS, UPnP and the ports a host agent reports as listening.
+- **Links view** (*Devices › Links*, `#/devices?view=links`, palette *Go to Links*): every web interface with the state of its probe and a button that opens it in a new tab. A probe runs every 3 minutes on **known** services only (one plain `GET /`, no sweeping, never a login). 2xx, 3xx and other non-error answers are alive, **401/403 is alive**, **5xx is red** and still a link; **two misses in a row switch the link off** (greyed out, not clickable) and the next good answer switches it back on by itself, without a message. Services without a web page get one TCP connection, closed at once, as the functional probe. Filters *All*, *Problems*, *Certificates*; the services without a web page sit under *Other services*.
+- **Certificate clock.** The expiry date of every TLS service is read (also of a self-signed certificate; at most every six hours): a hint under 30 days, yellow under 14, red under 3, *expired* after. Issuer or *Self-signed* in the tooltip. The certificates also feed the nightly report (section *Certificates*, a point to look at under 14 days) and the notification rule *certificate expiring*.
+- **Nightly report section *Web interfaces and services*:** interfaces that do not answer, answer with a server error, or are marked *Removed?*.
+- **Removed? instead of a fault.** A service that stayed away for 24 hours of probing while its device answered is shown as *Removed?*: no longer booked as an outage, looked at only once an hour so it comes back by itself, and an operator can *Forget* it (audit entry `service.forget`; a newer scan that lists it brings it back).
+- **Availability of services.** Every look is booked into the 5-minute slots as `svc:<device>|<port>`; the *Stability* list shows the services that have a history (a 5xx counts as a failed look, a 401/403 as a good one). A device that does not answer is the device's business: nothing is probed and booked for its services. When none of three or more services answers at all, nothing is booked (Lanloom's own network is the likelier cause).
+- Settings › General: **Look at known services and web interfaces every 3 minutes** (administrators, on by default). Devices of the scan protection list keep their rules (printers never on the raw printing ports, industrial hosts only on 80 and 443, passive hosts not at all); only private addresses are probed. Lanloom only observes, it never repairs anything.
+- Sample network: every case appears once (answers, redirect, login required, error 503, not answering, *Removed?*, certificates from valid to expired). Texts in English and German; manual in [docs/SERVICES.md](docs/SERVICES.md).
+
 ## [1.45.0] – 2026-11-19
 
 1.44.0 and 1.44.1 below were not released on their own; they are part of this release.

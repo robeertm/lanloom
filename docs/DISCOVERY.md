@@ -153,7 +153,7 @@ device in *Settings › Network*:
 A class is chosen from what the device announced or what an earlier scan saw (open ports such as 631 or 9100,
 DNS-SD printer types, UPnP printer words, industrial and medical ports, industrial and medical DNS-SD types) and
 stays until you set another one on the device card (*Printer*, *Industrial*, *Passive only*, *No protection* or
-back to *Automatic*). The same rules apply to the presence check and to the sweep of routed ranges. Setting a class
+back to *Automatic*). The same rules apply to the presence check, to the sweep of routed ranges and to the [service probe](SERVICES.md#how-the-probe-works). Setting a class
 needs the operator role and is written to the audit log (`device.protect`).
 
 ## What can be connected

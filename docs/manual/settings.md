@@ -37,7 +37,8 @@ Administrators additionally:
   the optional deep scan (only with your consent) and the switch for the default SNMP read community (off by default).
   While a scan runs - started here, in the setup assistant or by the automatic rescan - a progress bar fills next to the
   button, the status line shows the phase, its progress, the devices found so far and the percentage, and *Scan now*
-  turns into *Cancel*. *Last scan* names the last finished scan; a stopped scan does not replace it.
+  turns into *Cancel*. *Last scan* names the last finished scan; a stopped scan does not replace it. The switch *Look at known
+  services and web interfaces every 3 minutes* (on by default) turns the [service probe](../SERVICES.md) off.
 - **Connections** - the hub, MQTT broker, SNMP, switch controller, DNS filters and device-family adapters. Credentials are stored
   encrypted and never shown again. *Test connection* checks before you save.
 - **Set up again** - starts the setup assistant over, or the demo.

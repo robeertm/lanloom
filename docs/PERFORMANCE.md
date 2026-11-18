@@ -124,3 +124,7 @@ report; nothing is changed automatically. Only byte sums per hour are kept, no a
   the browser recompute it for every frame.
 - **Canvas 2D only.** No WebGL drawing; the browser is only asked once whether it has real acceleration, to choose the
   starting frame rate. Many traces into one area are bundled into trunks, so a large zone draws as few lines.
+
+## Service probe
+
+The probe of known services and web interfaces ([SERVICES.md](SERVICES.md)) runs every 3 minutes: one request or one connection per known service, four at a time with a pause of 50 ms and a timeout of 3 seconds, at most 400 services. A network of 100 devices with 150 services costs a few seconds of one core per round and stays below 1 percent of a core on average. The state (about 250 bytes per service) is kept in the database. Switch it off under *Settings › General*.

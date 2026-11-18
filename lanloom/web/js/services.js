@@ -114,7 +114,7 @@
       try { d = await api('/api/devices/' + encodeURIComponent(deviceId) + '/services'); } catch (e) { sec.remove(); return; }
       if (!d.rows.length) { sec.remove(); return; }
       body.replaceChildren(h('ul', { class: 'svc-clist' }, d.rows.map(r => h('li', { class: 'svc-citem svc-citem--' + r.state },
-        h('div', { class: 'svc-citem__main' }, h('strong', { class: 'mono' }, portText(r)), h('span', { class: 'muted svc-citem__sub' }, [r.label, product(r)].filter(Boolean).join(' · ') || ''),
+        h('div', { class: 'svc-citem__main' }, h('strong', { class: 'mono' }, portText(r)), h('span', { class: 'muted svc-citem__sub' }, [r.label, product(r)].filter(Boolean).join(' · ') || '')),
         h('div', { class: 'svc-citem__chips' }, stateChip(r), certChip(r.cert)),
         h('div', { class: 'svc-citem__act' }, forgetButton(r, load), openLink(r, false))))),
         h('p', { class: 'muted svc-note' }, t(d.enabled ? 'svc.card.note' : 'svc.disabled')));

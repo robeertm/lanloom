@@ -152,12 +152,12 @@ def test_extract_services_versions_and_web():
 
 def test_the_host_agent_adds_the_listening_services():
     data = {"ports": [web_port(80, "http", "UI")]}
-    listen = [{"port": 80, "proc": "nginx"}, {"port": 5432, "proc": "postgres"}, {"port": 8443, "proc": ""}]
+    listen = [{"port": 80, "proc": "nginx"}, {"port": 5432, "proc": "postgres"}, {"port": 5001, "proc": ""}]
     rows = {r["port"]: r for r in sv.extract(data, listen)}
-    assert set(rows) == {80, 5432, 8443}
+    assert set(rows) == {80, 5432, 5001}
     assert rows[80]["sources"] == ["scan", "agent"] and rows[80]["web"]
     assert rows[5432]["name"] == "postgres" and rows[5432]["sources"] == ["agent"] and not rows[5432]["web"]
-    assert rows[8443]["tls"] and rows[8443]["candidate"] and not rows[8443]["web"]          # a candidate: the probe decides
+    assert rows[5001]["tls"] and rows[5001]["candidate"] and not rows[5001]["web"]          # a candidate: the probe decides
 
 
 def test_agent_listen_reads_the_hub_without_loopback(svc):
