@@ -225,6 +225,11 @@
    "site": "lanloom/agent/transport.py::Link._post::http",
    "category": "agent-link",
    "purpose": "host agent: pairing and reports to the address of the Lanloom it was started with, nothing else"
+  },
+  {
+   "site": "lanloom/webhooks.py::Webhooks._post::http",
+   "category": "configured-channel",
+   "purpose": "optional webhooks (none by default): one signed POST per event to the address an administrator entered; redirects are never followed"
   }
  ],
  "hosts": [

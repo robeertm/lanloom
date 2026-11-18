@@ -77,6 +77,7 @@ class Reports:
         self.update_state: Callable[[], dict] = lambda: {}
         self.cert_check: Optional[Callable] = None          # replaced in tests
         self.on_certs: Optional[Callable] = None            # notification rules: certificates checked for a report
+        self.report_listeners: list = []                    # (report) after a new report is saved and delivered (webhooks)
         self._lock = asyncio.Lock()
         self._fail_until = 0.0
 
@@ -244,6 +245,11 @@ class Reports:
         await self.add_plain(report)
         await self.deliver(report)
         self.after_report()
+        for fn in list(self.report_listeners):
+            try:
+                fn(report)
+            except Exception:
+                log.exception("nightly report: listener failed")
         return report
 
     # ------------------------------------------------------------------ AI paragraph "In plain words" (optional)

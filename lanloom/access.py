@@ -268,6 +268,35 @@ RULES = {
     ("POST", "/api/agent/pair"): R("public", "agents.paired"),
     ("POST", "/api/agent/report"): R("agent"),           # bearer token of one host agent, no session
 
+    # ---------------------------------------------------------------- API tokens (own; admins see and revoke all) and webhooks
+    ("GET", "/api/tokens"): R(V),
+    ("POST", "/api/tokens"): R(V, "api.token_create", stepup=True),       # scope never above the own role (apitokens)
+    ("DELETE", "/api/tokens/{token_id}"): R(V, "api.token_revoke"),        # own token; an administrator any
+    ("GET", "/api/webhooks"): R(A),
+    ("POST", "/api/webhooks"): R(A, "webhooks.add", stepup=True),
+    ("PUT", "/api/webhooks/{hook_id}"): R(A, "webhooks.change", stepup=True),
+    ("DELETE", "/api/webhooks/{hook_id}"): R(A, "webhooks.delete"),
+    ("POST", "/api/webhooks/{hook_id}/test"): R(A, "webhooks.test"),
+    ("POST", "/api/webhooks/{hook_id}/secret"): R(A, "webhooks.rotate", stepup=True),
+    ("GET", "/api/webhooks/{hook_id}/deliveries"): R(A),
+    ("POST", "/api/webhooks/deliveries/{delivery_id}/retry"): R(A, "webhooks.redeliver"),
+
+    # ---------------------------------------------------------------- public API v1 (session or API token; see api_v1.py)
+    ("GET", "/api/v1"): R(V),
+    ("GET", "/api/v1/openapi.json"): R(V),
+    ("GET", "/api/v1/status"): R(V),
+    ("GET", "/api/v1/devices"): R(V),
+    ("GET", "/api/v1/devices/{device_id}"): R(V),
+    ("GET", "/api/v1/topology"): R(V),
+    ("GET", "/api/v1/availability"): R(V),
+    ("GET", "/api/v1/availability/{subject:path}"): R(V),
+    ("GET", "/api/v1/paths"): R(V),
+    ("GET", "/api/v1/reports"): R(V),
+    ("GET", "/api/v1/reports/{day}"): R(V),
+    ("GET", "/api/v1/events"): R(V),
+    ("GET", "/api/v1/ingest"): R(V),
+    ("POST", "/api/v1/ingest"): R(O, "api.ingest"),                       # also a token with the scope "ingest"
+
     # ---------------------------------------------------------------- live feed (WebSocket)
     ("WS", "/api/live"): R(V),
 }

@@ -199,6 +199,48 @@ CREATE TABLE IF NOT EXISTS report_marks (
     done REAL NOT NULL,
     PRIMARY KEY (day, item)
 );
+CREATE TABLE IF NOT EXISTS api_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    prefix TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    created REAL NOT NULL,
+    expires REAL NOT NULL,
+    rate INTEGER NOT NULL DEFAULT 300,
+    last_used REAL,
+    last_ip TEXT NOT NULL DEFAULT '',
+    uses INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS api_tokens_user ON api_tokens(user_id);
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hook TEXT NOT NULL,
+    event TEXT NOT NULL,
+    created REAL NOT NULL,
+    body TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_at REAL NOT NULL DEFAULT 0,
+    last_t REAL,
+    last_code INTEGER,
+    last_key TEXT NOT NULL DEFAULT '',
+    ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS webhook_deliveries_due ON webhook_deliveries(status, next_at);
+CREATE TABLE IF NOT EXISTS api_ingest (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    t REAL NOT NULL,
+    source TEXT NOT NULL,
+    title TEXT NOT NULL,
+    level TEXT NOT NULL,
+    data TEXT NOT NULL,
+    bytes INTEGER NOT NULL,
+    token_id INTEGER,
+    actor TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS api_ingest_t ON api_ingest(t);
 """
 
 

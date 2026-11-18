@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.routing import APIRoute
 from starlette.routing import Match
 
-from . import __version__, access, agents as agents_mod, auth, config as config_mod, demoview, flood, mapmodel, palette, setup_assist, textfmt
+from . import __version__, access, agents as agents_mod, api_v1, apitokens, auth, config as config_mod, demoview, flood, mapmodel, palette, setup_assist, textfmt
 from .audit import AuditLog
 from .core import Core
 from .integrations import catalog
@@ -136,6 +136,17 @@ class App:
         from . import vulns_report as _vulns_report  # noqa: F401 - registers the vulnerability section
         self.backups = Backups(self)
         self.core.backups = self.backups
+        from .apitokens import Tokens
+        from .ingest import Ingest
+        from .webhooks import Webhooks
+        from . import api_report as _api_report  # noqa: F401 - registers the nightly report section "API"
+        self.tokens = Tokens(store)
+        self.ingest = Ingest(store)
+        self.webhooks = Webhooks(self.real_core, store, vault)
+        self.real_core.tokens, self.real_core.api_ingest, self.real_core.webhooks = self.tokens, self.ingest, self.webhooks
+        self.real_core.reports.journal.listeners.append(self.webhooks.on_journal)
+        self.real_core.notify.taps.append(self.webhooks.on_notify)
+        self.real_core.reports.report_listeners.append(self.webhooks.on_report)
         from .mqtt_out import MqttOut
         self.mqtt_out = MqttOut(self.real_core, store, vault, cfg)     # opt-in MQTT output (off by default)
         self.real_core.mqtt_out = self.mqtt_out
@@ -156,6 +167,10 @@ class App:
                 self.ai.seed_demo_hint()            # one open identification suggestion to look at
                 from .mqtt_out import seed_demo as seed_mqtt_out
                 seed_mqtt_out(store)
+                from .webhooks import seed_demo as seed_webhooks
+                from .ingest import seed_demo as seed_ingest
+                seed_webhooks(self.webhooks)
+                seed_ingest(self.ingest)
                 store.set_setting("setup_done", True)
 
 
@@ -179,14 +194,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         await state.core.start()
         state.backups.start()
         mqtt_task = asyncio.create_task(state.mqtt_out.run())
+        hooks_task = asyncio.create_task(state.webhooks.run())
         try:
             yield
         finally:
-            mqtt_task.cancel()
-            try:
-                await mqtt_task
-            except (asyncio.CancelledError, Exception):
-                pass
+            for task in (mqtt_task, hooks_task):
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
             await state.backups.stop()
             await state.demo_view.stop()
             await state.core.stop()
@@ -295,6 +312,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if cfg.probe and path.startswith("/api/") and path != "/api/health":
             # trial start of an update candidate: the updater only reads the health check
             return JSONResponse({"error": "app.err.probe"}, status_code=503)
+        token = apitokens.parse_bearer(request.headers.get("authorization", "")) if path.startswith("/api/") else None
+        if token is not None:
+            return await token_request(request, call_next, token)
         if path.startswith("/api/"):
             if request.method in STATE_CHANGING:
                 if request.headers.get("x-lanloom") != "1":
@@ -356,6 +376,47 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                 if target is None:
                     target = ",".join("%s" % v for v in params.values()) if params else ""
                 audit_from(request, user, info.get("action") or rule.audit, outcome, target=target, detail=info.get("detail"))
+        return response
+
+    async def token_request(request: Request, call_next, token: str):
+        """A request with an API token (Authorization: Bearer llt_...): only the public API, no session, no cookies.
+        The browser cannot send such a header to another site on its own, so the cross-site checks of the web page
+        (X-Lanloom header, Origin) do not apply; the token's own request limit does."""
+        path = request.url.path
+        if not (path == api_v1.BASE or path.startswith(api_v1.BASE + "/")):
+            return JSONResponse({"error": "api.err.v1_only"}, status_code=401)
+        try:
+            user = state.tokens.authenticate(token, requester_ip(request))
+        except apitokens.TokenError as exc:
+            headers = {"Retry-After": str(int(exc.wait) + 1)} if exc.status == 429 else {"WWW-Authenticate": "Bearer"}
+            return JSONResponse({"error": exc.key, **({"wait": int(exc.wait) + 1} if exc.wait else {})}, status_code=exc.status, headers=headers)
+        template, params = match_route(request.scope)
+        if template is None:
+            return JSONResponse({"error": "api.err.not_found"}, status_code=404)
+        rule = access.rule_for(request.method, template)
+        need = rule.role if rule else "admin"
+        if user["token"]["scope"] == "ingest":
+            ok = (request.method, template) == api_v1.INGEST_ROUTE and access.allows(user["account_role"], "operator")
+            if ok:
+                user = dict(user, role="operator")
+        else:
+            ok = rule is not None and not rule.stepup and access.allows(user.get("role"), need)
+        if not ok:
+            if request.method in STATE_CHANGING:
+                audit_from(request, user, rule.audit if rule and rule.audit not in (None, "@") else "access.denied", "denied",
+                           target=template, detail={"need": need, "via": "api", "key_name": user["token"]["name"]})
+            return JSONResponse({"error": "api.err.scope", "need": api_v1.SCOPE_OF_ROLE.get(need, need)}, status_code=403)
+        request.state.user = user
+        response = await call_next(request)
+        if rule is not None and rule.audit and rule.audit != "@" and request.method in STATE_CHANGING:
+            info = getattr(request.state, "audit", None) or {}
+            code = response.status_code
+            outcome = "ok" if code < 400 else ("denied" if code in (401, 403) else "failed")
+            target = info.get("target")
+            if target is None:
+                target = ",".join("%s" % v for v in params.values()) if params else ""
+            audit_from(request, user, info.get("action") or rule.audit, outcome, target=target,
+                       detail=dict(info.get("detail") or {}, via="api", key_name=user["token"]["name"]))
         return response
 
     async def body(request: Request) -> dict:
@@ -427,6 +488,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     web_backup.register(app, web_backup.Ctx(
         state=state, body=body, err=err, note=note, client_of=client_of, requester_ip=requester_ip, audit_from=audit_from))
 
+    from . import web_api
+    web_api.register(app, web_api.Ctx(state=state, body=body, err=err, note=note))
+    api_v1.register(app, state, err, api_v1.read_json_limited)
     from . import web_storage
     web_storage.register(app, web_storage.Ctx(state=state, body=body, err=err, note=note))
     from . import web_history

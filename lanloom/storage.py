@@ -46,7 +46,8 @@ AREAS = (
     ("reports", ("reports", "report_marks")),
     ("audit", ("audit",)),
     ("scans", ("scans",)),
-    ("accounts", ("users", "passkeys", "sessions", "recovery_codes", "invites", "notices", "known_logins")),
+    ("accounts", ("users", "passkeys", "sessions", "recovery_codes", "invites", "notices", "known_logins", "api_tokens")),
+    ("api", ("webhook_deliveries", "api_ingest")),
 )
 RUN_HOUR = 3                     # local hour of the nightly clean-up
 LOOP_EVERY_S = 600

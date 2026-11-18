@@ -86,6 +86,7 @@ class Notifier:
         self._outbox: deque = deque()
         self.sender: Optional[Callable] = None          # (channel, user, message) -> (ok, key); replaced in tests
         self.heartbeat_open: Optional[Callable] = None  # (url) -> None, raises on failure; replaced in tests
+        self.taps: list = []                            # (eid, key, data, resolve, t) - e.g. the webhooks; called once per new event
         self._last_test: dict = {}
         self._last_periodic = 0.0
         self._hb_next = 0.0
@@ -340,6 +341,7 @@ class Notifier:
             if resolve:
                 self._resolve(st, e, key, t)
                 self._save(st)
+                self._tap(eid, key, data, True, t)
                 return None
             if once:
                 if key in st["once"]:
@@ -349,6 +351,7 @@ class Notifier:
             if key in st["pending"] or key in st["open"]:
                 self._save(st)
                 return None                                   # the same condition is already being announced
+            self._tap(eid, key, dict(data, severity=sev), False, t)
             w = self.maintenance_at(t, data.get("device"))
             if w:
                 occ = self._log(t, eid, key, sev, data, {"*": "maintenance"}, w["id"])
@@ -363,6 +366,13 @@ class Notifier:
             self._dispatch(st, e, key, sev, data, occ, t)
             self._save(st)
             return occ
+
+    def _tap(self, eid: str, key: str, data: dict, resolve: bool, t: float) -> None:
+        for fn in list(self.taps):
+            try:
+                fn(eid, key, data, resolve, t)
+            except Exception:
+                log.exception("notify: tap failed (%s)", eid)
 
     def _resolve(self, st: dict, e: Event, key: str, t: float) -> None:
         p = st["pending"].pop(key, None)
