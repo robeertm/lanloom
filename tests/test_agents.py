@@ -229,8 +229,10 @@ def test_agent_report_once_has_no_forbidden_field(monkeypatch, runtime_sock):
     flat = json.dumps(rep)
     for s in SECRETS:
         assert s not in flat
+    host = rep["host"]["name"]
     for k, v in os.environ.items():                        # no environment value of the agent itself either
-        if len(v) >= 12 and k not in ("HOME", "PATH", "PWD", "LANLOOM_AGENT_CONTAINERS", "LANLOOM_AGENT_DBUS") and "/" not in v:
+        if len(v) >= 12 and k not in ("HOME", "PATH", "PWD", "LANLOOM_AGENT_CONTAINERS", "LANLOOM_AGENT_DBUS") and "/" not in v \
+                and v != host:                             # in a container HOSTNAME is the host name the report names on purpose
             assert v not in flat, k
     assert rep["units"] == {"available": False, "reason": "no_bus"}
     assert rep["containers"]["available"] and rep["host"]["name"]

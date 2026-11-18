@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.37.1] – 2026-11-18
+
+### Fixed
+- Tests: the host agent's check for leaked environment values accepts the host name the report names on purpose (inside a container the environment carries it as well), so the test passes on container test runners too.
+- 1.37.0 was not released on its own; 1.37.1 contains all of it.
+
 ## [1.37.0] – 2026-11-18
 
 ### Added
