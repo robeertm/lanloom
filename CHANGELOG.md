@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Firewall board.** For a zone firewall that is read, the Firewall tab opens with three figures (*Blocked today*, *Own rules*, *Checks*), the rules that blocked most, and the zones as pads on a board with one line per pair that may talk: thin for the built-in defaults, thick for rules of your own or a busy pair (with the hits of the last hour), red dashed where traffic was blocked. A zone and a second one, or a line, filter the rule list to the rules between them; *Show as list* is the table form for keyboard and screen reader.
+- **May one reach the other?** Two places (the internet, a zone, a network, a device or an address), optionally a protocol and a port, and the rules answer in their order: allowed, blocked or rejected, by which rule, as a sentence. A rule that depends on chosen devices, applications, regions, schedules or port groups makes the answer *Depends* and is listed with the reason. A palette command opens it. Read only, nothing is sent.
+- **Rules in plain words** under every rule name, with *N in the last hour* and *N blocked today* where the firewall counts hits. Counters are kept per day and per hour in Lanloom's own store (a counter that starts over after a restart counts from zero).
+- **Checks with a suggestion:** every check says what you can do. New checks: a rule that an earlier rule always overrides, a guest zone that reaches the inside with every service, and an intrusion-detection suppression list longer than 30 entries (the size is read, never the entries).
+- **Switch front panels** in the equipment card of the Firewall tab and on the card of a switch, access point or router: ports as on the hardware (odd above, even below, SFP cages apart) with link, speed, duplex, power over Ethernet, uplink, VLAN, the devices behind each port, and link drops and error episodes of the last 24 hours (none: fine, one or two: some trouble, three or more: unstable). Access points show radios with channel and clients, and how often devices moved to or from them. Keyboard: one tab stop, arrows, *Home*, *End*, *Esc*.
+- **Exact traffic on cables.** Where one device sits alone on a switch port, its cable follows the counters of that port instead of the host's own flows (no double counting). Optional setting *Take the background noise out of exact port counters* (off by default): the smallest sent rate among at least three measured ports of a network is subtracted from each.
+- **Unstable switch ports** are a notification event (*Switch port unstable*, with an all-clear) and a section of the nightly report (ports with events in the period, devices that moved between access points).
+- **Network view:** a mode switch *Live | Plan | Firewall | Data paths* (also at the top of the Firewall tab and of Data paths); networks with more than 12 devices fold their quiet devices (smart devices, printers, media players, online and fine) into one *N quiet devices* tile that unfolds on a click; the legend holds line styles and networks in one strip (a network in the legend filters like its chip); a full-screen button opens the board over the whole window (compact on a phone; *Esc*, the close button and the back gesture close it).
+- **Devices list:** network and wireless-network tags on every row and a filter menu (a network, a wireless network, or wired only; `?net=` in the address).
+- Demo: counters that keep counting, three hours of hit history, two ports with link drops and errors, two access points with radios and roaming, a long suppression list.
+- Docs: manual pages *Firewall*, *Network*, *Devices*, *Settings*, the nightly report, notifications, palette, compatibility and topology; screenshots.
+
+### Changed
+- The read half of the controller family also reads port counters and errors, the radios of access points, the port and wireless network name of each client and (every five minutes, one extra read-only request) the size of the suppression list. The light poll carries the ports every minute.
+- The *more radio devices* tile on the map now shows its count (the variable was not passed on to the text).
 ## [1.44.1] – 2026-11-18
 
 1.44.0 below was not released on its own; it is part of this release.

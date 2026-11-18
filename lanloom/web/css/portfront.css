@@ -1,0 +1,146 @@
+/* Lanloom — front view of a switch, router or access point (js/portfront.js). Colours only from tokens.css; the plate is a
+   dark faceplate in the light theme and a raised dark panel in the dark theme. */
+.pf {
+  --pf-plate: var(--ll-pcb-silk);
+  --pf-plate-line: var(--ll-text-2);
+  --pf-pad: var(--ll-text);
+  --pf-pad-down: var(--ll-pcb-silk);
+  --pf-pad-sel: var(--ll-pcb-silk-2);
+  --pf-line: var(--ll-text-3);
+  --pf-ink: var(--ll-pcb-tile);
+  --pf-ink-dim: var(--ll-border-strong);
+  --pf-ok: var(--ll-ok);
+  --pf-accent: var(--ll-accent-soft);
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+[data-theme="dark"] .pf {
+  --pf-plate: var(--ll-surface-3);
+  --pf-plate-line: var(--ll-border-strong);
+  --pf-pad: var(--ll-pcb-tile);
+  --pf-pad-down: var(--ll-surface-2);
+  --pf-pad-sel: var(--ll-surface);
+  --pf-line: var(--ll-border-strong);
+  --pf-ink: var(--ll-text);
+  --pf-ink-dim: var(--ll-text-3);
+  --pf-accent: var(--ll-pcb-icon);
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme="auto"] .pf {
+    --pf-plate: var(--ll-surface-3);
+    --pf-plate-line: var(--ll-border-strong);
+    --pf-pad: var(--ll-pcb-tile);
+    --pf-pad-down: var(--ll-surface-2);
+    --pf-pad-sel: var(--ll-surface);
+    --pf-line: var(--ll-border-strong);
+    --pf-ink: var(--ll-text);
+    --pf-ink-dim: var(--ll-text-3);
+    --pf-accent: var(--ll-pcb-icon);
+  }
+}
+
+.pf-head { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.pf-head__titles { display: flex; flex-direction: column; min-width: 0; flex: 1 1 140px; }
+.pf-head__titles strong, .pf-head__titles .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-head__titles .muted { font-size: var(--ll-fs-xs); }
+.pf-head .chip { flex: none; height: 20px; font-size: 10px; }
+.pf-chip--warn, .pf-hl--warn b, .pf-lg--warn { background: var(--ll-warn-soft); color: var(--ll-warn-text); }
+.pf-chip--bad, .pf-hl--bad b, .pf-lg--bad { background: var(--ll-danger-soft); color: var(--ll-danger-text); }
+
+/* the faceplate */
+.pf-plate { display: flex; align-items: flex-start; gap: 16px; padding: 18px 14px 22px; min-width: 0; box-sizing: border-box;
+  background: var(--pf-plate); border: 1px solid var(--pf-plate-line); border-radius: var(--ll-radius-md);
+  box-shadow: 0 1px 0 var(--ll-pcb-tile) inset, var(--ll-shadow-1); }
+.pf-bands { display: flex; flex-direction: column; gap: 24px; flex: 1 1 auto; min-width: 0; }
+.pf-band { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pf-row { display: grid; grid-template-columns: repeat(var(--pf-cols, 8), minmax(0, 52px)); gap: 4px; }
+.pf-cell { min-width: 0; }
+.pf-sfp { flex: none; margin-left: auto; padding-left: 14px; border-left: 1px solid var(--pf-line); display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.pf-sfp__label { font-size: var(--ll-fs-2xs); font-weight: var(--ll-fw-semibold); letter-spacing: .06em; color: var(--pf-ink-dim); }
+.pf-sfp__row { display: flex; gap: 6px; }
+.pf-sfp .pf-cell { width: 52px; }
+.pf-plate--stack { flex-direction: column; gap: 22px; }
+.pf-plate--stack .pf-sfp { margin-left: 0; padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--pf-line); flex-direction: row; align-items: center; gap: 12px; align-self: stretch; }
+
+.pf-pad { position: relative; box-sizing: border-box; width: 100%; height: 64px; padding: 6px 0 8px; margin: 0; border-radius: 5px; cursor: pointer;
+  background: var(--pf-pad); border: 1px solid var(--pf-line); color: var(--pf-ink); font: inherit; line-height: 1.15;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 1px; }
+.pf-pad.is-down { background: var(--pf-pad-down); color: var(--pf-ink-dim); border-style: dashed; }
+.pf-pad.is-down.is-selected, .pf-pad.is-down:hover { background: var(--pf-pad-sel); }
+.pf-pad.is-up { border-color: var(--pf-ok); }
+.pf-pad.is-uplink { border-color: var(--pf-accent); border-style: solid; }
+.pf-pad--sfp { border-radius: 4px 4px 12px 12px; }
+.pf-pad--warn { box-shadow: 0 0 0 2px var(--ll-warn); }
+.pf-pad--bad { box-shadow: 0 0 0 2px var(--ll-danger); }
+.pf-pad:hover { background: var(--pf-pad-sel); }
+.pf-pad.is-selected { background: var(--pf-pad-sel); outline: 2px solid var(--pf-ink); outline-offset: 2px; }
+.pf-pad:focus-visible { outline: 2px solid var(--pf-ink); outline-offset: 3px; }
+
+.pf-led { position: absolute; top: 4px; left: 4px; width: 5px; height: 5px; border-radius: 50%; border: 1px solid var(--pf-line); box-sizing: border-box; }
+.pf-pad.is-up .pf-led { background: var(--pf-ok); border-color: var(--pf-ok); box-shadow: 0 0 var(--ll-pcb-led-glow) var(--pf-ok); }
+.pf-marks { display: flex; align-items: center; justify-content: center; gap: 1px; height: 10px; }
+.pf-mark { display: inline-flex; line-height: 0; }
+.pf-mark svg { width: 9px; height: 9px; }
+.pf-mark--up { color: var(--pf-accent); }
+.pf-n { font-size: var(--ll-fs-md); font-weight: var(--ll-fw-bold); }
+.pf-sp { font-size: var(--ll-fs-2xs); font-family: var(--ll-font-mono); }
+.pf-vlan { font-size: 9px; line-height: 1; padding: 1px 3px; border-radius: 3px; background: var(--pf-plate); color: var(--pf-ink); font-family: var(--ll-font-mono); }
+.pf-count { position: absolute; top: -6px; right: -6px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; border-radius: var(--ll-radius-pill);
+  background: var(--pf-ink); color: var(--pf-pad); border: 1px solid var(--pf-plate); font-size: 10px; font-weight: var(--ll-fw-bold); line-height: 13px; text-align: center; }
+.pf-health { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); height: 15px; padding: 0 5px; box-sizing: border-box; border-radius: var(--ll-radius-pill);
+  font-size: 10px; font-weight: var(--ll-fw-bold); line-height: 13px; border: 1px solid; }
+.pf-pad--warn .pf-health { background: var(--ll-warn-soft); color: var(--ll-warn-text); border-color: var(--ll-warn); }
+.pf-pad--bad .pf-health { background: var(--ll-danger-soft); color: var(--ll-danger-text); border-color: var(--ll-danger); }
+
+/* legend */
+.pf-legend { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--ll-fs-xs); color: var(--ll-text-3); }
+.pf-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.pf-lg { display: inline-flex; align-items: center; justify-content: center; line-height: 0; }
+.pf-lg--led { width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--ll-text-3); box-sizing: border-box; }
+.pf-lg--led.is-up { background: var(--ll-ok); border-color: var(--ll-ok); }
+.pf-lg--poe { color: var(--ll-text-2); }
+.pf-lg--up { color: var(--ll-accent-text); }
+.pf-lg--warn, .pf-lg--bad { min-width: 16px; height: 14px; padding: 0 4px; box-sizing: border-box; border-radius: var(--ll-radius-pill); font-size: 10px; font-weight: var(--ll-fw-bold); line-height: 1; }
+.pf-lg--warn { border: 1px solid var(--ll-warn); }
+.pf-lg--bad { border: 1px solid var(--ll-danger); }
+
+/* the panel of the chosen port */
+.pf-panel { padding: 12px 14px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); background: var(--ll-surface); min-width: 0; box-sizing: border-box; }
+.pf-panel[hidden] { display: none; }
+.pf-panel__title { margin: 0 0 8px; font-size: var(--ll-fs-md); display: flex; align-items: center; gap: 8px; }
+.pf-panel__title .chip { height: 18px; font-size: 10px; }
+.pf-facts { margin: 0; display: grid; grid-template-columns: minmax(80px, max-content) minmax(0, 1fr); gap: 6px 14px; font-size: var(--ll-fs-sm); }
+.pf-facts dt { color: var(--ll-text-3); }
+.pf-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.pf-hl b { display: inline-block; min-width: 16px; padding: 0 4px; box-sizing: border-box; text-align: center; border-radius: var(--ll-radius-pill); font-size: 10px; line-height: 15px; }
+.pf-hl--warn b { border: 1px solid var(--ll-warn); }
+.pf-hl--bad b { border: 1px solid var(--ll-danger); }
+.pf-devs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pf-devs li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+.pf-devs .mono { white-space: nowrap; }
+.pf-devs .kind-icon { width: 20px; height: 20px; }
+.pf-devs .kind-icon svg { width: 14px; height: 14px; }
+.pf-devs__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pf-devs__more { padding-left: 28px; }
+
+/* access points */
+.pf-radios { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.pf-radio { display: inline-flex; align-items: baseline; gap: 8px; padding: 6px 12px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); background: var(--ll-surface); font-size: var(--ll-fs-sm); }
+.pf-radio__ch { font-family: var(--ll-font-mono); font-size: var(--ll-fs-xs); }
+.pf-roams, .pf-none { margin: 0; font-size: var(--ll-fs-xs); }
+
+@media (max-width: 640px) {
+  .pf-plate { padding: 16px 10px 20px; gap: 10px; }
+  .pf-sfp { padding-left: 10px; }
+  .pf-facts { grid-template-columns: minmax(64px, 32%) minmax(0, 1fr); gap: 6px 10px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pf-pad { transition: background var(--ll-dur-fast) var(--ll-ease); }
+}
+
+
+/* the equipment card of the firewall tab: wide enough for a faceplate; the cards flow in columns so a short one does not leave a hole beside a tall one */
+.fw-eq__list { display: block; columns: 460px 3; column-gap: 12px; }
+.fw-eq__item { break-inside: avoid; margin-bottom: 12px; }
+.fw-eq__ports { min-width: 0; }
+.fw-eq__ports:empty { display: none; }
+@media (max-width: 640px) { .fw-eq__list { columns: 1; } }

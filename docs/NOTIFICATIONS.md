@@ -19,6 +19,7 @@ Open **Settings → Notifications**. Everybody (viewer, operator, admin) has the
 | Certificate expires within 14 days (expired: critical) | warning | – | – |
 | Backup too old | warning | – | – |
 | Vulnerability hint (a published vulnerability matches a device's firmware; certain or exploited in the wild: warning, otherwise note; only with the [vulnerability hints](VULNERABILITIES.md)) | warning | – | – |
+| Switch port unstable (three or more link drops or error episodes in 24 hours; only with a switch controller read) | warning | – | yes |
 | Host agent silent (no report for 90 seconds; only with a [host agent](HOST-AGENT.md)) | warning | yes | yes |
 | Failed service or timer on a host with an agent | warning | – | yes |
 | Container unhealthy or restarting (host agent or container source) | warning | yes | yes |

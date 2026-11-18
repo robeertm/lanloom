@@ -533,7 +533,7 @@
     stopAllDots();
     unzoom('page');
     const page = S.el, d = S.d;
-    const head = h('div', { class: 'page__head pw-head' }, h('h1', {}, t('nav.paths')), seg());
+    const head = h('div', { class: 'nm-head' }, LL.netModes ? LL.netModes('paths') : null, h('div', { class: 'page__head pw-head' }, h('h1', {}, t('nav.paths')), seg()));
     const intro = h('p', { class: 'muted pw-intro' }, t('paths.intro'));
     if (!d) {
       page.replaceChildren(head, intro, h('p', { class: S.error ? 'msg msg--error' : 'muted' }, S.error || t('paths.loading')));

@@ -644,7 +644,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     # ------------------------------------------------------------------ inventory and map
     @app.get("/api/devices")
     async def devices():
-        return {"devices": state.core.devices()}
+        tags = state.core.net_tags()
+        return {"devices": [dict(d, tags=tags.get(d["id"])) for d in state.core.devices()]}
 
     @app.get("/api/overview")
     async def overview():
@@ -1201,6 +1202,49 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         src = str(request.query_params.get("source") or "")[:24] or None
         return state.firewall.view(request.state.user, requester_ip(request), src)
 
+    def fw_live_state(source):
+        """(key, name, neutral state, age) of the live source a read-only question is about: the one asked for, else the
+        first that has rules."""
+        live = state.firewall.live_sources()
+        pick = next((e for e in live if e["key"] == source), None) or next((e for e in live if (e["state"] or {}).get("policies")), None)
+        return pick
+
+    @app.get("/api/firewall/insight")
+    async def fw_insight(request: Request):
+        """Read only: the rules in plain words, checks with a suggestion, blocked today, hits of the last hour, the board."""
+        from .firewall import insight
+        entry = fw_live_state(str(request.query_params.get("source") or "")[:24] or None)
+        if entry is None:
+            return {"source": None}
+        st = entry["state"]
+        pols = st.get("policies") or []
+        hits = state.core.hitlog.summary(entry["key"], pols)
+        return {"source": entry["key"], "name": entry["name"], "age_s": entry.get("age_s"),
+                "findings": insight.findings(st), "plain": {str(p["id"]): insight.plain(st, p) for p in pols},
+                "hits": {"blocked_today": hits["blocked_today"], "top": hits["top"], "since": hits["day_since"],
+                         "hour_ok": hits["hour_ok"], "hour": hits["hour"], "day": hits["day"]},
+                "board": insight.board(st, hits["hour"]), "ids": st.get("ids")}
+
+    @app.get("/api/firewall/ask")
+    async def fw_ask(request: Request):
+        """"May A reach B?" from the read rules. Nothing is sent anywhere."""
+        from .firewall import insight
+        q = request.query_params
+        entry = fw_live_state(str(q.get("source") or "")[:24] or None)
+        if entry is None:
+            return JSONResponse({"error": "fw.ask.no_rules"}, status_code=404)
+        res = insight.ask(entry["state"], str(q.get("from") or "")[:80], str(q.get("to") or "")[:80],
+                          str(q.get("proto") or "")[:8] or None, str(q.get("port") or "")[:6] or None)
+        if res.get("error"):
+            return JSONResponse({"error": "fw.ask.err." + res["error"]}, status_code=400)
+        res["source"] = entry["key"]
+        return res
+
+    @app.get("/api/ports")
+    async def ports_view(request: Request):
+        """Faceplates of the switches and access points a controller adapter reads (read only)."""
+        return {"fronts": state.core.port_fronts(), "moves": state.core.roamwatch.total()}
+
     @app.put("/api/firewall/draft")
     async def fw_draft(request: Request):
         data = await body(request)
@@ -1557,7 +1601,7 @@ def selftest() -> int:
                 problems.append("i18n placeholders differ (%s)" % lang)
         if not whatsnew.entries():
             problems.append("CHANGELOG.md missing or unreadable (What's new?)")
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/history.js", "css/history.css", "board/tree.js", "css/tree.css", "js/a11y.js", "css/a11y.css", "js/automations.js", "css/automations.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/fwinsight.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "css/fwinsight.css", "js/portfront.js", "css/portfront.css", "js/netmodes.js", "css/netmodes.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/history.js", "css/history.css", "board/tree.js", "css/tree.css", "js/a11y.js", "css/a11y.css", "js/automations.js", "css/automations.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

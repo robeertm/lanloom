@@ -150,7 +150,9 @@
     const v = JSON.parse(JSON.stringify(view));
     v.zones.forEach(z => { if (z.title_key) z.title = t(z.title_key, z.vars || {}); });
     v.components.forEach(c => {
-      if (c.title_key && !c.title) c.title = t(c.title_key) + (c.title_suffix ? ' ' + c.title_suffix : '');
+      // the "+N quiet devices" tile of a large network reads "Fold N quiet devices" while that network is unfolded
+      if (c.quiet_more) c.expanded = LL.isUnfolded(c.fold_key);
+      if (c.title_key && !c.title) c.title = t(c.quiet_more && LL.isUnfolded(c.fold_key) ? 'comp.quiet.less' : c.title_key, c.vars || {}) + (c.title_suffix ? ' ' + c.title_suffix : '');
       if (c.subtitle_key && !c.subtitle) c.subtitle = t(c.subtitle_key, c.vars || {});
     });
     return v;
@@ -165,6 +167,9 @@
       const filterBar = h('div', { class: 'map-filter', role: 'toolbar', 'aria-label': t('mapfilter.label') });
       const panel = h('aside', { class: 'detail', hidden: true, 'aria-label': t('detail.label') });
       fr.main.append(h('div', { class: 'map-col' }, filterBar, host), panel);
+      // the board can fill the window (phones above all): its host moves into an overlay and back, the live feed keeps running
+      const fullScreen = kind === 'network' && LL.hostFullScreen ? LL.hostFullScreen(host, { app, onClosed: () => { const b = filterBar.querySelector('.nm-fullbtn'); if (b) b.focus({ preventScroll: true }); } }) : null;
+      const fullButton = () => LL.fullButton(() => fullScreen.open());
       let data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview'));
       if (!data.components.length) {
         filterBar.remove();
@@ -179,6 +184,9 @@
       // the address follows the open card (#/map/<id>), the back key closes it again
       const here = id => '#/' + route + (id ? '/' + encodeURIComponent(id) : '') + LL.queryString();
       const onSelectId = (id, fromAddress) => {
+        // the "+N quiet devices" tile of a large network folds or unfolds that network's quiet devices; it opens no card
+        const qm = String(id).startsWith('qm:') ? data.components.find(x => x.id === id && x.quiet_more) : null;
+        if (qm) { LL.setUnfolded(qm.fold_key, !LL.isUnfolded(qm.fold_key)); return; }
         selected = id; board.highlight(id);
         if (!fromAddress) LL.deepLink(here(id));
         const opener = document.activeElement;
@@ -225,31 +233,40 @@
         LL.deepLink(here(selected));
         loadTalk(); drawFilter();
       }
-      const feed = d => (mode === 'tree' ? localise(d) : show(d));       // the tree filters on its own (it keeps the chain above a match)
+      // the tree filters on its own (it keeps the chain above a match) and has no fold tile: it lists every device
+      const noQuiet = v => (v.components.some(c => c.quiet_more) ? Object.assign({}, v, { components: v.components.filter(c => !c.quiet_more) }) : v);
+      const feed = d => (mode === 'tree' ? noQuiet(localise(d)) : show(d));
       const treeFilter = () => ({ zone: LL.query.get('zone') || '', only: LL.query.get('only') || '' });
       // containers fold under their host (E4): the board hides them until the host is opened (remembered per host)
       const foldIds = () => data.components.filter(c => c.folds).map(c => c.id);
       LL.foldHosts = foldIds();
+      // the area filter (?zone=) and "problems only" (?only=): the address follows, the board is drawn again
+      function setFilter(key, value) {
+        if (value) LL.query.set(key, value); else LL.query.delete(key);
+        LL.deepLink(here(selected));
+        redraw();
+      }
+      // the legend of the board toggles the areas too: it gets the areas of the whole view (the filtered view only holds one)
+      const zoneList = () => localise(data).zones.filter(z => !z.fold);
+      const syncZones = () => { if (board && board.setZoneFilter) board.setZoneFilter(LL.query.get('zone') || null, zoneList()); };
       function redraw() {
         LL.foldHosts = foldIds();
+        syncZones();
         board.update(feed(data)); if (LL.a11y) LL.a11y.setNames(localise(data).components); if (selected) board.highlight(selected);
         drawFilter();
       }
       function drawFilter() {
         const zones = localise(data).zones.filter(z => z.id !== 'edge' && !z.fold);
         const zone = LL.query.get('zone'), only = LL.query.get('only');
-        const set = (key, value) => {
-          if (value) LL.query.set(key, value); else LL.query.delete(key);
-          LL.deepLink(here(selected));
-          redraw();
-        };
+        const set = setFilter;
         const chip = (label, on, fn, extra) => h('button', { class: 'mf-chip' + (on ? ' is-on' : '') + (extra || ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', onclick: fn }, label);
         // the view toggle comes first: with many areas the row scrolls and a chip at the end would be out of sight
         const nTalk = talkOn && talkInfo ? talkInfo.pairs.length : 0;
         const talkChip = chip(t('talk.chip') + (nTalk ? ' · ' + nTalk : ''), talkOn, toggleTalk, ' mf-chip--talk');
         if (nTalk) talkChip.title = t('talk.legend', { n: nTalk });
         filterBar.replaceChildren(...[
-          treeOk ? viewSwitch() : null, treeOk ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
+          LL.netModes ? LL.netModes('live') : null, LL.netModes ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
+          treeOk ? viewSwitch() : null, mode === 'board' && fullScreen ? fullButton() : null, treeOk || (mode === 'board' && fullScreen) ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
           mode !== 'board' ? null : talkChip,        // the lines in the air belong to the board; the tree has the chain
           mode === 'board' && talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
           mode === 'board' && LL.foldHosts.length ? chip(t('mapfilter.containers'), LL.allUnfolded(), () => LL.setAllUnfolded(!LL.allUnfolded()), ' mf-chip--containers') : null,
@@ -264,8 +281,14 @@
       function mountViewer() {
         host.classList.toggle('board-host--tree', mode === 'tree');
         if (mode === 'tree') return LL.Tree.mount(host, { view: feed(data), t: LL.t, locale: LL.locale(), filter: treeFilter, onSelect: id => onSelectId(id) });
-        return LL.Board.mount(host, { view: feed(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: id => onSelectId(id) });
+        return LL.Board.mount(host, { view: feed(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: pick,
+          zones: zoneList(), zone: LL.query.get('zone') || null, onZone: id => setFilter('zone', LL.query.get('zone') === id ? null : id) });
       }
+      // a tile picked in the full screen first leaves it (the card opens on the page); the fold tile stays in it
+      const pick = id => {
+        if (!fullScreen || !fullScreen.isOpen() || String(id).startsWith('qm:')) { onSelectId(id); return; }
+        fullScreen.close(() => { const tile = host.querySelector('[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]'); if (tile) tile.focus({ preventScroll: true }); onSelectId(id); });
+      };
       let board = mountViewer();
       if (LL.a11y) LL.a11y.setNames(localise(data).components);
       // Esc closes the open card (not while a dialog, the palette or a text field has the keyboard)
@@ -333,7 +356,7 @@
       });
       const onVis = () => { if (!document.hidden && stale) { stale = false; refresh(); } };
       document.addEventListener('visibilitychange', onVis);
-      return { destroy: () => { unsub(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; board.destroy(); fr.destroy(); } };
+      return { destroy: () => { unsub(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; if (fullScreen) fullScreen.destroy(); board.destroy(); fr.destroy(); } };
     };
   }
 
@@ -389,6 +412,9 @@
         } catch (e) { /* keep */ }
       }
     } else if (devSec) sections.push(devSec);
+    // front view of a switch, router or access point that a controller adapter reads (js/portfront.js); the card's refresh redraws it
+    let pfBody = null;
+    if (d.portfront && LL.portFront) { pfBody = h('div', {}, LL.portFront(d.portfront, { head: false })); sections.push(section(t('pf.title'), pfBody)); }
     if (d.snmp) sections.push(snmpSection(d.snmp));
     if (d.broker) sections.push(brokerSection(d.broker));
     if (d.topic) sections.push(section(t('detail.topic'), facts([[t('detail.rate'), d.topic.msgs_s + ' ' + t('unit.msg_s')], [t(LL.rateUnit === 'bits' ? 'detail.bits' : 'detail.bytes'), LL.fmtRate(d.topic.bytes_s)],
@@ -439,7 +465,7 @@
     const refresher = setInterval(async () => {
       if (panel.hidden || !panel.isConnected) { clearInterval(refresher); unsub(); return; }   // closed, or the view was drawn anew
       if (document.hidden) return;                 // no requests for a tab nobody looks at
-      try { const nd = await api('/api/component/' + encodeURIComponent(id)); d.series = nd.series; drawChart(); } catch (e) { /* ignore */ }
+      try { const nd = await api('/api/component/' + encodeURIComponent(id)); d.series = nd.series; drawChart(); if (pfBody && nd.portfront && pfBody.isConnected) pfBody.replaceChildren(LL.portFront(nd.portfront, { head: false })); } catch (e) { /* ignore */ }
     }, 5000);
   }
 
@@ -859,6 +885,10 @@
     let ov = null;
     if (show === 'new') { try { ov = await api('/api/overview'); } catch (e) { ov = null; } }
     const newIds = new Set(ov ? ov.new.map(d => d.id) : []);
+    // network filter (?net=): "wired", "net:<name>", "vlan:<n>" or "wireless:<ssid>" (what the tags of the rows say); a value nothing matches counts as "all"
+    let net = LL.cleanDeviceNet ? LL.cleanDeviceNet(data.devices, LL.query.get('net') || '') : '';
+    const netSel = LL.deviceNetSelect ? LL.deviceNetSelect(data.devices, net, v => { net = v; if (v) LL.query.set('net', v); else LL.query.delete('net'); LL.deepLink(here(null), true); render(); }) : null;
+    const keepNet = d => !net || !LL.NetModes || LL.NetModes.matchNet(d, net);
     const keep = d => !show || (show === 'new' ? newIds.has(d.id) : show === 'offline' ? d.status === 'down' : (!d.is_self && d.certainty !== 'sure'));
     const here = id => '#/devices' + (id ? '/' + encodeURIComponent(id) : '') + LL.queryString();
     // a second interface has no card of its own on the map: its row opens the card of the device it belongs to
@@ -869,9 +899,9 @@
     const openRow = id => { placeCard(); LL.deepLink(here(id)); openDetail(panel, cardOf(id), () => LL.deepLink(here(null))); };
     let render = function () {
       const s = q.value.toLowerCase();
-      const rows = data.devices.filter(d => keep(d) && (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' ')].join(' ').toLowerCase().includes(s)));
+      const rows = data.devices.filter(d => keep(d) && keepNet(d) && (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' ')].join(' ').toLowerCase().includes(s)));
       list.replaceChildren(...rows.map(d => h('button', { class: 'device-row' + (d.hidden ? ' is-hidden' : ''), type: 'button', onclick: () => openRow(d.id) },
-        LL.kindIcon(d.kind), h('span', { class: 'device-row__main' }, h('span', { class: 'device-row__title' }, d.is_self ? t('kind.self') : (d.title || t('kind.' + d.kind))), h('span', { class: 'device-row__sub mono' }, d.ip || d.mac || '')),
+        LL.kindIcon(d.kind), h('span', { class: 'device-row__main' }, h('span', { class: 'device-row__title' }, d.is_self ? t('kind.self') : (d.title || t('kind.' + d.kind))), h('span', { class: 'device-row__line' }, h('span', { class: 'device-row__sub mono' }, d.ip || d.mac || ''), LL.deviceTags ? LL.deviceTags(d) : null)),
         h('span', { class: 'device-row__kind' }, t('kind.' + d.kind)), h('span', { class: 'device-row__svc' }, d.services.slice(0, 3).map(s => h('span', { class: 'll-badge' }, s))),
         h('span', { class: 'status-dot status-dot--' + d.status, title: t('board.status.' + d.status) }))));
       if (!rows.length) list.replaceChildren(h('div', { class: 'empty-note' }, t('devices.none')));
@@ -891,6 +921,7 @@
     const baseRender = render;
     render = function () {
       showHidden.closest('label').hidden = mode === 'stability';
+      if (netSel) netSel.hidden = mode === 'stability';
       if (mode === 'stability') {
         if (!stab) stab = LL.stabilityPanel({ filter: () => q.value.toLowerCase().trim(), onOpen: id => openRow(id) });
         else stab.redraw();
@@ -902,7 +933,7 @@
     };
     q.addEventListener('input', () => render()); showHidden.addEventListener('change', () => render());
     fr.main.append(h('div', { class: 'page page--wide' }, h('div', { class: 'page__head inv-head' }, h('h1', {}, t('nav.devices')), count, LL.inventorySwitch ? LL.inventorySwitch('devices') : null),
-      h('div', { class: 'toolbar' }, q, modeSwitch, h('label', { class: 'check' }, showHidden, h('span', {}, t('devices.show_hidden'))),
+      h('div', { class: 'toolbar' }, q, netSel, modeSwitch, h('label', { class: 'check' }, showHidden, h('span', {}, t('devices.show_hidden'))),
         show ? h('a', { class: 'mf-chip is-on dev-filter', href: '#/devices', title: t('devices.filter.clear') }, t('devices.filter.' + show), h('span', { 'aria-hidden': 'true' }, ' ✕')) : null), list), panel);
     drawMode();
     render();
@@ -1004,8 +1035,13 @@
       await api('/api/settings', { method: 'PUT', body: { rate_unit: unit.value } }); LL.rateUnit = unit.value; LL.toast(t('settings.saved'), 'ok'); } },
       ['bytes', 'bits'].map(v => h('option', { value: v }, t('settings.rate_unit.' + v))));
     unit.value = s.rate_unit === 'bits' ? 'bits' : 'bytes';
+    // background noise (broadcast, multicast) out of the exact counters read at switch ports; off by default
+    const noise = h('input', { type: 'checkbox', checked: !!s.port_noise, onchange: async () => {
+      try { await api('/api/settings', { method: 'PUT', body: { port_noise: noise.checked } }); LL.toast(t('settings.saved'), 'ok'); }
+      catch (e) { noise.checked = !noise.checked; LL.toast(LL.errText(e), 'error'); } } });
     page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)),
-      paletteField(), h('div', { class: 'grid-2' }, LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint')), motionField())]));
+      paletteField(), h('div', { class: 'grid-2' }, LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint')), motionField()),
+      h('div', { class: 'stack-sm' }, h('label', { class: 'check' }, noise, h('span', {}, t('settings.port_noise'))), h('p', { class: 'field__hint' }, t('settings.port_noise.hint')))]));
     if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
     if (LL.netflowSettingsCard) page.append(LL.netflowSettingsCard(s));
     const mqttCard = LL.mqttOutCard ? LL.mqttOutCard() : null;

@@ -143,6 +143,8 @@
   transition: border-color var(--ll-dur-fast) var(--ll-ease), opacity var(--ll-dur) var(--ll-ease), box-shadow var(--ll-dur-fast) var(--ll-ease);
 }
 .ll-tile:hover { border-color: var(--ll-pcb-tile-hover); }
+.ll-tile[data-quiet] { border-style: dashed; }   /* the fold tile of a large network is a toggle, drawn like an open slot */
+.ll-tile[data-quiet] .ll-tile__meta, .ll-tile[data-quiet] .ll-led { display: none; }
 .ll-tile:focus { outline: none; }
 .ll-tile:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 2px; }
 .ll-tile__icon {
@@ -300,6 +302,13 @@
 .ll-legend__flt.is-off svg { opacity: .35; filter: grayscale(1); }
 .ll-legend__all { color: var(--ll-accent-text); font-weight: var(--ll-fw-semibold); }
 .ll-legend__sep { width: 1px; height: 16px; background: var(--ll-border); }
+/* network toggles: one button per network zone (pressed = shown); a click shows only that network, a second click shows all again */
+.ll-legend__zones { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; min-width: 0; max-width: 100%; }
+.ll-legend__grp { color: var(--ll-text-3); }
+.ll-legend__zone span { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
+.ll-legend__zone.is-off span { text-decoration: none; }
+.ll-lg-zone { flex: none; width: 12px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ll-accent); background: var(--ll-accent-soft); box-sizing: border-box; }
+.ll-legend__zone.is-off .ll-lg-zone { border-color: var(--ll-border-strong); background: none; opacity: .8; }
 .ll-legend__grades { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .ll-legend__grade { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ll-legend__grade i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--ll-grade-unknown); }
@@ -322,6 +331,7 @@
   box-shadow: none;
 }
 .ll-legend.is-inline { row-gap: 12px; }
+.ll-legend.is-inline .ll-legend__sep { display: none; }   /* a divider would dangle at the end of a wrapped row */
 .ll-legend.is-inline .ll-legend__flt, .ll-legend.is-inline .ll-legend__all { margin: -5px -8px; padding: 5px 8px; }   /* finger-sized, rows do not overlap */
 
 /* ---------------------------------------------------------------- empty state */

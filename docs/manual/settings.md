@@ -41,7 +41,8 @@ Administrators additionally:
 - **Connections** - the hub, MQTT broker, SNMP, switch controller, DNS filters and device-family adapters. Credentials are stored
   encrypted and never shown again. *Test connection* checks before you save.
 - **Set up again** - starts the setup assistant over, or the demo.
-- **Appearance** - speed unit (bytes or bits) next to language and theme.
+- **Appearance** - speed unit (bytes or bits) next to language and theme, and the switch *Take the background noise out of
+  exact port counters* (off by default; see [Network](network.md)).
 - **Data paths** and **NetFlow / IPFIX from your router** - home country, own networks and tunnels, networks without
   internet, and the NetFlow receiver (see [Data paths](data-paths.md)).
 - **MQTT output** - optional, off by default: a few of Lanloom's figures (devices online, new devices, internet line, open

@@ -42,12 +42,17 @@
       const page = h('div', { class: 'page fw-page' });
       const bar = h('div', { class: 'fw-draftbar', hidden: true, role: 'region', 'aria-label': t('fw.draft.label') });
       fr.main.append(page, bar);
+      const onPlan = !!(rest && rest[0] === 'plan');      // #/firewall/plan: the mode switch marks "Plan" (the address itself is shortened to #/firewall once the plan is in view)
       const st = { view: null, mode: 'view', pv: null, drag: null, timer: null, source: null, pol: { pair: null, builtin: false, q: '' } };
       try { st.mode = localStorage.getItem('ll-fw-mode') === 'change' ? 'change' : 'view'; st.source = localStorage.getItem('ll-fw-source') || null; } catch (e) { /* private mode */ }
 
       async function load() {
         try { st.view = await api('/api/firewall' + (st.source ? '?source=' + encodeURIComponent(st.source) : '')); } catch (e) { page.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
         st.pv = st.view.mode !== 'live' && draftCount(st.view) ? await api('/api/firewall/preview', { method: 'POST', body: {} }).catch(() => null) : null;
+        // plain-language rules, checks with advice, hits and the board of a zone firewall; the tab works without it
+        st.insight = st.view.mode === 'live' && st.view.state && (st.view.state.policies || []).length && !(st.view.state.hosts || []).length
+          ? await api('/api/firewall/insight?source=' + encodeURIComponent(st.view.source || '')).catch(() => null) : null;
+        if (st.insight && (!st.insight.source || st.insight.source !== st.view.source)) st.insight = null;
         render();
         clearTimeout(st.timer);
         if (st.view.running) st.timer = setTimeout(load, 1500);
@@ -120,6 +125,8 @@
         if (v.mode === 'simulation') kids.push(h('div', { class: 'callout fw-sim' }, h('strong', {}, t('fw.sim.title')), ' ', t('fw.sim.text'),
           LL.can('admin') ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: resetSim, disabled: !!v.running }, t('fw.sim.reset')) : null));
         if (v.mode === 'live') kids.push(h('div', { class: 'callout fw-live' }, svg(ICON.lock, 'fw-live__ico'), h('span', {}, t(v.state.hosts && v.state.hosts.length ? 'fw.live.callout_hv' : 'fw.live.callout', { name: v.live.name }))));
+        const insight = v.mode === 'live' && st.insight && LL.fwInsightCards ? st.insight : null;
+        if (insight) kids.push(...LL.fwInsightCards(v, insight, { pair: st.pol.pair, source: v.source, pick: key => { st.pol.pair = st.pol.pair === key ? null : key; render(); } }));
         else if (!LL.can('operate')) kids.push(h('div', { class: 'callout' }, t('fw.role.readonly')));
         else if (!canChange(v)) kids.push(h('div', { class: 'callout' }, t('fw.executor.readonly')));
         if (v.quiet) kids.push(h('div', { class: 'callout callout--warn' }, t('fw.quiet.now', { hours: v.quiet_hours })));
@@ -130,8 +137,9 @@
         if (v.mode !== 'live' && v.netconf && LL.ncCards) kids.push(...LL.ncCards(v, netCtx(v)));
         if (v.mode !== 'live' && v.state.hosts && v.state.hosts.length) kids.push(...LL.hvEditCards(v.state, guestCtx(v)));
         st.pol.source = v.mode === 'live' ? v.source : null;     // "Explain" (AI) reads the rule from this live source
+        st.pol.insight = insight;                                 // rules in plain words and hit chips (js/fwinsight.js)
         if (v.state.policies && v.state.policies.length) kids.push(LL.fwPolicies(v.state, st.pol, render));
-        if (v.mode === 'live') kids.push(...LL.fwLiveExtras(v.state));
+        if (v.mode === 'live') kids.push(...LL.fwLiveExtras(v.state, { checksShown: !!insight }));
         const hist = history(v);
         if (hist) kids.push(hist);
         page.replaceChildren(...kids);
@@ -156,9 +164,10 @@
             st.source = o.key; try { localStorage.setItem('ll-fw-source', o.key); } catch (e) { /* ignore */ } st.pol.pair = null; load();
           } }, o.kind === 'live' ? o.name : t(o.kind === 'simulation' ? 'fw.source.sim' : 'fw.source.executor'));
         })) : null;
-        return h('div', { class: 'page__head fw-head' },
+        const top = h('div', { class: 'page__head fw-head' },
           h('div', { class: 'fw-head__title' }, h('h1', {}, t('nav.firewall')), h('div', { class: 'fw-head__meta' }, chip, meta ? h('span', { class: 'muted' }, meta) : null)),
           h('div', { class: 'fw-head__tools' }, pick, canMove(v) && LL.aiFirewallButton ? LL.aiFirewallButton(v, v.draft.moves, takeSuggestion) : null, canChange(v) ? seg : null, v.mode === 'live' || !LL.can('admin') ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => openExecutor(v) }, t('fw.executor.button'))));
+        return h('div', { class: 'nm-head' }, LL.netModes ? LL.netModes(onPlan ? 'plan' : 'firewall') : null, top);
       }
 
       function board(v) {
@@ -626,6 +635,23 @@
     return what;
   }
 
+  // a rule in plain words (from the insight of the server) and what it did lately; both are absent without insight
+  function plainLine(ins, p) {
+    const m = ins && ins.plain && ins.plain[p.id];
+    const text = m && LL.plainText ? LL.plainText(m) : '';
+    if (!text) return null;
+    const notes = LL.fwInsight ? LL.fwInsight.plainNotes(m, t) : [];
+    return h('div', { class: 'fw-rule__plain' }, text, notes.length ? h('span', { class: 'fw-rule__notes muted' }, ' ' + notes.join(' \u00b7 ')) : null);
+  }
+  function insightChips(ins, p) {
+    const hits = ins && ins.hits;
+    if (!hits) return [];
+    const hour = hits.hour_ok && hits.hour ? hits.hour[p.id] : 0;
+    const day = hits.day ? hits.day[p.id] : 0;
+    return [hour > 0 ? h('span', { class: 'chip chip--accent' }, t('fwi.rule.hour', { n: hour })) : null,
+      p.action !== 'allow' && day > 0 ? h('span', { class: 'chip chip--danger' }, t('fwi.rule.today', { n: day })) : null];
+  }
+
   LL.fwPolicies = function (s, f, rerender) {
     const zones = s.zones;
     const allow = new Set((s.allow || []).map(([a, b]) => a + '>' + b));
@@ -660,14 +686,16 @@
       listBox.replaceChildren(...(groups.length ? groups.map(g => h('section', { class: 'fw-pol__group' },
         h('h3', { class: 'fw-pol__pair' }, zoneName(s, g.src), h('span', { class: 'muted', 'aria-hidden': 'true' }, ' → '), zoneName(s, g.dst),
           h('span', { class: 'chip ' + (allow.has(g.k) ? 'chip--ok' : 'chip--muted') }, t(allow.has(g.k) ? 'fw.pol.allow' : 'fw.pol.block'))),
-        h('ol', { class: 'fw-pol__rows' }, g.rows.map(p => h('li', { class: 'fw-rule' + (p.enabled ? '' : ' is-off') + (p.builtin ? ' is-builtin' : '') },
+        h('ol', { class: 'fw-pol__rows' }, g.rows.map(p => h('li', { class: 'fw-rule' + (p.enabled ? '' : ' is-off') + (p.builtin ? ' is-builtin' : '') + (f.insight && f.insight.plain && f.insight.plain[p.id] ? ' has-plain' : '') },
           h('span', { class: 'fw-rule__act fw-rule__act--' + p.action }, t('fw.pol.action.' + (['allow', 'block', 'reject'].includes(p.action) ? p.action : 'other'))),
           h('div', { class: 'fw-rule__main' },
             h('div', { class: 'fw-rule__name' }, p.name),
+            plainLine(f.insight, p),
             h('div', { class: 'fw-rule__meta' }, sideText(s, p.src) + ' → ' + sideText(s, p.dst)
               + (p.proto !== 'any' ? ' · ' + p.proto.toUpperCase() : '') + (p.ports ? ' · ' + t('fw.pol.ports', { ports: p.ports }) : ''),
               (p.states || []).length ? ' · ' + t('fw.pol.states', { states: p.states.join(', ') }) : '')),
           h('div', { class: 'fw-rule__side' },
+            ...insightChips(f.insight, p),
             p.hits != null ? h('span', { class: 'fw-rule__hits', title: t('fw.pol.hits', { n: p.hits }) }, t('fw.pol.hits', { n: fmtCount(p.hits) })) : null,
             !p.enabled ? h('span', { class: 'chip chip--muted' }, t('fw.pol.disabled')) : null,
             p.scheduled ? h('span', { class: 'chip chip--muted' }, t('fw.pol.scheduled')) : null,
@@ -693,13 +721,26 @@
       h('tbody', {}, rows.map(r => h('tr', {}, r.map(c => h('td', {}, c)))))));
   }
 
-  LL.fwLiveExtras = function (s) {
+  // The faceplate of a piece of equipment (js/portfront.js): the small port list is drawn at once and replaced when /api/ports answers.
+  function eqPorts(e, fallback) {
+    if (!LL.portFront || !LL.portFronts) return fallback;
+    const slot = h('div', { class: 'fw-eq__ports' }, fallback);
+    const fill = fronts => {
+      const f = (fronts || []).find(x => x.id === e.id);
+      if (f && ((f.ports || []).length || (f.radios || []).length)) { try { slot.replaceChildren(LL.portFront(f, { head: false })); } catch (err) { /* the small list stays */ } }
+    };
+    const now = LL.portFrontsCached && LL.portFrontsCached();
+    if (now) fill(now); else LL.portFronts().then(fill);
+    return slot;
+  }
+
+  LL.fwLiveExtras = function (s, opts) {
     if (s.hosts && s.hosts.length) return LL.hvFirewallCards(s);
     const out = [];
     const eq = s.equipment || [];
     if (eq.length) {
       const order = { router: 0, switch: 1, ap: 2 };
-      out.push(h('section', { class: 'card fw-eq' }, h('h2', {}, t('fw.eq.title')),
+      out.push(h('section', { class: 'card fw-eq', id: 'fw-eq-card' }, h('h2', {}, t('fw.eq.title')),
         h('div', { class: 'fw-eq__list' }, eq.slice().sort((a, b) => (order[a.kind] ?? 3) - (order[b.kind] ?? 3) || (a.name < b.name ? -1 : 1)).map(e => {
           const ports = (s.ports || []).filter(p => p.device === e.id).sort((a, b) => a.idx - b.idx);
           const up = e.uplink && e.uplink.device ? eq.find(x => x.id === e.uplink.device) : null;
@@ -708,13 +749,20 @@
               h('div', { class: 'fw-eq__titles' }, h('strong', {}, e.name), h('span', { class: 'muted mono' }, [e.model, e.mgmt_ip, e.firmware].filter(Boolean).join(' · '))),
               h('span', { class: 'chip ' + (e.online ? 'chip--ok' : 'chip--danger') }, t(e.online ? 'fw.eq.online' : 'fw.eq.offline'))),
             up ? h('p', { class: 'muted fw-eq__up' }, t('fw.eq.uplink', { name: up.name, port: e.uplink.port != null ? e.uplink.port : '—' })) : null,
-            ports.length ? h('ul', { class: 'fw-ports', 'aria-label': t('fw.eq.ports') }, ports.map(p => h('li', {
+            eqPorts(e, ports.length ? h('ul', { class: 'fw-ports', 'aria-label': t('fw.eq.ports') }, ports.map(p => h('li', {
               class: 'fw-port' + (p.link ? ' is-up' : '') + (p.is_uplink ? ' is-uplink' : '') + (p.poe && p.poe.on ? ' is-poe' : ''),
               title: [p.name, p.link ? (p.speed ? p.speed + ' Mbit/s' : t('fw.eq.link')) : t('fw.eq.nolink'), p.native_vlan != null ? 'VLAN ' + p.native_vlan : null,
                 p.poe && p.poe.on ? t('fw.eq.poe') : null, p.is_uplink ? t('fw.eq.is_uplink') : null, p.profile].filter(Boolean).join(' · ') },
               h('span', { class: 'fw-port__n' }, String(p.idx)),
-              h('span', { class: 'fw-port__s' }, p.link ? (p.speed >= 1000 ? LL.fmtNum(p.speed / 1000) + 'G' : p.speed ? String(p.speed) : '•') : '–')))) : null);
+              h('span', { class: 'fw-port__s' }, p.link ? (p.speed >= 1000 ? LL.fmtNum(p.speed / 1000) + 'G' : p.speed ? String(p.speed) : '•') : '–')))) : null));
         }))));
+      let focusEq = null;
+      try { if (sessionStorage.getItem('ll-fw-focus') === 'equipment') { focusEq = true; sessionStorage.removeItem('ll-fw-focus'); } } catch (e) { /* private mode */ }
+      if (focusEq) {                                // the tab may draw twice while it loads: aim at whatever card is in the page
+        const aim = () => { const el = document.getElementById('fw-eq-card'); const r = el && el.getBoundingClientRect();
+          if (el && (r.top < 0 || r.top > innerHeight * 0.5)) el.scrollIntoView({ block: 'start' }); };
+        [150, 600, 1200].forEach(ms => setTimeout(aim, ms));
+      }
     }
     const ss = s.ssids || [];
     if (ss.length) out.push(h('section', { class: 'card fw-extra' }, h('h2', {}, t('fw.ssid.title')),
@@ -729,7 +777,7 @@
           (p.proto || '').toUpperCase().replace('_', '/'), [p.enabled ? t('fw.state.on') : t('fw.state.off'), p.source_limited ? t('fw.fwd.limited') : null].filter(Boolean).join(' · ')]))
         : h('p', { class: 'muted' }, t('fw.fwd.none'))));
     const checks = s.findings || [];
-    if (checks.length) {
+    if (checks.length && !(opts && opts.checksShown)) {      // with the insight cards the checks are shown there
       const order = { alert: 0, warn: 1, info: 2 };
       const card = h('section', { class: 'card fw-extra fw-checks', id: 'fw-checks' }, h('h2', {}, t('fw.checks.title')), h('p', { class: 'muted' }, t('fw.checks.lead')),
         h('ul', { class: 'hv-findings' }, checks.slice().sort((a, b) => (order[a.level] ?? 3) - (order[b.level] ?? 3)).map(f =>

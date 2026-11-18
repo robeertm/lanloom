@@ -39,7 +39,7 @@ _ID = r"[A-Za-z0-9-]{1,64}"
 _Q = r"(?:\?offset=\d{1,6}&limit=\d{1,4})?"
 _P = r"(?:/proxy/network)?"
 CLASSIC_GET = (
-    _P + r"/api/s/%s/(?:self|stat/(?:sta|device|sysinfo)|rest/(?:networkconf|wlanconf|portconf|portforward|user|firewallrule|firewallgroup))" % _S,
+    _P + r"/api/s/%s/(?:self|stat/(?:sta|device|sysinfo)|get/setting/ips|rest/(?:networkconf|wlanconf|portconf|portforward|user|firewallrule|firewallgroup))" % _S,
     _P + r"/v2/api/site/%s/(?:firewall/zone|firewall-policies)" % _S,
 )
 OFFICIAL_GET = (
@@ -58,7 +58,7 @@ CLASSIC_AREAS = {"sysinfo": "api/s/{site}/stat/sysinfo", "device": "api/s/{site}
                  "portconf": "api/s/{site}/rest/portconf", "portforward": "api/s/{site}/rest/portforward",
                  "user": "api/s/{site}/rest/user", "firewallgroup": "api/s/{site}/rest/firewallgroup",
                  "firewallrule": "api/s/{site}/rest/firewallrule", "zone": "v2/api/site/{site}/firewall/zone",
-                 "policies": "v2/api/site/{site}/firewall-policies"}
+                 "policies": "v2/api/site/{site}/firewall-policies", "ips": "api/s/{site}/get/setting/ips"}
 LIGHT_CLASSIC = ("device", "sta")
 OFFICIAL_LISTS = {"o_zones": "firewall/zones", "o_policies": "firewall/policies", "o_wans": "wans", "o_acl": "acl-rules",
                   "o_dns": "dns/policies", "o_clients": "clients"}

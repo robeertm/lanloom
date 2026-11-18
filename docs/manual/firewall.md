@@ -28,6 +28,22 @@ written anywhere: the editor is a simulation.
   rules that let everything in) and a table of internet connections, VPN, fixed addresses, source NAT, static routes and
   rule groups. A hypervisor adapter adds findings, the firewall at datacenter, node and guest level, every guest
   network card and the bridges of each node.
+- **Firewall board** (live configuration with rules, read only): three figures - *Blocked today* (what the rules that
+  block or reject caught since the first reading of the day, with the rules that caught the most), *Own rules* and
+  *Checks* - and the zones as pads with a line for every pair that may talk. A line is thin when the pair is allowed by
+  the built-in defaults, thick when rules of your own decide it or it was busy in the last hour (with the number of
+  hits), and red dashed when traffic of that pair was blocked in the last hour. Select a zone and then a second one, or a
+  line, to see only the rules between those two zones; *Show as list* gives the same as a table.
+- **May one reach the other?** Pick two places (the internet, a zone, a network or a device with an address), and if you
+  like a protocol and a port. The answer comes from the rules as read, in their order: allowed, blocked or rejected, by
+  which rule, written as a sentence. A rule that depends on something Lanloom cannot see (chosen devices, applications,
+  regions, schedules, port groups) makes the answer **Depends** and is listed with the reason. Nothing is sent anywhere.
+- **Rules in plain words.** Every rule has a sentence under its name (*Blocks everything in Guests from reaching everything
+  in Internal*) and, where the controller counts, *N in the last hour* or *N blocked today*.
+- **Checks with a suggestion.** Besides what the adapter finds (management open on the internet side, rules that let
+  everything in), Lanloom points out a rule that an earlier rule always overrides, a guest zone that reaches the inside
+  with every service, and an intrusion-detection suppression list that has grown long (more than 30 entries; only the
+  number is read, never the entries). Each check says what you can do about it.
 - **Draft bar** (Change mode): one chip per device; **Preview** shows every field old to new, the warnings and what
   blocks.
 - **Guests** card (Change mode, with a hypervisor behind the editor): start, shut down, move a network card, switch the
@@ -46,6 +62,18 @@ written anywhere: the editor is a simulation.
 ![Networks of the gateway with what uses them](../screenshots/networks-light.png)
 
 ![Rules in the controller's order](../screenshots/firewall-rules-dark.png)
+
+![The firewall board: blocked today, own rules, checks and the zones with the traffic between them](../screenshots/firewall-board-light.png)
+
+![May one reach the other? The answer names the deciding rule and the rules that cannot be judged](../screenshots/firewall-ask-dark.png)
+
+![Checks with what you can do about them](../screenshots/firewall-checks-light.png)
+
+![Switch front panels in the equipment card](../screenshots/switch-front-light.png)
+
+The **mode switch** *Live | Plan | Firewall | Data paths* at the top of this page, of the [network](network.md) view and
+of [Data paths](data-paths.md) moves between these views. From the search (`Ctrl K`): *May one reach the other?* opens the
+question, *Switch ports and front view* the equipment card.
 
 ## How to use it
 

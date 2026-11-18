@@ -241,6 +241,9 @@ RULES = {
 
     # ---------------------------------------------------------------- firewall editor
     ("GET", "/api/firewall"): R(V),
+    ("GET", "/api/firewall/insight"): R(V),
+    ("GET", "/api/firewall/ask"): R(V),
+    ("GET", "/api/ports"): R(V),
     ("PUT", "/api/firewall/draft"): R(O, "firewall.draft"),
     ("DELETE", "/api/firewall/draft"): R(O, "firewall.draft_clear"),
     ("POST", "/api/firewall/preview"): R(O, "firewall.preview"),

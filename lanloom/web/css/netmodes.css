@@ -1,0 +1,38 @@
+/* Lanloom — the mode switch Live | Plan | Firewall | Data paths, the tags in the device list and the full screen of the map.
+   Uses only design tokens, so light and dark follow tokens.css. The look of the switch itself is .seg in firewall.css. */
+.nm-seg { flex: none; max-width: 100%; }
+.nm-seg .seg__btn { display: inline-flex; align-items: center; text-decoration: none; white-space: nowrap; }
+.nm-seg .seg__btn:hover:not(.is-active) { color: var(--ll-text); }
+.map-filter .nm-seg .seg__btn { min-height: 28px; padding: 0 14px; }
+/* extra row above the title of the Firewall tab and the Data paths page */
+.nm-head { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; max-width: 100%; }
+.nm-head > .page__head { align-self: stretch; }
+.nm-head > .nm-seg { overflow-x: auto; scrollbar-width: none; }
+.nm-head > .nm-seg::-webkit-scrollbar { display: none; }
+
+/* the full-screen button of the map sits in the filter bar */
+.nm-fullbtn { flex: none; width: 30px; height: 30px; }
+.nm-fullbtn svg { display: block; }
+
+/* tags in the device list */
+.device-row__main { min-width: 0; }
+.device-row__line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+.device-row__tags { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.nm-tag { height: 20px; padding: 0 8px; font-size: 11px; font-weight: var(--ll-fw-medium, 500); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-net { max-width: 260px; min-width: 0; }
+
+/* full screen of the map: the board host is moved in here */
+.nm-noscroll { overflow: hidden; }
+.nm-full { position: fixed; inset: 0; z-index: 120; background: var(--ll-bg); display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.nm-full__head { display: flex; align-items: center; gap: 14px; padding: 8px 12px 8px 16px; border-bottom: 1px solid var(--ll-border); background: var(--ll-surface); }
+.nm-full__head h2 { font-size: var(--ll-fs-lg); margin: 0 auto 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.nm-full__close { flex: none; }
+.nm-full__body { flex: 1; min-height: 0; display: flex; }
+.nm-full__body > .board-host { flex: 1; min-width: 0; height: 100%; }
+
+@media (max-width: 700px) {
+  .map-filter .nm-fullbtn { order: -1; }                 /* first in the bar: the bar scrolls and this button is the point of the phone */
+  .dev-net { max-width: none; width: 100%; }
+  .nm-head > .nm-seg { max-width: 100%; }
+}

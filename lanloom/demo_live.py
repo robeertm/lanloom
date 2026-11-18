@@ -3,6 +3,7 @@
 Used by demo mode and the screenshots only. Sample names and documentation-style private addresses; no vendor
 data. The firewall tab shows it as the live source "Sample controller"."""
 import copy
+import time
 
 from .firewall import neutral
 from .firewall.adapter import sample_state
@@ -26,7 +27,22 @@ def _pol(pid, name, src, dst, action, order, hits, builtin=False, **kw):
     return p
 
 
-def live_sample() -> dict:
+T0 = 1_700_000_000
+_HIT_RATES = {"u1": 14.0, "u2": 0.9, "u3": 0.02, "u4": 0.04, "u5": 0.6, "b_invalid": 0.03}      # hits per second of the sample rules
+
+
+def policy_hits(pid: str, base: int, now: float, builtin_allow: bool = False) -> int:
+    """Counter of a sample rule at ``now``: grows steadily (the demo keeps counting while it runs)."""
+    rate = _HIT_RATES.get(pid, 1.5 if builtin_allow else 0.0)
+    return int(base + rate * max(0.0, now - T0))
+
+
+def hash_slot(name: str) -> bool:
+    return sum(ord(c) for c in name) % 2 == 0
+
+
+def live_sample(now: float = None) -> dict:
+    now = time.time() if now is None else now
     st = sample_state()
     st = copy.deepcopy(st)
     st["v"] = 2
@@ -50,7 +66,7 @@ def live_sample() -> dict:
     pols.append(_pol("b_invalid", "Block invalid traffic", "z_internal", "z_external", "block", 30000, 1840, builtin=True, states=["invalid"]))
     pols += [
         _pol("u1", "Cameras to recorder only", "z_cameras", "z_internal", "allow", 10000, 902114,
-             src_match={"kind": "network", "items": ["n_cam"], "opposite": False}, dst_match={"kind": "ip", "items": ["192.168.50.10"], "opposite": False},
+             src_match={"kind": "network", "items": ["n_cams"], "opposite": False}, dst_match={"kind": "ip", "items": ["192.168.50.10"], "opposite": False},
              proto="tcp", ports="554,7447"),
         _pol("u2", "Smart devices: name lookups", "z_devices", "z_internal", "allow", 10001, 48210,
              dst_match={"kind": "ip", "items": ["192.168.50.2"], "opposite": False}, proto="udp", ports="53"),
@@ -61,7 +77,12 @@ def live_sample() -> dict:
              src_match={"kind": "region", "items": ["AQ", "BV"], "opposite": False}),
         _pol("u6", "Old test rule", "z_work", "z_cameras", "allow", 10005, 0, enabled=False),
     ]
+    for p in pols:
+        if p["hits"] is not None:
+            outward = p["builtin"] and p["action"] == "allow" and p["dst"]["zone"] in ("z_external", "z_gateway")   # only what leaves keeps counting
+            p["hits"] = policy_hits(p["id"], p["hits"], now, builtin_allow=outward)
     st["policies"] = pols
+    st["ids"] = {"suppressions": 37, "enabled": True}
     st["allow"] = neutral.derive_allow(st, default="block")
     ext = {"z_external"}
     for z in st["zones"]:
@@ -77,20 +98,44 @@ def live_sample() -> dict:
         {"id": "e_ap1", "name": "Access point living room", "kind": "ap", "model": "AP-6", "firmware": "6.6.8", "mgmt_ip": "192.168.10.4",
          "online": True, "uplink": {"device": "e_sw1", "port": 3, "medium": "wired"}, "stats": {"cpu": 5, "mem": 52, "uptime_s": 900_000, "clients": 11}},
     ]
-    ports = []
+    st["equipment"][3]["radios"] = [{"band": "2.4ghz", "channel": 6, "clients": 5}, {"band": "5ghz", "channel": 44, "clients": 6}]
+    st["equipment"].append({"id": "e_ap2", "name": "Access point garden", "kind": "ap", "model": "AP-6", "firmware": "6.6.8", "mgmt_ip": "192.168.10.5",
+                            "online": True, "uplink": {"device": "e_sw1", "port": 4, "medium": "wired"},
+                            "stats": {"cpu": 4, "mem": 47, "uptime_s": 880_000, "clients": 4},
+                            "radios": [{"band": "2.4ghz", "channel": 11, "clients": 3}, {"band": "5ghz", "channel": 100, "clients": 1}]})
     layout = {"e_gw": (8, {1: (1000, True, False), 2: (1000, False, False), 5: (100, False, True)}),
-              "e_sw1": (16, {1: (1000, True, False), 3: (1000, False, True), 4: (1000, False, True), 7: (100, False, True),
-                             9: (1000, False, False), 12: (1000, False, False), 16: (1000, False, False)}),
-              "e_sw2": (8, {1: (1000, True, False), 2: (1000, False, False), 4: (100, False, False)})}
+              "e_sw1": (16, {1: (1000, True, False), 3: (1000, False, True), 4: (1000, False, True), 5: (1000, False, True), 6: (1000, False, True),
+                             7: (100, False, True), 10: (1000, False, False), 11: (1000, False, False),
+                             9: (1000, False, False), 12: (1000, False, False), 15: (10000, False, False), 16: (1000, False, False)}),
+              "e_sw2": (8, {1: (1000, True, False), 2: (1000, False, False), 4: (100, False, False), 6: (100, False, False)})}
+    ports = []
     for dev, (n, up) in layout.items():
         for i in range(1, n + 1):
             speed, uplink, poe = up.get(i, (None, False, False))
-            ports.append({"id": "p_%s_%d" % (dev, i), "device": dev, "idx": i, "name": "Port %d" % i, "link": speed is not None,
-                          "speed": speed, "media": "GE", "poe": {"capable": dev == "e_sw1", "on": poe, "watts": 4.2 if poe else None},
+            link = speed is not None
+            if (dev, i) == ("e_sw1", 12) and int(now // 60) % 480 == 0:          # a link that drops once in a while
+                link = False
+            rate = (((i * 37 + len(dev) * 11) % 90) + 5) * 20_000 if link else 0
+            ports.append({"id": "p_%s_%d" % (dev, i), "device": dev, "idx": i, "name": "Port %d" % i, "link": link,
+                          "speed": speed if link else None, "media": "SFP+" if (dev, i) == ("e_sw1", 15) else "GE",
+                          "poe": {"capable": dev == "e_sw1", "on": poe, "watts": 4.2 if poe else None},
                           "profile": None, "native_vlan": 20 if (dev, i) == ("e_sw1", 7) else None, "native_network": None,
-                          "tagged": ["*"] if uplink else None, "is_uplink": uplink, "infra": uplink or (dev, i) == ("e_sw1", 3),
-                          "lldp_neighbor": None, "rx_bytes": None, "tx_bytes": None})
+                          "tagged": ["*"] if uplink else None, "is_uplink": uplink, "infra": uplink or (dev, i) in (("e_sw1", 3), ("e_sw1", 4)),
+                          "lldp_neighbor": "e_ap1" if (dev, i) == ("e_sw1", 3) else "e_ap2" if (dev, i) == ("e_sw1", 4) else None,
+                          "rx_bytes": 5 * 10**10 + rate * int(max(0, now - T0)), "tx_bytes": 9 * 10**10 + rate * 3 * int(max(0, now - T0)),
+                          "rx_errors": int(max(0, now - T0) // 43200) if (dev, i) == ("e_sw1", 7) else 0, "tx_errors": 0,
+                          "rx_dropped": 0, "tx_dropped": 0, "duplex": "full" if link else None})
     st["ports"] = ports
+    # who sits behind which port (wired) and on which access point (wireless)
+    wired = {"Storage": ("e_sw1", 9), "Home server": ("e_sw1", 12), "Backup server": ("e_sw1", 16), "Office laptop": ("e_sw2", 2),
+             "Studio desktop": ("e_sw2", 4), "Office printer": ("e_sw1", 7), "Message broker": ("e_sw1", 10), "Automation hub": ("e_sw1", 11), "Solar inverter": ("e_sw2", 6), "Front door camera": ("e_sw1", 5), "Garage camera": ("e_sw1", 6)}
+    for d in st["devices"]:
+        if d["name"] in wired:
+            d["parent"], d["port"] = wired[d["name"]]
+            d["wired"] = True
+        elif not d.get("wired"):
+            d["parent"] = "e_ap1" if hash_slot(d["name"]) else "e_ap2"
+            d["ssid"] = "Things" if d["network"] == "n_smart" else "Guest" if d["network"] == "n_guest" else "Home"
     st["ssids"] = [
         {"id": "s_home", "name": "Home", "network": "n_main", "bands": ["2.4ghz", "5ghz"], "security": "wpa2_wpa3_personal", "hidden": False,
          "enabled": True, "guest": False, "isolation": False},
@@ -301,3 +346,22 @@ def firewall_capabilities(family: str) -> dict:
             "read": ["zones", "networks", "policies", "port_forwards", "dhcp_reservations", "wans", "vpn", "firewall"],
             "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
             "lockout": ["mgmt_network", "gateway_uplink", "self_path", "admin_interface"]}
+
+
+def seed_history(core, key: str, now: float = None) -> None:
+    """Gives the demo the history a running installation would have: three hours of hit counters (blocked today, hits of
+    the last hour) and a few link drops and error episodes on two sample ports."""
+    now = time.time() if now is None else now
+    for k in range(36, -1, -1):
+        t = now - k * 300
+        pols = [{"id": pid, "hits": hits} for pid, hits in _hits_at(t)]
+        core.hitlog.feed(key, pols, t)
+    ev = core.portwatch.events
+    if not ev:
+        ev["p_e_sw1_12"] = [[now - 19 * 3600, "flap"], [now - 11 * 3600, "flap"], [now - 2.5 * 3600, "flap"]]
+        ev["p_e_sw1_7"] = [[now - 9 * 3600, "err"], [now - 1.2 * 3600, "err"]]
+
+
+def _hits_at(t: float):
+    sample = live_sample(t)
+    return [(p["id"], p["hits"]) for p in sample["policies"] if p.get("hits") is not None]

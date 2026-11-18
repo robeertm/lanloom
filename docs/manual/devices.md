@@ -11,8 +11,13 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
 
 ![The device list](../screenshots/devices-light.png)
 
+![Devices with network and wireless tags](../screenshots/devices-tags-light.png)
+
 - **The list.** One row per device with type, certainty, maker, model and services. Search by name, address, maker or
   service.
+- **Tags and filter.** Each row names the network (*VLAN 60*) and, for a wireless device, the wireless network and band
+  (*Things · 2.4 GHz*) as small tags; the menu next to the search box shows one network or wireless network, or only
+  wired devices (`?net=` in the address). It works with the search and the other filters.
 - **The card of a device** (click a row): name, type, **address origin** (registered maker, private or random address,
   unregistered address, only an IP address), model and firmware where the device tells them, IPv6 addresses, NetBIOS
   name, the reasons for its type, the *Can be connected* section, the *Inventory* block and the *Vulnerabilities* block.

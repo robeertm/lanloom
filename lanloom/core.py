@@ -9,9 +9,10 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import adapter_inventory, availability as availability_mod, classify, counters as counters_mod, datapaths, dnsfilter, geo as geo_mod, hub_privacy, hubauto, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
+from . import adapter_inventory, availability as availability_mod, portfront, portnotify, classify, counters as counters_mod, datapaths, dnsfilter, geo as geo_mod, hub_privacy, hubauto, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
 from .agents import AgentHub
 from .crypto import Vault
+from .firewall import insight as fw_insight
 from .scan import protect as protect_mod
 from .store import Store
 
@@ -34,6 +35,7 @@ DEFAULT_SETTINGS = {
     "paths_own_networks": [],   # data paths: own networks and tunnels beyond the LAN (never "unassigned")
     "paths_no_internet": [],    # data paths: local networks that should not reach the internet
     "scan_snmp_public": False,  # scans may ask devices with the default read community (user choice, off by default)
+    "port_noise": False,        # exact port counters: take the background noise every device of a network sees out of each one
     "adapter_inventory": True,  # devices only an adapter knows (other VLANs, switch address tables) join the inventory
     "netflow_enabled": False,   # data paths: NetFlow/IPFIX receiver (off by default; needs at least one allowed exporter)
     "netflow_port": netflow.DEFAULT_PORT,
@@ -120,6 +122,12 @@ class Core:
         self.topo_obs: dict = {}           # source key -> {"integ": id, "ev": latest topology event}
         self._adapter_t = 0.0              # last time the adapters' devices were booked into the inventory
         self.live_cfg: dict = {}           # integration id -> latest neutral configuration of a family read half
+        self.portwatch = portfront.PortWatch(store)      # link drops, error episodes and rates per switch port (S4)
+        self.roamwatch = portfront.RoamWatch()           # wireless clients per access point and the moves between them
+        self.hitlog = fw_insight.HitLog(store)           # firewall hit counters over time: blocked today, hits of the last hour (S6)
+        self._port_open: set = set()       # ports announced as unstable and not yet calm again
+        self.port_exact: dict = {}         # physical trace id -> last time its bytes came from the port counters of a switch
+        self._ports_light: dict = {}       # integration id -> last time the light poll carried ports
         self._topo_cache = None            # (key, resolved topology)
         self._topo_sig = ""
         self._manual_ver = 0
@@ -176,7 +184,7 @@ class Core:
         allowed = {"rescan_hours": int, "update_check": bool, "language": (str, type(None)), "setup_done": bool,
                    "uplink_iface": str, "rate_unit": str, "home_country": str, "paths_own_networks": list,
                    "paths_no_internet": list, "netflow_enabled": bool, "netflow_port": int, "netflow_exporters": list,
-                   "netflow_lan_networks": list, "adapter_inventory": bool}
+                   "netflow_lan_networks": list, "adapter_inventory": bool, "port_noise": bool}
         nets = {}
         for key in ("paths_own_networks", "paths_no_internet", "netflow_lan_networks"):   # all or nothing: check first
             if key in patch:
@@ -1464,6 +1472,13 @@ class Core:
             self.topo_obs[key] = {"integ": integ_id, "ev": ev}
             self._topo_cache = None
             try:
+                if ev.get("ports"):
+                    self._ports_light[integ_id] = now
+                    self.book_ports(ev.get("ports"), ev.get("equipment"), now)
+                self.book_roaming(ev, now)
+            except Exception:
+                log.exception("booking ports failed")
+            try:
                 self.book_adapter_devices(now)
             except Exception:
                 log.exception("booking adapter devices failed")
@@ -1508,6 +1523,150 @@ class Core:
         if st.get("hosts") is not None:
             st = dict(st, findings=list(st.get("findings") or []) + self._vlan_chain(integ_id, ev.get("family"), st))
         self.live_cfg[integ_id] = {"state": st, "caps": caps, "family": ev.get("family"), "t": now}
+        try:
+            self.hitlog.feed("int:%d" % integ_id, st.get("policies"), now)
+            if st.get("ports") and now - self._ports_light.get(integ_id, 0) > 180:       # no light poll carries ports: use the full one
+                self.book_ports(st["ports"], [{"id": e["id"], "ip": e.get("mgmt_ip")} for e in st.get("equipment") or []], now)
+        except Exception:
+            log.exception("booking firewall hits failed")
+
+    # ------------------------------------------------------------------ switch ports and roaming (S4)
+    def book_ports(self, ports, equipment, now: float) -> None:
+        """Ports of a controller: link drops and errors into the watch; where a cable device sits alone on a port, the
+        port counters give its exact bytes on the physical link (instead of the host's own flows)."""
+        deltas = self.portwatch.feed(ports, now)
+        try:
+            portnotify.check(self, now)
+        except Exception:
+            log.exception("port notification failed")
+        if not deltas or not equipment:
+            return
+        port_of = {p.get("id"): p for p in ports or [] if isinstance(p, dict)}
+        node_of = {}
+        topo = self.topology()
+        for e in equipment:
+            node = self.ip_to_device.get(e.get("ip") or "")
+            if not node and e.get("mac"):
+                node = next((vid for vid, v in topo["nodes"].items() if v.get("mac") == e["mac"]), None)
+            if node:
+                node_of[e["id"]] = node
+        kids = {}
+        for child, link in topo["links"].items():
+            if link["medium"] not in ("radio", "virtual") and link.get("port"):
+                kids.setdefault((link["parent"], link["port"]), []).append(child)
+        exact = []
+        for pid, d_tx, d_rx in deltas:
+            p = port_of.get(pid) or {}
+            node = node_of.get(p.get("device"))
+            below = kids.get((node, str(p.get("idx")))) if node else None
+            if below and len(below) == 1:
+                exact.append((node, below[0], d_tx, d_rx))
+        if self.store.get_setting("port_noise", False):
+            exact = self._without_noise(exact)
+        for node, child, d_tx, d_rx in exact:
+            trace = "p:%s:%s" % (node, child)
+            old = self.spread.get(trace)
+            carry0, carry1 = (old[0], old[1]) if old else (0, 0)
+            self.spread[trace] = [carry0 + d_tx, carry1 + d_rx, 60]    # a = switch, b = the cable device: tx leaves the switch
+            self.port_exact[trace] = now
+
+    NOISE_MIN_PORTS = 3            # a network needs this many measured ports before a common floor means anything
+
+    def _without_noise(self, exact: list) -> list:
+        """Takes the background noise out of the exact port counters: what every device of one network receives anyway
+        (broadcasts and multicast flooded to all ports) is the smallest sent rate among at least three of its ports;
+        it is subtracted from each of them. Switched off by default (setting ``port_noise``)."""
+        by_ip = {d["id"]: d["ip"] for d in self.devices()}
+        nets = []
+        for entry in self.live_configs():
+            for n in entry["state"].get("networks") or []:
+                try:
+                    nets.append((ipaddress.ip_network(n.get("cidr") or "", strict=False), n["id"]))
+                except (ValueError, KeyError):
+                    continue
+        groups = {}
+        for i, (_, child, d_tx, _) in enumerate(exact):
+            try:
+                addr = ipaddress.ip_address(by_ip.get(child) or "")
+            except ValueError:
+                continue
+            best = max((n for n in nets if addr in n[0]), key=lambda n: n[0].prefixlen, default=None)
+            if best:
+                groups.setdefault(best[1], []).append(i)
+        out = list(exact)
+        for idx in groups.values():
+            if len(idx) < self.NOISE_MIN_PORTS:
+                continue
+            floor = min(exact[i][2] for i in idx)
+            for i in idx:
+                node, child, d_tx, d_rx = exact[i]
+                out[i] = (node, child, max(0, d_tx - floor), d_rx)
+        return out
+
+    def net_tags(self) -> dict:
+        """{device id: {"vlan", "net", "ssid", "band"}}: the network (name, VLAN) a device sits in and, for a wireless
+        device, the wireless network name and band - the short tags of the device list and its filter."""
+        nets = []
+        for entry in self.live_configs():
+            for n in entry["state"].get("networks") or []:
+                try:
+                    nets.append((ipaddress.ip_network(n.get("cidr") or "", strict=False), n.get("name"), n.get("vlan")))
+                except ValueError:
+                    continue
+        try:
+            links = self.topology()["links"] if self.topo_obs else {}
+        except Exception:
+            links = {}
+        out = {}
+        for d in self.devices():
+            tag = {"vlan": None, "net": None, "ssid": None, "band": None}
+            try:
+                addr = ipaddress.ip_address(d["ip"] or "")
+            except ValueError:
+                addr = None
+            if addr is not None:
+                best = max((n for n in nets if addr in n[0]), key=lambda n: n[0].prefixlen, default=None)
+                if best:
+                    tag["net"], tag["vlan"] = best[1], best[2] if isinstance(best[2], int) and not isinstance(best[2], bool) else None
+            link = links.get(d["id"]) or {}
+            if link.get("medium") == "radio":
+                tag["ssid"], tag["band"] = link.get("ssid"), link.get("band")
+            if any(tag.values()):
+                out[d["id"]] = tag
+        return out
+
+    def book_roaming(self, ev: dict, now: float) -> None:
+        wireless = [{"id": c.get("mac"), "ap": c.get("parent_mac"), "band": c.get("band")} for c in ev.get("clients") or []
+                if c.get("medium") == "radio" and c.get("mac") and c.get("parent_mac")]
+        if wireless or any(c.get("medium") == "radio" for c in ev.get("clients") or []):
+            self.roamwatch.feed(wireless, now)
+
+    def port_fronts(self, now: float = None) -> list:
+        """Faceplates of every switch and access point the controller adapters read (see ``portfront``)."""
+        now = time.time() if now is None else now
+        out = []
+        topo = self.topology() if self.live_cfg else {"links": {}, "nodes": {}}
+        dev_by_id = {d["id"]: d for d in self.devices()} if self.live_cfg else {}
+        for entry in self.live_configs():
+            st = entry["state"]
+            if not st.get("ports") and not st.get("equipment"):
+                continue
+            ap_keys, behind = {}, {}
+            mac_of = {e.get("id"): e.get("mac") for o in self.topo_obs.values() for e in (o.get("ev") or {}).get("equipment") or []}
+            for e in st.get("equipment") or []:
+                if mac_of.get(e["id"]):
+                    ap_keys[e["id"]] = mac_of[e["id"]]
+                node = self.ip_to_device.get(e.get("mgmt_ip") or "")
+                if node:
+                    for child, link in topo["links"].items():
+                        if link["parent"] == node and link["medium"] not in ("radio", "virtual") and str(link.get("port") or "").isdigit():
+                            dev = dev_by_id.get(child) or topo["nodes"].get(child) or {}
+                            behind.setdefault(e["id"], {}).setdefault(int(link["port"]), []).append(
+                                {"name": dev.get("title") or dev.get("name") or dev.get("ip") or "?", "kind": dev.get("kind") or "other",
+                                 "wired": True, "ip": dev.get("ip")})
+            for f in portfront.fronts(st, self.portwatch, self.roamwatch, now, behind=behind, ap_keys=ap_keys):
+                out.append(dict(f, source=entry["key"]))
+        return out
 
     def _vlan_chain(self, integ_id, family, st: dict) -> list:
         """Cross-source finding of a hypervisor: a guest VLAN the switch port of its node does not carry (topology
@@ -1715,7 +1874,10 @@ class Core:
     def _book_path(self, a: str, b: str, sent, received) -> None:
         """Bytes between two components also travel along the physical links in between (network view dots)."""
         path = self.phys_path(a, b)
+        now = time.time()
         for trace, sense in path or ():
+            if now - self.port_exact.get(trace, 0) < 180:
+                continue                       # the port counters of a switch already count every byte on this link
             if sense > 0:
                 self._add_bytes(trace, sent, received)                     # a -> b of the trace is parent -> child
             else:

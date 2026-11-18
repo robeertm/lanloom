@@ -343,13 +343,17 @@ def controller_event(now: float) -> dict:
         clients.append({"mac": _hmac(n), "ip": _host(n)["ip"], "name": None, "medium": "wired", "parent_mac": _mac(SWITCH),
                         "port": port, "band": None, "ssid": None})
     for n, (ap, band) in RADIO.items():
+        if n in (20, 22) and int(now // 1500) % 2:        # two phones walk between the access points while the demo runs
+            ap = AP_2 if ap == AP_1 else AP_1
         clients.append({"mac": _hmac(n), "ip": _host(n)["ip"], "name": None, "medium": "radio", "parent_mac": _mac(ap),
                         "port": None, "band": band, "ssid": SSID})
     for mac, ip, name, medium, parent, where, _maker in ADAPTER_CLIENTS:
         radio = medium == "radio"
         clients.append({"mac": mac, "ip": ip, "name": name, "medium": medium, "parent_mac": _mac(parent),
                         "port": None if radio else where, "band": where if radio else None, "ssid": "Things" if radio else None})
-    return {"type": "topology", "source": "controller", "t": now, "devices": devices, "clients": clients}
+    equipment = [{"id": "e_ap1", "mac": _mac(AP_1), "ip": _host(AP_1)["ip"], "kind": "ap"},     # the sample controller's own ids (demo_live)
+                 {"id": "e_ap2", "mac": _mac(AP_2), "ip": _host(AP_2)["ip"], "kind": "ap"}]
+    return {"type": "topology", "source": "controller", "t": now, "devices": devices, "clients": clients, "equipment": equipment}
 
 
 def router_topology_event(now: float) -> dict:
@@ -733,6 +737,7 @@ class Demo:
         hub_sent = 0
         topo_sent = 0
         live_sent = 0
+        fw_history_seeded = False
         paths_sent = time.time()
         history_seeded = False
         while True:
@@ -803,8 +808,13 @@ class Demo:
                     core.on_event("int:%d" % ids[dns], ids[dns], {"type": "dns", "source": "family", "family": dns, "t": now,
                                                                  "state": dns_reading(now, dns)})
                 if fam and fam in ids:
+                    if not fw_history_seeded:
+                        fw_history_seeded = True
+                        from .demo_live import seed_history
+                        seed_history(core, "int:%d" % ids[fam], now)
+                        core.roamwatch.moves = [[now - 600 * k - 400, _mac(AP_1 if k % 2 else AP_2), _mac(AP_2 if k % 2 else AP_1)] for k in range(1, 8)]
                     core.on_event("int:%d" % ids[fam], ids[fam], {"type": "config", "source": "family", "family": fam, "t": now,
-                                                                 "state": live_sample(), "capabilities": live_capabilities(fam)})
+                                                                 "state": live_sample(now), "capabilities": live_capabilities(fam)})
                 if hv and hv in ids:
                     topo, st = hypervisor_sample(now, hv)
                     core.on_event("int:%d" % ids[hv], ids[hv], topo)

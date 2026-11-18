@@ -1,5 +1,5 @@
 /* Lanloom — circuit-board map engine.
-   Lanloom.Board.mount(el, {view, theme, compact, onSelect, t, locale, bundle, port}) → {update, live, setTheme, highlight, setTalk, hidden, setHidden, destroy}
+   Lanloom.Board.mount(el, {view, theme, compact, onSelect, t, locale, bundle, port, zones, zone, onZone}) → {update, live, setTheme, highlight, setTalk, hidden, setHidden, setZoneFilter, destroy}
    Load order: router.js, bundles.js, layout.js, icons.js, dots.js, endmarks.js, portmarks.js, board.js (plus css/tokens.css,
    css/board.css, board/endmarks.css and board/portmarks.css). End and port marks are optional: without their scripts the board
    works as before.
@@ -11,7 +11,10 @@
    (ids/positions) changes — never on live frames.
    Line filter: the legend entries of the line kinds (and "Not measured") are toggle buttons. A hidden kind is left out where the
    board draws (traces, pads, vias, exits), in the dot geometry, in the highlight and in what the end and port marks see, so a live
-   redraw never brings it back. The choice is kept per view in localStorage (lanloom.board.hide.<view>). */
+   redraw never brings it back. The choice is kept per view in localStorage (lanloom.board.hide.<view>).
+   Network toggles: with two or more network zones the legend also lists them as toggle buttons (pressed = shown). A click calls
+   onZone(zoneId); the page filters the view and tells the board the active zone and the zones of the whole view with
+   setZoneFilter(zoneId|null, zones). */
 (function (root) {
   'use strict';
   const LL = root.Lanloom = root.Lanloom || {};
@@ -42,6 +45,10 @@
     "board.legend.hide": "Hide: {kind}",
     "board.legend.show": "Show: {kind}",
     "board.legend.show_all": "Show all",
+    "board.legend.networks": "Networks",
+    "board.legend.vlan": "VLAN {v}",
+    "board.legend.only": "Show only: {name}",
+    "board.legend.everything": "Show all networks",
     "board.grade.realtime": "Real-time",
     "board.grade.near": "Near real-time",
     "board.grade.periodic": "Periodic",
@@ -196,6 +203,23 @@
   // exits (leads to the board edge) are uplinks; they carry no measurement flag of their own
   const exitShown = (x, hidden) => !hidden || !hidden.has(x.kind || 'uplink');
 
+  // ------------------------------------------------------------------ network toggles of the legend (pure helpers, also used by the tests)
+  // Name of a network zone in the legend: its own name, else "VLAN <n>", else the title of the zone
+  function zoneLabel(z, t) {
+    const v = (z && z.vars) || {};
+    if (v.name != null && String(v.name).trim()) return String(v.name).trim();
+    if (v.vlan != null && String(v.vlan).trim()) return t('board.legend.vlan', { v: String(v.vlan).trim() });
+    return String((z && (z.title || z.id)) || '');
+  }
+  // The toggles of the legend: one per network zone (zone kind "net": not the internet edge, the cabling, the guests of a host or a
+  // folded zone), in the order of the board; none unless there are two or more. on = the zone is shown (no area filter, or this one).
+  function zoneToggles(zones, active, t) {
+    const nets = (Array.isArray(zones) ? zones : []).filter(z => z && z.kind === 'net' && !z.fold && z.id != null)
+      .map((z, i) => ({ z, i })).sort((a, b) => ((+a.z.order || 0) - (+b.z.order || 0)) || (a.i - b.i)).map(x => x.z);
+    if (nets.length < 2) return [];
+    return nets.map(z => ({ id: String(z.id), label: zoneLabel(z, t), on: !active || String(active) === String(z.id) }));
+  }
+
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = v => +(+v).toFixed(2);
 
@@ -212,6 +236,7 @@
       this.key = null; this.layout = null; this.view = null; this.frameQ = null;
       this.highlighted = null; this.gradeOf = new Map();
       this.hidden = new Set(); this.hiddenSlot = null; this._dotSig = null;   // line filter (legend toggles), per view
+      this.zoneAll = Array.isArray(this.o.zones) ? this.o.zones : null; this.zoneActive = this.o.zone ? String(this.o.zone) : null;   // network toggles of the legend
       this.talk = []; this.peers = {}; this.seenPorts = {}; this.exits = []; this.marks = null; this.routed = false;
       this.ready = new Promise(res => { this._resolveReady = res; });
       this.stats = { routeMs: null, routed: 0, failed: 0, fallback: 0, bundled: 0, fromCache: false, layouts: 0, worker: null };
@@ -242,9 +267,10 @@
       };
       this.tilesEl.addEventListener('click', this._onClick);
       this._onLegend = ev => {
-        const b = ev.target.closest && ev.target.closest('button[data-flt], button[data-flt-all]');
+        const b = ev.target.closest && ev.target.closest('button[data-flt], button[data-flt-all], button[data-zone]');
         if (!b || !this.legendEl.contains(b)) return;
-        if (b.hasAttribute('data-flt-all')) this.setHidden([]);
+        if (b.hasAttribute('data-zone')) { if (typeof this.o.onZone === 'function') this.o.onZone(b.dataset.zone); }
+        else if (b.hasAttribute('data-flt-all')) this.setHidden([]);
         else this.toggleKind(b.dataset.flt);
       };
       this.legendEl.addEventListener('click', this._onLegend);
@@ -392,6 +418,9 @@
         this.gradeOf.set(c.id, grade);
         e.el.style.cssText = `left:${pos.x}px;top:${pos.y}px;width:${pos.w}px;height:${pos.h}px`;
         e.data = c;
+        // the "+N quiet devices" tile is a toggle of its network (the page folds and unfolds it), not a device with a status
+        if (c.quiet_more) { e.el.dataset.quiet = '1'; e.el.setAttribute('aria-expanded', c.expanded ? 'true' : 'false'); }
+        else if (e.el.dataset.quiet) { delete e.el.dataset.quiet; e.el.removeAttribute('aria-expanded'); }
         // badges: create as needed (≤ 3)
         const badges = (c.badges || []).slice(0, 3).map(String);
         while (e.badges.length < badges.length) { const b = document.createElement('span'); b.className = 'll-badge'; e.badgesEl.appendChild(document.createTextNode(' ')); e.badgesEl.appendChild(b); e.badges.push(b); }
@@ -406,6 +435,7 @@
 
     ariaLabel(e) {
       const c = e.data;
+      if (c.quiet_more) { e.el.setAttribute('aria-label', c.title || c.id); return; }
       const grade = this.gradeOf.get(c.id) || 'unknown';
       // the name starts with exactly what the tile shows (title, address, live number, badges) and adds what only the colours say
       // afterwards: kind, status, live grade (a screen reader user also hears the visible text; a voice control user can say it)
@@ -700,7 +730,7 @@
       const t = this.t;
       // the legend is rebuilt on structure changes: a focused toggle keeps the focus (same key, or the first toggle)
       const act = typeof document !== 'undefined' ? document.activeElement : null;
-      const had = act && this.legendEl.contains(act) ? (act.dataset.flt || (act.hasAttribute('data-flt-all') ? '*' : '')) : '';
+      const had = act && this.legendEl.contains(act) ? (act.dataset.flt || (act.hasAttribute('data-flt-all') ? '*' : act.hasAttribute('data-zone') ? 'zone:' + act.dataset.zone : '')) : '';
       const kinds = new Set(this.view ? this.view.traces.filter(x => this.layout && this.layout.tiles[x.a] && this.layout.tiles[x.b]).map(x => x.kind) : []);
       const dotSvg = '<svg width="40" height="12" viewBox="0 0 40 12" aria-hidden="true"><path d="M1 6H39" class="ll-lg-trace"/><circle cx="9" cy="6" r="2.4" class="ll-lg-dot"/><circle cx="9" cy="6" r="1" class="ll-lg-core"/><circle cx="21" cy="6" r="2.4" class="ll-lg-dot"/><circle cx="21" cy="6" r="1" class="ll-lg-core"/><circle cx="33" cy="6" r="3.4" class="ll-lg-dot"/><circle cx="33" cy="6" r="1.4" class="ll-lg-core"/></svg>';
       const dashSvg = '<svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6H27" class="ll-lg-dash"/></svg>';
@@ -716,11 +746,17 @@
       if (kl.length) parts.push('<span class="ll-legend__sep" aria-hidden="true"></span>' + kl.map(k => toggle(k, kindSw(k), t('board.trace.' + k))).join(''));
       if (this.talk.length) parts.push(toggle('talk', '<svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6H27" class="ll-lg-talk"/></svg>', t('board.legend.talk')));
       if ([...this.hidden].some(k => k === 'unmeasured' || k === 'talk' || kl.includes(k))) parts.push(`<button type="button" class="ll-legend__all" data-flt-all="">${esc(t('board.legend.show_all'))}</button>`);
+      const zt = zoneToggles(this.zoneAll || (this.view && this.view.zones), this.zoneActive, t);
+      if (zt.length) {
+        parts.push('<span class="ll-legend__sep" aria-hidden="true"></span><span class="ll-legend__zones" role="group" aria-label="' + esc(t('board.legend.networks')) + '"><span class="ll-legend__grp">' + esc(t('board.legend.networks')) + '</span>' +
+          zt.map(z => `<button type="button" class="ll-legend__item ll-legend__flt ll-legend__zone${z.on ? '' : ' is-off'}" data-zone="${esc(z.id)}" aria-pressed="${z.on}" title="${esc(this.zoneActive === z.id ? t('board.legend.everything') : t('board.legend.only', { name: z.label }))}"><i class="ll-lg-zone" aria-hidden="true"></i><span>${esc(z.label)}</span></button>`).join('') + '</span>');
+      }
       parts.push('<span class="ll-legend__sep" aria-hidden="true"></span><span class="ll-legend__grades"></span>');
       this.legendEl.innerHTML = parts.join('');
       this.gradesEl = this.legendEl.querySelector('.ll-legend__grades');
       if (had) {
-        const back = (had === '*' ? null : this.legendEl.querySelector(`button[data-flt="${had}"]`)) || this.legendEl.querySelector('button[data-flt]');
+        const zoneBtn = had.startsWith('zone:') ? [...this.legendEl.querySelectorAll('button[data-zone]')].find(b => b.dataset.zone === had.slice(5)) : null;
+        const back = zoneBtn || (had === '*' || had.startsWith('zone:') ? null : this.legendEl.querySelector(`button[data-flt="${had}"]`)) || this.legendEl.querySelector('button[data-flt]');
         if (back) back.focus({ preventScroll: true });
       }
       this.updateGradeLegend();
@@ -762,6 +798,15 @@
       this.syncDots();
       this.renderLegend();
       this.root.dispatchEvent(new CustomEvent('ll-filter', { detail: { hidden: [...this.hidden].sort() } }));
+    }
+    // The page tells which area is the only one shown (null: all) and, as the board gets a filtered view, the areas of the whole view
+    setZoneFilter(active, zones) {
+      if (this.dead) return;
+      const act = active == null || active === '' ? null : String(active);
+      const same = act === this.zoneActive && (zones === undefined || JSON.stringify(zones) === JSON.stringify(this.zoneAll));
+      if (zones !== undefined) this.zoneAll = Array.isArray(zones) ? zones : null;
+      this.zoneActive = act;
+      if (!same && this.view) this.renderLegend();
     }
     updateGradeLegend() {
       if (!this.gradesEl || !this.gradeCounts) return;
@@ -964,6 +1009,7 @@
       setTalk: pairs => b.setTalk(pairs),
       hidden: () => [...b.hidden].sort(),
       setHidden: keys => b.setHidden(keys),
+      setZoneFilter: (active, zones) => b.setZoneFilter(active, zones),
       destroy: () => b.destroy(),
       ready: b.ready,
       stats: () => Object.assign({}, b.stats, { dots: Object.assign({}, b.dots.stats) }),
@@ -972,5 +1018,5 @@
     };
   }
 
-  LL.Board = { mount, formatBytes, fitText, STRINGS, FILTER_KEYS, parseHidden, visibleKinds, traceShown, version: '1.1.0' };
+  LL.Board = { mount, formatBytes, fitText, STRINGS, FILTER_KEYS, parseHidden, visibleKinds, traceShown, zoneLabel, zoneToggles, version: '1.1.0' };
 })(typeof self !== 'undefined' ? self : this);

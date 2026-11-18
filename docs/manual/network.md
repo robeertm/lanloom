@@ -17,7 +17,24 @@ in?".
 - **Zones** per network or VLAN, with the same area chips as on the map.
 - **Legend switches** as on the [map](map.md#what-you-see): click *Cable*, *Wireless* or *Virtual* to hide that kind of
   link; the network view keeps its own choice, apart from the map.
-- **Cards** of switches and access points list the devices on their ports.
+- **Cards** of switches and access points list the devices on their ports and, when a switch controller is read, show the
+  **front panel**: every port as it sits on the hardware (odd numbers above, even below, SFP cages apart) with link, speed,
+  power over Ethernet, uplink, VLAN, the devices behind it, and how often the link dropped or counted errors in the last
+  24 hours (none: fine, one or two: some trouble, three or more: unstable - always with a symbol and a word, not only a
+  colour). A port opens a detail line with the live rate. An access point shows its radios with channel and clients now,
+  and how often devices moved to or from it in 24 hours. The same panels are in the equipment card of the
+  [Firewall](firewall.md) tab.
+- **Exact traffic on cables.** Where one device sits alone on a switch port, the dots on its cable follow the counters of
+  that port instead of the host's own flows. Optional: *Settings > General > Appearance* can take the background noise out
+  of these counters (what every device of one network receives anyway - broadcasts and multicast - is subtracted when at
+  least three ports of the network are measured).
+- **Quiet devices.** A network with more than 12 devices folds the ones that idle by nature (smart devices, printers,
+  media players) into one tile *N quiet devices*; a click unfolds them (remembered per network). A device that is down or
+  interrupted never folds, and a card opened by address or from the search unfolds its network.
+- **Mode switch** *Live | Plan | Firewall | Data paths* at the start of the filter row, and a **legend** that holds the
+  line styles and the networks in one strip: a network in the legend filters the board like its chip.
+- **Full screen** (the button before the *Board | Tree* switch) opens the board over the whole window; on a phone it uses
+  the compact layout. *Esc*, the close button and the back gesture close it.
 - **The deciding source.** The card of a device says which source placed it, which others agree and what the rest say
   ("Switch controller says Core switch - Port 10. Manual entry has priority.").
 - **Containers** of a host with a [host agent](../HOST-AGENT.md) hang below that host, folded as on the [map](map.md) (the *Containers* chip or the button on the host card unfolds them), next to the guests of a virtualization host.
@@ -25,6 +42,10 @@ in?".
   traffic runs up to the router.
 
 ![Switch card with the devices on its ports](../screenshots/connection-switch-light.png)
+
+![The network view with the mode switch and the legend with line styles and networks](../screenshots/network-legend-light.png)
+
+<img src="../screenshots/phone-switch-front.png" width="260" alt="Switch front panel on a phone"> <img src="../screenshots/phone-network-full.png" width="260" alt="The network in full screen on a phone">
 
 ### Board or tree
 

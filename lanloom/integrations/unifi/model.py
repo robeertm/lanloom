@@ -436,7 +436,8 @@ def _equipment_classic(raw) -> tuple:
                    "uplink": {"device": by_mac.get(umac), "port": num(up.get("uplink_remote_port")),
                               "medium": {"wire": "wired", "wireless": "radio"}.get(up.get("type"))} if umac else None,
                    "stats": {"cpu": num(stats.get("cpu")), "mem": num(stats.get("mem")), "uptime_s": num(d.get("uptime")),
-                             "clients": num(d.get("num_sta"))}})
+                             "clients": num(d.get("num_sta"))},
+                   "radios": _radios_classic(d)})
         lldp = {}
         for n in d.get("lldp_table") or []:
             if isinstance(n, dict) and num(n.get("local_port_idx")) is not None:
@@ -467,8 +468,27 @@ def _equipment_classic(raw) -> tuple:
                           "native_network": ids.net_id(native) if native else None,
                           "tagged": tagged, "is_uplink": bool(p.get("is_uplink")) or (umac is not None and own_up == idx),
                           "infra": lldp.get(idx) is not None, "lldp_neighbor": lldp.get(idx),
-                          "rx_bytes": num(p.get("rx_bytes")), "tx_bytes": num(p.get("tx_bytes"))})
+                          "rx_bytes": num(p.get("rx_bytes")), "tx_bytes": num(p.get("tx_bytes")),
+                          "rx_errors": num(p.get("rx_errors")), "tx_errors": num(p.get("tx_errors")),
+                          "rx_dropped": num(p.get("rx_dropped")), "tx_dropped": num(p.get("tx_dropped")),
+                          "duplex": ("full" if p.get("full_duplex") else "half") if p.get("up") and p.get("full_duplex") is not None else None})
     return eq, ports, by_mac
+
+
+RADIO_BANDS = {"ng": "2.4ghz", "na": "5ghz", "6e": "6ghz"}                  # identifier: radio codes
+
+
+def _radios_classic(d) -> list:
+    """Radios of an access point: band, channel, clients now (from the statistics table, else the settings table)."""
+    stats = {r.get("radio"): r for r in d.get("radio_table_stats") or [] if isinstance(r, dict)}
+    out = []
+    for r in d.get("radio_table") or []:
+        if not isinstance(r, dict) or r.get("radio") not in RADIO_BANDS:
+            continue
+        st = stats.get(r["radio"]) or {}
+        out.append({"band": RADIO_BANDS[r["radio"]], "channel": num(st.get("channel")) or num(r.get("channel")),
+                    "clients": num(st.get("num_sta")) if st.get("num_sta") is not None else num(st.get("user-num_sta"))})
+    return out[:4]
 
 
 def _equipment_official(raw) -> list:
@@ -550,6 +570,7 @@ def _clients(raw, ids, nets) -> tuple:
                             "wired": wired, "alone_on_port": wired and port_count.get((norm_mac(c.get("sw_mac")), c.get("sw_port"))) == 1,
                             "private_address": is_private_mac(mac), "protected": None,
                             "parent": oid("e", parent) if parent else None,
+                            "port": num(c.get("sw_port")) if wired else None, "ssid": text(c.get("essid"), 32) if not wired else None,
                             "band": {"ng": "2.4ghz", "na": "5ghz", "6e": "6ghz"}.get(c.get("radio")) if not wired else None,  # identifier: radio codes
                             "blocked": bool(c.get("blocked") or u.get("blocked")), "guest": bool(c.get("is_guest")), "online": True,
                             "network_by_port": wired})
@@ -784,8 +805,21 @@ def to_neutral(raw: dict) -> dict:
         for z in zones:
             z.setdefault("internet", False)
             z.setdefault("discovery", False)
+    ids_state = _ids_summary(raw)
+    if ids_state:
+        state["ids"] = ids_state
     state["controller"] = {"version": version_of(raw), "apis": sorted(k for k in ("official", "classic") if _has(raw, k))}
     return state
+
+
+def _ids_summary(raw) -> dict:
+    """Size of the intrusion detection's suppression lists (alerts and trusted addresses). Only counted, entries are
+    never copied."""
+    for row in items(raw, "ips"):
+        sup = row.get("suppression") if isinstance(row.get("suppression"), dict) else {}
+        n = sum(len(v) for v in (sup.get("alerts"), sup.get("whitelist")) if isinstance(v, list))
+        return {"suppressions": n, "enabled": row.get("mode") not in (None, "disabled")}
+    return {}
 
 
 def _has(raw, which) -> bool:
@@ -822,5 +856,10 @@ def topology_event(raw: dict, t: float) -> dict:
                     clients.append({"mac": mac, "ip": _ip(c.get("ipAddress")), "name": text(c.get("name"), 64),
                                     "medium": "wired" if c.get("type") == "WIRED" else "radio", "parent_mac": parent,
                                     "port": None, "band": None, "ssid": None})
-    return {"type": "topology", "source": "controller", "t": t,
-            "devices": _unique(devices, 1000), "clients": _unique(clients, MAX_ITEMS)}
+    ev = {"type": "topology", "source": "controller", "t": t, "devices": _unique(devices, 1000), "clients": _unique(clients, MAX_ITEMS)}
+    if items(raw, "device"):                 # ports with their counters ride along every minute (link drops, exact rates)
+        eq, ports, _ = _equipment_classic(raw)
+        ev["ports"] = [{k: p.get(k) for k in ("id", "device", "idx", "link", "rx_bytes", "tx_bytes", "rx_errors", "tx_errors")} for p in ports[:MAX_ITEMS]]
+        ev["equipment"] = [{"id": e["id"], "ip": e.get("mgmt_ip"), "mac": norm_mac(d.get("mac")), "kind": e.get("kind")}
+                           for e, d in zip(eq, [d for d in items(raw, "device") if norm_mac(d.get("mac"))])][:1000]
+    return ev

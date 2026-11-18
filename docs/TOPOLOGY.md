@@ -74,7 +74,7 @@ A switch port often has more than one device behind it:
 
 ## Live traffic along the cabling
 
-This host's measured traffic now also travels along the physical links in the Network view: traffic to the storage server, for example, runs up from this host to the switch and down to the storage server, and internet traffic runs up to the router. Where no cabling is known, the old direct traces stay.
+This host's measured traffic now also travels along the physical links in the Network view: traffic to the storage server, for example, runs up from this host to the switch and down to the storage server, and internet traffic runs up to the router. Where no cabling is known, the old direct traces stay. Where a switch controller reports the counters of its ports and exactly one device sits behind a port, the cable to that device is **measured exactly**: its dots follow the port counters (what the switch sent leaves towards the device) and this host's own flows are no longer added to that link.
 
 ## Troubleshooting
 

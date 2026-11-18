@@ -72,6 +72,35 @@ def _device_component(core, dev: dict, special_kind: str = None) -> dict:
 
 
 MAX_RADIO_ON_MAP = 36           # radio devices drawn per network; the rest share one "+N more" tile
+MAX_ZONE = 12                   # devices drawn in one network before the quiet ones fold into one "+N" tile
+QUIET_KINDS = ("iot", "printer", "media")   # devices that idle by nature; they fold first when a network is large
+MIN_FOLD = 3                    # folding fewer devices than this is not worth a tile of its own
+
+
+def collapse_quiet(comps: list) -> None:
+    """Large networks: the quiet devices (idle by nature, online, nothing wrong) fold into one "+N quiet devices" tile.
+
+    The folded devices carry ``fold`` = ``quiet:<zone>`` (the browser keeps them hidden until the tile is opened; the
+    choice is remembered per network, like the containers under their host). Every kind of device stays reachable:
+    a folded device that is searched for or opened by address unfolds its network."""
+    by_zone = {}
+    for c in comps:
+        if str(c.get("zone") or "").startswith("net:") and not c.get("fold"):
+            by_zone.setdefault(c["zone"], []).append(c)
+    for zid, cs in by_zone.items():
+        if len(cs) <= MAX_ZONE:
+            continue
+        quiet = [c for c in cs if c["kind"] in QUIET_KINDS and c.get("status") != "down" and c.get("grade") != "interrupted"
+                 and not c.get("hub") and not c.get("radio")]
+        # fold only as many as needed to bring the network down to the limit, but at least MIN_FOLD of them
+        quiet = quiet[:max(len(cs) - MAX_ZONE + 1, MIN_FOLD)]
+        if len(quiet) < MIN_FOLD:
+            continue
+        for c in quiet:
+            c["fold"] = "quiet:" + zid
+        comps.append({"id": "qm:" + zid, "zone": zid, "kind": "iot", "title": "", "title_key": "comp.quiet.more", "subtitle": "",
+                      "vars": {"n": len(quiet)}, "status": "unknown", "grade": "unknown", "metric": None, "badges": [], "quiet_more": zid,
+                      "fold_key": "quiet:" + zid})
 
 
 def _mesh_fact(kind: str) -> dict:
@@ -237,7 +266,8 @@ def build(core, view: str = "overview") -> dict:
         except Exception:      # a broken adapter state never breaks the map
             zinfo = {}
         phys = _physical(core, devices, router)
-        carried = set()            # physical links that carry measured bytes of this host (its flows and its internet traffic)
+        # physical links that carry measured bytes: the port counters of a switch (exact) and this host's flows and internet traffic
+        carried = {tid for tid, t in core.port_exact.items() if now - t < 180}
         if self_dev and host_ok:
             for other in [router["id"] if router else None] + [d["id"] for d in devices if now - core.flow_seen.get(d["id"], 0) < FLOW_KEEP]:
                 if other and other != self_dev["id"]:
@@ -301,6 +331,7 @@ def build(core, view: str = "overview") -> dict:
                 add_trace(lan_trace(router["id"], vid), router["id"], vid, "lan", False)
         _radio_network(core, special, merge, comps, zone, add_trace)
         _containers(core, comps, zones, zone, add_trace)
+        collapse_quiet(comps)
         # guests and containers sit right after the zone of their host
         for zid, z in zones.items():
             if zid.startswith("containers:"):
@@ -686,6 +717,10 @@ def component_detail(core, comp_id: str) -> dict:
     if dev:
         out["device"] = core.device_view(dev)
         out["presence_age_s"] = round(now - core.presence[comp_id], 1) if comp_id in core.presence else None
+        if out["device"].get("ip") and (comp.get("kind") in ("switch", "ap", "router")):
+            front = next((f for f in core.port_fronts(now) if f.get("ip") == out["device"]["ip"]), None)
+            if front:
+                out["portfront"] = front
     if comp_id.startswith("area:"):
         _, integ_id, area_id = comp_id.split(":", 2)
         entry = core.hub.get(int(integ_id)) or {}
