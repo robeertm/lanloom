@@ -19,7 +19,7 @@ def fake_net(monkeypatch):
     calls = {"nudged": [], "probed": [], "bannered": []}
     monkeypatch.setattr(netinfo, "detect_networks", lambda: [
         {"cidr": NET, "iface": "eth0", "self_ip": "192.168.77.50", "gateway": "192.168.77.1",
-         "private": True, "size": 256, "host_mode": True},
+         "private": True, "size": 256, "host_mode": True, "self_mac": "02:aa:bb:cc:dd:50"},
         {"cidr": "10.9.0.0/24", "iface": "eth1", "self_ip": "10.9.0.2", "gateway": None,
          "private": True, "size": 256, "host_mode": True}])
     state = {"arp": {}}
@@ -105,7 +105,8 @@ def test_result_schema_and_content(fake_net):
     assert gw["is_gateway"] and gw["mac"] and "arp" in gw["sources"] and "tcp" in gw["sources"]
     assert [p["port"] for p in gw["ports"]] == [53, 80]
     assert gw["ports"][1]["banner"] == {"title": "T80", "server": "S"} and gw["ports"][0]["banner"] is None
-    assert hosts["192.168.77.50"]["is_self"] and hosts["192.168.77.50"]["mac"] is None
+    assert hosts["192.168.77.50"]["is_self"]
+    assert hosts["192.168.77.50"]["mac"] == "02:aa:bb:cc:dd:50"      # not in its own neighbour table: from its interface
     assert hosts["192.168.77.11"]["mdns"][0]["type"] == "_ipp._tcp"
     assert "printer.local" in hosts["192.168.77.11"]["hostnames"]
     assert hosts["192.168.77.12"]["ssdp"][0]["model"] == "MP-100" and "ssdp" in hosts["192.168.77.12"]["sources"]

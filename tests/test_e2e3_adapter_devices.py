@@ -200,6 +200,38 @@ def test_booking_is_throttled_and_skips_this_host(bare_core):
     assert "adapter" not in _row(c, "d-02aabbccdd02")["data"]                # this host is not an adapter find
 
 
+def test_this_hosts_own_interface_address_is_never_booked_as_a_second_device(bare_core, monkeypatch):
+    from lanloom.scan import netinfo
+    c = bare_core
+    c.ingest({"hosts": [{"ip": "192.168.50.2", "mac": None, "hostnames": [], "sources": ["tcp"], "ports": [], "mdns": [],
+                         "ssdp": [], "is_self": True}]}, None)      # "This host": only an address is known
+    monkeypatch.setattr(netinfo, "iface_macs", lambda: {"ens18": MAC_B})
+    c.topo_obs = obs(clients=[{"mac": MAC_A, "ip": "192.168.60.5"}, {"mac": MAC_B}])
+    assert c.book_adapter_devices(now=time.time()) == 1
+    assert _row(c, "d-02aabbccdd02") is None and _row(c, "d-02aabbccdd01") is not None
+
+
+def test_a_duplicate_booked_by_an_earlier_version_is_removed_and_the_next_scan_merges_nothing_twice(bare_core, monkeypatch):
+    from lanloom.scan import netinfo
+    c = bare_core
+    c.ingest({"hosts": [{"ip": "192.168.50.2", "mac": None, "hostnames": [], "sources": ["tcp"], "ports": [], "mdns": [],
+                         "ssdp": [], "is_self": True}]}, None)
+    monkeypatch.setattr(netinfo, "iface_macs", lambda: {})
+    c.ingest_adapter(_recs({"mac": MAC_B}))                            # the old behaviour: a MAC-only second entry
+    assert _row(c, "d-02aabbccdd02")["data"]["sources"] == ["adapter"]
+    monkeypatch.setattr(netinfo, "iface_macs", lambda: {"ens18": MAC_B})
+    c.topo_obs = obs(clients=[{"mac": MAC_B}])
+    c.book_adapter_devices(now=time.time())
+    assert _row(c, "d-02aabbccdd02") is None
+    # the next scan carries the address on "This host": one device, the self one
+    c.ingest({"hosts": [{"ip": "192.168.50.2", "mac": MAC_B, "hostnames": [], "sources": ["tcp"], "ports": [], "mdns": [],
+                         "ssdp": [], "is_self": True}]}, None)
+    selfs = [d for d in c.store.devices() if d["data"].get("is_self")]
+    assert len(selfs) == 1 and selfs[0]["id"] == "d-02aabbccdd02" and len(c.store.devices()) == 1
+    c.book_adapter_devices(now=time.time() + 60)
+    assert len(c.store.devices()) == 1
+
+
 def test_first_booking_is_remembered(bare_core):
     c = bare_core
     assert c.store.get_setting("adapter_seeded", False) is False

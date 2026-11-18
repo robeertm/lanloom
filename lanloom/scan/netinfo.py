@@ -82,6 +82,29 @@ def _iface_addrs() -> list[tuple[str, str, str]]:
     return out
 
 
+def iface_macs(base: str = "/sys/class/net") -> dict:
+    """{interface name: hardware address} of this host's own interfaces (unicast addresses only, read-only, no
+    privileges). Empty where the platform has no /sys view."""
+    out: dict = {}
+    try:
+        names = sorted(os.listdir(base))
+    except OSError:
+        return out
+    for name in names[:256]:
+        if name == "lo":
+            continue
+        try:
+            with open(os.path.join(base, name, "address"), encoding="ascii", errors="replace") as fh:
+                mac = fh.read(64).strip().lower()
+        except OSError:
+            continue
+        parts = mac.split(":")
+        if len(parts) == 6 and all(len(x) == 2 and all(c in "0123456789abcdef" for c in x) for x in parts):
+            if not int(parts[0], 16) & 1 and mac != "00:00:00:00:00:00":
+                out[name] = mac
+    return out
+
+
 def _in_container() -> bool:
     return any(os.path.exists(p) for p in CONTAINER_MARKERS)
 
@@ -130,6 +153,10 @@ def detect_networks() -> list[dict]:
     except OSError:
         routes = []
     try:
-        return build_networks(_iface_addrs(), routes, _in_container())
+        nets = build_networks(_iface_addrs(), routes, _in_container())
     except (OSError, ValueError):
         return []
+    macs = iface_macs()
+    for n in nets:      # the host's own hardware address: it never shows up in its own neighbour table
+        n["self_mac"] = macs.get(n.get("iface"))
+    return nets

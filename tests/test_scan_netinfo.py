@@ -101,3 +101,13 @@ def test_nudge_localhost_only():
         assert data == b""
     finally:
         rx.close()
+
+
+def test_iface_macs_reads_unicast_addresses_of_own_interfaces(tmp_path):
+    for name, mac in (("lo", "00:00:00:00:00:00"), ("ens18", "BC:24:11:AA:BB:CC\n"), ("veth1", "03:00:00:00:00:01"),
+                      ("bad0", "nonsense"), ("zero0", "00:00:00:00:00:00")):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "address").write_text(mac)
+    (tmp_path / "noaddr").mkdir()
+    assert netinfo.iface_macs(str(tmp_path)) == {"ens18": "bc:24:11:aa:bb:cc"}
+    assert netinfo.iface_macs(str(tmp_path / "missing")) == {}

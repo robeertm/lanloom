@@ -396,6 +396,10 @@ async def run(plan, progress=None, preview=None, protected=None) -> dict:
     for ip in self_ips | gateways:
         if in_scope(ip):
             host(ip)
+    for item in result_networks:     # this host is not in its own neighbour table: its interface knows the address
+        sip, smac = item.get("self_ip"), item.get("self_mac")
+        if sip and smac and sip in hosts and not hosts[sip].mac:
+            hosts[sip].mac = smac
     for ip, h in hosts.items():
         shield.observe(ip, {"mdns": h.mdns, "ssdp": h.ssdp})
 

@@ -1968,8 +1968,33 @@ class Core:
         if not force and 0 <= now - self._adapter_t < 30:
             return 0
         self._adapter_t = now
-        own = [d["mac"] for d in self.store.devices() if d["data"].get("is_self") and d.get("mac")]
+        own = {d["mac"] for d in self.store.devices() if d["data"].get("is_self") and d.get("mac")}
+        if not self.demo:
+            from .scan import netinfo
+            own.update(netinfo.iface_macs().values())       # this host's own cards, also before a scan wrote them
+        self._drop_own_adapter_rows(own)
         return self.ingest_adapter(adapter_inventory.records(self.topo_obs, own), now)
+
+    def _drop_own_adapter_rows(self, own: set) -> int:
+        """A device only an adapter booked under a hardware address that is one of this host's own interfaces is this
+        host seen from the switch (booked by an earlier version, before the host's address was known): remove it,
+        the next scan writes the address on "This host"."""
+        gone = []
+        for d in self.store.devices():
+            if (d.get("mac") or "").lower() in own and adapter_inventory.is_adapter_only(d["data"]):
+                gone.append(d["id"])
+        for did in gone:
+            self.store.execute("DELETE FROM devices WHERE id=?", (did,))
+            self.store.execute("DELETE FROM phys_manual WHERE device_id=? OR parent_id=?", (did, did))
+            self.inventory.forget(did)
+            self.paths.forget_device(did)
+            self.availability.forget("dev:" + did)
+            self.vulns.forget_device(did)
+            self.presence.pop(did, None)
+        if gone:
+            self._manual_ver += 1
+            self._refresh_index()
+        return len(gone)
 
     def ingest_adapter(self, recs: list, now: Optional[float] = None) -> int:
         """Put adapter records into the inventory. A device a scan already knows only gets the adapter's facts added
