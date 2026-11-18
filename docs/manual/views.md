@@ -64,6 +64,7 @@ two seconds or more, times such as "seen 5 s ago" may look shifted by that much.
 | `#/devices/<device>` | the [device list](devices.md) with that device's card |
 | `#/devices?show=new` | the device list filtered (`new`, `unsure`, `offline`) |
 | `#/devices?view=stability` | the stability list |
+| `#/devices?view=links` | the Links view: web interfaces with their probe and the certificate clock ([services](../SERVICES.md)) |
 | `#/inventory`, `#/inventory?state=missing` | the [inventory](inventory.md), optionally filtered |
 | `#/reports/<day>` | that [nightly report](nightly-reports.md) |
 | `#/automations?view=<view>` | the [Automations](automations.md) tab (`list`, `who`, `timeline`, `plan`, `rooms`, `health`) |

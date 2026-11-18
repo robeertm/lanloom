@@ -1,0 +1,59 @@
+/* Lanloom — services, the Links view, the certificate clock */
+.svc { display: flex; flex-direction: column; gap: 16px; }
+.svc-sum { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.svc-filter { align-self: flex-start; max-width: 100%; }
+.svc-block { display: flex; flex-direction: column; gap: 8px; }
+.svc-block > h3 { margin: 0; font-size: var(--ll-fs-md, 1rem); }
+.svc-lead { margin: 0 0 4px; font-size: var(--ll-fs-sm); }
+.svc-more { margin: 0; font-size: var(--ll-fs-xs); }
+.svc-list { display: flex; flex-direction: column; gap: 6px; }
+.svc-head, .svc-row { display: grid; grid-template-columns: minmax(200px, 1.5fr) 110px minmax(130px, .9fr) minmax(170px, 1fr) auto; gap: 14px; align-items: center; }
+.svc-head { padding: 0 14px; font-size: var(--ll-fs-xs); text-transform: uppercase; letter-spacing: .06em; }
+.svc-row, .svc-crow { background: var(--ll-surface); border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); padding: 8px 14px; min-height: 48px; }
+.svc-row.svc-row--error { box-shadow: inset 3px 0 0 var(--ll-danger); }
+.svc-row.svc-row--dead { box-shadow: inset 3px 0 0 var(--ll-danger); }
+.svc-row.svc-row--doubt { box-shadow: inset 3px 0 0 var(--ll-warn); }
+.svc-row.is-off .svc-row__title { color: var(--ll-text-2); }
+.svc-row__name { display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; border-radius: var(--ll-radius-xs); }
+.svc-row__name:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 2px; }
+.svc-row__name:hover .svc-row__title { text-decoration: underline; }
+.svc-row__name svg { width: 22px; height: 22px; flex: none; }
+.svc-row__text { display: flex; flex-direction: column; min-width: 0; }
+.svc-row__title { font-weight: var(--ll-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svc-row__sub { font-size: var(--ll-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svc-row__port { font-size: var(--ll-fs-sm); color: var(--ll-text-2); }
+.svc-row__act { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.svc-open { text-decoration: none; white-space: nowrap; }
+.svc-open.is-off { opacity: .45; cursor: not-allowed; pointer-events: none; }
+.svc-cert--hint { background: var(--ll-surface-3); color: var(--ll-warn-text); }
+.svc-state, .svc-cert { max-width: 100%; white-space: nowrap; }
+.svc-cert__icon { font-size: 11px; line-height: 1; }
+.svc-crow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.svc-crow.is-red { box-shadow: inset 3px 0 0 var(--ll-danger); }
+.svc-crow.is-yellow { box-shadow: inset 3px 0 0 var(--ll-warn); }
+.svc-other > summary { cursor: pointer; font-weight: var(--ll-fw-semibold); padding: 4px 0; }
+.svc-other > summary:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 2px; }
+
+/* the card of one device */
+.svc-clist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.svc-citem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--ll-border); }
+.svc-citem:last-child { border-bottom: 0; padding-bottom: 0; }
+.svc-citem__main { display: flex; flex-direction: column; min-width: 0; }
+.svc-citem__sub { font-size: var(--ll-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svc-citem__chips { grid-column: 1; display: flex; flex-wrap: wrap; gap: 6px; }
+.svc-citem__act { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.svc-note { font-size: var(--ll-fs-xs); margin: 10px 0 0; }
+
+@media (max-width: 900px) {
+  .svc-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .svc-sum .stab-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .svc-head { display: none; }
+  .svc-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
+  .svc-row__name { grid-column: 1; }
+  .svc-row__act { grid-column: 2; grid-row: 1; }
+  .svc-row__port { grid-column: 1; grid-row: 2; }
+  .svc-row__state { grid-column: 2; grid-row: 2; justify-self: end; }
+  .svc-row__cert { grid-column: 1 / -1; }
+  .svc-row__cert:empty { display: none; }
+  .svc-crow { flex-wrap: wrap; }
+}

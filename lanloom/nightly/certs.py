@@ -3,6 +3,7 @@
 One handshake per endpoint, once per report, without verification (the point is to read the expiry date, also of
 a self-signed certificate the user accepted). Only addresses the user entered are contacted.
 """
+import ipaddress
 import socket
 import ssl
 import time
@@ -32,17 +33,39 @@ def endpoints(integrations: list) -> list:
     return out[:MAX_ENDPOINTS]
 
 
-def days_left(host: str, port: int, now: float = None) -> int:
+def cert_info(host: str, port: int, now: float = None, timeout: float = TIMEOUT) -> dict:
+    """One handshake without verification: {"days", "not_after", "issuer", "subject", "self_signed"}. Raises OSError/ssl.SSLError."""
     from cryptography import x509
-    ctx = ssl.create_default_context()
+    from cryptography.x509.oid import NameOID
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    with socket.create_connection((host, port), timeout=TIMEOUT) as sock:
-        with ctx.wrap_socket(sock, server_hostname=host) as tls:
+    with socket.create_connection((host, port), timeout=timeout) as sock:
+        with ctx.wrap_socket(sock, server_hostname=host if not _is_ip(host) else None) as tls:
             der = tls.getpeercert(binary_form=True)
     cert = x509.load_der_x509_certificate(der)
     end = cert.not_valid_after_utc.replace(tzinfo=timezone.utc).timestamp()
-    return int((end - (time.time() if now is None else now)) // 86400)
+
+    def name(n) -> str:
+        for oid in (NameOID.COMMON_NAME, NameOID.ORGANIZATION_NAME):
+            vals = n.get_attributes_for_oid(oid)
+            if vals:
+                return str(vals[0].value)[:80]
+        return ""
+    return {"days": int((end - (time.time() if now is None else now)) // 86400), "not_after": int(end),
+            "issuer": name(cert.issuer), "subject": name(cert.subject), "self_signed": cert.issuer == cert.subject}
+
+
+def _is_ip(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
+
+
+def days_left(host: str, port: int, now: float = None) -> int:
+    return cert_info(host, port, now)["days"]
 
 
 def check_all(eps: list) -> list:

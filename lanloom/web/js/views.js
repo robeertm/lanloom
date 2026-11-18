@@ -391,6 +391,7 @@
     if (d.dns_client && LL.dnsClientSection) sections.push(LL.dnsClientSection(d.dns_client));
     if (d.container && LL.containerSection) sections.push(LL.containerSection(d.container));
     if (d.agent && LL.agentSection) sections.push(LL.agentSection(d.agent, d.device ? d.device.id : null));
+    if (d.device && LL.servicesSection) sections.push(LL.servicesSection(id));
     if (d.hypervisor) sections.push(LL.hvHostSection(d.hypervisor));
     if (d.guest) sections.push(LL.hvGuestSection(d.guest));
     // the hub side of a merged device comes first: one component, network side and hub side
@@ -908,24 +909,33 @@
       count.textContent = t('devices.count', { n: rows.length, total: data.devices.length });
     };
     const count = h('span', { class: 'muted' });
-    // catalogue switch: the list of devices or the stability of each over 35 days (js/history.js)
-    let mode = LL.stabilityPanel && LL.query.get('view') === 'stability' ? 'stability' : 'list';
-    let stab = null;
-    const modeSwitch = LL.stabilityPanel ? h('div', { class: 'seg dev-mode', role: 'group', 'aria-label': t('stab.switch') }) : null;
+    // catalogue switch: the list of devices, the stability of each over 35 days (js/history.js), the web interfaces with their probe (js/services.js)
+    const MODES = [['list', 'stab.mode.list']].concat(LL.stabilityPanel ? [['stability', 'stab.mode.stability']] : [], LL.linksPanel ? [['links', 'svc.mode']] : []);
+    const wanted = LL.query.get('view');
+    let mode = MODES.some(m => m[0] === wanted) ? wanted : 'list';
+    let stab = null, links = null;
+    const modeSwitch = MODES.length > 1 ? h('div', { class: 'seg dev-mode', role: 'group', 'aria-label': t('stab.switch') }) : null;
     function drawMode() {
       if (!modeSwitch) return;
-      modeSwitch.replaceChildren(...[['list', 'stab.mode.list'], ['stability', 'stab.mode.stability']].map(([k, label]) => h('button', {
+      modeSwitch.replaceChildren(...MODES.map(([k, label]) => h('button', {
         type: 'button', class: 'seg__btn' + (k === mode ? ' is-active' : ''), 'aria-pressed': k === mode ? 'true' : 'false',
-        onclick: () => { mode = k; LL.deepLink('#/devices' + (k === 'stability' ? '?view=stability' : '')); drawMode(); render(); } }, t(label))));
+        onclick: () => { mode = k; LL.deepLink('#/devices' + (k === 'list' ? '' : '?view=' + k)); drawMode(); render(); } }, t(label))));
     }
     const baseRender = render;
     render = function () {
-      showHidden.closest('label').hidden = mode === 'stability';
-      if (netSel) netSel.hidden = mode === 'stability';
+      showHidden.closest('label').hidden = mode !== 'list';
+      if (netSel) netSel.hidden = mode !== 'list';
       if (mode === 'stability') {
         if (!stab) stab = LL.stabilityPanel({ filter: () => q.value.toLowerCase().trim(), onOpen: id => openRow(id) });
         else stab.redraw();
         list.replaceChildren(stab);
+        count.textContent = '';
+        return;
+      }
+      if (mode === 'links') {
+        if (!links) links = LL.linksPanel({ filter: () => q.value.toLowerCase().trim(), onOpen: id => openRow(id) });
+        else links.redraw();
+        list.replaceChildren(links);
         count.textContent = '';
         return;
       }
@@ -1006,13 +1016,15 @@
     const rescan = h('select', { class: 'select', onchange: () => api('/api/settings', { method: 'PUT', body: { rescan_hours: Number(rescan.value) } }).then(() => LL.toast(t('settings.saved'), 'ok')) },
       [0, 1, 3, 6, 12, 24].map(n => h('option', { value: String(n) }, n ? t('settings.rescan.every', { n }) : t('settings.rescan.never'))));
     rescan.value = String(s.rescan_hours);
+    const svcProbe = h('input', { type: 'checkbox', checked: s.service_probe !== false, onchange: () => api('/api/settings', { method: 'PUT', body: { service_probe: svcProbe.checked } }).then(() => LL.toast(t('settings.saved'), 'ok')) });
     page.append(card(t('settings.scan.title'), [
       lastLine,
       netBox,
       h('label', { class: 'check' }, deep, h('span', {}, t('wizard.scan.deep'))), h('label', { class: 'check check--consent' }, consent, h('span', {}, t('wizard.scan.consent'))),
       h('label', { class: 'check' }, snmpPub, h('span', {}, t('scan.snmp_public'))), h('p', { class: 'muted fineprint' }, t('scan.snmp_public.hint')),
       scanMsg, h('div', { class: 'btn-row scan-run' }, scanMeter, scanBtn),
-      h('hr'), LL.field(t('settings.rescan'), rescan, t('settings.rescan.hint'))]));
+      h('hr'), LL.field(t('settings.rescan'), rescan, t('settings.rescan.hint')),
+      h('label', { class: 'check' }, svcProbe, h('span', {}, t('settings.service_probe'))), h('p', { class: 'muted fineprint' }, t('settings.service_probe.hint'))]));
     if (scan.current && scan.current.state === 'running') scanWatch.start(scan.current);
     const frDestroy = fr.destroy;
     fr.destroy = () => { scanWatch.stop(); if (frDestroy) frDestroy.call(fr); };

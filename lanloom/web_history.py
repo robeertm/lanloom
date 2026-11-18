@@ -36,6 +36,11 @@ def subject_names(core) -> dict:
                                    "kind": dev.get("user_kind") or dev["kind"] or ""}
     for integ in core.integrations():
         out["src:int:%d" % integ["id"]] = {"title": integ["name"], "kind": "source"}
+    services = getattr(core, "services", None)
+    if services is not None:                 # services that were looked at (E5): the Stability list shows those with a history
+        for r in services.listing():
+            if r["state"] not in ("unprobed", "unknown"):
+                out["svc:" + r["key"]] = {"title": "%s · %s :%d" % (r["title"], r["name"], r["port"]), "kind": "service"}
     return out
 
 

@@ -17,6 +17,8 @@ Storage › *Availability and events*: 35, 90, 180 or 365 days).
 - When none of three or more devices answers at once, Lanloom's own network is the likelier cause than three faults at
   the same time: nothing is booked for that minute.
 - A device that is hidden, and the host Lanloom runs on, are not tracked.
+- The known services and web interfaces of the devices are looked at every 3 minutes and booked the same way (as
+  `svc:<device>|<port>`, see [SERVICES.md](SERVICES.md)); the *Stability* list shows those with a history.
 
 A **gap** (incident) is a run of slots with at least one failed look; two runs with only one good slot between them count
 as one flapping gap. **Typical repair time** is the mean length of the gaps that ended. A device or connection with

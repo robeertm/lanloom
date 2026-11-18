@@ -24,14 +24,21 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
 - **Host agent section.** The card of a host that runs an optional [host agent](../HOST-AGENT.md), or is read through a container source, adds the version, the last report, the system values, the counts of containers and failed units, a link to [Running](running.md) and a button to show or hide its containers on the map. The card of a container shows its state, image, ports, networks and live traffic.
 - **Devices | Inventory | Vulnerabilities** switch at the top: opens the [inventory](inventory.md) of the same devices, or
   the [vulnerability hints](vulnerabilities.md) for their firmware.
-- **List | Stability** switch under the search box: how steady each device and connection was instead of what it is.
+- **List | Stability | Links** switch under the search box: how steady each device and connection was instead of what it is, or every web interface with the state of its probe.
   Five key figures (checked, without a gap, gaps in 7 days, typical repair time, wobbly), the wobbly candidates, and
   one row each with 35 daily bars, availability over 24 hours and 7 days, gaps and repair time, the worst first
   (`#/devices?view=stability`).
 
 ![The stability list](../screenshots/stability-light.png)
 
-- **On the card:** availability (288 blocks for the last 24 hours), traffic plot (1 h, 6 h, 24 h, 7 days, full screen),
+- **Links** (`#/devices?view=links`): every web interface with the state of its probe (answers, login required, error,
+  not answering), a button that opens it in a new tab (greyed out while it does not answer, back by itself when it does),
+  the certificate clock (a hint under 30 days, yellow under 14, red under 3) and, under *Other services*, the services
+  without a web page. See [SERVICES.md](../SERVICES.md).
+
+![The Links view](../screenshots/links-light.png)
+
+- **On the card:** the *Services* section (ports, versions, state, certificate), availability (288 blocks for the last 24 hours), traffic plot (1 h, 6 h, 24 h, 7 days, full screen),
   connections with live rates, and *Simulate maintenance*. Its sections fold and keep their state.
 
 ## How to use it

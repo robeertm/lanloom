@@ -319,10 +319,10 @@
           h('span', { class: 'num' }, t('stab.col.d7')), h('span', { class: 'num' }, t('stab.col.inc')), h('span', { class: 'num' }, t('stab.col.mttr'))),
         h('div', { class: 'stab-list', role: 'list' }, rows.length ? rows.map(r => {
           const canOpen = r.id.startsWith('dev:');
-          const kind = canOpen ? LL.kindIcon(r.kind || 'unknown') : h('span', { class: 'stab-src', 'aria-hidden': 'true' }, '⇄');
+          const kind = canOpen ? LL.kindIcon(r.kind || 'unknown') : h('span', { class: 'stab-src', 'aria-hidden': 'true' }, r.id.startsWith('svc:') ? '◈' : '⇄');
           const name = h('span', { class: 'stab-row__name' }, kind, h('span', { class: 'stab-row__title' }, r.title),
             r.open ? h('span', { class: 'chip chip--danger' }, t('avail.open')) : r.wobbly ? h('span', { class: 'chip chip--warn' }, t('avail.wobbly')) : null,
-            r.id.startsWith('src:') ? h('span', { class: 'muted' }, t('stab.connection')) : null);
+            r.id.startsWith('src:') ? h('span', { class: 'muted' }, t('stab.connection')) : r.id.startsWith('svc:') ? h('span', { class: 'muted' }, t('stab.service')) : null);
           const bar = bars(r.bars, data.generated, 22); bar.classList.add('stab-row__bars');
           return h(canOpen ? 'button' : 'div', Object.assign({ class: 'stab-row' + (r.open ? ' is-open' : r.wobbly ? ' is-wobbly' : ''), role: 'listitem' }, canOpen ? { type: 'button', onclick: () => open(r.id) } : {}),
             name, bar, h('span', { class: 'num', 'data-label': t('stab.col.h24') }, pct(r.share24)), h('span', { class: 'num', 'data-label': t('stab.col.d7') }, pct(r.share7)),

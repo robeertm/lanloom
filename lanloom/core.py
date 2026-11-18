@@ -9,7 +9,7 @@ import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from . import adapter_inventory, availability as availability_mod, portfront, portnotify, classify, counters as counters_mod, datapaths, dnsfilter, geo as geo_mod, hub_privacy, hubauto, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
+from . import adapter_inventory, availability as availability_mod, services as services_mod, portfront, portnotify, classify, counters as counters_mod, datapaths, dnsfilter, geo as geo_mod, hub_privacy, hubauto, hubbridge, hubmerge, hubsensors, identity, live, netflow, oui as oui_mod, textfmt, topology, trafficlog as trafficlog_mod, zones as zones_mod
 from .agents import AgentHub
 from .crypto import Vault
 from .firewall import insight as fw_insight
@@ -36,6 +36,7 @@ DEFAULT_SETTINGS = {
     "paths_no_internet": [],    # data paths: local networks that should not reach the internet
     "scan_snmp_public": False,  # scans may ask devices with the default read community (user choice, off by default)
     "port_noise": False,        # exact port counters: take the background noise every device of a network sees out of each one
+    "service_probe": True,      # look at the known services and web interfaces every 3 minutes (never anything else, never a login)
     "adapter_inventory": True,  # devices only an adapter knows (other VLANs, switch address tables) join the inventory
     "netflow_enabled": False,   # data paths: NetFlow/IPFIX receiver (off by default; needs at least one allowed exporter)
     "netflow_port": netflow.DEFAULT_PORT,
@@ -141,6 +142,7 @@ class Core:
         self._radio_cache: dict = {}       # integration id -> (key, monotonic time, radio view)
         self.paths = datapaths.DataPaths(store, self.geo, self.settings)
         self.availability = availability_mod.Availability(store)     # 5-minute slots per device/connection (S2)
+        self.services = services_mod.Services(self)                  # services, web interfaces, link probe, certificates (E5)
         self.traffic_log = trafficlog_mod.TrafficLog(store)           # bytes per minute per trace (plot ranges up to 7 days)
         self.dns: dict = {}                                           # DNS filters: integration id -> {"state", "t"} (last reading)
         self.dns_log = dnsfilter.DnsLog(store)                        # their sums per hour and day (never single queries)
@@ -184,7 +186,7 @@ class Core:
         allowed = {"rescan_hours": int, "update_check": bool, "language": (str, type(None)), "setup_done": bool,
                    "uplink_iface": str, "rate_unit": str, "home_country": str, "paths_own_networks": list,
                    "paths_no_internet": list, "netflow_enabled": bool, "netflow_port": int, "netflow_exporters": list,
-                   "netflow_lan_networks": list, "adapter_inventory": bool, "port_noise": bool}
+                   "netflow_lan_networks": list, "adapter_inventory": bool, "port_noise": bool, "service_probe": bool}
         nets = {}
         for key in ("paths_own_networks", "paths_no_internet", "netflow_lan_networks"):   # all or nothing: check first
             if key in patch:
@@ -299,6 +301,7 @@ class Core:
         self.reports.on_start()
         if self.demo:
             self._tasks.append(asyncio.create_task(self.demo.run(self)))
+            self._tasks.append(asyncio.create_task(self.services.loop()))
         else:
             self._start_source("host", "host", {})
             for integ in self.integrations():
@@ -306,6 +309,7 @@ class Core:
                     self._start_integration(integ)
             self._tasks.append(asyncio.create_task(self._presence_loop()))
             self._tasks.append(asyncio.create_task(self._rescan_loop()))
+            self._tasks.append(asyncio.create_task(self.services.loop()))
             await self.netflow_apply()
             self._tasks.append(asyncio.create_task(self.storage.loop()))
             self._tasks.append(asyncio.create_task(self.inventory.loop()))
@@ -635,6 +639,7 @@ class Core:
         if ok:
             self.paths.forget_device(device_id)
             self.availability.forget("dev:" + device_id)
+            self.services.forget_device(device_id)
         self.store.execute("DELETE FROM phys_manual WHERE device_id=? OR parent_id=?", (device_id, device_id))
         self.inventory.forget(device_id)
         self.vulns.forget_device(device_id)

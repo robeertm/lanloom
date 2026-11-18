@@ -457,6 +457,21 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 </tr>
 </table>
 
+### Services, web interfaces and certificates
+
+![Links: every web interface with the state of its probe and the certificate clock](docs/screenshots/links-light.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/services-card-light.png" width="100%" alt="The card of a device with its services, versions and states"><br><sub>The Services section of a device card</sub></td>
+<td width="50%"><img src="docs/screenshots/links-certs-light.png" width="100%" alt="The certificate clock: expired, red, yellow, hint and valid certificates"><br><sub>The certificate clock</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/links-phone-light.png" width="200" alt="The Links view on the phone"><br><sub>Links on the phone</sub></td>
+<td width="50%"><img src="docs/screenshots/services-phone-light.png" width="200" alt="The services of a device on the phone"><br><sub>The services of a device on the phone</sub></td>
+</tr>
+</table>
+
 ### Devices and settings
 
 ![Device list](docs/screenshots/devices-light.png)
@@ -691,6 +706,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path
 - [docs/API.md](docs/API.md): API tokens and scopes, the public API v1 with every route, errors, signed webhooks with verification code, external reports
 - [docs/AVAILABILITY.md](docs/AVAILABILITY.md): availability in 5-minute slots, the Stability list, traffic plots over 1 hour to 7 days, the card sections, simulate maintenance, what is stored
+- [docs/SERVICES.md](docs/SERVICES.md): services and web interfaces per device, the Links view with its probe (answers, login required, error, dead, removed), the certificate clock, what is looked at and how gently
 - [docs/INVENTORY.md](docs/INVENTORY.md): inventory and life cycle: own fields, states, why a device is "probably gone", provisional entries, warranty and end of updates, the offline table, roles
 - [docs/VULNERABILITIES.md](docs/VULNERABILITIES.md): vulnerability hints: the offline feed and its sources, building and importing a feed file, the matching rules (certain, possible, not checked), what to do, events, roles and API
 - [docs/DISCOVERY.md](docs/DISCOVERY.md): what the scan asks, maker and model recognition, the address register, one device with several interfaces, networks and VLANs, devices without an address, scan protection, what can be connected

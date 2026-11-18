@@ -346,9 +346,11 @@ class Reports:
             return self.core.demo.report_certs() if hasattr(self.core.demo, "report_certs") else []
         from .certs import endpoints, check_all
         eps = endpoints(self.core.integrations())
-        if not eps:
-            return []
-        return await asyncio.to_thread(check_all, eps)
+        out = await asyncio.to_thread(check_all, eps) if eps else []
+        services = getattr(self.core, "services", None)
+        if services is not None:                       # TLS services of the devices (read by the service probe, not asked again)
+            out += services.cert_list()
+        return out
 
     # ------------------------------------------------------------------ archive
     def save(self, report: dict) -> None:

@@ -62,9 +62,14 @@
    "purpose": "optional NetFlow/IPFIX receiver (off by default): binds a UDP port, sends nothing"
   },
   {
-   "site": "lanloom/nightly/certs.py::days_left::socket",
+   "site": "lanloom/nightly/certs.py::cert_info::socket",
    "category": "own-connection-check",
-   "purpose": "one TLS handshake per morning to the addresses of the connections set up, to read certificate expiry"
+   "purpose": "one TLS handshake to read certificate expiry: once per morning for the connections set up, at most every six hours for the TLS services already known on devices of the local network"
+  },
+  {
+   "site": "lanloom/services.py::probe_tcp::socket",
+   "category": "lan-scan",
+   "purpose": "service probe every 3 minutes (switchable): one TCP connect, closed at once, to an already known service of a known device in the local network; protection list rules apply"
   },
   {
    "site": "lanloom/nightly/deliver.py::_email::smtp",
