@@ -81,7 +81,7 @@ def test_preview_explains_a_move_in_plain_words():
                             "after": {"network": "n_work", "ip": "192.168.40.22"}}]
     keys = [w[0] for w in pv["warnings"]]
     assert keys[0] == "fw.warn.reprovision"       # wireless move: every access point reconfigured
-    assert {"fw.warn.new_ip", "fw.warn.private_address", "fw.warn.discovery", "fw.warn.dependency"} <= set(keys)
+    assert {"fw.warn.new_ip", "fw.warn.private_address", "fw.warn.discovery", "fw.warn.addr_tracker"} <= set(keys)
     assert pv["confirm"] == ["private_address:d10"] and not pv["blocks"]
     ch = pv["changes"][0]
     assert ["fw.can.internet", {}] in ch["may"] and ["fw.can.discovery", {}] in ch["may_not"]

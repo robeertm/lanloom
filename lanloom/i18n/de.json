@@ -474,6 +474,7 @@
  "audit.action.firewall.plan": "Firewall-Plan erstellt",
  "audit.action.firewall.preview": "Firewall-Vorschau",
  "audit.action.firewall.reset": "Firewall-Simulation zurückgesetzt",
+ "audit.action.firewall.segplan": "Netzplan geändert",
  "audit.action.firewall.undo": "Firewall-Rücknahme vorbereitet",
  "audit.action.hub.match": "Zuordnung Zentrale/Netzgerät geändert",
  "audit.action.hub.traces": "Läufe einer Automation abgefragt",

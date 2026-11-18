@@ -474,6 +474,7 @@
  "audit.action.firewall.plan": "Firewall plan built",
  "audit.action.firewall.preview": "Firewall preview",
  "audit.action.firewall.reset": "Firewall simulation reset",
+ "audit.action.firewall.segplan": "Network plan changed",
  "audit.action.firewall.undo": "Firewall undo prepared",
  "audit.action.hub.match": "Hub and network device grouping changed",
  "audit.action.hub.traces": "Runs of an automation requested",

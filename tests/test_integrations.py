@@ -23,7 +23,12 @@ PKG = ROOT / "lanloom"
 HDR = {"X-Lanloom": "1"}
 SIM_WRITE = {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "client.set.network": "B",
              "guest.nic": "B", "guest.fw_rule": "B", "guest.fw_rule_create": "B", "guest.fw_rule_delete": "B",
-             "guest.firewall": "B*", "guest.power": "B*"}     # the sample family: clients and the sample hypervisor's guests
+             "guest.firewall": "B*", "guest.power": "B*",
+             "network.create": "B", "network.update.name": "B", "network.update.dhcp": "B", "network.delete": "B",
+             "dhcp.reserve": "B", "dhcp.release": "B", "forward.create": "B*", "forward.update.name": "B",
+             "forward.update.enabled": "B*", "forward.update.wan_port": "B*", "forward.update.dst_ip": "B*",
+             "forward.update.dst_port": "B*", "forward.update.proto": "B*", "forward.delete": "B"}
+# the sample family: clients, the sample hypervisor's guests and the sample gateway (networks, fixed addresses, forwards)
 
 
 def sign_in(c, data_dir):
