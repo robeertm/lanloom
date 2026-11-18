@@ -27,6 +27,7 @@ SAME_AS_ENGLISH = {
     r"zone\.net_(named|vlan|named_vlan)": "a name, a VLAN number and an address joined by dots; no word of its own",
     r"hv\.nic\.title": "a guest name and a network card name joined by a dot; no word of its own",
     r"hv\.edit\.fw_chip": "the word Firewall and a translated on/off; German uses the word Firewall as it is",
+    r"api\.ref\.version_text": "the API version and the Lanloom version with the product name; no word of its own",
 }
 
 # Families of keys chosen at run time ('kind.' + x). A key counts as used when the code builds its prefix. Prefixes with two or more
@@ -218,6 +219,9 @@ def test_every_key_the_code_names_exists():
     # audit log action names ("auth.login", "users.invite" ...) are identifiers stored in the log; their labels are audit.action.<name>
     from lanloom import access
     NOT_KEYS.update({a: "audit action name (access.AUDIT_ACTIONS)" for a in access.AUDIT_ACTIONS})
+    # webhook event ids ("device.new", "report.ready" ...) are part of the public API; their labels are webhooks.ev.<id>
+    from lanloom import webhooks
+    NOT_KEYS.update({e: "webhook event id (webhooks.EVENTS)" for e in webhooks.EVENTS})
     missing = sorted(l for l in lits if "." in l and not l.endswith(".") and l.split(".")[0] in namespaces and l not in keys and l not in NOT_KEYS)
     assert not missing, "the code names keys that no language file has: %s" % missing[:40]
     # t('literal') calls specifically must resolve, whatever the namespace

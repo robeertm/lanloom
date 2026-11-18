@@ -917,7 +917,7 @@
   const SETTINGS_PAGES = [['general', '', 'settings.general', 'viewer'], ['account', 'account', 'settings.tab.account', 'viewer'],
     ['notifications', 'notifications', 'notify.tab', 'viewer'],
     ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['backup', 'backup', 'backup.tab', 'admin'],
-    ['storage', 'storage', 'storage.tab', 'admin'], ['network', 'network', 'settings.tab.network', 'viewer'], ['agents', 'agents', 'agents.tab', 'viewer'], ['ai', 'ai', 'ai.tab', 'admin']];
+    ['storage', 'storage', 'storage.tab', 'admin'], ['network', 'network', 'settings.tab.network', 'viewer'], ['agents', 'agents', 'agents.tab', 'viewer'], ['api', 'api', 'api.tab', 'viewer'], ['ai', 'ai', 'ai.tab', 'admin']];
   function settingsSubnav(active) {
     const allowed = p => p[3] === 'viewer' || LL.can(p[3] === 'admin' ? 'admin' : 'operate');
     return h('nav', { class: 'seg settings-subnav', 'aria-label': t('settings.sections') }, SETTINGS_PAGES.filter(allowed).map(([k, sub, label]) =>
@@ -927,7 +927,7 @@
   async function settingsView(app, rest) {
     const fr = frame(app, 'settings');
     const sub = rest && rest[0];
-    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, notifications: LL.notifyPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage, network: LL.networkPage, agents: LL.agentsPage }[sub];
+    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, notifications: LL.notifyPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage, network: LL.networkPage, agents: LL.agentsPage, api: LL.apiPage }[sub];
     if (subPage) {
       const pg = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav(sub)));
       fr.main.append(pg);

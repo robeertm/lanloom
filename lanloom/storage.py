@@ -43,11 +43,10 @@ AREAS = (
     ("inventory", ("devices", "phys_manual", "integrations", "secrets", "settings", "meta")),
     ("paths", ("paths_hour", "paths_day", "paths_seen", "paths_pair_hour", "paths_pair_day")),
     ("availability", ("events", "avail_day", "traffic_min", "dns_sum", "dns_day")),
-    ("reports", ("reports", "report_marks")),
-    ("audit", ("audit",)),
+    ("reports", ("reports", "report_marks", "api_ingest")),
+    ("audit", ("audit", "webhook_deliveries")),
     ("scans", ("scans",)),
     ("accounts", ("users", "passkeys", "sessions", "recovery_codes", "invites", "notices", "known_logins", "api_tokens")),
-    ("api", ("webhook_deliveries", "api_ingest")),
 )
 RUN_HOUR = 3                     # local hour of the nightly clean-up
 LOOP_EVERY_S = 600

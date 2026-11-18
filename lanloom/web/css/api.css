@@ -1,0 +1,73 @@
+/* Lanloom — Settings > API: tokens, webhooks, external reports, reference of the public API. */
+.api-page { display: flex; flex-direction: column; gap: var(--ll-space-4); min-width: 0; }
+.api-sub { font-size: var(--ll-fs-md); font-weight: var(--ll-fw-semibold); margin: 0 0 var(--ll-space-2); }
+.api-form { display: flex; flex-direction: column; gap: var(--ll-space-3); }
+.api-prefix { display: block; font-size: var(--ll-fs-xs); margin-top: 2px; }
+.api-ip { font-size: var(--ll-fs-xs); }
+.api-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.api-nohttps { margin-left: 6px; height: 18px; font-size: 10px; }
+.api-log-detail { font-size: var(--ll-fs-xs); }
+
+.api-table--tokens .acc-row { grid-template-columns: minmax(0, 1.5fr) minmax(96px, .8fr) minmax(0, 1fr) minmax(0, 1.2fr) 92px; }
+.api-table--owner .acc-row { grid-template-columns: minmax(0, .9fr) minmax(0, 1.4fr) minmax(96px, .8fr) minmax(0, 1fr) minmax(0, 1.2fr) 92px; }
+.api-table--hooks .acc-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(220px, 1.4fr); }
+.api-table--log .acc-row { grid-template-columns: minmax(118px, .9fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr) 96px; }
+.api-table .role-chip { height: 22px; }
+
+/* a value shown once */
+.api-once { margin-top: var(--ll-space-3); padding: 14px 16px; border: 1px solid var(--ll-border); border-left: 3px solid var(--ll-ok);
+  border-radius: var(--ll-radius-md); background: var(--ll-ok-soft); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.api-once__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.api-once__value { display: block; padding: 10px 12px; background: var(--ll-surface); border: 1px dashed var(--ll-border-strong); border-radius: var(--ll-radius-sm);
+  font-family: var(--ll-font-mono); font-size: var(--ll-fs-sm); word-break: break-all; color: var(--ll-text); user-select: all; }
+.api-once__warn { margin: 0; font-size: var(--ll-fs-sm); color: var(--ll-text-2); }
+
+/* webhook dialog */
+.api-hook-dlg { min-width: min(560px, 80vw); }
+.api-events { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ll-space-3); }
+.api-events__group { border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); padding: 8px 12px 10px; margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.api-events__group legend { font-size: var(--ll-fs-xs); color: var(--ll-text-3); padding: 0 4px; }
+.api-events .check { font-size: var(--ll-fs-sm); }
+.api-events .check code { font-size: var(--ll-fs-xs); }
+.api-events .check.is-muted { color: var(--ll-text-3); }
+.api-details { margin-top: var(--ll-space-3); }
+.api-details > summary { cursor: pointer; color: var(--ll-accent-text); font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-medium); }
+.api-details[open] > summary { margin-bottom: var(--ll-space-2); }
+
+/* external reports */
+.api-ingest { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.api-ingest__item { padding: 10px 2px; border-bottom: 1px solid var(--ll-border); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.api-ingest__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.api-ingest__head strong { overflow-wrap: anywhere; }
+.api-ingest__head .muted { font-size: var(--ll-fs-xs); margin-left: auto; }
+.api-ingest__sum { margin: 0; color: var(--ll-text-2); font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.api-ingest__lines { margin: 0; padding-left: 1.2em; font-size: var(--ll-fs-sm); color: var(--ll-text-2); }
+.api-ingest__line--warn { color: var(--ll-warn-text); }
+.api-ingest__line--danger { color: var(--ll-danger-text); }
+
+/* reference */
+.api-ref__head { display: flex; flex-direction: column; gap: var(--ll-space-2); margin-bottom: var(--ll-space-3); }
+.api-ref__head code { word-break: break-all; }
+.api-ref__group { margin-top: var(--ll-space-3); }
+.api-ref__ops { list-style: none; margin: 0; padding: 0; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); overflow: hidden; }
+.api-op + .api-op { border-top: 1px solid var(--ll-border); }
+.api-op__sum { display: grid; grid-template-columns: 56px minmax(0, 1.3fr) auto minmax(0, 2fr); align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; list-style: none; }
+.api-op__sum::-webkit-details-marker { display: none; }
+.api-op__sum:hover { background: var(--ll-surface-2); }
+.api-op__method { font-family: var(--ll-font-mono); font-size: var(--ll-fs-xs); font-weight: var(--ll-fw-bold); text-align: center; padding: 2px 0;
+  border-radius: var(--ll-radius-xs); background: var(--ll-accent-soft); color: var(--ll-accent-text); }
+.api-op__method--post { background: var(--ll-ok-soft); color: var(--ll-ok-text); }
+.api-op__path { font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.api-op__sum .role-chip { height: 20px; font-size: 10px; }
+.api-op__text { font-size: var(--ll-fs-sm); color: var(--ll-text-2); min-width: 0; }
+.api-op__body { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: var(--ll-space-2); background: var(--ll-surface-2); }
+.api-op__params td, .api-op__params th { overflow-wrap: anywhere; }
+
+@media (max-width: 700px) {
+  .api-events { grid-template-columns: 1fr; }
+  .api-hook-dlg { min-width: 0; }
+  .api-acts { justify-content: flex-start; grid-column: 1 / -1; }
+  .api-op__sum { grid-template-columns: 52px minmax(0, 1fr) auto; }
+  .api-op__text { grid-column: 1 / -1; }
+  .api-ingest__head .muted { margin-left: 0; width: 100%; }
+}
