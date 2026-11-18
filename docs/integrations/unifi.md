@@ -1,6 +1,6 @@
 # UniFi Network (local API): read adapter and client write half
 
-Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - and since 1.33.0 **internal networks**, **fixed addresses** and **port forwards**, each after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) and [Changing networks, fixed addresses and port forwards](#changing-networks-fixed-addresses-and-port-forwards-stage-b) below). Nothing else is ever written.
+Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - and since 1.37.0 **internal networks**, **fixed addresses** and **port forwards**, each after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) and [Changing networks, fixed addresses and port forwards](#changing-networks-fixed-addresses-and-port-forwards-stage-b) below). Nothing else is ever written.
 
 What you get:
 
