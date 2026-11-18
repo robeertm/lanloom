@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import random
 import re
@@ -22,6 +23,9 @@ ROLE_KEYS = {"trigger": "trigger", "triggers": "trigger", "condition": "conditio
 CALL_KEYS = ("service", "action")                    # "service: script.x" / "action: script.x" calls a script directly
 EID_IN_TEXT = re.compile(r"(?<![\w.])([a-z_]{1,64}\.[a-z0-9_]{1,190})(?![\w.(])")
 MAX_REFS = 200
+MAX_ADDRS = 20
+# a literal private address inside a configuration value (a ping target, a command's URL): kept as an address only
+IP_IN_TEXT = re.compile(r"(?<![\w.:])((?:\d{1,3}\.){3}\d{1,3})(?![\w.])")
 MAX_DEPTH = 40
 MAX_NODES = 20000
 
@@ -40,9 +44,12 @@ def _ids(value) -> list:
 
 
 def refs_from_config(config, known) -> dict:
-    """{role: [entity ids]} plus ``text`` (ids only found inside templates, weaker) - only ids the hub knows."""
+    """{role: [entity ids]} plus ``text`` (ids only found inside templates, weaker) - only ids the hub knows - and
+    ``ips``: private IPv4 addresses written literally in the configuration (what the item reaches by address; the text
+    around them is never kept)."""
     out = {r: set() for r in ROLES}
     text = set()
+    addrs = set()
     budget = [MAX_NODES]
 
     def walk(node, role, depth):
@@ -61,12 +68,23 @@ def refs_from_config(config, known) -> dict:
         elif isinstance(node, list):
             for v in node:
                 walk(v, role, depth + 1)
-        elif isinstance(node, str) and role and ("{{" in node or "{%" in node):
-            text.update(e for e in EID_IN_TEXT.findall(node[:20000]) if e in known)
+        elif isinstance(node, str):
+            if role and ("{{" in node or "{%" in node):
+                text.update(e for e in EID_IN_TEXT.findall(node[:20000]) if e in known)
+            if len(addrs) < MAX_ADDRS and "." in node:
+                for ip in IP_IN_TEXT.findall(node[:20000]):
+                    try:
+                        a = ipaddress.ip_address(ip)
+                    except ValueError:
+                        continue
+                    if a.is_private and not a.is_loopback and not a.is_link_local and not a.is_unspecified:
+                        addrs.add(str(a))
 
     walk(config, None, 0)
     res = {r: sorted(out[r])[:MAX_REFS] for r in ROLES}
     res["text"] = sorted(text - set().union(*out.values()))[:MAX_REFS]
+    if addrs:
+        res["ips"] = sorted(addrs, key=lambda x: ipaddress.ip_address(x))[:MAX_ADDRS]
     return res
 
 

@@ -563,7 +563,9 @@ def _clients(raw, ids, nets) -> tuple:
             fixed = _ip(u.get("fixed_ip")) if u.get("use_fixedip") else None
             if not (text(u.get("name")) or fixed or override):
                 continue
-            ref = u.get("virtual_network_override_id") if override else (u.get("network_id") if fixed else u.get("last_connection_network_id"))
+            # the network it was last seen in; a released fixed address leaves its network in the record (last known)
+            ref = u.get("virtual_network_override_id") if override else (
+                u.get("network_id") if fixed else (u.get("last_connection_network_id") or u.get("network_id")))
             devices.append({"id": oid("c", mac), "name": text(u.get("name") or u.get("hostname")) or text(u.get("oui"), 32) or "?",
                             "kind": "client", "network": net_for(fixed, ref), "ip": fixed, "fixed": bool(fixed), "fixed_ip": fixed,
                             "wired": bool(u.get("is_wired")), "alone_on_port": None, "private_address": is_private_mac(mac),

@@ -126,10 +126,16 @@ _DEVICES = [
     _dev(26, "Garage camera", "camera", "n_cams", 51),
     _dev(27, "Visitor phone", "phone", "n_guest", 23, private=True, fixed=False),
 ]
-_DEPENDENCIES = [{"device": "d10", "by": "Automation hub (presence by address)"},
-                 {"device": "d19", "by": "Automation hub"}, {"device": "d20", "by": "Automation hub"},
-                 {"device": "d21", "by": "Automation hub"}, {"device": "d24", "by": "Automation hub"},
+_DEPENDENCIES = [{"device": "d10", "by": "Automation hub", "via": "tracker"},
+                 {"device": "d19", "by": "Washer plug (plug)", "via": "integration"},
+                 {"device": "d20", "by": "Hall thermostat (climate)", "via": "integration"},
+                 {"device": "d21", "by": "Energy report at midnight", "via": "automation"},
+                 {"device": "d24", "by": "Solar inverter (inverter)", "via": "integration"},
                  {"device": "d12", "by": "Office laptop (printer by address)"}]
+# the demo's segmentation plan: smart devices into an IoT network that does not exist yet, a speaker already moved,
+# the kitchen tablet still to go (see firewall.segplan)
+SAMPLE_SEGPLAN = {"d19": {"label": "IoT"}, "d20": {"label": "IoT"}, "d22": {"label": "IoT"}, "d23": {"label": "IoT"},
+                  "d14": {"net": "n_media"}, "d11": {"net": "n_media"}}
 
 
 HV_LISTS = ("hosts", "guests", "guest_nics", "guest_rules", "bridges", "sdn_zones", "sdn_vnets", "fw_rules", "fw_options", "raw")

@@ -298,6 +298,14 @@ def seed_pairs(core, now: float = None, seed: int = 13) -> None:
                            [(k[0], k[1], k[2], v[0], v[1]) for k, v in days.items()])
 
 
+def seed_segplan(core) -> None:
+    """A segmentation plan on the sample network of the firewall tab (target networks per device; Lanloom data)."""
+    if core.store.get_setting("fw_segplan", None) is None:
+        from .firewall import segplan
+        from .firewall.adapter import SAMPLE_SEGPLAN
+        segplan.set_targets(core.store, SAMPLE_SEGPLAN)
+
+
 def book_paths_minute(core, now: float, rng) -> None:
     """One minute of synthetic data paths (the demo keeps growing while it runs)."""
     ids = {int(ip.rsplit(".", 1)[1]): dev for ip, dev in core.ip_to_device.items() if ip.startswith("192.168.50.")}
@@ -471,6 +479,7 @@ class Demo:
         core.store.set_setting("rescan_cidrs", [NET])
         self.seed_manual(core)
         seed_paths(core); seed_pairs(core)
+        seed_segplan(core)
 
     def seed_manual(self, core) -> None:
         for n, (parent, port) in MANUAL.items():
@@ -759,6 +768,7 @@ class Demo:
             if now - paths_sent >= 60:
                 paths_sent = now
                 seed_paths(core, now); seed_pairs(core, now)              # a demo set up through the wizard gets its history on the first minute
+                seed_segplan(core)
                 book_paths_minute(core, now, rng)
             fam, hv, fw = _demo_family(), _demo_family("guests"), _demo_firewall()
             if now - live_sent >= 60:

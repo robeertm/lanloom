@@ -236,6 +236,7 @@ RULES = {
     ("POST", "/api/firewall/approve"): R(A, "firewall.approve"),      # the approval itself is a passkey signature
     ("POST", "/api/firewall/undo"): R(O, "firewall.undo"),
     ("POST", "/api/firewall/reset"): R(A, "firewall.reset"),
+    ("PUT", "/api/firewall/segplan"): R(O, "firewall.segplan"),         # Lanloom's own note, nothing written to a device
     ("GET", "/api/firewall/keys"): R(A),
 
     # ---------------------------------------------------------------- executor service (bearer token, no session)

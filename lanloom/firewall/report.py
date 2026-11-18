@@ -52,6 +52,36 @@ def _build(ctx) -> dict:
 register(Contribution("changes", 52, "report.sec.changes", _available, _build))
 
 
+# Section "Network plan": how far the segmentation plan has come (Lanloom's own note of the target network per device;
+# the editor keeps its last progress). There only when a plan exists. Names of target networks only.
+def _plan_available(ctx) -> bool:
+    from . import segplan
+    return segplan.progress(ctx.core.store) is not None
+
+
+def _plan_build(ctx) -> dict:
+    from . import segplan
+    p = segplan.progress(ctx.core.store) or {}
+    total, moved = int(p.get("total") or 0), int(p.get("moved") or 0)
+    items = []
+    before = None
+    for sec in (ctx.prev or {}).get("sections") or []:
+        if sec.get("id") == "netplan":
+            before = ((sec.get("summary") or {}).get("vars") or {}).get("moved")
+    if isinstance(before, int) and moved > before:
+        items.append(item("np:progress", "report.netplan.progress", "ok", n=moved - before))
+    for g in p.get("groups") or []:
+        done = g.get("moved") == g.get("total")
+        items.append(item("np:" + str(g.get("label") or "?")[:40].lower(), "report.netplan.group_done" if done else "report.netplan.group",
+                          "ok" if done else "info", label=str(g.get("label") or "?")[:32], moved=int(g.get("moved") or 0),
+                          total=int(g.get("total") or 0)))
+    key = "report.netplan.summary_done" if moved >= total else "report.netplan.summary"
+    return section("netplan", "report.sec.netplan", key, items, moved=moved, total=total)
+
+
+register(Contribution("netplan", 53, "report.sec.netplan", _plan_available, _plan_build))
+
+
 def _executor_configured(core) -> bool:
     return os.environ.get("LANLOOM_FW_EXECUTOR", "").strip().lower() == "external"
 

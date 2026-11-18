@@ -723,6 +723,8 @@ class Hub:
             entry["related"] = list((rel or {}).get("ids", ()))
             if (refs or {}).get("flow") is not None:
                 entry["flow"] = refs["flow"]
+            if (refs or {}).get("ips"):
+                entry["ips"] = list(refs["ips"])
             (autos if eid.startswith("automation.") else scripts)[eid] = entry
         return {"type": "hub_deps", "source": SOURCE, "t": now(), "automations": autos, "scripts": scripts,
                 "cycles": [list(c) for c in self._cycles],

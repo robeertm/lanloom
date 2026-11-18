@@ -198,6 +198,10 @@ class Editor:
             out["state"] = st
             out["targets"] = {d["id"]: model.drop_targets(st, d) for d in st.get("devices") or []}
             out["segplan"] = segplan.status(st, segplan.load(self.store))
+            try:
+                segplan.remember(self.store, out["segplan"])
+            except Exception:
+                pass
             out["uses"] = self.dependencies(st)
             if any(k.startswith(("network.", "dhcp.", "forward.")) for k in (self.capabilities().get("write") or {})):
                 out["netconf"] = {"templates": [netconf.suggest(st, t["id"]) for t in netconf.TEMPLATES],

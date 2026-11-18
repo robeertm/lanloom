@@ -110,6 +110,8 @@ class App:
         self.firewall.notify = self.real_core.notify                  # a change put back -> notification rules
         from .guest_protect import app_identity as _app_identity
         self.firewall.identity = lambda: _app_identity(self.core)      # guests that keep the network running
+        from .addrusers import address_users as _address_users
+        self.firewall.address_users = lambda: _address_users(self.core)  # what uses an address (hub, Lanloom itself)
         from .firewall import report as _fw_report  # noqa: F401 - registers the nightly report section
         from .ai.manager import AI
         from .ai import report as _ai_report  # noqa: F401 - registers the nightly report section
@@ -1124,6 +1126,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         except Refused as exc:
             return refused(exc)
         return {"ok": True}
+
+    @app.put("/api/firewall/segplan")
+    async def fw_segplan(request: Request):
+        data = await body(request)
+        items = data.get("targets") if isinstance(data.get("targets"), dict) else {}
+        note(request, detail={"devices": len(items), "removed": sum(1 for v in items.values() if v is None)})
+        try:
+            return state.firewall.set_segplan(items)
+        except ValueError as exc:
+            return err(str(exc))
 
     @app.get("/api/firewall/keys")
     async def fw_keys(request: Request):

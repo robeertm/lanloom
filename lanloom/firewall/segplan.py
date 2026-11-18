@@ -12,6 +12,7 @@ import time
 from . import model
 
 KEY = "fw_segplan"
+PROGRESS_KEY = "fw_segplan_progress"      # last progress the editor saw (for the nightly report, which has no state)
 MAX_ENTRIES = 2000
 LABEL_MAX = 32
 
@@ -115,3 +116,21 @@ def status(state: dict, plan: dict) -> dict:
     first = dict(list(out["moves"].items())[:model.MAX_OBJECTS])
     out["moves"] = first
     return out
+
+
+def remember(store, st: dict, now: float = None) -> None:
+    """Keep the progress the editor just computed for the nightly report (written only when it changed)."""
+    groups = [{"label": g["label"], "total": g["total"], "moved": g["moved"]} for g in st.get("targets") or []][:24]
+    cur = {"total": st.get("total", 0), "moved": st.get("moved", 0), "groups": groups}
+    old = store.get_setting(PROGRESS_KEY, None)
+    if isinstance(old, dict) and {k: old.get(k) for k in cur} == cur:
+        return
+    store.set_setting(PROGRESS_KEY, dict(cur, t=int(now or time.time())))
+
+
+def progress(store):
+    """The progress last seen by the editor, or None when there is no plan."""
+    d = store.get_setting(PROGRESS_KEY, None)
+    if not isinstance(d, dict) or not d.get("total"):
+        return None
+    return d

@@ -314,6 +314,9 @@ def check_step(step) -> None:
 
 def needs_confirmation(step: dict) -> bool:
     kind = KINDS[step["kind"]]
+    if kind.name == "forward.update" and (step.get("after") or {}).get("enabled") is False and \
+            set(changed_fields(step)) <= {"enabled", "name"}:
+        return False                          # switching a port forward off (and renaming it) never opens anything
     return kind.confirm or bool(kind.confirm_fields & set(changed_fields(step)))
 
 
