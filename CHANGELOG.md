@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.44.0] – 2026-11-18
+
+### Added
+- **API tokens.** *Settings › API* lets every person make tokens for scripts and other programs: a name, a scope (*Read*, *Operate*, *Admin*, or *Deliver only* for a script that only hands in reports and reads nothing), a lifetime of 7, 30, 90 or 365 days and a request limit of 60, 300 or 1200 per minute. The scope can never be more than the person's role - neither when the token is made nor later: a demoted account weakens its tokens at once, a disabled or deleted one stops them. Only a SHA-256 hash is stored; the token is shown once with a copy button and a ready `curl` line, and the list shows name, scope, expiry and when and from which address it was last used. Making a token needs a fresh second confirmation. Administrators see everybody's tokens and can revoke any of them. A token opens only the public API, never the routes of the web page.
+- **Public API v1 with an OpenAPI description.** `/api/v1/…` offers status, devices, one device, topology, availability (list and one subject), data paths per window, nightly reports (with every line in the language you ask for), the webhook events and external reports. Every route is declared once in the code; the same declaration registers the route and becomes the OpenAPI 3.1 description (`GET /api/v1/openapi.json`) and the reference in *Settings › API* (method, path, scope, parameters, an example, download of the description). Within v1 fields are only added. Guide with examples: `docs/API.md`.
+- **Webhooks.** Administrators add webhooks for new devices, devices gone for a day, devices going offline and coming back, the internet line going down and coming back, incidents opened and closed (once the installation has incidents), a finished nightly report and a backup that is too old. Each call is one `POST` with a JSON body, signed with HMAC-SHA256 over a timestamp and the body (`X-Lanloom-Signature`, `X-Lanloom-Timestamp`, a delivery id that stays the same on retries), so a receiver can refuse forgeries and replays. Failed calls are retried after 30 s, 2 min, 10 min, 30 min, 2 h and 6 h; `410 Gone` stops at once; redirects are never followed. A delivery log shows every attempt (status, error kind, duration, never the answer's body) with *Send again* for failed ones; *Test* sends a `ping`, *New secret* rotates the secret. Address and secret are stored encrypted, the list shows only the host. Nothing is sent before a webhook exists; the connection is listed in the no-telemetry allow-list.
+- **External reports.** Another program delivers a short report of its own (`POST /api/v1/ingest`: source, title, level, summary, up to 50 lines; at most 64 KiB and 200 a day). It is listed under *Settings › API* and appears in the next nightly report.
+- **Nightly report section "API":** tokens that expire within 14 days or expired overnight, webhook calls that could not be delivered, webhooks that keep failing, and the external reports of the night.
+- Every change made with a token is in the audit log with the token's name (never the token); making and revoking tokens and every webhook change are audited as well.
+- Demo: two sample webhooks with a delivery log, three external reports and a token of the sample operator; nothing is ever sent from the demo.
+- Command palette: *Go to Settings › API*. Texts in English and German.
+
+### Changed
+- Settings › Storage counts the webhook log with the audit log and the external reports with the reports. Tokens move with a backup (as hashes), external reports with the history part of a backup; the delivery log stays with the instance.
+- Docs: `docs/API.md` (new), manual page *API*, README section *API*, security model, nightly report sections.
+
 ## [1.43.0] – 2026-11-18
 
 ### Added

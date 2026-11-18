@@ -20,6 +20,7 @@ guides in [docs/](../)). The *About this view* rail of the app (key `I`) links t
 | Add-on and MQTT output | [add-on.md](add-on.md) | Lanloom in the side panel of a home-automation hub, and its figures as sensors there over MQTT. |
 | Updating | [updating.md](updating.md) | Update notice, one-click update, channels, hold, going back, signature check, What's new. |
 | Settings | [settings.md](settings.md) | Scanning, connections, appearance, notifications, users, security, backup, storage, AI. |
+| API | [api.md](api.md) | Tokens for scripts, the public API, webhooks and external reports. |
 | AI | [ai.md](ai.md) | Optional explanations, questions and suggestions, local or cloud, read-only. |
 | The parts around the views | [views.md](views.md) | Right now, About this view, live state and live grade, deep links, keys. |
 

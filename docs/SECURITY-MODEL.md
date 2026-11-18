@@ -132,6 +132,22 @@ the model:
 - **Egress.** The agent's connections are in `security/egress.json` (category `agent-link`, plus the local sockets) and checked
   like all others; it connects only to the Lanloom it was paired with, optionally pinned to a certificate.
 
+## API tokens and webhooks
+
+- **API tokens** let a script use the public API without a session. Only a SHA-256 hash is stored, the token is shown once and
+  is never in a log, a diagnostic export or the audit log (a backup carries the hashes). The scope (read, operate, admin or
+  ingest) is never above the role of the account, also later: a demoted account weakens its tokens at once, a disabled or
+  deleted account stops them. Every token expires and has its own request limit per minute. A token opens only `/api/v1/...`
+  (everything else answers 401), needs no cookie and so cannot be used by another web page (there is no CORS). Making a
+  token needs a fresh second confirmation; every state-changing request made with a token is audited with its name.
+  Remaining risk: a stolen token works until it expires or is revoked; keep it like a password and use TLS.
+- **Webhooks** can be added only by administrators, and only to the address they enter. Deliveries are signed with a
+  per-webhook secret (HMAC-SHA-256 over timestamp and raw body) so the receiver can reject forgeries and replays older than
+  five minutes. Redirects are never followed, the answer body is never stored, address and secret are encrypted, and the
+  outgoing connection is listed in the egress allow-list (`security/egress.json`, category configured channel). Nothing is
+  sent before a webhook exists. The payload carries the event's data (for example the name and address of a device), so
+  use an address you trust.
+
 ## No telemetry, checked
 
 Lanloom does not phone home. The only outbound connection of its own is the optional update check against the public

@@ -342,6 +342,17 @@ Settings › Storage shows how much space each kind of data takes and how long i
 </tr>
 </table>
 
+### API, webhooks and external reports
+
+Settings › API gives every person their own API tokens for scripts and other programs: the scope is never more than the person's role, every token expires, only a fingerprint is stored, and each token has its own request limit. Administrators add webhooks that tell another program about new devices, devices going offline, the internet line, the nightly report or an old backup – every call signed with HMAC-SHA256 and a timestamp, retried with a growing pause, and listed in a delivery log. Other programs can deliver short reports of their own, which show up in the next nightly report. The reference is built from the OpenAPI description the app makes from its own code. See [docs/API.md](docs/API.md).
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/api-webhooks-light.png" width="100%" alt="Settings, API: webhooks with their state and the delivery log"><br><sub>Webhooks with their state and the delivery log</sub></td>
+<td width="50%"><img src="docs/screenshots/api-reference-dark.png" width="100%" alt="Settings, API: reference of the public API with scopes and an example"><br><sub>Reference of the public API, from the OpenAPI description</sub></td>
+</tr>
+</table>
+
 ### Colour themes
 
 Settings > Appearance > Colour theme switches the accent palette of the whole app: the map, the traces, the data paths arcs, the firewall views, the charts and the live grades. **Circuit green** is the default and looks as before; **Aurora** uses turquoise, blue and violet on a cool ground. Every theme works in light, dark and automatic mode, and the choice is remembered per device. Warning and error colours keep their meaning in every theme, and the text and graphic contrast of each theme and mode is checked against WCAG AA in the test suite.
@@ -451,6 +462,7 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 <td><img src="docs/screenshots/phone-sensor-page.png" width="200" alt="Phone: sensor page with the course of one sensor"></td>
 <td><img src="docs/screenshots/phone-reports.png" width="200" alt="Phone: nightly report"></td>
 <td><img src="docs/screenshots/phone-storage.png" width="200" alt="Phone: storage settings"></td>
+<td><img src="docs/screenshots/phone-api.png" width="200" alt="Phone: webhooks in Settings, API"></td>
 <td><img src="docs/screenshots/phone-ai-explain.png" width="200" alt="Phone: AI explanation of a device"></td>
 <td><img src="docs/screenshots/phone-ask.png" width="200" alt="Phone: Ask your network"></td>
 <td><img src="docs/screenshots/phone-palette-search.png" width="200" alt="Phone: search and commands"></td>
@@ -581,9 +593,19 @@ Optional and off by default. With an AI set up, an **Explain** button appears on
 
 Supported services: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). Step-by-step guide: [docs/integrations/ai.md](docs/integrations/ai.md).
 
+## API
+
+Lanloom has a public API for scripts and other programs, so a dashboard, a backup job or a home-automation rule can use the network map without a person signing in. Everything starts with a token that every person makes under *Settings > API*. Details: [docs/API.md](docs/API.md).
+
+- **API tokens** per person with a scope (read, operate, admin, or ingest for scripts that only deliver reports), never above the account's role; they always expire and only a hash is stored.
+- **Public API v1**, described as OpenAPI 3.1 (`/api/v1/openapi.json`): status, devices, topology, availability, data paths and nightly reports; fields are only added within v1.
+- **Webhooks** that administrators set up: signed messages for new, gone, offline and returning devices, the internet line, incidents, new reports and stale backups, with retries and a delivery log.
+- **External reports:** other programs deliver a short report that shows in the app and in the nightly report.
+- **Rate limit and audit:** a request limit per token, and every change made with a token is written to the audit log with the token's name.
+
 ## Security and privacy
 
-Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Further people join by one-time invitation with a viewer, operator or admin role, enforced on the server for every route; a second factor (authenticator app or passkey) is required for admins by default, critical actions ask for a fresh confirmation, and every change is written to a tamper-evident audit log ([docs/ACCESS.md](docs/ACCESS.md)). Sign-in through your own authentication proxy is optional and off by default. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The optional update check against the public release feed is the only outbound connection of its own; everything else happens only when you switch it on: the delivery of the nightly report summary and of notifications (web push to the push service of your own browsers), the optional heartbeat to an address you enter, a cloud AI service (which only ever receives placeholders instead of addresses and names) and the download of the local AI service and its models. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Vulnerability hints come from a feed inside the image as well; nothing is looked up online. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Real changes on a controller run only in the optional executor service (its own container, updated by hand, credentials the app never sees, a passkey signature per change, a connection guard that allows only the app and the controller). Use them at your own risk and keep local console access to your controller; Lanloom never writes without your passkey. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
+Sign-in is mandatory; there is no open mode. The first account can only be created with the setup code. Further people join by one-time invitation with a viewer, operator or admin role, enforced on the server for every route; a second factor (authenticator app or passkey) is required for admins by default, critical actions ask for a fresh confirmation, and every change is written to a tamper-evident audit log ([docs/ACCESS.md](docs/ACCESS.md)). Sign-in through your own authentication proxy is optional and off by default. Passwords use argon2id, sessions use random 256-bit tokens in `HttpOnly`, `SameSite=Strict` cookies, and state-changing requests are protected against cross-site use. The container runs as an unprivileged user with a read-only root file system and no capabilities. There is no telemetry. The optional update check against the public release feed is the only outbound connection of its own; everything else happens only when you switch it on: the delivery of the nightly report summary and of notifications (web push to the push service of your own browsers), the optional heartbeat to an address you enter, webhooks to an address an administrator enters, a cloud AI service (which only ever receives placeholders instead of addresses and names) and the download of the local AI service and its models. Countries on the data paths map come from a database inside the image; no address is ever looked up online, and only countries and byte counts are stored. Vulnerability hints come from a feed inside the image as well; nothing is looked up online. Put Lanloom behind a TLS reverse proxy for passkeys and remote access (list it in `LANLOOM_TRUSTED_PROXIES`, see [docs/INSTALL.md](docs/INSTALL.md#behind-a-reverse-proxy)), and never expose it directly to the internet. Real changes on a controller run only in the optional executor service (its own container, updated by hand, credentials the app never sees, a passkey signature per change, a connection guard that allows only the app and the controller). Use them at your own risk and keep local console access to your controller; Lanloom never writes without your passkey. Details and how to report a vulnerability: [SECURITY.md](SECURITY.md).
 
 **Supply chain.** Every image is signed keyless (Sigstore, no key anywhere), carries a signed SPDX SBOM per platform, and is scanned for known vulnerabilities in its Python and operating-system packages before it is released (critical = no release). "No telemetry" is a checked rule: a static check lists every place in the code that can connect anywhere against an allow-list. How to verify an image: [SECURITY.md](SECURITY.md#verifying-an-image); threat model: [docs/SECURITY-MODEL.md](docs/SECURITY-MODEL.md).
 
@@ -623,6 +645,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 - [docs/BACKUP.md](docs/BACKUP.md): backup and restore in the app, automatic backups, moving to another host, the file format
 - [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md): notification rules per person, quiet hours, planned maintenance, flap protection, web push, the heartbeat
 - [docs/ACCESS.md](docs/ACCESS.md): users and roles, invitations, two-step sign-in, sessions, audit log, authentication proxy, sub-path
+- [docs/API.md](docs/API.md): API tokens and scopes, the public API v1 with every route, errors, signed webhooks with verification code, external reports
 - [docs/AVAILABILITY.md](docs/AVAILABILITY.md): availability in 5-minute slots, the Stability list, traffic plots over 1 hour to 7 days, the card sections, simulate maintenance, what is stored
 - [docs/INVENTORY.md](docs/INVENTORY.md): inventory and life cycle: own fields, states, why a device is "probably gone", provisional entries, warranty and end of updates, the offline table, roles
 - [docs/VULNERABILITIES.md](docs/VULNERABILITIES.md): vulnerability hints: the offline feed and its sources, building and importing a feed file, the matching rules (certain, possible, not checked), what to do, events, roles and API

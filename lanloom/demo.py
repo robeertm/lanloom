@@ -561,6 +561,13 @@ class Demo:
                                  agent="computer", detail=detail)
         finally:
             app.audit.clock = clock
+        # one API token of the operator (its value is thrown away at once; the list shows name, scope, prefix, last use)
+        try:
+            tok = app.tokens.create({"id": shift, "role": "operator"}, "Wall display", "read", expires_days=90)
+            app.store.execute("UPDATE api_tokens SET created=?, last_used=?, last_ip=?, uses=? WHERE id=?",
+                              (now - 9 * day, now - 1800, "192.0.2.41", 4120, tok["id"]))
+        except Exception:
+            pass
 
     @staticmethod
     def seed_storage(core, planned: list) -> None:

@@ -25,6 +25,7 @@ Something not working? *Settings > General > Diagnostic export* downloads a reda
 | [Storage](#storage) | `#/settings/storage` | administrators |
 | [Agents](#agents) | `#/settings/agents` | every role sees the list; administrators pair, add and remove, operators rename |
 | [Network](#network) | `#/settings/network` | every role (operators and administrators may change things) |
+| [API](#api) | `#/settings/api` | every role makes its own tokens; administrators also manage webhooks and see all tokens |
 | [AI](#ai) | `#/settings/ai` | administrators |
 
 ### General
@@ -122,6 +123,11 @@ read-only socket proxy, with a test); operators rename; administrators remove, w
 What the agent reads and how to install it: [HOST-AGENT.md](../HOST-AGENT.md); what it shows: [Running](running.md).
 
 ![Pairing a host agent](../screenshots/hosts-pair-dark.png)
+
+### API
+
+Tokens for scripts (scope never above your role), the public API with its reference, webhooks (administrators), the delivery
+log and external reports delivered by other programs. Everything about it is on its own page: [API](api.md).
 
 ### AI
 
