@@ -48,11 +48,17 @@ def night_section(previous, state, now: float, name: str = None):
     if not _is_omada(state):
         return None
     prev = previous if _is_omada(previous) else None
+    eq, ssids, acls = _by_id(state.get("equipment")), _by_id(state.get("ssids")), _acls(state)
+    went_down = set()
+    if prev is not None:
+        eq_before = _by_id(prev.get("equipment"))
+        went_down = {eid for eid, e in eq.items() if (eq_before.get(eid) or {}).get("online") and not e.get("online") and not e.get("pending")}
     items = []
     for f in state.get("findings") or []:
+        if f.get("kind") == "device_offline" and f.get("subject") in went_down:
+            continue                                    # said once, as the change since the last report
         items.append(_item(f.get("level") if f.get("level") in LEVELS else "info", "fwr.finding.%s" % f.get("kind"),
                            **(f.get("params") or {})))
-    eq, ssids, acls = _by_id(state.get("equipment")), _by_id(state.get("ssids")), _acls(state)
     changes = 0
     if prev is not None:
         eq0, ssids0, acls0 = _by_id(prev.get("equipment")), _by_id(prev.get("ssids")), _acls(prev)

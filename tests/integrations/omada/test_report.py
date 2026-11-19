@@ -66,6 +66,16 @@ def test_device_changes():
     assert sec["params"]["changes"] == 5
 
 
+def test_a_device_that_went_down_is_said_once_the_check_stays_for_one_that_was_already_down():
+    before = state()
+    raw = raw_of()
+    raw["devices"][1]["status"] = 0
+    sec = report.night_section(stored(before), state(raw), NOW)
+    offline = [i["params"]["device"] for i in sec["items"] if i["key"] == "fwr.finding.device_offline"]
+    assert offline == ["Desk switch"]                                                  # it was down before: still a check
+    assert [i["params"]["device"] for i in sec["items"] if i["key"] == "night.ctl.device_down"] == ["Core switch"]
+
+
 def test_a_device_that_is_only_waiting_to_be_adopted_is_not_reported_down():
     before_raw = raw_of()
     before_raw["devices"][4]["status"] = 1

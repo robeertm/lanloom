@@ -187,6 +187,17 @@ The Network view has two faces: the board and a **tree** that folds, Internet, g
 
 <img src="docs/screenshots/zonefw-phone.png" width="260" alt="Firewall checks on a phone">
 
+### Access points and switches (read only)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/apctl-equipment-light.png" width="100%" alt="Network equipment of an access-point controller: gateway, switch with its front panel and uplink, access points with their state, wireless networks"><br><sub>Equipment with the switch front panel, access points and wireless networks</sub></td>
+<td width="50%"><img src="docs/screenshots/apctl-report-dark.png" width="100%" alt="Nightly report section of the access-point controller: an access point went offline, a new access rule, a firmware change, checks"><br><sub>Nightly report: what changed on the controller overnight</sub></td>
+</tr>
+</table>
+
+<img src="docs/screenshots/apctl-phone.png" width="260" alt="Equipment of an access-point controller on a phone">
+
 ### Hypervisor
 
 ![Component card of a hypervisor node: load, findings, guests with their newest backup, storage](docs/screenshots/hypervisor-node-dark.png)
