@@ -6,8 +6,9 @@ The adapter cannot widen the list at run time (lists are frozen when the transpo
 
 * ``read_allowlist(...)`` - for read halves: GET only, plus at most a login/logout POST whose body has exactly the
   declared credential fields, plus (for devices whose read API is a query document sent by POST) a *query* POST
-  whose every body field has a mandatory value check that proves the document only reads. Anything else in a read
-  list is a programming error and raises at import time.
+  whose every body field has a mandatory value check that proves the document only reads - form-encoded
+  (``query``) or as a JSON object (``json_query``, e.g. a JSON-RPC call whose object, method and arguments are
+  checked). Anything else in a read list is a programming error and raises at import time.
 * ``write_allowlist(...)`` - for write halves (executor only): every rule names the method, the path pattern, the
   exact body fields it may carry and a check for each value. A write rule without a body specification is invalid.
 
@@ -108,14 +109,16 @@ def _strict(check):
     return run
 
 
-def read_allowlist(get_paths, *, login=None, logout=None, query=None) -> AllowList:
+def read_allowlist(get_paths, *, login=None, logout=None, query=None, json_query=None) -> AllowList:
     """``get_paths``: regex patterns; ``login``: (path, credential fields); ``logout``: path (POST without body);
-    ``query``: (path, {field: check}) - a form-encoded POST for read APIs that take a query document; ``check(value)``
-    must return True only for a document that reads (anything else, or an exception, refuses the request)."""
+    ``query``: (path, {field: check}) - a form-encoded POST for read APIs that take a query document; ``json_query``:
+    the same with the document sent as a JSON object; ``check(value)`` must return True only for a document that reads
+    (anything else, or an exception, refuses the request). Every field of a query is present and checked."""
     rules = [Rule("GET", p) for p in get_paths]
-    if query:
-        checks = {k: _strict(c) for k, c in dict(query[1]).items()}
-        rules.append(Rule("POST", query[0], fields=tuple(checks), values=checks, query=True, form=True))
+    for spec, form in ((query, True), (json_query, False)):
+        if spec:
+            checks = {k: _strict(c) for k, c in dict(spec[1]).items()}
+            rules.append(Rule("POST", spec[0], fields=tuple(checks), values=checks, query=True, form=form))
     if login:
         rules.append(Rule("POST", login[0], fields=login[1], login=True))
     if logout:
