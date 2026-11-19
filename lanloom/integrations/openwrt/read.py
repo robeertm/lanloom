@@ -211,15 +211,15 @@ class OpenwrtReader:
         raw["leases"] = self._get("luci-rpc", "getDHCPLeases")
         devs = self._get("iwinfo", "devices")
         if isinstance(devs, dict) and isinstance(devs.get("devices"), list):
-            wifi = {}
+            air = {}
             for dev in [d for d in devs["devices"] if isinstance(d, str) and model.IFNAME_RE.match(d)][:MAX_RADIOS]:
                 info = self._get("iwinfo", "info", {"device": dev}, dev)
                 if not isinstance(info, dict) or str(info.get("mode") or "").lower() not in ("master", "ap"):
                     continue
                 assoc = self._get("iwinfo", "assoclist", {"device": dev}, "a:" + dev)
                 rows = assoc.get("results") if isinstance(assoc, dict) else None
-                wifi[dev] = {"info": info, "assoc": rows if isinstance(rows, list) else []}
-            raw["wifi"] = wifi
+                air[dev] = {"info": info, "assoc": rows if isinstance(rows, list) else []}
+            raw["air"] = air
         board = raw["board"] if isinstance(raw["board"], dict) else {}
         rel = board.get("release") if isinstance(board.get("release"), dict) else {}
         raw["version"] = str(rel.get("version") or "")[:48]
@@ -238,7 +238,7 @@ class OpenwrtReader:
             missing.add("ssids")
         if raw.get("dhcp") is None:
             missing.add("dhcp_reservations")
-        if raw.get("leases") is None and raw.get("hints") is None and raw.get("wifi") is None:
+        if raw.get("leases") is None and raw.get("hints") is None and raw.get("air") is None:
             missing.add("clients")
         self._caps = capabilities.refine(capabilities.validate(READ_CAPABILITIES, self.family),
                                          version=state["controller"]["version"] or "", read_missing=missing)

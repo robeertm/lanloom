@@ -216,9 +216,9 @@ class FakeUbus:
             if not self.wireless:
                 return [0, {"devices": []}] if method == "devices" else [4]
             if method == "devices":
-                return [0, {"devices": list(fx.WIFI)}]
+                return [0, {"devices": list(fx.AIR)}]
             dev = args.get("device")
-            if dev not in fx.WIFI:
+            if dev not in fx.AIR:
                 return [4]
             return [0, fx.iwinfo_info(dev)] if method == "info" else [0, fx.iwinfo_assoc(dev)]
         if obj == "uci":

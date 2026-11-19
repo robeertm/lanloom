@@ -17,7 +17,7 @@ package that is not installed simply leaves it out)::
     devices    reply of ``network.device status``   live state of every network device (hardware address)
     hints      reply of ``luci-rpc getHostHints``    known hosts: hardware address -> name and addresses
     leases     reply of ``luci-rpc getDHCPLeases``   current address leases
-    wifi       {ifname: {"info": iwinfo info, "assoc": [iwinfo assoclist rows]}}   radios on air, associated clients
+    air        {ifname: {"info": iwinfo info, "assoc": [iwinfo assoclist rows]}}   radios on air, associated clients
 
 and builds::
 
@@ -66,6 +66,7 @@ ADMIN_PORTS = {"22": "SSH", "80": "HTTP", "443": "HTTPS"}
 IPV6_ONLY = ("dhcpv6", "6in4", "6to4", "6rd", "dslite", "map")     # a down IPv6 link alone is no "internet down"
 BANDS = {"2g": "2.4ghz", "5g": "5ghz", "6g": "6ghz", "60g": "60ghz", "11g": "2.4ghz", "11b": "2.4ghz", "11a": "5ghz",
          "11ng": "2.4ghz", "11na": "5ghz", "11ac": "5ghz", "11ax": None}
+RADIO_SECTION, AP_SECTION = "wifi-device", "wifi-iface"     # section types of the wireless configuration (identifiers)
 SECURITY = {"none": "open", "owe": "owe", "wep": "wep", "wep-open": "wep", "wep-shared": "wep"}
 ZONE_RE = re.compile(r"\A[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}\Z")
 SECTION_RE = re.compile(r"\A[A-Za-z0-9_]{1,64}\Z")
@@ -677,8 +678,8 @@ def _band_of(dev: dict):
 def _on_air(raw) -> dict:
     """(ssid, band) and (ssid, None) -> {"clients": n, "bands": set} from the live wireless state."""
     out = {}
-    wifi = raw.get("wifi") if isinstance(raw.get("wifi"), dict) else {}
-    for ifname, w in list(wifi.items())[:64]:
+    air = raw.get("air") if isinstance(raw.get("air"), dict) else {}
+    for ifname, w in list(air.items())[:64]:
         info = w.get("info") if isinstance(w, dict) and isinstance(w.get("info"), dict) else {}
         ssid = text(info.get("ssid"), 32)
         if not ssid:
@@ -695,11 +696,11 @@ def _on_air(raw) -> dict:
 
 
 def _ssids(raw, nets) -> list:
-    radios = {name: s for name, s in sections(raw.get("wireless"), "wifi-device")}
+    radios = {name: s for name, s in sections(raw.get("wireless"), RADIO_SECTION)}
     by_iface = {n["interface"]: n["id"] for n in nets if n.get("interface")}
     air = _on_air(raw)
     out = []
-    ifaces = stable_refs(sections(raw.get("wireless"), "wifi-iface"), lambda s: "%s|%s" % (s.get("device"), s.get("ssid")))
+    ifaces = stable_refs(sections(raw.get("wireless"), AP_SECTION), lambda s: "%s|%s" % (s.get("device"), s.get("ssid")))
     for _, name, s in ifaces:
         mode = str(s.get("mode") or "ap").lower()
         ssid = text(s.get("ssid"), 32)
@@ -713,8 +714,8 @@ def _ssids(raw, nets) -> list:
         out.append({"id": oid("s", name), "name": ssid, "network": nw, "bands": [band] if band else sorted((live or {}).get("bands") or []),
                     "security": _security(s.get("encryption")), "hidden": flag(s.get("hidden")), "enabled": enabled,
                     "guest": flag(s.get("isolate")), "radio": text(s.get("device"), 32),
-                    "channel": text(radio.get("channel"), 8), "on_air": bool(live) if raw.get("wifi") is not None else None,
-                    "clients": live["clients"] if live else (0 if raw.get("wifi") is not None else None),
+                    "channel": text(radio.get("channel"), 8), "on_air": bool(live) if raw.get("air") is not None else None,
+                    "clients": live["clients"] if live else (0 if raw.get("air") is not None else None),
                     "wpa3": str(s.get("encryption") or "").lower().startswith("sae")})
     return out
 
@@ -734,8 +735,8 @@ def router_mac(raw, topo: Topology):
 def _wireless_clients(raw) -> dict:
     """hardware address -> {ssid, band, signal} of every associated wireless client."""
     out = {}
-    wifi = raw.get("wifi") if isinstance(raw.get("wifi"), dict) else {}
-    for ifname, w in list(wifi.items())[:64]:
+    air = raw.get("air") if isinstance(raw.get("air"), dict) else {}
+    for ifname, w in list(air.items())[:64]:
         if not isinstance(w, dict):
             continue
         info = w.get("info") if isinstance(w.get("info"), dict) else {}
@@ -772,7 +773,7 @@ def _clients(raw, nets, reservations) -> list:
             k["name"] = k["name"] or text(h.get("name"), 64)
     for m in radio:
         known.setdefault(m, {"ip": None, "name": None, "lease": False})
-    wifi_read = raw.get("wifi") is not None
+    air_read = raw.get("air") is not None
     out = []
     for m, k in sorted(known.items())[:MAX_ITEMS]:
         cid = oid("c", m)
@@ -783,7 +784,7 @@ def _clients(raw, nets, reservations) -> list:
             net = next((nid for n, nid in by_cidr if a.version == n.version and a in n), None)
         r = radio.get(m)
         out.append({"id": cid, "name": k["name"] or "?", "kind": "client", "network": net, "ip": ip,
-                    "fixed": cid in fixed, "fixed_ip": fixed.get(cid), "wired": (r is None) if wifi_read else None,
+                    "fixed": cid in fixed, "fixed_ip": fixed.get(cid), "wired": (r is None) if air_read else None,
                     "alone_on_port": False, "private_address": private_mac(m), "protected": None,
                     "parent": oid("e", "router") if r else None, "ssid": r["ssid"] if r else None,
                     "band": r["band"] if r else None, "blocked": False, "online": bool(r or k["lease"]),
@@ -798,7 +799,7 @@ def _equipment(raw, topo: Topology) -> list:
         return []
     lan = next((i["addr"] for n, i in topo.ifaces.items() if i["addr"] and not topo.is_external(topo.zone_of_iface.get(n))), None)
     wan = any(z["external"] for z in topo.zones.values())
-    has_radio = bool(sections(raw.get("wireless"), "wifi-device"))
+    has_radio = bool(sections(raw.get("wireless"), RADIO_SECTION))
     return [{"id": oid("e", "router"), "name": text(b.get("hostname"), 48) or "Router",
              "kind": "router" if wan or not has_radio else "ap", "model": text(b.get("model"), 64),
              "firmware": text(rel.get("version"), 24), "mgmt_ip": lan, "uplink": None,

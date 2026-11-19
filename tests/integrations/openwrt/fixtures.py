@@ -14,11 +14,11 @@ READ_USER = "lanloom"
 READ_PASSWORD = "read-password-for-tests-only"                     # secret-scan: fake
 WRITE_USER = "lanloom-write"
 WRITE_PASSWORD = "write-password-for-tests-only"                   # secret-scan: fake
-WIFI_KEY = "wireless-key-never-copied"                             # secret-scan: fake
+RADIO_KEY = "wireless-key-never-copied"                             # secret-scan: fake
 PPPOE_PASSWORD = "pppoe-password-never-copied"                     # secret-scan: fake
 WG_PRIVATE = "kPrivateKeyMaterialThatMustNeverLeave000000="        # secret-scan: fake
 WG_PSK = "kPresharedKeyMaterialThatMustNeverLeave00000="           # secret-scan: fake
-SECRETS = (READ_PASSWORD, WRITE_PASSWORD, WIFI_KEY, PPPOE_PASSWORD, WG_PRIVATE, WG_PSK)
+SECRETS = (READ_PASSWORD, WRITE_PASSWORD, RADIO_KEY, PPPOE_PASSWORD, WG_PRIVATE, WG_PSK)
 
 ROUTER_MAC = "02:4c:4c:00:00:01"
 PRINTER_MAC = "02:4c:4c:00:00:40"
@@ -116,15 +116,15 @@ def wireless(version="23.05"):
     r1 = dict(type="mac80211", channel="36", htmode="VHT80", **({"hwmode": "11a"} if old else {"band": "5g"}))
     return [sec("wifi-device", "radio0", **r0), sec("wifi-device", "radio1", **r1),
             sec("wifi-iface", "default_radio0", device="radio0", network="lan", mode="ap", ssid="Home",
-                encryption="psk2", key=WIFI_KEY),
+                encryption="psk2", key=RADIO_KEY),
             sec("wifi-iface", "default_radio1", device="radio1", network="lan", mode="ap", ssid="Home",
-                encryption="sae-mixed", key=WIFI_KEY),
+                encryption="sae-mixed", key=RADIO_KEY),
             sec("wifi-iface", anon=True, device="radio0", network="guest", mode="ap", ssid="Guests", encryption="none",
                 isolate="1"),
             sec("wifi-iface", anon=True, device="radio0", network="iot", mode="ap", ssid="Things", encryption="psk2",
-                hidden="1", key=WIFI_KEY),
+                hidden="1", key=RADIO_KEY),
             sec("wifi-iface", anon=True, device="radio1", network="lan", mode="sta", ssid="Uplink", encryption="psk2",
-                key=WIFI_KEY)]
+                key=RADIO_KEY)]
 
 
 CONFIGS = {"network": network, "firewall": firewall, "dhcp": dhcp, "wireless": wireless}
@@ -178,12 +178,12 @@ def leases():
             "dhcp6_leases": []}
 
 
-WIFI = {"phy0-ap0": ("Home", 2412, [PHONE_MAC]), "phy1-ap0": ("Home", 5180, []), "phy0-ap1": ("Guests", 2412, []),
+AIR = {"phy0-ap0": ("Home", 2412, [PHONE_MAC]), "phy1-ap0": ("Home", 5180, []), "phy0-ap1": ("Guests", 2412, []),
         "phy0-ap2": ("Things", 2412, [PLUG_MAC]), "phy1-sta0": ("Uplink", 5180, [])}
 
 
 def iwinfo_info(dev):
-    ssid, freq, _ = WIFI[dev]
+    ssid, freq, _ = AIR[dev]
     return {"phy": dev.split("-")[0], "ssid": ssid, "bssid": "02:4c:4c:00:01:%02x" % (len(dev) + freq % 50),
             "mode": "Client" if "sta" in dev else "Master", "channel": 1 if freq < 3000 else 36, "frequency": freq,
             "txpower": 20, "quality": 70, "quality_max": 70, "signal": -40, "noise": -95, "bitrate": 0,
@@ -194,7 +194,7 @@ def iwinfo_info(dev):
 def iwinfo_assoc(dev):
     return {"results": [{"mac": m, "signal": -52, "noise": -95, "inactive": 10, "connected_time": 500,
                          "rx": {"rate": 144400, "packets": 1000}, "tx": {"rate": 144400, "packets": 900}}
-                        for m in WIFI[dev][2]]}
+                        for m in AIR[dev][2]]}
 
 
 def acls(write=False):

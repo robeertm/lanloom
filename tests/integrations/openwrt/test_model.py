@@ -15,13 +15,13 @@ def values(secs):
     return {s[".name"]: s for s in view(secs)}
 
 
-def raw_of(version="23.05", drop=(), wifi=True):
+def raw_of(version="23.05", drop=(), air=True):
     raw = {k: values(f(version)) for k, f in fx.CONFIGS.items()}
     raw.update(version=version + ".5", board=fx.board(version), ifaces=fx.iface_dump(version), devices=fx.device_status(version),
                hints=fx.hints(), leases=fx.leases())
-    if wifi:
-        raw["wifi"] = {d: {"info": fx.iwinfo_info(d), "assoc": fx.iwinfo_assoc(d)["results"]}
-                       for d in fx.WIFI if "sta" not in d}
+    if air:
+        raw["air"] = {d: {"info": fx.iwinfo_info(d), "assoc": fx.iwinfo_assoc(d)["results"]}
+                       for d in fx.AIR if "sta" not in d}
     raw = model.scrub(raw)
     for k in drop:
         raw.pop(k, None)
@@ -51,10 +51,10 @@ def test_state_is_valid_and_carries_no_secret_or_hardware_address(version):
 def test_secrets_are_dropped_on_arrival_whatever_the_section():
     raw = model.scrub({"x": {".type": "wifi-iface", "key": "k", "sae_password": "p", "ssid": "Home", "encryption": "psk2"},
                        "y": {".type": "interface", "password": "p", "pincode": "1234", "private_key": "pk", "proto": "pppoe"},
-                       "z": {".type": "wireguard_wg0", "preshared_key": "psk", "public_key": "pub"},
+                       "z": {".type": "tunnel_peer", "preshared_key": "psk", "public_key": "pub"},
                        "w": {"key1": "wep", "auth_secret": "radius", "identity": "user", "ca_cert": "/etc/ca"}})
     assert raw["x"] == {".type": "wifi-iface", "ssid": "Home", "encryption": "psk2"}
-    assert raw["y"] == {".type": "interface", "proto": "pppoe"} and raw["z"] == {".type": "wireguard_wg0", "public_key": "pub"}
+    assert raw["y"] == {".type": "interface", "proto": "pppoe"} and raw["z"] == {".type": "tunnel_peer", "public_key": "pub"}
     assert raw["w"] == {}
 
 
@@ -172,8 +172,8 @@ def test_clients_and_fixed_addresses():
     assert by["laptop"]["online"] is False                                     # only a host hint, no lease, not on air
     r = st["dhcp_reservations"][0]
     assert r["ip"] == "192.168.1.40" and r["client"] == by["printer"]["id"] and r["name"] == "printer"
-    nowifi = model.to_neutral(raw_of(drop=("wifi",)))
-    assert all(d["wired"] is None for d in nowifi["devices"])                  # unknown without the wireless state
+    noair = model.to_neutral(raw_of(drop=("air",)))
+    assert all(d["wired"] is None for d in noair["devices"])                  # unknown without the wireless state
 
 
 def test_port_forwards_and_equipment():
@@ -203,7 +203,7 @@ def test_missing_replies_leave_areas_empty():
     st = model.to_neutral({})
     neutral.validate(st)
     assert st["zones"] == [] and st["policies"] == [] and st["ssids"] == [] and st["devices"] == []
-    st = model.to_neutral(raw_of(drop=("wireless", "dhcp", "leases", "hints", "wifi")))
+    st = model.to_neutral(raw_of(drop=("wireless", "dhcp", "leases", "hints", "air")))
     assert st["ssids"] == [] and st["dhcp_reservations"] == [] and st["policies"]
 
 

@@ -163,7 +163,7 @@ The plan is written into the firewall's configuration first and put live with on
 
 ### Routers with a ubus API
 
-Some routers keep their firewall in zones of their own configuration and offer a local ubus API. Lanloom reads them like any zone firewall: every firewall zone is a zone, the router itself is the zone *This router*, rules appear in configuration order, followed by the zone forwardings and each zone's input policy (both carry a *built-in* chip). Wireless networks, port forwards, fixed addresses, clients and the checks work as for the other families; see the adapter guide in [integrations/openwrt.md](../integrations/openwrt.md).
+Some routers keep their firewall in zones of their own configuration and offer a local ubus API. Lanloom reads them like any zone firewall: every firewall zone is a zone, the router itself is the zone *This router*, rules appear in configuration order, followed by the zone forwardings and each zone's input policy (both carry a *built-in* chip). Wireless networks, port forwards, fixed addresses, clients and the checks work as for the other families; the adapter guide is listed in [COMPATIBILITY.md](../COMPATIBILITY.md).
 
 With the executor set up for such a family, *Change* mode offers **New rule**, **Change** and the **on** checkbox for simple rules and **Remove** for rules Lanloom created. Rules without a name are shown but not changed. The plan is staged first and put live with one apply; the router's own revert timer puts the rules back after 90 seconds unless the executor confirms after reading every changed rule back, and Lanloom's backup is the second way back.
 

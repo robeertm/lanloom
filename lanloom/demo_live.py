@@ -451,9 +451,9 @@ def _uci_values(sections: list) -> dict:
     return out
 
 
-def _rt_raw(changed: bool) -> dict:
+def _rt_raw(changed: bool, m) -> dict:
     """Collected replies of a sample router with a ubus API as its family's read half hands them to the translation
-    module: a lab router 192.168.90.1 with a home network, a network for smart devices, a guest network and the
+    module (``m``, whose constants name the configuration's section types): a lab router 192.168.90.1 with a home network, a network for smart devices, a guest network and the
     internet side (the demo house network). ``changed`` is what "happened tonight" in the demo report: a rule from the
     internet side arrived, a rule was switched off and the guest wireless network was switched on."""
     network = [("loopback", "interface", {"device": "lo", "proto": "static", "ipaddr": "127.0.0.1"}),
@@ -503,26 +503,26 @@ def _rt_raw(changed: bool) -> dict:
             ("smart", "dhcp", {"interface": "smart", "start": "20", "limit": "100"}),
             ("guest", "dhcp", {"interface": "guest", "start": "10", "limit": "200"}),
             (None, "host", {"name": "lab-printer", "mac": "02:4c:4c:00:90:40", "ip": "192.168.90.40"})]
-    wireless = [("radio0", "wifi-device", {"band": "2g", "channel": "6"}),
-                ("radio1", "wifi-device", {"band": "5g", "channel": "36"}),
-                ("home2", "wifi-iface", {"device": "radio0", "network": "lan", "mode": "ap", "ssid": "Lab", "encryption": "psk2"}),
-                ("home5", "wifi-iface", {"device": "radio1", "network": "lan", "mode": "ap", "ssid": "Lab", "encryption": "sae-mixed"}),
-                ("smart", "wifi-iface", {"device": "radio0", "network": "smart", "mode": "ap", "ssid": "Lab things",
+    wireless = [("radio0", m.RADIO_SECTION, {"band": "2g", "channel": "6"}),
+                ("radio1", m.RADIO_SECTION, {"band": "5g", "channel": "36"}),
+                ("home2", m.AP_SECTION, {"device": "radio0", "network": "lan", "mode": "ap", "ssid": "Lab", "encryption": "psk2"}),
+                ("home5", m.AP_SECTION, {"device": "radio1", "network": "lan", "mode": "ap", "ssid": "Lab", "encryption": "sae-mixed"}),
+                ("smart", m.AP_SECTION, {"device": "radio0", "network": "smart", "mode": "ap", "ssid": "Lab things",
                                          "encryption": "psk2", "hidden": "1"}),
-                ("guest", "wifi-iface", {"device": "radio0", "network": "guest", "mode": "ap", "ssid": "Lab guests",
+                ("guest", m.AP_SECTION, {"device": "radio0", "network": "guest", "mode": "ap", "ssid": "Lab guests",
                                          "encryption": "none", "isolate": "1", "disabled": "0" if changed else "1"})]
     dump = {"interface": [{"interface": "lan", "up": True, "l3_device": "br-lan", "ipv4-address": [{"address": "192.168.90.1", "mask": 24}]},
                           {"interface": "smart", "up": True, "l3_device": "br-lan.91", "ipv4-address": [{"address": "192.168.91.1", "mask": 24}]},
                           {"interface": "guest", "up": True, "l3_device": "br-guest", "ipv4-address": [{"address": "192.168.92.1", "mask": 24}]},
                           {"interface": "wan", "up": True, "l3_device": "wan", "ipv4-address": [{"address": "192.168.50.90", "mask": 24}]}]}
-    wifi = {"phy0-ap0": {"info": {"ssid": "Lab", "frequency": 2437, "mode": "Master"},
+    air = {"phy0-ap0": {"info": {"ssid": "Lab", "frequency": 2437, "mode": "Master"},
                          "assoc": [{"mac": "02:4c:4c:00:90:51", "signal": -48}]},
             "phy1-ap0": {"info": {"ssid": "Lab", "frequency": 5180, "mode": "Master"},
                          "assoc": [{"mac": "02:4c:4c:00:90:52", "signal": -55}, {"mac": "02:4c:4c:00:90:53", "signal": -61}]},
             "phy0-ap1": {"info": {"ssid": "Lab things", "frequency": 2437, "mode": "Master"},
                          "assoc": [{"mac": "02:4c:4c:00:91:61", "signal": -67}]}}
     if changed:
-        wifi["phy0-ap2"] = {"info": {"ssid": "Lab guests", "frequency": 2437, "mode": "Master"}, "assoc": []}
+        air["phy0-ap2"] = {"info": {"ssid": "Lab guests", "frequency": 2437, "mode": "Master"}, "assoc": []}
     leases = {"dhcp_leases": [{"hostname": "lab-tablet", "ipaddr": "192.168.90.151", "macaddr": "02:4c:4c:00:90:51"},
                               {"hostname": "lab-laptop", "ipaddr": "192.168.90.152", "macaddr": "02:4c:4c:00:90:52"},
                               {"hostname": "test-phone", "ipaddr": "192.168.90.153", "macaddr": "02:4c:4c:00:90:53"},
@@ -530,13 +530,14 @@ def _rt_raw(changed: bool) -> dict:
     return {"version": "demo", "board": {"hostname": "lab-router", "model": "Sample router", "release": {"version": "demo"}},
             "network": _uci_values(network), "firewall": _uci_values(firewall), "dhcp": _uci_values(dhcp),
             "wireless": _uci_values(wireless), "ifaces": dump, "devices": {"br-lan": {"macaddr": "02:4c:4c:00:90:01"}},
-            "hints": {"02:4c:4c:00:90:40": {"name": "lab-printer", "ipaddrs": ["192.168.90.40"]}}, "leases": leases, "wifi": wifi}
+            "hints": {"02:4c:4c:00:90:40": {"name": "lab-printer", "ipaddrs": ["192.168.90.40"]}}, "leases": leases, "air": air}
 
 
 def router_sample(family: str, changed: bool = False) -> dict:
     """Neutral state of the sample router, made by the family's own translation module."""
     from . import integrations
-    st = integrations.load_model(family).to_neutral(_rt_raw(changed))
+    m = integrations.load_model(family)
+    st = m.to_neutral(_rt_raw(changed, m))
     st["controller"]["label"] = "Sample router"
     st["controller"]["version"] = "demo"
     neutral.validate(st)

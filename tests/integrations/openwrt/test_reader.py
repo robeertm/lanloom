@@ -96,8 +96,8 @@ def test_a_poll_reads_every_area_with_one_sign_in(fake):
     r = reader(fake)
     raw = r.collect()
     assert fake.login_count == 1
-    assert set(raw) >= {"board", "network", "firewall", "dhcp", "wireless", "ifaces", "devices", "hints", "leases", "wifi"}
-    assert set(raw["wifi"]) == {"phy0-ap0", "phy1-ap0", "phy0-ap1", "phy0-ap2"}         # the client interface is skipped
+    assert set(raw) >= {"board", "network", "firewall", "dhcp", "wireless", "ifaces", "devices", "hints", "leases", "air"}
+    assert set(raw["air"]) == {"phy0-ap0", "phy1-ap0", "phy0-ap1", "phy0-ap2"}         # the client interface is skipped
     r.collect()
     assert fake.login_count == 1                                                        # the session is reused
     assert all(m in ("login", "board", "info", "get", "dump", "status", "getHostHints", "getDHCPLeases", "devices", "info",
