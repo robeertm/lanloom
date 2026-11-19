@@ -102,7 +102,7 @@ FIELD_CHECKS = {
     "enabled": lambda v: v in ("0", "1"),
 }
 CREATE_NEEDS = frozenset({"name", "src", "proto", "target", "enabled"})
-DELETABLE_OPTIONS = ("dest", "dest_port")        # destination "the router itself" and "every port" are no option
+DELETABLE_OPTIONS = ("dest", "dest_port", "enabled", "proto", "target")   # no option = the router itself, every port, on, tcp+udp, DROP
 
 
 def _values(create: bool):

@@ -63,6 +63,7 @@ PROTOS = {"all": "any", "any": "any", "tcp": "tcp", "udp": "udp", "tcp udp": "tc
           "icmp": "icmp"}
 PROTOS_OUT = {"any": "all", "tcp": "tcp", "udp": "udp", "tcp_udp": "tcp udp", "icmp": "icmp"}
 ADMIN_PORTS = {"22": "SSH", "80": "HTTP", "443": "HTTPS"}
+IPV6_ONLY = ("dhcpv6", "6in4", "6to4", "6rd", "dslite", "map")     # a down IPv6 link alone is no "internet down"
 BANDS = {"2g": "2.4ghz", "5g": "5ghz", "6g": "6ghz", "60g": "60ghz", "11g": "2.4ghz", "11b": "2.4ghz", "11a": "5ghz",
          "11ng": "2.4ghz", "11na": "5ghz", "11ac": "5ghz", "11ax": None}
 SECURITY = {"none": "open", "owe": "owe", "wep": "wep", "wep-open": "wep", "wep-shared": "wep"}
@@ -674,7 +675,7 @@ def _band_of(dev: dict):
 
 
 def _on_air(raw) -> dict:
-    """ssid -> {"clients": n, "bands": set} from the live wireless state."""
+    """(ssid, band) and (ssid, None) -> {"clients": n, "bands": set} from the live wireless state."""
     out = {}
     wifi = raw.get("wifi") if isinstance(raw.get("wifi"), dict) else {}
     for ifname, w in list(wifi.items())[:64]:
@@ -684,10 +685,12 @@ def _on_air(raw) -> dict:
             continue
         freq = _int(info.get("frequency"), 0)
         band = "2.4ghz" if 2400 <= freq < 2500 else "5ghz" if 5000 <= freq < 5900 else "6ghz" if 5925 <= freq < 7200 else None
-        o = out.setdefault(ssid, {"clients": 0, "bands": set()})
-        o["clients"] += len([r for r in (w.get("assoc") or []) if isinstance(r, dict)])
-        if band:
-            o["bands"].add(band)
+        n = len([r for r in (w.get("assoc") or []) if isinstance(r, dict)])
+        for key in ((ssid, band), (ssid, None)):
+            o = out.setdefault(key, {"clients": 0, "bands": set()})
+            o["clients"] += n
+            if band:
+                o["bands"].add(band)
     return out
 
 
@@ -704,7 +707,7 @@ def _ssids(raw, nets) -> list:
             continue
         radio = radios.get(str(s.get("device") or "")) or {}
         band = _band_of(radio)
-        live = air.get(ssid)
+        live = air.get((ssid, band)) if band else air.get((ssid, None))
         nw = next((by_iface[n] for n in items(s.get("network")) if n in by_iface), None)
         enabled = not flag(s.get("disabled")) and not flag(radio.get("disabled"))
         out.append({"id": oid("s", name), "name": ssid, "network": nw, "bands": [band] if band else sorted((live or {}).get("bands") or []),
@@ -870,7 +873,7 @@ def findings(state: dict, topo: Topology) -> list:
             out.append({"id": oid("g", "open" + s["id"]), "kind": "ssid_open", "level": "info" if s.get("guest") else "warn",
                         "subject": s["id"], "params": {"ssid": s["name"]}})
     for w in state.get("wans") or []:
-        if w.get("enabled") and w.get("status") == "down":
+        if w.get("enabled") and w.get("status") == "down" and w.get("type") not in IPV6_ONLY:
             out.append({"id": oid("g", "wandown" + w["id"]), "kind": "wan_down", "level": "alert", "subject": None,
                         "params": {"wan": w["name"]}})
     return out

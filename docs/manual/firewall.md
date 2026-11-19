@@ -161,6 +161,12 @@ With the executor set up for such a family, *Change* mode offers **New rule** be
 
 The plan is written into the firewall's configuration first and put live with one apply at the end. Where the firewall's release has its own revert timer, the executor arms it before the apply and confirms only after it has read every changed rule back as planned; if the executor or its connection fails in between, the firewall puts the rules back by itself after 60 seconds. On releases without it, Lanloom's own backup is the way back. The adapter guide in [COMPATIBILITY.md](../COMPATIBILITY.md) lists the releases.
 
+### Routers with a ubus API
+
+Some routers keep their firewall in zones of their own configuration and offer a local ubus API. Lanloom reads them like any zone firewall: every firewall zone is a zone, the router itself is the zone *This router*, rules appear in configuration order, followed by the zone forwardings and each zone's input policy (both carry a *built-in* chip). Wireless networks, port forwards, fixed addresses, clients and the checks work as for the other families; see the adapter guide in [integrations/openwrt.md](../integrations/openwrt.md).
+
+With the executor set up for such a family, *Change* mode offers **New rule**, **Change** and the **on** checkbox for simple rules and **Remove** for rules Lanloom created. Rules without a name are shown but not changed. The plan is staged first and put live with one apply; the router's own revert timer puts the rules back after 90 seconds unless the executor confirms after reading every changed rule back, and Lanloom's backup is the second way back.
+
 ### Switch ports
 
 When the editor's source can change switch ports (the simulation can; for real writes see [COMPATIBILITY.md](../COMPATIBILITY.md)), the editor has a **Switch ports** card. It shows every switch of the controller as its faceplate, the same front view as *Switch front panels* above. Pick a port to open its panel: link, untagged network with its VLAN, tagged networks, power over Ethernet, the devices behind it and the last 24 hours. In Change mode the panel has **Change port ...**; ports with a change in the draft carry an accent ring and the panel says *Planned*. Viewers see the faceplates without the button.
