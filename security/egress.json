@@ -269,7 +269,7 @@
   {
    "site": "lanloom/ixp.py::http_get::http",
    "category": "optional-download",
-   "purpose": "exchange points for the network routes (Settings > Data paths > Network routes > Exchange points from PeeringDB, off by default): three public lists of the source, at most one check a day and one new copy a month, kept only for this instance's own diagnosis and never passed on; the request carries no address and nothing about the installation"
+   "purpose": "exchange points for the network routes (Settings > General > Network routes > Exchange points from PeeringDB, off by default): three public lists of the source, at most one check a day and one new copy a month, kept only for this instance's own diagnosis and never passed on; the request carries no address and nothing about the installation"
   },
   {
    "site": "lanloom/routeprobe.py::open_socket::socket",

@@ -5,7 +5,7 @@ view can say "exchange point in Frankfurt" instead of an unnamed step. Two sourc
 
   1. Router names: a small table of exchange names in ``routes.EXCHANGE_NAMES`` (always available, nothing is fetched).
   2. PeeringDB (https://www.peeringdb.com): the prefix lists of the exchange points with name, city and country. Only with
-     *Settings > Data paths > Network routes > Exchange points from PeeringDB* switched on (and the routes themselves on),
+     *Settings > General > Network routes > Exchange points from PeeringDB* switched on (and the routes themselves on),
      this instance fetches three public lists (``/api/ix``, ``/api/ixlan``, ``/api/ixpfx``) for its own network diagnosis:
      at most one check a day and one new copy a month, anonymously, with a size limit, nothing sent but the request for the
      list. The copy is condensed to prefix, exchange name, city and country and kept in ``<data>/routes/ixp-YYYY-MM.json``

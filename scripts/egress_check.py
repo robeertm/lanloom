@@ -35,7 +35,7 @@ CATEGORIES = {
     "optional-download": "a data file from its public source, only after an administrator switched the option on "
                          "(cities and network operators for the data paths view: one check a day, never an address; "
                          "exchange point lists for the network routes: one check a day, a new copy a month)",
-    "route-probe": "probe packets of the optional network routes measurement (Settings > Data paths > Network routes, off by "
+    "route-probe": "probe packets of the optional network routes measurement (Settings > General > Network routes, off by "
                    "default): one probe per hop towards the most important destinations of the data paths, rarely, number "
                    "and interval set by an administrator, from a low-priority helper process; plus reverse DNS of the routers "
                    "through the system resolver",

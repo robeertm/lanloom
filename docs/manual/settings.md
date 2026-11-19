@@ -54,6 +54,11 @@ Administrators additionally:
 - **Data paths**, **Cities and network operators** and **NetFlow / IPFIX from your router** - home country, own networks
   and tunnels, networks without internet, the optional city data (off by default, fetches two public files; check now,
   delete) and the NetFlow receiver (see [Data paths](data-paths.md)).
+- **Network routes** (under *Data paths*, off by default) - the switch *Measure network routes*, *Destinations* (1 to 20,
+  default 5), *Interval (hours)* (1 to 168, default 6), the separate switch *Exchange points from PeeringDB* with its state,
+  and the read-only *State* (off, on with the method, measuring, or *Not possible here* with the reason), *Methods*, *Last
+  run*, *Postponed*, *Stored routes* and the probe packets sent. *Measure now* (operators) starts one run; *Delete measured
+  routes* (administrators) removes the stored routes (see [Data paths](data-paths.md#network-routes-an-option-off-by-default)).
 - **MQTT output** - optional, off by default: a few of Lanloom's figures (devices online, new devices, internet line, open
   issues, health, vulnerability hints, nightly report) as sensors of your home-automation hub through MQTT discovery, with
   the broker, the topics, the sensors and their current value and the state of the connection. Only counts, a level, a

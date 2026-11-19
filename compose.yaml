@@ -24,6 +24,7 @@ services:
       - /tmp
     cap_drop:
       - ALL
+    # cap_add: [NET_RAW]   # only for Settings > General > Network routes with a runtime that passes added capabilities to unprivileged users (see docs/INSTALL.md); not needed, the built-in methods work without it
     security_opt:
       - no-new-privileges:true
     environment:

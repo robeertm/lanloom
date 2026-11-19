@@ -94,6 +94,12 @@ docker run -d --name lanloom -p 7380:7380 --restart unless-stopped \
 
 Enter your network range manually in the wizard (for example `192.168.1.0/24`). Only TCP probes work: there is no neighbour table, no mDNS or SSDP, and no byte counters of the host. This setup is recommended only for trying Lanloom.
 
+### Network routes: rights
+
+The optional *Network routes* (Settings > Data paths, off by default) measure the way to a few destinations with one probe packet per hop. The standard container needs **no extra capability** for this: with the user 10001, `cap_drop: ALL`, `no-new-privileges` and a read-only file system it measures with the built-in *udp* and *tcp* methods, which use ordinary sockets and read the answers from the kernel's error queue (checked on Docker 29).
+
+Paris traceroute by *scamper* needs raw sockets. The image does not ship it, and adding `cap_add: [NET_RAW]` does not help an unprivileged container user under Docker: Docker passes no ambient capabilities to non-root users, `no-new-privileges` blocks file capabilities, and the scamper of the distributions also needs root for its privilege separation. Lanloom uses scamper automatically only where it is installed and may open raw sockets, for example in a host installation from source, or in a container runtime that hands added capabilities to unprivileged users (some rootless runtimes do this with `--cap-add NET_RAW`). If neither works, the settings card says *Not possible here* with the reason and the rest of Lanloom is unaffected. Details: [DATA-PATHS.md](DATA-PATHS.md#network-routes-an-option-off-by-default).
+
 ## Configuration
 
 Set environment variables in the compose file.

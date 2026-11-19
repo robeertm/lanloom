@@ -5,7 +5,7 @@
    with the round-trip time added by each section. Places from router names and exchange points are sure; places from the
    city data or only a country are approximate: they read "≈ City", the line towards them is dashed and called "estimated".
    Data: `routes` of GET /api/paths (all) and GET /api/paths/country/<CC> (towards one country), condensed on the server: no
-   router address, no host name, no destination address. The option is off by default (Settings > Data paths > Network routes).
+   router address, no host name, no destination address. The option is off by default (Settings > General > Network routes).
    Hooks: LL.pathsRoutes.card(d, opts) (section), LL.pathsRoutes.drawOn(svg, routes, opts) (line on a map, returns {scale, select}),
    LL.pathsRoutesSettingsCard(s) (settings). No inline handler, colours only from tokens, calm with reduced motion. */
 (function () {
@@ -16,7 +16,7 @@
   const R = LL.pathsRoutes = {};
   const St = { sel: null, hover: null, maps: new Set() };
 
-  const ms = v => (v == null ? '' : (v < 1 ? '<1' : LL.fmtNum(Math.round(v), 0)) + ' ms');
+  const ms = v => (v == null ? '' : t('routes.ms', { v: v < 1 ? '<1' : LL.fmtNum(Math.round(v), 0) }));
   const cname = cc => (cc ? (LL.countryName ? LL.countryName(cc) : cc) : '');
   /* estimated: a place from the city data or only the country; the destination without a place of its own is drawn where its network is */
   const unsure = s => s.kind !== 'home' && (s.place ? !s.place.sure : !!(s.cc && s.kind !== 'target'));
@@ -43,7 +43,7 @@
         const delta = s.rtt != null && prev != null ? Math.max(s.rtt - prev, 0) : null;
         const est = unsure(s);
         out.push(h('li', { class: 'rt-seg' + (est ? ' is-est' : ''), 'aria-hidden': 'true' },
-          h('span', {}, delta == null ? (s.kind === 'target' && !s.reached ? '…' : '') : (delta < 1 ? '<1' : '+' + LL.fmtNum(Math.round(delta), 0)) + ' ms'),
+          h('span', {}, delta == null ? (s.kind === 'target' && !s.reached ? '…' : '') : t('routes.ms', { v: delta < 1 ? '<1' : '+' + LL.fmtNum(Math.round(delta), 0) })),
           est ? h('em', {}, t('routes.estimated')) : null));
       }
       if (s.rtt != null) prev = s.rtt;
@@ -235,6 +235,6 @@
   };
 
   // ------------------------------------------------------------------ command palette
-  LL.registerCommand({ id: 'paths.routes', group: 'views', order: 41, label: () => t('cmdk.paths_routes'), keywords: () => t('cmdk.kw.paths_routes'),
+  LL.registerCommand({ id: 'routes-settings', group: 'views', order: 41, label: () => t('cmdk.paths_routes'), keywords: () => t('cmdk.kw.paths_routes'),
     run: () => LL.go('#/settings/routes') });
 })();

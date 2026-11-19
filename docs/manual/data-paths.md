@@ -37,7 +37,7 @@ the back gesture close it; on a phone it fills the screen. The address is `#/pat
 ![Country detail, light theme](../screenshots/paths-country-light.png)
 
 - **The bubbles always add up** to the figure at the top: traffic without a known city is drawn as a dashed bubble
-  (*approximate position*), at the largest known city of the same operator in that country or in the middle of the country.
+  (*approximate position*), at the place of that operator's measured destination network, at the largest known city of the same operator in that country or in the middle of the country.
 - Sizes use the unit that fits (B to TB) in the number format of your language. The mouse wheel or two fingers zoom up to
   64 times; places for orientation appear with every zoom step.
 - **Cities and network operators are an option, off by default** (*Settings > General*, administrators). Switching it on
@@ -47,6 +47,33 @@ the back gesture close it; on a phone it fills the screen. The address is `#/pat
   The cities are approximate: the source assigns whole networks to one place, often the seat of a data centre.
 
 ![Country detail on a phone](../screenshots/phone-paths-country.png)
+
+### Network routes (an option, off by default)
+
+**Settings > General > Network routes** (administrators) switches on the measurement of the routes to the most
+important destinations: which provider, exchange point, transit and destination network the data passes, with the time
+each section adds. Everyone can look; operators can press *Measure now*, administrators can also delete the stored routes.
+
+- **Where:** in the country sheet under *Routes there*, and on the world map as quiet lines plus the list
+  *Network routes*. A click on a route frames it on the map. A chain reads *Home, Provider, Exchange point, Transit,
+  Destination network, Destination*; on a phone it runs from top to bottom.
+- **Estimated:** places that come only from the city data or the country are approximate; they are dashed on the map and
+  the route is labelled *estimated*. Places from router names and exchange points are sure.
+- **Route changed:** when the networks on the way differ from the day before, a calm note *route changed* appears (also in
+  the nightly report). It needs nothing from you.
+- **Keyboard:** Tab to a route, Enter or Space shows it on the map.
+- **Measured rarely:** 5 destinations by default (1 to 20), each at most every 6 hours (1 to 168), one small probe packet
+  per hop, never while the machine is busy or a scan runs. The settings card shows the state, the method, the last run and
+  what is stored. If the host cannot measure, it says *Not possible here* with the reason and nothing else changes.
+- **Exchange points from PeeringDB** is a second switch, off by default: three public lists, kept only for this instance
+  and deleted when you switch it off. Without it, exchange points are recognised from router names.
+- Stored for 30 days: only networks, operators, cities and time bands, never an address or a host name.
+
+![Network routes in the country detail (sample network)](../screenshots/paths-routes-light.png)
+
+![Network routes on a phone, dark theme (sample network)](../screenshots/phone-paths-routes.png)
+
+Details, limits and the rights in a container: [Data paths](../DATA-PATHS.md#network-routes-an-option-off-by-default).
 
 ## How to use it
 
@@ -94,9 +121,9 @@ the back gesture close it; on a phone it fills the screen. The address is `#/pat
 - **Stored:** only country, device id and bytes per hour (49 hours) and per day (31 days), plus the first and last day a
   device talked to a country, and for a conversation between two devices the two ids and the bytes per direction. With the option for cities and network operators also the city (of the peer, approximate) and the operator. No peer addresses, ports, host names or visited sites are kept; NetFlow records are read in
   memory and dropped. Retention is adjustable under *Settings > Storage*.
-- **Sent:** nothing, unless an administrator switches on cities and network operators: then the request for two public files from *download.db-ip.com* (no address, no name, nothing about the installation).
+- **Sent:** nothing, unless an administrator switches on cities and network operators: then the request for two public files from *download.db-ip.com* (no address, no name, nothing about the installation). With network routes switched on, small probe packets towards the most important destinations (one per hop) and name lookups of the answering routers through the system resolver; with the PeeringDB option also three public lists from *www.peeringdb.com*.
   The country data, the base maps and the places ship with the image.
-- **Roles:** every role looks. Admins set up NetFlow, own networks, the networks without internet and the city data.
+- **Roles:** every role looks. Admins set up NetFlow, own networks, the networks without internet, the city data and the network routes.
 
 ## See also
 

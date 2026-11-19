@@ -1,5 +1,5 @@
 """Network routes (DW2): which networks and places the data passes towards the most important destinations. An option,
-switched off by default (*Settings > Data paths > Network routes*).
+switched off by default (*Settings > General > Network routes*).
 
 With the option off nothing happens at all: no destination is remembered, no helper is started, not one packet is sent.
 

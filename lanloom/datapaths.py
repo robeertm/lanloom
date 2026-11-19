@@ -556,7 +556,7 @@ class DataPaths:
         self.flush(now)
         key = (cc, window)
         dev_key = hash((tuple(sorted((k, v.get("title")) for k, v in devices.items())),
-                        tuple(sorted((a, p["lat"], p["lon"]) for a, p in (route_places or {}).items()))))
+                        tuple(sorted((a, p.get("lat"), p.get("lon")) for a, p in (route_places or {}).items() if isinstance(p, dict)))))
         hit = self._country_cache.get(key)
         if hit and now - hit[0] < CACHE_S and hit[2] == dev_key:
             return hit[1]

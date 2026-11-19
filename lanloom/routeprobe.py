@@ -411,10 +411,13 @@ def measure(req):
     except ValueError:
         return {"error": "target", "hops": [], "probes": 0}
     method = req.get("method")
-    max_hops = max(1, min(int(req.get("max_hops") or 30), MAX_HOPS))
-    wait = max(0.2, min(float(req.get("wait") or 1.0), 3.0))
-    gap = max(1, min(int(req.get("gap") or 4), 8))
-    budget_s = max(2.0, min(float(req.get("budget") or 25), 60.0))
+    try:
+        max_hops = max(1, min(int(req.get("max_hops") or 30), MAX_HOPS))
+        wait = max(0.2, min(float(req.get("wait") or 1.0), 3.0))
+        gap = max(1, min(int(req.get("gap") or 4), 8))
+        budget_s = max(2.0, min(float(req.get("budget") or 25), 60.0))
+    except (TypeError, ValueError):
+        return {"error": "request", "hops": [], "probes": 0}
     budget = Budget(budget_s)
     if method == "scamper":
         path = scamper_path()
