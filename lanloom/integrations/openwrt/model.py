@@ -218,7 +218,7 @@ def anonymous(name: str, s: dict) -> bool:
 
 def stable_refs(secs, keyfn) -> list:
     """[(section name, stable reference, section)]. UCI names an anonymous section when it loads the file, from its
-    position and content (``cfg0a1b2c``), so that name changes after every commit. A named section keeps its name
+    position (``cfg0a1b2c``), so that name changes whenever a section before it is added or removed. A named section keeps its name
     (``s:<name>``); an anonymous one is referred to by ``keyfn(section)`` (its name option, a zone pair) and its
     position among the sections with the same key (``a:<key>#<n>``)."""
     out, count = [], {}

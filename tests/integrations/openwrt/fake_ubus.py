@@ -8,11 +8,12 @@ Built after the rpcd sources (``session.c``, ``uci.c``) and uhttpd's ubus handle
 * ``uci`` changes are staged per session (``uci get`` of that session shows them, other sessions do not) until
   ``uci apply``; ``changes`` lists and ``revert`` drops them; a change of a configuration the access list does not
   allow to write answers 6 (permission denied);
-* ``uci apply`` with ``rollback`` keeps a copy of the configuration from before, and unless the same session sends
-  ``uci confirm`` before the timeout, the copy comes back (``expire()`` plays "the timeout passed"); ``uci rollback``
-  brings it back at once; a second apply while one waits answers 6;
-* like UCI, an anonymous section is named when the file is loaded, from its position and content (``cfgXXYYYY``), so
-  its name changes after a commit that changed it or moved it.
+* ``uci apply`` with ``rollback`` keeps a copy of the configuration from before, and unless ``uci confirm`` comes
+  before the timeout, the copy comes back (``expire()`` plays "the timeout passed"); ``uci rollback`` brings it back at
+  once; a second apply while one waits answers 6. Like the real rpcd (checked against a 23.05 rootfs), confirm and
+  rollback are accepted from any session whose access list allows them, not only from the one that applied;
+* like UCI, an anonymous section is named when the file is loaded, from its position and type (``cfgXXYYYY``), so its
+  name changes when sections before it are added or removed (a changed value keeps the name, as on a real router).
 
 Knobs: ``fail_next`` ({(object, method): code}), ``on_write`` (callback once before the next change), ``lose_answer``
 (the next ``uci add`` is stored but the connection drops before the answer), ``drop_after_apply`` (every request after
@@ -32,9 +33,8 @@ ZERO = "0" * 32
 WRITES = ("add", "set", "delete", "changes", "revert", "apply", "confirm", "rollback", "rename", "order")
 
 
-def _content_hash(s: dict) -> int:
-    body = json.dumps({k: v for k, v in s.items() if not k.startswith(".")}, sort_keys=True) + s[".type"]
-    return int(hashlib.sha256(body.encode()).hexdigest(), 16) % 65536
+def _type_hash(s: dict) -> int:
+    return int(hashlib.sha256(s[".type"].encode()).hexdigest(), 16) % 65536
 
 
 def view(stored: list) -> list:
@@ -43,7 +43,7 @@ def view(stored: list) -> list:
     for i, s in enumerate(stored):
         d = copy.deepcopy(s)
         if d.get(".anonymous"):
-            d[".name"] = "cfg%02x%04x" % (i + 1, _content_hash(s))
+            d[".name"] = "cfg%02x%04x" % (i + 1, _type_hash(s))
         d[".index"] = i
         out.append(d)
     return out
@@ -300,16 +300,12 @@ class FakeUbus:
         if method == "confirm":
             if not self.pending:
                 return [5]
-            if self.pending["sid"] != sid:
-                return [6]
             self.pending = None
             self.confirms += 1
             return [0]
         if method == "rollback":
             if not self.pending:
                 return [5]
-            if self.pending["sid"] != sid:
-                return [6]
             self.stored = copy.deepcopy(self.pending["copy"])
             self.pending = None
             self.rollbacks += 1

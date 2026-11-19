@@ -37,9 +37,9 @@ The way back has two layers:
    first (nothing is live), so trouble before the apply only discards them (``uci revert``); trouble after it writes
    the kept rules back (rules the plan created are deleted) and applies.
 2. The router's own: ``settle`` puts the plan live with ``uci apply`` + ``rollback`` + a 90 second timeout. The router
-   keeps a copy of the configuration from before and puts it back by itself unless the same session sends ``uci
-   confirm`` in time - which the half does only after it has read every changed rule back as planned and the router
-   still answers. If the executor dies or loses its way to the router in between (a rule that cut it off), the router
+   keeps a copy of the configuration from before and puts it back by itself unless ``uci confirm`` comes in time -
+   which the half sends only after it has read every changed rule back as planned and the router still answers (rpcd
+   takes the confirmation from any session allowed to send it, so the write login belongs to the executor alone). If the executor dies or loses its way to the router in between (a rule that cut it off), the router
    reverts on its own. When the half itself finds trouble before confirming, it sends ``uci rollback`` (immediate).
 
 Lockout rules on top of the neutral ones (``firewall/zonefw.py``: no blocking rule on the gateway zone, the path from

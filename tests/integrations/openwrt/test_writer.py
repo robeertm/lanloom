@@ -376,8 +376,10 @@ def test_a_foreign_unnamed_rule_reference_survives_a_commit_that_renames_its_sec
     before = fw4.rule("Guests may not reach home")[".name"]
     res, w, _ = run(fw4, clk, tmp_path, [toggle()])
     assert res["status"] == "done"
+    assert fw4.rule("Guests may not reach home")[".name"] == before     # a changed value keeps the name
+    fw4.stored["firewall"].insert(1, fx.sec("rule", anon=True, name="Added on the router", src="lan", target="ACCEPT"))
     after = fw4.rule("Guests may not reach home")[".name"]
-    assert before != after                                             # UCI renamed the anonymous section
+    assert before != after                                             # a section added before it renames it
     st = w.read()
     assert next(x for x in st["policies"] if x["id"] == pid(GUESTS))["enabled"] is False
     res, w, _ = run(fw4, clk, tmp_path, [toggle(on=True)])            # and the way back finds it again

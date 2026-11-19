@@ -83,14 +83,14 @@ The changes are staged in the session first, so nothing is live until the one `u
 
 ### Stable references
 
-UCI names an anonymous section at load time from its position and content (`cfgXXXXXX`), so that name changes after every commit. Lanloom therefore refers to an unnamed rule by its `name` option and its position among rules with the same name. A rule without a name is shown, never changed, and cannot be renamed through Lanloom. Rules Lanloom creates are named sections, `lanloom_<12 hex>`, with a name starting with `[lanloom]`.
+UCI names an anonymous section at load time from its position (`cfgXXXXXX`), so that name changes whenever a section before it is added or removed. Lanloom therefore refers to an unnamed rule by its `name` option and its position among rules with the same name. A rule without a name is shown, never changed, and cannot be renamed through Lanloom. Rules Lanloom creates are named sections, `lanloom_<12 hex>`, with a name starting with `[lanloom]`.
 
 ### Way back
 
 Two layers:
 
 1. **Lanloom's own:** before the first change the executor reads every touched rule and keeps it. Because changes are staged in the session, trouble before the apply only discards them (`uci revert`); trouble after it writes the kept rules back (rules the plan created are deleted, a removed own rule comes back) and applies.
-2. **The router's own:** the executor sends `uci apply` with `rollback: true` and `timeout: 90` (rpcd has this since 18.06). The router keeps the previous configuration and puts it back by itself unless the same session sends `uci confirm`. The executor reads every changed rule back and sends `uci confirm` only when all are as planned and within 60 % of the timeout; if it finds trouble first it sends `uci rollback` (immediate). If the executor dies or loses its way to the router in between, the router reverts on its own after 90 seconds. While another apply is pending, the executor refuses to start one.
+2. **The router's own:** the executor sends `uci apply` with `rollback: true` and `timeout: 90` (rpcd has this since 18.06). The router keeps the previous configuration and puts it back by itself unless `uci confirm` arrives in time. rpcd accepts the confirmation from any session whose access list allows it, so keep the write login for the executor alone. The executor reads every changed rule back and sends `uci confirm` only when all are as planned and within 60 % of the timeout; if it finds trouble first it sends `uci rollback` (immediate). If the executor dies or loses its way to the router in between, the router reverts on its own after 90 seconds. While another apply is pending, the executor refuses to start one.
 
 ### Create the write login (executor only)
 
@@ -138,9 +138,9 @@ openssl s_client -connect 192.168.1.1:443 </dev/null | openssl x509 -outform der
 | 21.02 | fw3 (iptables) | everything above | rules; with the router's own way back |
 | 22.03, 23.05, 24.10 | fw4 (nftables) | everything above | rules; with the router's own way back |
 
-The adapter tests use sample configurations of 21.02 and 23.05; 22.03 and 24.10 store the same configuration format as 23.05.
+22.03, 23.05 and 24.10 were checked against the API of their root file systems; 21.02 only with a sample configuration in the adapter tests.
 
-Checked against the behaviour of the rpcd and uhttpd source and against a stateful stand-in of rpcd's `uci` object (session staging, apply, rollback and confirm timer, renaming of anonymous sections after a commit) in the adapter tests; not yet against a real router. Tested versions are listed in [COMPATIBILITY.md](../COMPATIBILITY.md).
+Checked against the real rpcd and uhttpd of the 22.03.7, 23.05.5 and 24.10.4 root file systems in a test container (reading every area, the access lists of this guide, the router refusing a change of the read login, adding, changing, switching and removing rules, `uci apply` with the timer, `uci confirm`, `uci rollback` and the router's own revert after 90 seconds), and against a stateful stand-in of rpcd's `uci` object in the adapter tests (also with a 21.02 configuration); not yet on router hardware. Tested versions are listed in [COMPATIBILITY.md](../COMPATIBILITY.md).
 
 ## Troubleshooting
 
