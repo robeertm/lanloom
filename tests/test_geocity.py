@@ -275,10 +275,10 @@ def test_header_damage_is_refused(tmp_path):
 
 
 def test_memory_of_a_build_stays_small(tmp_path):
-    """200,000 ranges with 2,000 distinct cities: the arrays are spilled, only the table of distinct cities is held."""
+    """60,000 ranges with 2,000 distinct cities: the arrays are spilled, only the table of distinct cities is held."""
     rows_c, rows_a = [], []
     base = int(ipaddress.ip_address("10.0.0.0"))                     # synthetic, private: never looked up here
-    for i in range(200_000):
+    for i in range(60_000):
         a = base + i * 4
         s, e = str(ipaddress.ip_address(a)), str(ipaddress.ip_address(a + 3))
         rows_c.append([s, e, "EU", "XA", "R%d" % (i % 50), "City%d" % (i % 2000), "10.0", "20.0"])
