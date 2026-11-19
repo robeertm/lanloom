@@ -121,6 +121,8 @@ RULES = {
     ("GET", "/api/paths"): R(V),
     ("GET", "/api/paths/lan"): R(V),
     ("GET", "/api/paths/device/{device_id}"): R(V),
+    ("GET", "/api/paths/country/{cc}"): R(V),
+    ("POST", "/api/paths/detail/{action}"): R(A, "paths.detail"),
     ("GET", "/api/netflow"): R(A),
     ("GET", "/api/mqtt-out"): R(A),
     ("PUT", "/api/mqtt-out"): R(A, "mqtt_out.change"),

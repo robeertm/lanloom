@@ -10,6 +10,8 @@ import math
 import random
 import time
 
+from . import demo_paths_detail
+
 NET = "192.168.50.0/24"
 
 
@@ -253,13 +255,30 @@ def seed_paths(core, now: float = None, seed: int = 11) -> None:
             d = days.setdefault((h // 24, dev, PATHS_NEW[1]), [0, 0])
             d[0] += b // 8; d[1] += b
         seen[(dev, PATHS_NEW[1])] = (now_h - 4) * 3600
+    dpd = demo_paths_detail
+    det_h, det_d = {}, {}
+    for (when, dev, cc), (tx, rx) in hours.items():
+        for key, asn, a, b in dpd.split(cc, tx, rx):
+            e = det_h.setdefault((when, dev, cc, key, asn), [0, 0]); e[0] += a; e[1] += b
+    for (when, dev, cc), (tx, rx) in days.items():
+        for key, asn, a, b in dpd.split(cc, tx, rx):
+            e = det_d.setdefault((when, dev, cc, key, asn), [0, 0]); e[0] += a; e[1] += b
     with core.store.transaction() as st:
         st._db.executemany("INSERT INTO paths_hour(hour, device, cc, tx, rx) VALUES(?,?,?,?,?)",
                            [(k[0], k[1], k[2], v[0], v[1]) for k, v in hours.items()])
         st._db.executemany("INSERT INTO paths_day(day, device, cc, tx, rx) VALUES(?,?,?,?,?)",
                            [(k[0], k[1], k[2], v[0], v[1]) for k, v in days.items()])
+        st._db.executemany("INSERT INTO paths_city_hour(hour, device, cc, city, asn, tx, rx) VALUES(?,?,?,?,?,?,?)",
+                           [(*k, *v) for k, v in det_h.items()])
+        st._db.executemany("INSERT INTO paths_city_day(day, device, cc, city, asn, tx, rx) VALUES(?,?,?,?,?,?,?)",
+                           [(*k, *v) for k, v in det_d.items()])
+        st._db.executemany("INSERT OR REPLACE INTO paths_place(cc, city, name, region, lat, lon) VALUES(?,?,?,?,?,?)",
+                           [row for cc in dpd.CITIES for row in dpd.places(cc)])
+        st._db.executemany("INSERT OR REPLACE INTO paths_operator(asn, name) VALUES(?,?)", list(dpd.operators().items()))
         st._db.executemany("INSERT OR REPLACE INTO paths_seen(device, cc, first, last) VALUES(?,?,?,?)",
                            [(k[0], k[1], v, now) for k, v in seen.items()])
+    core.geo.city.demo = True              # the sample network answers as if the city option were on (its figures are synthetic)
+    core.store.set_setting("paths_detail", True)
     if not core.store.get_setting("home_country", ""):
         core.store.set_setting("home_country", PATHS_HOME)
     if not core.store.get_setting("paths_no_internet", []):
@@ -317,7 +336,11 @@ def book_paths_minute(core, now: float, rng) -> None:
         if dev:
             for cc, tx_mb, rx_mb in entries:
                 k = f * (0.6 + 0.8 * rng.random())
-                core.paths.book_bucket(dev, cc, int(tx_mb * 1e6 * k), int(rx_mb * 1e6 * k), now)
+                tx, rx = int(tx_mb * 1e6 * k), int(rx_mb * 1e6 * k)
+                core.paths.book_bucket(dev, cc, tx, rx, now)
+                if not cc.startswith("~"):
+                    for key, asn, a, b in demo_paths_detail.split(cc, tx, rx):
+                        core.paths.book_detail_bucket(dev, cc, key, asn, a, b, now)
     for n1, n2, ab_mb, ba_mb in PATH_PAIRS:
         d1, d2 = ids.get(n1), ids.get(n2)
         if d1 and d2:

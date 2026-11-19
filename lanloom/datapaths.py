@@ -16,6 +16,14 @@ Without loaded geo data nothing is booked at all: a start-up race must not turn 
 Stored are only country, device id and bytes per hour (49 hours) and per day (31 days), plus the first and last day a
 device talked to a country. No peer addresses, host names or visited sites are kept.
 
+Cities and network operators (an option, off by default, ``geocity.py``): with the option on, the bytes of a booking are
+also kept per country, city (name and region of the city centre of the PEER, never of the user), AS number and device in
+``paths_city_hour``/``paths_city_day``; the names, coordinates of the city centre and operator names live in two small
+tables (``paths_place``, ``paths_operator``) so the view works without the big file. At most ``MAX_PLACES`` cities and
+``MAX_OPERATORS`` operators per country and day, everything beyond is condensed into "other". Anycast, own and unassigned
+traffic never gets a city or an operator. The country tables stay the one truth of the sums: what has no city is shown
+as such, not dropped.
+
 The share "outside the EU" refers only to attributable traffic (countries, not own, not anycast, not unassigned); without
 attributable traffic it is ``None`` ("no data"), never 0 %.
 
@@ -53,6 +61,13 @@ MAX_MATRIX = 4000
 MAX_PAIRS = 300                 # conversations between two devices the map draws
 MAX_PAIR_KEYS = 20000           # pending pair sums held in memory between two flushes
 MAX_NETS = 64
+MAX_PLACES = 250                # cities per country and day; more are condensed into OTHER_CITY
+MAX_OPERATORS = 250             # operators per country and day; more are condensed into OTHER_ASN
+MAX_DETAIL_KEYS = 50000         # pending detail sums held in memory between two flushes
+MAX_MAP_POINTS = 60             # bubbles the country map draws
+MAX_OPERATOR_LIST = 500
+OTHER_CITY = "~other"
+OTHER_ASN = -1
 _TUNNEL_NETS = [ipaddress.ip_network("100.64.0.0/10")]       # carrier-grade NAT space, used by overlay VPNs
 # Well-known anycast networks, answered from the nearest location (snapshot of November 2026, renewed with a release):
 # the published address ranges of the largest anycast CDN (its web, DNS and time services), its public resolver
@@ -80,6 +95,15 @@ CREATE TABLE IF NOT EXISTS paths_pair_hour (hour INTEGER NOT NULL, a TEXT NOT NU
     ab INTEGER NOT NULL DEFAULT 0, ba INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (hour, a, b));
 CREATE TABLE IF NOT EXISTS paths_pair_day (day INTEGER NOT NULL, a TEXT NOT NULL, b TEXT NOT NULL,
     ab INTEGER NOT NULL DEFAULT 0, ba INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, a, b));
+CREATE TABLE IF NOT EXISTS paths_city_hour (hour INTEGER NOT NULL, device TEXT NOT NULL, cc TEXT NOT NULL,
+    city TEXT NOT NULL, asn INTEGER NOT NULL, tx INTEGER NOT NULL DEFAULT 0, rx INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (hour, device, cc, city, asn));
+CREATE TABLE IF NOT EXISTS paths_city_day (day INTEGER NOT NULL, device TEXT NOT NULL, cc TEXT NOT NULL,
+    city TEXT NOT NULL, asn INTEGER NOT NULL, tx INTEGER NOT NULL DEFAULT 0, rx INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, device, cc, city, asn));
+CREATE TABLE IF NOT EXISTS paths_place (cc TEXT NOT NULL, city TEXT NOT NULL, name TEXT NOT NULL, region TEXT NOT NULL DEFAULT '',
+    lat REAL NOT NULL, lon REAL NOT NULL, PRIMARY KEY (cc, city));
+CREATE TABLE IF NOT EXISTS paths_operator (asn INTEGER PRIMARY KEY, name TEXT NOT NULL);
 """
 
 
@@ -124,6 +148,11 @@ class DataPaths:
         self.pair_pending: dict = {}       # (hour, a, b) with a < b -> [bytes a to b, bytes b to a]
         self._pair_cache: dict = {}        # window -> (ts, rows)
         self.seen_pending: dict = {}       # (device, cc) -> last ts
+        self.detail_pending: dict = {}     # (hour, device, cc, city, asn) -> [tx, rx]
+        self.place_pending: dict = {}      # (cc, city) -> (name, region, lat, lon)
+        self.operator_pending: dict = {}   # asn -> name
+        self._caps: dict = {}              # (day, cc) -> [cities, operators] already booked that day
+        self._country_cache: dict = {}     # (cc, window) -> (ts, view)
         self.last_flush = clock()
         self._lock = threading.Lock()
         self._cache: dict = {}             # window -> (ts, summary)
@@ -179,7 +208,64 @@ class DataPaths:
                 self.unbooked += tx + rx
             return False
         self.book_bucket(device, cat, tx, rx, now)
+        if not cat.startswith("~"):
+            self._book_detail(device, peer, cat, tx, rx, now)
         return True
+
+    def _book_detail(self, device: str, peer: str, cc: str, tx: int, rx: int, now: Optional[float]) -> None:
+        """City and operator of the peer, with the option on and a file loaded; the address is looked up and dropped."""
+        lookup = getattr(self.geo, "detail", None)          # a geo source without city data (tests, the demo) books none
+        if lookup is None:
+            return
+        try:
+            hit = lookup(str(ipaddress.ip_address(peer)), cc)
+        except ValueError:
+            return
+        if hit is None:
+            return
+        city, asn, place, operator = hit
+        self.book_detail_bucket(device, cc, city, asn, tx, rx, now, place, operator)
+
+    def book_detail_bucket(self, device: str, cc: str, city: str, asn: int, tx: int, rx: int, now: Optional[float] = None,
+                           place: Optional[dict] = None, operator: Optional[str] = None) -> None:
+        """One sum for a country, city (key "name|region" or ""), AS number and device; the caps keep the tables small."""
+        now = self.clock() if now is None else now
+        hour = int(now // 3600)
+        with self._lock:
+            caps = self._caps.get((hour // 24, cc))
+            if caps is None:
+                caps = self._load_caps(hour // 24, cc)
+            if city and city not in caps[0]:
+                if len(caps[0]) >= MAX_PLACES:
+                    city = OTHER_CITY
+                else:
+                    caps[0].add(city)
+            if asn and asn not in caps[1]:
+                if len(caps[1]) >= MAX_OPERATORS:
+                    asn = OTHER_ASN
+                else:
+                    caps[1].add(asn)
+            key = (hour, device, cc, city, asn)
+            acc = self.detail_pending.get(key)
+            if acc is None:
+                if len(self.detail_pending) >= MAX_DETAIL_KEYS:
+                    key = (hour, device, cc, OTHER_CITY, OTHER_ASN)
+                acc = self.detail_pending.setdefault(key, [0, 0])
+            acc[0] += int(tx)
+            acc[1] += int(rx)
+            if place and city and city != OTHER_CITY:
+                self.place_pending[(cc, city)] = (place["name"], place["region"], place["lat"], place["lon"])
+            if operator and asn > 0:
+                self.operator_pending[asn] = operator
+
+    def _load_caps(self, day: int, cc: str) -> list:
+        """Cities and operators of a country already stored for a day (after a restart the caps continue where they were)."""
+        rows = self.store.query("SELECT DISTINCT city, asn FROM paths_city_day WHERE day=? AND cc=?", (day, cc))
+        caps = [{r["city"] for r in rows if r["city"] and r["city"] != OTHER_CITY}, {r["asn"] for r in rows if r["asn"] > 0}]
+        if len(self._caps) > 2000:
+            self._caps = {}
+        self._caps[(day, cc)] = caps
+        return caps
 
     def book_bucket(self, device: str, cat: str, tx: int, rx: int, now: Optional[float] = None) -> None:
         now = self.clock() if now is None else now
@@ -222,8 +308,11 @@ class DataPaths:
             pending, self.pending = self.pending, {}
             seen, self.seen_pending = self.seen_pending, {}
             pairs, self.pair_pending = self.pair_pending, {}
+            detail, self.detail_pending = self.detail_pending, {}
+            places, self.place_pending = self.place_pending, {}
+            operators, self.operator_pending = self.operator_pending, {}
             self.last_flush = now
-        if not pending and not seen and not pairs:
+        if not pending and not seen and not pairs and not detail:
             return
         with self.store.transaction() as st:
             db = st._db
@@ -232,6 +321,15 @@ class DataPaths:
                            " DO UPDATE SET tx=tx+excluded.tx, rx=rx+excluded.rx", (hour, device, cat, tx, rx))
                 db.execute("INSERT INTO paths_day(day, device, cc, tx, rx) VALUES(?,?,?,?,?) ON CONFLICT(day, device, cc)"
                            " DO UPDATE SET tx=tx+excluded.tx, rx=rx+excluded.rx", (hour // 24, device, cat, tx, rx))
+            for (hour, device, cc, city, asn), (tx, rx) in detail.items():
+                db.execute("INSERT INTO paths_city_hour(hour, device, cc, city, asn, tx, rx) VALUES(?,?,?,?,?,?,?) ON CONFLICT(hour, device, cc, city, asn)"
+                           " DO UPDATE SET tx=tx+excluded.tx, rx=rx+excluded.rx", (hour, device, cc, city, asn, tx, rx))
+                db.execute("INSERT INTO paths_city_day(day, device, cc, city, asn, tx, rx) VALUES(?,?,?,?,?,?,?) ON CONFLICT(day, device, cc, city, asn)"
+                           " DO UPDATE SET tx=tx+excluded.tx, rx=rx+excluded.rx", (hour // 24, device, cc, city, asn, tx, rx))
+            for (cc, city), (name, region, lat, lon) in places.items():
+                db.execute("INSERT OR REPLACE INTO paths_place(cc, city, name, region, lat, lon) VALUES(?,?,?,?,?,?)", (cc, city, name, region, lat, lon))
+            for asn, name in operators.items():
+                db.execute("INSERT OR REPLACE INTO paths_operator(asn, name) VALUES(?,?)", (asn, name))
             for (hour, a, b), (ab, ba) in pairs.items():
                 db.execute("INSERT INTO paths_pair_hour(hour, a, b, ab, ba) VALUES(?,?,?,?,?) ON CONFLICT(hour, a, b)"
                            " DO UPDATE SET ab=ab+excluded.ab, ba=ba+excluded.ba", (hour, a, b, ab, ba))
@@ -250,8 +348,31 @@ class DataPaths:
             db.execute("DELETE FROM paths_day WHERE day < ?", (hour // 24 - self.keep_days,))
             db.execute("DELETE FROM paths_pair_hour WHERE hour < ?", (hour - self.keep_hours,))
             db.execute("DELETE FROM paths_pair_day WHERE day < ?", (hour // 24 - self.keep_days,))
+            self.prune_detail(db, hour, self.keep_hours, self.keep_days)
         self._cache.clear()
         self._pair_cache.clear()
+        self._country_cache.clear()
+        self.version += 1
+
+    @staticmethod
+    def prune_detail(db, hour: int, keep_hours: int, keep_days: int) -> int:
+        """Retention of the detail tables, and the names nothing refers to any more."""
+        n = db.execute("DELETE FROM paths_city_hour WHERE hour < ?", (hour - keep_hours,)).rowcount
+        n += db.execute("DELETE FROM paths_city_day WHERE day < ?", (hour // 24 - keep_days,)).rowcount
+        db.execute("DELETE FROM paths_place WHERE NOT EXISTS (SELECT 1 FROM paths_city_day d WHERE d.cc = paths_place.cc AND d.city = paths_place.city)"
+                   " AND NOT EXISTS (SELECT 1 FROM paths_city_hour h WHERE h.cc = paths_place.cc AND h.city = paths_place.city)")
+        db.execute("DELETE FROM paths_operator WHERE NOT EXISTS (SELECT 1 FROM paths_city_day d WHERE d.asn = paths_operator.asn)"
+                   " AND NOT EXISTS (SELECT 1 FROM paths_city_hour h WHERE h.asn = paths_operator.asn)")
+        return n
+
+    def clear_detail(self) -> None:
+        """Delete everything stored about cities and operators (the country figures stay)."""
+        with self._lock:
+            self.detail_pending, self.place_pending, self.operator_pending, self._caps = {}, {}, {}, {}
+        with self.store.transaction() as st:
+            for t in ("paths_city_hour", "paths_city_day", "paths_place", "paths_operator"):
+                st._db.execute("DELETE FROM %s" % t)
+        self._country_cache.clear()
         self.version += 1
 
     def forget_device(self, device: str) -> None:
@@ -259,12 +380,14 @@ class DataPaths:
             self.pending = {k: v for k, v in self.pending.items() if k[1] != device}
             self.seen_pending = {k: v for k, v in self.seen_pending.items() if k[0] != device}
             self.pair_pending = {k: v for k, v in self.pair_pending.items() if device not in k[1:]}
-        for table in ("paths_hour", "paths_day", "paths_seen"):
+            self.detail_pending = {k: v for k, v in self.detail_pending.items() if k[1] != device}
+        for table in ("paths_hour", "paths_day", "paths_seen", "paths_city_hour", "paths_city_day"):
             self.store.execute("DELETE FROM %s WHERE device=?" % table, (device,))
         for table in ("paths_pair_hour", "paths_pair_day"):
             self.store.execute("DELETE FROM %s WHERE a=? OR b=?" % table, (device, device))
         self._cache.clear()
         self._pair_cache.clear()
+        self._country_cache.clear()
 
     # ------------------------------------------------------------------ reading
     def _rows(self, window: str, now: float) -> list:
@@ -406,6 +529,165 @@ class DataPaths:
             sent, got = (p["ab"], p["ba"]) if p["a"] == device else (p["ba"], p["ab"])
             lan.append({"id": other, "tx": sent, "rx": got, **meta(other)})
         out.update({"countries": countries[:40], "own": own, "anycast": anycast, "unassigned": unassigned, "lan": lan[:40]})
+        return out
+
+    def country_view(self, cc: str, window: str, devices: dict, now: Optional[float] = None) -> dict:
+        """The detail sheet of one country: figures, history, cities, operators, devices and targets.
+
+        Sum rule: the figures of the header, the bubbles of the map and the list of devices all add up to the same
+        number, the bytes of the country in the window (``totals.bytes``, from the country tables). What has no city is
+        not dropped: it is drawn as an approximate bubble at the largest known city of the same operator in this
+        country, or at the middle of the country (``lat``/``lon`` empty). Nothing here carries an address."""
+        cc = (cc or "").strip().upper()[:2]
+        if window not in PERIODS:
+            window = "24h"
+        if len(cc) != 2 or not cc.isalpha():
+            raise KeyError(cc)
+        now = self.clock() if now is None else now
+        self.flush(now)
+        key = (cc, window)
+        dev_key = hash(tuple(sorted((k, v.get("title")) for k, v in devices.items())))
+        hit = self._country_cache.get(key)
+        if hit and now - hit[0] < CACHE_S and hit[2] == dev_key:
+            return hit[1]
+        unit, n = PERIODS[window]
+        hour = int(now // 3600)
+        if unit == "hour":
+            tab, ctab, tcol, since, step = "paths_hour", "paths_city_hour", "hour", hour - n, 3600
+        else:
+            tab, ctab, tcol, since, step = "paths_day", "paths_city_day", "day", hour // 24 - n, 86400
+        q = self.store.query
+        rows = q("SELECT device, SUM(tx) AS tx, SUM(rx) AS rx FROM %s WHERE cc=? AND %s > ? GROUP BY device" % (tab, tcol), (cc, since))
+        drows = q("SELECT device, city, asn, SUM(tx) AS tx, SUM(rx) AS rx FROM %s WHERE cc=? AND %s > ? GROUP BY device, city, asn" % (ctab, tcol), (cc, since))
+        series_c = {r["t"]: (int(r["tx"] or 0), int(r["rx"] or 0)) for r in q(
+            "SELECT %s AS t, SUM(tx) AS tx, SUM(rx) AS rx FROM %s WHERE cc=? AND %s > ? GROUP BY t" % (tcol, tab, tcol), (cc, since))}
+        series_all = {r["t"]: int(r["b"] or 0) for r in q(
+            "SELECT %s AS t, SUM(tx + rx) AS b FROM %s WHERE cc NOT LIKE '~%%' AND %s > ? GROUP BY t" % (tcol, tab, tcol), (since,))}
+        everything = sum(series_all.values())
+        tx_total = sum(int(r["tx"] or 0) for r in rows)
+        rx_total = sum(int(r["rx"] or 0) for r in rows)
+        total = tx_total + rx_total
+        places = {r["city"]: r for r in q("SELECT city, name, region, lat, lon FROM paths_place WHERE cc=?", (cc,))}
+        ops = {r["asn"]: r["name"] for r in q("SELECT asn, name FROM paths_operator")}
+
+        by_city, by_op, by_dev, pairs = {}, {}, {}, {}
+        detail_total = 0
+        for r in drows:
+            b = int(r["tx"] or 0) + int(r["rx"] or 0)
+            if b <= 0:
+                continue
+            detail_total += b
+            dev, city, asn = r["device"], r["city"], r["asn"]
+            if city and city != OTHER_CITY:
+                c = by_city.setdefault(city, {"bytes": 0, "devices": set(), "ops": {}})
+                c["bytes"] += b; c["devices"].add(dev); c["ops"][asn] = c["ops"].get(asn, 0) + b
+            o = by_op.setdefault(asn, {"bytes": 0, "devices": set(), "cities": {}})
+            o["bytes"] += b; o["devices"].add(dev)
+            if city and city != OTHER_CITY:
+                o["cities"][city] = o["cities"].get(city, 0) + b
+            d = by_dev.setdefault(dev, {"ops": {}, "cities": {}})
+            d["ops"][asn] = d["ops"].get(asn, 0) + b
+            d["cities"][city] = d["cities"].get(city, 0) + b
+            p = pairs.setdefault((asn, city), {"bytes": 0, "devices": set()})
+            p["bytes"] += b; p["devices"].add(dev)
+        detail_total = min(detail_total, total) if total else detail_total
+        no_detail = max(0, total - detail_total)
+
+        def opname(asn):
+            return ops.get(asn) or ("AS%d" % asn if asn > 0 else "")
+
+        def cityinfo(k):
+            pl = places.get(k)
+            return {"key": k, "name": pl["name"], "region": pl["region"], "lat": pl["lat"], "lon": pl["lon"]} if pl else None
+
+        # ---- cities (known ones only) and operators
+        cities = []
+        for k, c in sorted(by_city.items(), key=lambda x: (-x[1]["bytes"], x[0])):
+            info = cityinfo(k)
+            if info is None:
+                continue
+            cities.append(dict(info, bytes=c["bytes"], share=(c["bytes"] / total) if total else 0.0, devices=len(c["devices"]),
+                               operators=[{"asn": a, "name": opname(a), "bytes": b} for a, b in
+                                          sorted(c["ops"].items(), key=lambda x: -x[1])[:4] if a > 0]))
+        operators = []
+        for asn, o in sorted(by_op.items(), key=lambda x: (-x[1]["bytes"], x[0])):
+            if asn == 0:
+                continue
+            operators.append({"asn": asn, "name": opname(asn) if asn > 0 else "", "other": asn < 0, "bytes": o["bytes"],
+                              "share": (o["bytes"] / total) if total else 0.0, "devices": len(o["devices"]),
+                              "cities": [{"name": (places.get(k) or {"name": ""})["name"], "bytes": b} for k, b in
+                                         sorted(o["cities"].items(), key=lambda x: -x[1])[:4] if k in places]})
+        n_operators = sum(1 for o in operators if not o["other"])
+        operators = operators[:MAX_OPERATOR_LIST]
+
+        # ---- bubbles of the map: they add up to the country total
+        best_city = {}
+        for asn, o in by_op.items():
+            if asn > 0 and o["cities"]:
+                best_city[asn] = max(o["cities"].items(), key=lambda x: (x[1], x[0]))[0]
+        known = {k: c["bytes"] for k, c in by_city.items() if k in places}
+        approx = {}
+        for k, c in by_city.items():
+            if k not in places:
+                approx[None] = approx.get(None, 0) + c["bytes"]
+        for (asn, city), p in pairs.items():
+            if city and city != OTHER_CITY:
+                continue
+            pos = best_city.get(asn) if (asn > 0 and city == "") else None
+            if pos is not None and pos not in places:
+                pos = None
+            approx[pos] = approx.get(pos, 0) + p["bytes"]
+        if no_detail:
+            approx[None] = approx.get(None, 0) + no_detail
+        points = [{"key": k, "approx": False, "bytes": b, **{x: places[k][x] for x in ("name", "region", "lat", "lon")}}
+                  for k, b in known.items()]
+        points += [{"key": k, "approx": True, "bytes": b,
+                    **({x: places[k][x] for x in ("name", "region", "lat", "lon")} if k else {"name": "", "region": "", "lat": None, "lon": None})}
+                   for k, b in approx.items() if b > 0]
+        points.sort(key=lambda p: (-p["bytes"], p["key"] or "", p["approx"]))
+        if len(points) > MAX_MAP_POINTS:                # keep the sum: the small ones are merged into the middle of the country
+            head, tail = points[:MAX_MAP_POINTS - 1], points[MAX_MAP_POINTS - 1:]
+            rest = sum(p["bytes"] for p in tail)
+            mid = next((p for p in head if p["key"] is None and p["approx"]), None)
+            if mid:
+                mid["bytes"] += rest
+            else:
+                head.append({"key": None, "approx": True, "bytes": rest, "name": "", "region": "", "lat": None, "lon": None})
+            points = sorted(head, key=lambda p: (-p["bytes"], p["key"] or "", p["approx"]))
+        no_city = total - sum(known.values()) if total else 0
+
+        # ---- devices and targets
+        devs = []
+        for r in sorted(rows, key=lambda r: -(int(r["tx"] or 0) + int(r["rx"] or 0))):
+            tx, rx = int(r["tx"] or 0), int(r["rx"] or 0)
+            if tx + rx <= 0:
+                continue
+            info = devices.get(r["device"]) or {}
+            d = by_dev.get(r["device"], {"ops": {}, "cities": {}})
+            devs.append({"id": r["device"], "title": info.get("title") or "", "kind": info.get("kind") or "", "self": bool(info.get("self")),
+                         "tx": tx, "rx": rx, "bytes": tx + rx,
+                         "operators": [{"asn": a, "name": opname(a), "bytes": b} for a, b in sorted(d["ops"].items(), key=lambda x: -x[1])[:3] if a > 0],
+                         "cities": [places[k]["name"] for k, _ in sorted(d["cities"].items(), key=lambda x: -x[1])[:3] if k in places]})
+        targets = [{"asn": a, "name": opname(a), "city": (places.get(c) or {"name": ""})["name"], "bytes": p["bytes"], "devices": len(p["devices"])}
+                   for (a, c), p in sorted(pairs.items(), key=lambda x: (-x[1]["bytes"], x[0][0], x[0][1]))[:24]]
+
+        # ---- history
+        t = (hour - n + 1) * 3600 if unit == "hour" else (hour // 24 - n + 1) * 86400
+        points_h = []
+        for i in range(n):
+            tt = (hour - n + 1 + i) if unit == "hour" else (hour // 24 - n + 1 + i)
+            tx, rx = series_c.get(tt, (0, 0))
+            points_h.append({"t": tt * step, "tx": tx, "rx": rx, "all": series_all.get(tt, 0)})
+        out = {
+            "window": window, "t": round(now, 1), "cc": cc, "eu": cc in EU, "home": cc == (self.settings().get("home_country") or "").upper(),
+            "geo": self.geo.info(),
+            "totals": {"tx": tx_total, "rx": rx_total, "bytes": total, "share": (total / everything) if everything else 0.0,
+                       "devices": len(devs), "operators": n_operators, "cities": len(cities), "no_city": max(0, no_city),
+                       "with_detail": detail_total},
+            "series": {"step": "hour" if unit == "hour" else "day", "points": points_h},
+            "points": points, "cities": cities, "operators": operators, "devices": devs, "targets": targets,
+        }
+        self._country_cache[key] = (now, out, dev_key)
         return out
 
     def unusual(self, now: float, devices: dict, rows24: list) -> list:

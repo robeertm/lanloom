@@ -41,7 +41,8 @@ DEFAULTS = {"live_min": 10, "paths_hours": 49, "paths_days": 31, "availability_d
 # area -> tables (indexes are counted with their table); order = display order
 AREAS = (
     ("inventory", ("devices", "phys_manual", "integrations", "secrets", "settings", "meta")),
-    ("paths", ("paths_hour", "paths_day", "paths_seen", "paths_pair_hour", "paths_pair_day")),
+    ("paths", ("paths_hour", "paths_day", "paths_seen", "paths_pair_hour", "paths_pair_day", "paths_city_hour", "paths_city_day",
+               "paths_place", "paths_operator")),
     ("availability", ("events", "avail_day", "traffic_min", "dns_sum", "dns_day", "host_samples")),
     ("reports", ("reports", "report_marks", "api_ingest")),
     ("audit", ("audit", "webhook_deliveries")),
@@ -308,7 +309,8 @@ class Storage:
                 removed["paths"] = (tx._db.execute("DELETE FROM paths_hour WHERE hour < ?", (hour - int(r["paths_hours"]),)).rowcount
                                     + tx._db.execute("DELETE FROM paths_day WHERE day < ?", (hour // 24 - int(r["paths_days"]),)).rowcount
                                     + tx._db.execute("DELETE FROM paths_pair_hour WHERE hour < ?", (hour - int(r["paths_hours"]),)).rowcount
-                                    + tx._db.execute("DELETE FROM paths_pair_day WHERE day < ?", (hour // 24 - int(r["paths_days"]),)).rowcount)
+                                    + tx._db.execute("DELETE FROM paths_pair_day WHERE day < ?", (hour // 24 - int(r["paths_days"]),)).rowcount
+                                    + self.core.paths.prune_detail(tx._db, hour, int(r["paths_hours"]), int(r["paths_days"])))
                 removed["scans"] = tx._db.execute(
                     "DELETE FROM scans WHERE finished IS NOT NULL AND id NOT IN (SELECT id FROM scans ORDER BY id DESC LIMIT ?)",
                     (int(r["scans_keep"]),)).rowcount

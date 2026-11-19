@@ -621,6 +621,21 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def get_paths_device(device_id: str, window: str = "24h"):
         return await asyncio.to_thread(state.core.paths_device, device_id[:80], window)
 
+    @app.get("/api/paths/country/{cc}")
+    async def get_paths_country(cc: str, window: str = "24h"):
+        try:
+            return await asyncio.to_thread(state.core.paths_country, cc[:8], window)
+        except KeyError:
+            return err("paths.country.invalid", 404)
+
+    @app.post("/api/paths/detail/{action}")
+    async def post_paths_detail(action: str, request: Request):
+        note(request, detail={"action": action[:20]})
+        try:
+            return await asyncio.to_thread(state.core.paths_detail_action, action)
+        except ValueError as exc:
+            return err(str(exc))
+
     @app.get("/api/netflow")
     async def get_netflow():
         return state.core.netflow_status()

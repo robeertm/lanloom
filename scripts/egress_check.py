@@ -32,6 +32,8 @@ PY_DIRS = ("lanloom", "updater")
 JS_DIRS = ("lanloom/web",)
 CATEGORIES = {
     "update-check": "release feed of the project, optional, can be switched off",
+    "optional-download": "a data file from its public source, only after an administrator switched the option on "
+                         "(cities and network operators for the data paths view: one check a day, never an address)",
     "update-signature": "image registry of the project: signature of an update candidate, asked by the updater only "
                         "during an update or rollback an administrator started",
     "container-runtime": "local socket of the container runtime (one-click updater, local AI setup, host agent - read only)",

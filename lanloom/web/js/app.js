@@ -198,7 +198,7 @@
   const sized = (v, u) => LL.fmtNum(v, v >= 10 ? 0 : 1) + '\u00a0' + u;
   LL.fmtBytes = function (n) {
     n = Number(n) || 0;
-    const units = [['GB', 1e9], ['MB', 1e6], ['kB', 1e3]];
+    const units = [['TB', 1e12], ['GB', 1e9], ['MB', 1e6], ['kB', 1e3]];
     for (const [u, f] of units) if (n >= f) return sized(n / f, u);
     return LL.fmtNum(Math.round(n), 0) + '\u00a0B';
   };

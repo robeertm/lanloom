@@ -272,6 +272,14 @@ def _paths(ctx: Ctx) -> dict:
         elif u["kind"] == "offline_net":
             items.append(item("path:offnet:%s" % u["device"], "report.paths.offline_net", "danger", True,
                               net=u.get("network") or "", **name))
+    city = ctx.core.geo.city                                    # cities and operators (an option, off by default)
+    if city.enabled and not city.demo:
+        if city.state["error"] and city.file is None:
+            items.append(item("path:detail:error", "report.paths.detail_error", "warn", True))
+        elif city.state["error"] and city.file is not None:
+            items.append(item("path:detail:stale", "report.paths.detail_stale", "info", False, month=city.file.month))
+        elif city.state["updated"] and ctx.until - city.state["updated"] < 86400 and city.file is not None:
+            items.append(item("path:detail:updated", "report.paths.detail_updated", "info", False, month=city.file.month))
     tot = s.get("totals") or {}
     share = tot.get("outside_eu_share")
     top = [c["cc"] for c in (s.get("countries") or [])[:3]]

@@ -80,7 +80,7 @@ SAFETY_KEEP = 2                             # safety copies of the database take
 # places and the meta table are never part of a backup: they belong to the running instance.
 CONFIG_TABLES = ("users", "passkeys", "recovery_codes", "settings", "integrations", "devices", "phys_manual", "agent_hosts", "api_tokens",
                  "sites")
-HISTORY_TABLES = ("scans", "events", "reports", "report_marks", "paths_hour", "paths_day", "paths_seen", "paths_pair_hour", "paths_pair_day",
+HISTORY_TABLES = ("scans", "events", "reports", "report_marks", "paths_hour", "paths_day", "paths_seen", "paths_pair_hour", "paths_pair_day", "paths_city_hour", "paths_city_day", "paths_place", "paths_operator",
                   "agent_samples", "host_samples", "api_ingest")
 # what a further site (M1, lanloom/sites.py) keeps in its own database: its configuration and - optionally - its history
 # (every table of the instance lists except the accounts, API keys and external reports, which live at home)

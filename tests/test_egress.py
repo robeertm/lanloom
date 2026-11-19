@@ -24,12 +24,15 @@ def test_every_outbound_place_and_host_is_listed():
 
 
 def test_only_the_update_check_is_a_connection_of_its_own():
-    """Fixed hosts the code connects to: the release feed, and presets that are used only once set up."""
+    """Fixed hosts the code connects to: the release feed, presets that are used only once set up, and the one source of
+    the optional city data (switched off by default)."""
     allow = json.loads((ROOT / "security" / "egress.json").read_text())
     own = [h["host"] for h in allow["hosts"] if h["use"] == "connect" and h["category"] == "update-check"]
     assert own == ["api.github.com"]
+    optional = [h["host"] for h in allow["hosts"] if h["use"] == "connect" and h["category"] == "optional-download"]
+    assert optional == ["download.db-ip.com"]
     for h in allow["hosts"]:
-        assert h["use"] == "link" or h["category"] in ("update-check", "configured-ai", "configured-channel"), h
+        assert h["use"] == "link" or h["category"] in ("update-check", "configured-ai", "configured-channel", "optional-download"), h
     for s in allow["sites"]:
         assert s["category"] in egress.CATEGORIES, s
 

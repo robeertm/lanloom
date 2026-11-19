@@ -23,6 +23,8 @@ from array import array
 from pathlib import Path
 from typing import Optional
 
+from . import geocity
+
 log = logging.getLogger("lanloom")
 
 MAGIC = b"LLGEO1\n"
@@ -129,8 +131,11 @@ class GeoDB:
 class Geo:
     """Loads the bundled file once in a background thread; until then (or if it is broken) ``db`` is None."""
 
-    def __init__(self, path: Path = DATA_FILE):
+    def __init__(self, path: Path = DATA_FILE, detail_dir: Optional[Path] = None, detail: Optional["geocity.CityData"] = None):
         self.path = path
+        self.city = detail or geocity.CityData(detail_dir)       # cities and operators: an option, off until switched on
+        self._place_cache: dict = {}
+        self._place_gen = -1
         self.db: Optional[GeoDB] = None
         self.error: Optional[str] = None
         self._lock = threading.Lock()
@@ -158,7 +163,29 @@ class Geo:
         db = self.db
         return db.country(ip) if db else None
 
+    def detail(self, ip: str, cc: str) -> Optional[tuple]:
+        """City and network operator of a peer already booked under the country ``cc``:
+        (city key or "", AS number or 0, place {name, region, lat, lon} or None, operator name or None); None while the
+        option is off or no file is loaded. A city in another country than the bundled country data names (a network
+        that moved) is dropped: the country wins. Cached in memory only (never stored with an address)."""
+        data = self.city
+        if not data.enabled or data.file is None:
+            return None
+        if self._place_gen != data.generation:
+            self._place_cache, self._place_gen = {}, data.generation
+        hit = self._place_cache.get((ip, cc))
+        if hit is None:
+            idx, asn = data.lookup(ip)
+            place = data.city(idx) if idx else None
+            if place and place["cc"] != cc:
+                place = None
+            hit = (place["key"] if place else "", asn, place, data.operator(asn) if asn else None)
+            if len(self._place_cache) >= 50_000:
+                self._place_cache = {}
+            self._place_cache[(ip, cc)] = hit
+        return hit
+
     def info(self) -> dict:
-        if self.db:
-            return self.db.info()
-        return {"loaded": False, "error": self.error, "attribution": ATTRIBUTION}
+        out = self.db.info() if self.db else {"loaded": False, "error": self.error, "attribution": ATTRIBUTION}
+        out["detail"] = self.city.info()
+        return out

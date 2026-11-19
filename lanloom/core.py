@@ -39,13 +39,14 @@ DEFAULT_SETTINGS = {
     "port_noise": False,        # exact port counters: take the background noise every device of a network sees out of each one
     "service_probe": True,      # look at the known services and web interfaces every 3 minutes (never anything else, never a login)
     "adapter_inventory": True,  # devices only an adapter knows (other VLANs, switch address tables) join the inventory
+    "paths_detail": False,      # data paths: cities and network operators (fetches two files from their source; off by default)
     "netflow_enabled": False,   # data paths: NetFlow/IPFIX receiver (off by default; needs at least one allowed exporter)
     "netflow_port": netflow.DEFAULT_PORT,
     "netflow_exporters": [],    # addresses allowed to send flows; packets from anyone else are dropped
     "netflow_lan_networks": [], # extra own LAN ranges for NetFlow (the detected local networks always count)
 }
 # settings of the instance, not of one site (a further site reads and writes them in the home store)
-INSTANCE_SETTINGS = frozenset({"update_check", "language", "setup_done", "rate_unit"})
+INSTANCE_SETTINGS = frozenset({"update_check", "language", "setup_done", "rate_unit", "paths_detail"})
 NETFLOW_LAN_REFRESH = 300.0
 
 INTEGRATION_FIELDS = {
@@ -151,7 +152,8 @@ class Core:
         if shared is not None:
             self.geo, self.oui = shared.geo, shared.oui      # one copy of the read-only tables for all sites
         else:
-            self.geo = geo_mod.Geo()
+            live_data = data_dir is not None and not getattr(cfg, "demo", False) and not getattr(cfg, "probe", False)
+            self.geo = geo_mod.Geo(detail_dir=(data_dir / "geo") if live_data else None)
             self.oui = oui_mod.Oui(extra=(data_dir / "oui" / "oui.bin.gz") if data_dir else None)
         self._ident_cache = None           # (key, identity.groups result)
         self._merge_cache = None           # (key, hubmerge.match result)
@@ -228,7 +230,8 @@ class Core:
         allowed = {"rescan_hours": int, "update_check": bool, "language": (str, type(None)), "setup_done": bool,
                    "uplink_iface": str, "rate_unit": str, "home_country": str, "paths_own_networks": list,
                    "paths_no_internet": list, "netflow_enabled": bool, "netflow_port": int, "netflow_exporters": list,
-                   "netflow_lan_networks": list, "adapter_inventory": bool, "port_noise": bool, "service_probe": bool}
+                   "netflow_lan_networks": list, "adapter_inventory": bool, "port_noise": bool, "service_probe": bool,
+                   "paths_detail": bool}
         nets = {}
         for key in ("paths_own_networks", "paths_no_internet", "netflow_lan_networks"):   # all or nothing: check first
             if key in patch:
@@ -268,6 +271,8 @@ class Core:
                 self._setting_store(key).set_setting(key, value)
         if any(k in patch for k in nf_keys):
             self._netflow_schedule()
+        if "paths_detail" in patch and isinstance(patch["paths_detail"], bool):
+            self.geo.city.configure(patch["paths_detail"])
         return self.settings()
 
     # ------------------------------------------------------------------ NetFlow / IPFIX receiver (data paths)
@@ -341,6 +346,8 @@ class Core:
         if self.cfg.probe:
             return            # probe start of an update candidate: serve the UI only, no discovery, no sources
         self.geo.start()
+        if self.settings().get("paths_detail") and not self.remote:
+            self.geo.city.configure(True)         # was switched on before: map the file, check once a day
         self.oui.start()
         self.reports.on_start()
         if self.demo:
@@ -722,6 +729,27 @@ class Core:
         rows = [r for r in self.paths.pairs(window) if r["a"] in devices and r["b"] in devices][:datapaths.MAX_PAIRS]
         return {"window": window if window in datapaths.PERIODS else "24h", "version": self.paths.version, "pairs": rows,
                 "source": self.paths_source()}
+
+    def paths_country(self, cc: str, window: str) -> dict:
+        """The detail sheet of one country (cities and operators only with the option on), with device titles."""
+        out = dict(self.paths.country_view(cc, window, self._paths_devices()))
+        out["source"] = self.paths_source()
+        return out
+
+    def paths_detail_action(self, action: str) -> dict:
+        """Administrator actions on the city data: ``refresh`` (check now), ``clear`` (delete files and stored figures)."""
+        city = self.geo.city
+        if action == "refresh":
+            if city.refresh_now():
+                threading.Thread(target=city.step, name="lanloom-geocity-now", daemon=True).start()
+        elif action == "clear":
+            city.configure(False)
+            self._setting_store("paths_detail").set_setting("paths_detail", False)
+            city.clear()
+            self.paths.clear_detail()
+        else:
+            raise ValueError("paths.detail.action")
+        return self.geo.info()["detail"]
 
     def paths_device(self, device: str, window: str) -> dict:
         """Where one device (or the internet tile) talks to: countries and LAN partners, with titles."""
