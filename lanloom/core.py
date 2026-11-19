@@ -190,6 +190,8 @@ class Core:
         self.reports.on_certs = self.notify.on_certs
         from .failure import Failure
         self.failure = Failure(self)                    # failure chain, manual dependencies, outage automatic (S5)
+        from .resilience import Resilience
+        self.resilience = Resilience(self)              # risk lens, weak spots, emergency scenarios, layers (S13)
         from .incidents import Incidents
         self.incidents = Incidents(self)                # incident files: episodes bundled over the failure graph (S8)
         from .chronicle import Chronicle

@@ -430,7 +430,8 @@
     const fr = LL.frame(app, 'controlroom', h('div', { class: 'page page--wide cr-page' }));
     const page = fr.main.firstChild;
     const body = h('div', { class: 'cr-body' }, h('div', { class: 'skeleton' }));
-    page.append(h('header', { class: 'page__head cr-head' }, h('div', {}, h('h1', {}, t('nav.controlroom')), h('p', { class: 'muted cr-lead' }, t('cr.ui.lead')))), body);
+    page.append(h('header', { class: 'page__head cr-head' }, h('div', {}, h('h1', {}, t('nav.controlroom')), h('p', { class: 'muted cr-lead' }, t('cr.ui.lead'))),
+      LL.resilience ? h('a', { class: 'btn btn--sm cr-head__rs', href: '#/resilience' }, t('rs.cr.link')) : null), body);   // resilience and emergency scenarios (js/resilience.js)
     const ctx = { probe: LL.can('admin') ? probeForm(() => load()) : null };
     let seq = 0, first = true, timer = 0;
     async function load() {

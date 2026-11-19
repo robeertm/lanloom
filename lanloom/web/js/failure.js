@@ -8,7 +8,8 @@
    above the board (names wrap, never cut off); the note rests while a chain is open and can be hidden until the outage changes.
    Phones get the same bar as a sheet with the list open. Palette: three commands (pick a part in a second step) and actions on hits.
    Interface: LL.failure.show(id, dir), .simulate(id), .close(), .attach(map) (views.js), .loadOutages(), .outageOf(id),
-   .cardHint(id) and LL.failureSection(id) (the card). */
+   .cardHint(id) and LL.failureSection(id) (the card). .scenario(id, minute) shows an emergency scenario of the resilience view
+   (GET /api/resilience/scenario/<id>, js/resilience.js) the same way as a simulated maintenance - with several roots at once. */
 (function () {
   'use strict';
   const LL = window.Lanloom;
@@ -20,7 +21,7 @@
   const HIDE_KEY_BASE = 'll-fc-outage-hidden';
   const hideKey = () => LL.siteKey(HIDE_KEY_BASE);       // the hidden outage belongs to one site (M2)
   const S = { id: null, dir: 'down', sim: false, d: null, busy: false, err: null, nr: 0, list: false, open: new Set([1, 2]),
-    map: null, outage: null, outT: 0, outBusy: false, needs: null, needsKey: '' };
+    map: null, outage: null, outT: 0, outBusy: false, needs: null, needsKey: '', scn: null };
   const phone = () => window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
   const enc = id => encodeURIComponent(id);
 
@@ -76,7 +77,12 @@
     loadNeeds();
     F.loadOutages();
     const want = LL.query && LL.query.get('fc');
-    if (want) {
+    const scn = LL.query && LL.query.get('rs');
+    if (scn) {
+      const m = LL.query.get('rsm');
+      LL.query.delete('rs'); LL.query.delete('rsm');
+      F.scenario(scn, m == null || m === '' ? null : Number(m));
+    } else if (want) {
       const dir = LL.query.get('fcd') || 'down';
       LL.query.delete('fc'); LL.query.delete('fcd');
       F.show(want, dir === 'sim' ? 'down' : dir, dir === 'sim' ? { sim: true } : undefined);
@@ -111,8 +117,9 @@
         const old = tiles[x];
         if (!old || (cert === 'sure' && old.cert !== 'sure') || (cert === old.cert && it.stage < old.stage)) tiles[x] = { stage: it.stage, cert };
       });
-      const root = tileOf(S.d.root, ids);
-      if (root) delete tiles[root];
+      const rootTiles = (S.d.roots || [S.d.root]).map(r => tileOf(r, ids)).filter(Boolean);
+      const root = rootTiles.length === 1 ? rootTiles[0] : null;
+      rootTiles.forEach(x => { if (x === root) delete tiles[x]; else tiles[x] = { stage: 0, cert: 'sure' }; });   // a scenario has several roots
       b.setChain({ root, mode: S.sim ? 'sim' : 'chain', tiles });
       b.setOutage(null);
       if (S.scroll && root && S.map.slot) {          // the root comes into view once per chain (not on every live update)
@@ -145,7 +152,7 @@
     }
     const nr = ++S.nr;
     if (S.id !== id || S.sim !== sim) { S.open = new Set([1, 2]); S.list = phone(); }
-    Object.assign(S, { id, dir, sim, busy: true, err: null });
+    Object.assign(S, { id, dir, sim, busy: true, err: null, scn: null });
     render();
     let d;
     try { d = await api('/api/failure/' + enc(id) + '?dir=' + dir); }
@@ -156,17 +163,39 @@
     LL.announce && LL.announce(titleText() + '. ' + countText(), { now: true });
   };
   F.simulate = id => F.show(id, 'down', { sim: true });
+  // an emergency scenario (S13): several roots at once, shown like a simulated maintenance; the power one at a minute of the slider
+  F.scenario = async function (sid, minute) {
+    if (!sid) return;
+    const q = minute == null || isNaN(minute) ? '' : '?minute=' + encodeURIComponent(Math.round(minute));
+    if (!S.map) { LL.go('#/network?rs=' + enc(sid) + (q ? '&rsm=' + encodeURIComponent(Math.round(minute)) : '')); return; }
+    const nr = ++S.nr;
+    if (S.id !== 'scenario:' + sid) { S.open = new Set([0, 1, 2]); S.list = phone(); }
+    Object.assign(S, { id: 'scenario:' + sid, dir: 'down', sim: true, busy: true, err: null, scn: { sid, minute: minute == null || isNaN(minute) ? null : Math.round(minute) } });
+    render();
+    let d;
+    try { d = await api('/api/resilience/scenario/' + enc(sid) + q); }
+    catch (e) { if (nr === S.nr) { S.busy = false; S.d = null; S.err = e.status === 404 ? t('fail.err.unknown') : LL.errText(e); apply(); render(); } return; }
+    if (nr !== S.nr) return;
+    S.d = d; S.busy = false; S.scroll = false;
+    render(); apply();
+    LL.announce && LL.announce(titleText() + '. ' + countText(), { now: true });
+  };
   F.close = function () {
     S.nr++;
-    Object.assign(S, { id: null, d: null, busy: false, err: null, sim: false });
+    Object.assign(S, { id: null, d: null, busy: false, err: null, sim: false, scn: null });
     apply(); render();
   };
   F.active = () => !!S.id;
   F.data = () => S.d;                 // test hook
-  F.state = () => ({ id: S.id, dir: S.dir, sim: S.sim, list: S.list });
+  F.state = () => ({ id: S.id, dir: S.dir, sim: S.sim, list: S.list, scenario: S.scn ? S.scn.sid : null });
 
   // ------------------------------------------------------------------ the bar above the board (a sheet on phones)
   function titleText() {
+    if (S.scn) {
+      const tt = S.d && S.d.title;
+      const base = tt ? t(tt.key, tt.vars || {}) : t('rs.sc.loading');
+      return S.d && S.d.minute != null ? t('rs.sc.at_minute', { title: base, n: Math.round(S.d.minute) }) : base;
+    }
     const name = S.d ? nodeName(S.d.root) : '…';
     return t(S.sim ? 'fail.title.sim' : S.dir === 'up' ? 'fail.title.up' : 'fail.title.down', { name });
   }
@@ -202,7 +231,7 @@
       title: t(S.sim ? 'fail.sim.end' : 'fail.close'), onclick: () => F.close() }, S.sim ? t('fail.sim.end') : '✕');
     const head = h('div', { class: 'fc-bar__head' },
       h('div', { class: 'fc-bar__title' }, h('span', { class: 'fc-bar__icon', 'aria-hidden': 'true' }), h('h2', {}, titleText())),
-      h('div', { class: 'fc-bar__tools' }, dirSeg, listBtn, close));
+      h('div', { class: 'fc-bar__tools' }, dirSeg, S.scn ? h('a', { class: 'btn btn--ghost btn--sm fc-back', href: '#/resilience/scenarios' }, t('rs.sc.back')) : null, listBtn, close));
     const sub = [];
     if (S.busy) sub.push(h('p', { class: 'fc-bar__line muted' }, t('fail.loading')));
     else if (S.err) sub.push(h('p', { class: 'fc-bar__line msg msg--warn' }, S.err));
@@ -355,7 +384,7 @@
       const note = h('input', { class: 'input-sm fc-ed__note', type: 'text', maxlength: '120', placeholder: t('fail.man.note'), 'aria-label': t('fail.man.note') });
       const btn = h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => { if (target.value) save(node, target.value, kind.value, note.value); } }, t('fail.man.save'));
       loadCandidates().then(items => {
-        items.filter(c => c.id !== node).forEach(c => target.append(h('option', { value: c.id }, nodeName(c) + (c.ip && c.title ? ' · ' + c.ip : '') + ' (' + kindLabel(c) + ')')));
+        items.filter(c => c.id !== node).forEach(c => target.append(h('option', { value: c.id }, c.kind === 'internet' ? nodeName(c) : nodeName(c) + (c.ip && c.title ? ' · ' + c.ip : '') + ' (' + kindLabel(c) + ')')));
       });
       return h('div', { class: 'fc-ed' },
         h('div', { class: 'fc-ed__row' }, h('label', { class: 'fc-ed__label' }, t('fail.man.target')), target),

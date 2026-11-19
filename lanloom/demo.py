@@ -866,6 +866,8 @@ class Demo:
                     demo_hosthealth.seed(core, now)       # seven days of host samples with an early warning (W1)
                     from . import demo_controlroom
                     demo_controlroom.seed(core, now)      # internet history, UPS night, backup chains (S9-S12)
+                    from . import demo_resilience
+                    demo_resilience.seed(core, now)       # power sources, spares, a service that needs the internet (S13)
                 self._agents_t = now
                 demo_agents.tick(core, now, el, rng)
                 from . import demo_controlroom

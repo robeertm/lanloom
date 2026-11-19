@@ -78,6 +78,11 @@
     if (!LL.failure || i.root.id === 'lanloom' || (i.chain_ok === false)) return null;
     return h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => LL.failure.show(i.root.id, 'down') }, t('inc.btn.chain'));
   }
+  // the risk of the root (S13): its seven axes and what would help most (js/resilience.js)
+  function riskButton(i) {
+    if (!LL.resilience || !i.root || i.root.id === 'lanloom' || i.chain_ok === false) return null;
+    return h('a', { class: 'btn btn--ghost btn--sm', href: '#/resilience/part/' + enc(i.root.id) }, t('inc.btn.risk'));
+  }
 
   // ------------------------------------------------------------------ the list
   function row(i) {
@@ -313,7 +318,7 @@
           h('div', { class: 'inc-file__chips' }, i.open ? h('span', { class: 'chip chip--danger' }, t('inc.open')) : null, kindChip(i.kind), showCert(i) ? certChip(i.root.cert, guess) : null),
           h('h1', {}, title(i)),
           h('p', { class: 'muted' }, lineOf(i) + (heal ? ' · ' + heal : ''))),
-        h('div', { class: 'btn-row inc-file__btns' }, playButton(i), chainButton(i))),
+        h('div', { class: 'btn-row inc-file__btns' }, playButton(i), chainButton(i), riskButton(i))),
       h('div', { class: 'inc-file__grid' },
         section('inc.file.root',
           h('p', { class: 'inc-root' }, rootLink ? h('a', { href: rootLink, class: 'inc-root__name' }, rootName(i.root)) : h('b', { class: 'inc-root__name' }, rootName(i.root)), ' ',
@@ -358,7 +363,7 @@
         ' ', certChip(d.member ? d.member.cert : i.root.cert, i.root.observed === false)));
       if (i.counts.members && d.is_root) kids.push(h('p', { class: 'muted' }, t('inc.what.took', { n: i.counts.members })));
       kids.push(h('p', { class: 'muted inc-what__before' }, (d.before || []).length ? t('inc.what.before', { n: d.before.length, first: fill(d.before[0].key, d.before[0].vars) }) : t('inc.what.before_none')));
-      kids.push(h('div', { class: 'btn-row btn-row--wrap' }, h('a', { class: 'btn btn--ghost btn--sm', href: '#/incidents/' + enc(i.id) }, t('inc.btn.file')), playButton(i, true), chainButton(i)));
+      kids.push(h('div', { class: 'btn-row btn-row--wrap' }, h('a', { class: 'btn btn--ghost btn--sm', href: '#/incidents/' + enc(i.id) }, t('inc.btn.file')), playButton(i, true), chainButton(i), riskButton(i)));
       box.replaceChildren(...kids);
       sec.hidden = false;
     }).catch(() => sec.remove());

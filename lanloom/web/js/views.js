@@ -279,6 +279,7 @@
         board.update(feed(data)); if (LL.a11y) LL.a11y.setNames(localise(data).components); if (selected) board.highlight(selected);
         drawFilter();
         if (LL.failure) LL.failure.refresh();
+        if (LL.resilience) LL.resilience.refresh();
       }
       function drawFilter() {
         const zones = localise(data).zones.filter(z => z.id !== 'edge' && !z.fold);
@@ -294,7 +295,8 @@
         filterBar.replaceChildren(...[
           LL.netModes ? LL.netModes('live') : null, LL.netModes ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
           treeOk ? viewSwitch() : null, mode === 'board' && fullScreen ? fullButton() : null, treeOk || (mode === 'board' && fullScreen) ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
-          mode !== 'board' ? null : talkChip,        // the lines in the air belong to the board; the tree has the chain
+          mode !== 'board' ? null : talkChip,
+          mode !== 'board' || !LL.resilience ? null : chip(t('rs.lens.chip'), LL.resilience.lensOn(), () => LL.resilience.toggleLens(), ' mf-chip--lens'),   // the risk lens (js/resilience.js, key B)        // the lines in the air belong to the board; the tree has the chain
           mode === 'board' && LL.rewind ? LL.rewind.chip() : null,
           mode === 'board' && talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
           mode === 'board' && LL.foldHosts.length ? chip(t('mapfilter.containers'), LL.allUnfolded(), () => LL.setAllUnfolded(!LL.allUnfolded()), ' mf-chip--containers') : null,
@@ -321,6 +323,8 @@
       let board = mountViewer();
       if (LL.a11y) LL.a11y.setNames(localise(data).components);
       const fcDetach = LL.failure ? LL.failure.attach({ kind, slot: () => fcSlot, board: () => board, view: () => feed(data) }) : null;
+      const rlDetach = LL.resilience ? LL.resilience.attach({ kind, slot: () => fcSlot, board: () => board, view: () => feed(data) }) : null;   // risk lens (js/resilience.js)
+      document.addEventListener('ll-lens', drawFilter);
       // rewind (js/rewind.js): while it plays, the live frames rest and the board shows the moment under the cursor
       const rwDetach = LL.rewind ? LL.rewind.attach({ kind, slot: () => fcSlot, board: () => board, view: () => feed(data),
         onLeave: () => { refresh(); if (LL.failure) LL.failure.refresh(); drawFilter(); } }) : null;
@@ -347,6 +351,7 @@
         board = mountViewer();
         if (selected) board.highlight(selected);
         if (LL.failure) LL.failure.refresh();
+        if (LL.resilience) LL.resilience.refresh();
         if (mode === 'board' && talkOn) loadTalk();
         drawFilter();
         const again = filterBar.querySelector('.nv-seg .is-active'); if (again) again.focus();
@@ -399,7 +404,7 @@
       });
       const onVis = () => { if (!document.hidden && stale) { stale = false; refresh(); } };
       document.addEventListener('visibilitychange', onVis);
-      return { destroy: () => { unsub(); fw.destroy(); if (fcDetach) fcDetach(); if (rwDetach) rwDetach(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; if (fullScreen) fullScreen.destroy(); board.destroy(); fr.destroy(); } };
+      return { destroy: () => { unsub(); fw.destroy(); if (fcDetach) fcDetach(); if (rlDetach) rlDetach(); if (rwDetach) rwDetach(); document.removeEventListener('ll-lens', drawFilter); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; if (fullScreen) fullScreen.destroy(); board.destroy(); fr.destroy(); } };
     };
   }
 
@@ -487,6 +492,7 @@
     sections.push(links);
     if (LL.whatHappenedSection && (d.device || id === 'internet')) sections.push(LL.whatHappenedSection(id));   // "What happened?" (js/incidents.js)
     if (LL.failureSection) sections.push(LL.failureSection(id));          // dependencies, failure chain, manual entries (js/failure.js)
+    if (LL.resilienceSection) sections.push(LL.resilienceSection(id));   // risk, seven axes, power and spare (js/resilience.js)
     if (d.device && LL.maintenanceSection) sections.push(LL.maintenanceSection(id));
     if (LL.failure) {                                                       // "probably affected: X is down" (outage automatic)
       const hintBox = h('div', { class: 'fc-hint-box' });

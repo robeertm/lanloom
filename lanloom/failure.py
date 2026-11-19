@@ -562,9 +562,10 @@ class Failure:
                 "down_n": len(g.down.get(nid, ())), "manual_ok": g.nodes[nid]["kind"] in ("device", "node", "container", "connection", "hub", "hub_device")}
 
     def candidates(self) -> list:
-        """What a manual entry may point at: devices, infrastructure outside the inventory, containers and connections."""
+        """What a manual entry may point at: devices, infrastructure outside the inventory, containers, connections and the internet
+        (a service that only works with the internet: the emergency scenario "Internet down" names it, S13)."""
         g = self.graph()
-        out = [self.view(g, n) for n, i in g.nodes.items() if i["kind"] in ("device", "node", "container", "connection", "hub")
+        out = [self.view(g, n) for n, i in g.nodes.items() if i["kind"] in ("device", "node", "container", "connection", "hub", "internet")
                and not i.get("hidden")]
         out.sort(key=lambda r: (KIND_RANK.get(r["kind"], 99), (r["title"] or r.get("ip") or r["id"]).casefold()))
         return out[:2000]

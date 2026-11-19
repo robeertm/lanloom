@@ -135,6 +135,7 @@ class App:
         from . import availability_report as _availability_report  # noqa: F401 - registers the availability section
         from .controlroom import report as _controlroom_report  # noqa: F401 - registers the control room section
         from . import failure_report as _failure_report  # noqa: F401 - registers the failure chain section
+        from . import resilience_report as _resilience_report  # noqa: F401 - registers the resilience section
         from . import incidents_report as _incidents_report  # noqa: F401 - registers the incidents section
         from . import services_report as _services_report  # noqa: F401 - registers the services section
         from . import storage_report as _storage_report  # noqa: F401 - registers the storage + counter check sections
@@ -584,6 +585,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     web_history.register(app, web_history.Ctx(state=state, err=err))
     from . import web_failure
     web_failure.register(app, web_failure.Ctx(state=state, body=body, err=err, note=note))
+    from . import web_resilience
+    web_resilience.register(app, web_resilience.Ctx(state=state, body=body, err=err, note=note))
     from . import web_incidents
     web_incidents.register(app, web_incidents.Ctx(state=state, body=body, err=err, note=note))
     from . import web_services

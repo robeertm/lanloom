@@ -8,6 +8,9 @@
    reaches with a stage mark (1 = next to the root) and the traces between them - and lets everything else step back; mode 'sim'
    ("Simulate maintenance") colours sure parts red and likely ones yellow. setOutage({tiles: {id: 1}}) draws the probably affected
    parts of a real outage dashed (calm, nothing dims); it rests while a chain is shown. setChain(null) / setOutage(null) end both.
+   Risk lens (S13): setLens({tiles: {id: {r, l}}}) tints every listed tile by its risk level (low, moderate, elevated, high,
+   critical: a coloured frame plus the risk number from "elevated" up, never colour alone); setLens(null) ends it. It stays on
+   through live updates and lies under a failure chain (the chain wins while it is shown).
    Hovering a tile with the mouse shows only the traces it needs: its way up through cables, radio, guests and integrations (b of a
    trace hangs on a) plus the manual dependencies the page passes with setNeeds([[needs, needed], ...]).
    Bundled traces: traces that end at the same tile with the same kind share one trunk there (their dots add up on it).
@@ -32,6 +35,8 @@
   const TRACE_KINDS = ['uplink', 'lan', 'service', 'flow', 'integration', 'cable', 'radio', 'virtual'];
   const NEED_KINDS = ['uplink', 'lan', 'cable', 'radio', 'virtual', 'integration'];   // a → b of these: b hangs on a (b needs a)
   const FC_CLASSES = ['fc-root', 'fc-sure', 'fc-likely', 'fc-affected', 'is-hover'];
+  const RL_LEVELS = ['low', 'moderate', 'elevated', 'high', 'critical'];
+  const RL_CLASSES = RL_LEVELS.map(l => 'rl-' + l);
   const PHYS_DASH = { radio: '4 3', virtual: '0.5 3.5' };   // legend swatches; the traces get the same pattern from board.css
   const FILTER_KEYS = TRACE_KINDS.concat(['unmeasured', 'talk']);   // what the legend can hide: a line kind, every trace without a measurement, or the dashed "talks to" lines
   const HIDE_KEY = 'lanloom.board.hide.';
@@ -247,6 +252,7 @@
       this.zoneAll = Array.isArray(this.o.zones) ? this.o.zones : null; this.zoneActive = this.o.zone ? String(this.o.zone) : null;   // network toggles of the legend
       this.talk = []; this.peers = {}; this.seenPorts = {}; this.exits = []; this.marks = null; this.routed = false;
       this.chainSpec = null; this.outageSpec = null; this.hoverId = null; this.needExtra = []; this._fcBadges = [];
+      this.lensSpec = null; this._rlBadges = [];
       this.ready = new Promise(res => { this._resolveReady = res; });
       this.stats = { routeMs: null, routed: 0, failed: 0, fallback: 0, bundled: 0, fromCache: false, layouts: 0, worker: null };
       this.build();
@@ -388,6 +394,7 @@
       }
       if (this.highlighted) this.highlight(this.highlighted);
       else if (this.chainSpec || this.outageSpec || this.hoverId) this.applyHighlight();
+      if (this.lensSpec) this.applyLens();
     }
 
     renderZones(lay) {
@@ -903,6 +910,27 @@
       this.needExtra = (Array.isArray(extra) ? extra : []).filter(p => Array.isArray(p) && p[0] != null && p[1] != null).map(p => [String(p[0]), String(p[1])]);
       if (this.hoverId && !this.dead) this.applyHighlight();
     }
+    // ---------------------------------------------------------------- risk lens (S13)
+    setLens(spec) {
+      this.lensSpec = spec && spec.tiles ? { tiles: spec.tiles } : null;
+      if (!this.dead) this.applyLens();
+    }
+    applyLens() {
+      this._rlBadges.forEach(b => b.remove()); this._rlBadges = [];
+      this.tiles.forEach(e => e.el.classList.remove(...RL_CLASSES));
+      if (!this.root) return;
+      this.root.classList.toggle('is-lens', !!this.lensSpec);
+      if (!this.lensSpec) return;
+      Object.keys(this.lensSpec.tiles).forEach(id => {
+        const e = this.tiles.get(id), m = this.lensSpec.tiles[id];
+        if (!e || !m || RL_LEVELS.indexOf(m.l) < 0) return;
+        e.el.classList.add('rl-' + m.l);
+        if (RL_LEVELS.indexOf(m.l) >= 2 && m.r != null) {
+          const b = document.createElement('span'); b.className = 'll-rl-badge'; b.setAttribute('aria-hidden', 'true'); b.textContent = String(Math.round(m.r));
+          e.el.appendChild(b); this._rlBadges.push(b);
+        }
+      });
+    }
     clearChainMarks() {
       this._fcBadges.forEach(b => b.remove()); this._fcBadges = [];
       this.tiles.forEach(e => e.el.classList.remove(...FC_CLASSES));
@@ -1134,6 +1162,7 @@
       setOutage: spec => b.setOutage(spec),
       setRewind: spec => b.setRewind(spec),
       setNeeds: extra => b.setNeeds(extra),
+      setLens: spec => b.setLens(spec),
       needsOf: id => { const n = b.needsOf(String(id)); return { tiles: [...n.tiles], traces: [...n.traces] }; },
       destroy: () => b.destroy(),
       ready: b.ready,

@@ -275,6 +275,7 @@ TOFIXED_GEOMETRY = {
     "paths_routes.js": (7, "SVG path coordinates and point radii of the route lines on the maps"),
     "paths_country.js": (14, "SVG viewBox, bubble radii, label positions and bar heights of the country map and history"),
     "hypervisor.js": (2, "SVG path of the sparkline"),
+    "resilience.js": (2, "SVG path of the score history sparkline"),
     "endmarks.js": (8, "CSS transform and SVG line coordinates"),
     "textfmt.js": (1, "fallback of the number formatter when Intl is missing"),
     "board.js": (1, "rounding of board coordinates (num helper)"),

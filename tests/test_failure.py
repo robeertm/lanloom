@@ -188,7 +188,8 @@ def test_candidates_and_board_extra_edges(demo):
     _app, as_ = demo
     c = as_("viewer")
     cands = c.get("/api/failure/candidates").json()["items"]
-    assert {x["kind"] for x in cands} <= {"device", "node", "container", "connection", "hub"} and any(x["id"] == STORAGE for x in cands)
+    assert {x["kind"] for x in cands} <= {"device", "node", "container", "connection", "hub", "internet"} and any(x["id"] == STORAGE for x in cands)
+    assert any(x["id"] == "internet" for x in cands)        # "needs the internet" for the emergency scenario (S13)
     extra = c.get("/api/failure/board?view=network").json()["extra"]
     assert [BACKUP, STORAGE, "sure"] in extra and [HV_HOST, STORAGE, "likely"] in extra
     assert c.get("/api/failure/board?view=nonsense").status_code == 400
