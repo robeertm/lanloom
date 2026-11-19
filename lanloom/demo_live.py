@@ -374,12 +374,18 @@ def _gw_raw(changed: bool) -> dict:
              rule(3, "Smart devices may not reach home", "opt1", action="block", dst="lan"),
              rule(4, "Smart devices to the web", "opt1", proto="TCP", port="443"),
              rule(5, "Guests may not reach home", "opt2", action="block", dst="lan"),
+             rule(11, "Guests may not reach smart devices", "opt2", action="block", dst="opt1"),
+             rule(12, "Guests may not reach the lab", "opt2", action="block", dst="opt3"),
+             rule(13, "Guests may ask the firewall for names", "opt2", dst="(self)", proto="TCP/UDP", port="53"),
+             rule(14, "Inside may ask the firewall for names", "inside", src="any", dst="(self)", proto="TCP/UDP", port="53"),
              rule(6, "Guests to the internet", "opt2"),
              rule(7, "Home to the lab", "lan", dst="opt3", enabled="0" if changed else "1"),
              rule(8, "Firewall admin from outside", "wan", src="any", dst="(self)", proto="TCP", port="443"),
              rule(9, "[lanloom] Lab may not reach smart devices", "opt3", action="block", dst="opt1")]
     if changed:
-        rules.append(rule(10, "Lab test from outside", "wan", src="any", dst="opt3"))
+        rules.append(rule(15, "Lab test from outside", "wan", src="any", dst="opt3"))
+    for pos, (_, r) in enumerate(rules, start=1):            # evaluated in the order written above
+        r["sequence"] = str(pos * 10)
     return {"version": "demo", "interfaces": {"rows": rows}, "filter": {"rules": {"rule": dict(rules)}},
             "groups": {"rows": [{"ifname": "Inside", "members": "lan,opt1", "descr": "Home and smart devices"}]},
             "dnat": {"rows": [{"descr": "Lab web server", "disabled": "0", "protocol": "TCP", "destination.port": "8443",

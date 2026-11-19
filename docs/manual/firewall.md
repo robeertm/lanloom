@@ -153,6 +153,14 @@ The question card of the read firewall (see above) is also in the editor, below 
 
 <img src="../screenshots/zone-firewall-ask-phone-light.png" width="45%" alt="May one reach the other? in the editor, on a phone">
 
+### Gateway firewalls with rules on interfaces
+
+Some firewalls keep their rules on interfaces instead of between zones. Lanloom reads them the same way: every interface is a zone (its network, VLAN and address are the zone's network), interface groups are zones of their own, and the firewall itself is the zone *This firewall*. A rule on an interface becomes a rule from that interface's zone to the zone of its destination; the order is the firewall's evaluation order (floating rules first, then group rules, then interface rules, each by sequence; classic rules, where the firewall lists them, come last and carry a *built-in* chip). The board, the rule sentences, *May one reach the other?*, the checks and the night report section work as for a zone firewall.
+
+With the executor set up for such a family, *Change* mode offers **New rule** between two interfaces (or to the firewall itself), **Change** and the **on** checkbox for simple rules (one interface, no address list, alias, schedule or policy routing) and **Remove** for rules Lanloom created. The arrows are not offered: a new rule is appended after the existing ones, so a new blocking rule takes effect only where no earlier rule already allows the same traffic - the preview and *May one reach the other?* after your draft show that before you approve. Rules towards the internet side are not written (they need address lists on the firewall).
+
+The plan is written into the firewall's configuration first and put live with one apply at the end. Where the firewall's release has its own revert timer, the executor arms it before the apply and confirms only after it has read every changed rule back as planned; if the executor or its connection fails in between, the firewall puts the rules back by itself after 60 seconds. On releases without it, Lanloom's own backup is the way back. The adapter guide in [COMPATIBILITY.md](../COMPATIBILITY.md) lists the releases.
+
 ## Limits
 
 - **Checks.** A fixed address must lie inside the device's network, must not be the network's own address or its

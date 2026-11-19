@@ -28,7 +28,7 @@ IFACES = [
 U = {k: "%s-0000-4000-8000-%012d" % (h, n) for n, (k, h) in enumerate([
     ("lan_any", "a0000001"), ("iot_broker", "a0000002"), ("iot_lan", "a0000003"), ("iot_web", "a0000004"),
     ("guest_out", "a0000005"), ("admin_wan", "a0000006"), ("cam_in", "a0000007"), ("old_test", "a0000008"),
-    ("own_block", "a0000009"), ("floating", "a000000a")], start=1)}
+    ("own_block", "a0000009"), ("floating", "a000000a"), ("group_dns", "a000000b")], start=1)}
 PROTO_KEYS = ["any", "ICMP", "IGMP", "TCP", "UDP", "TCP/UDP", "GRE", "ESP"]
 
 
@@ -69,6 +69,7 @@ def rules(net_shape="option"):
         U["old_test"]: rule("Old test rule", "lan", src="lan", dst="opt3", enabled="0", seq=80),
         U["own_block"]: rule("[lanloom] Guests may not reach the DMZ", "opt2", action="block", src="opt2", dst="opt3", seq=90),
         U["floating"]: rule("Floating allow all", "", seq=5, enabled="0"),
+        U["group_dns"]: rule("Inside may ask the firewall for names", "homenets", dst="(self)", proto="TCP/UDP", port="53", seq=15),
     }
     if net_shape == "plain":
         for v in r.values():

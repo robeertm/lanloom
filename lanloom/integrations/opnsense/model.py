@@ -720,6 +720,8 @@ def to_neutral(raw: dict) -> dict:
     zones = _zones(topo)
     nets, wans = _networks(topo)
     pols = _policies(raw, topo, aliases)
+    used = {p[side]["zone"] for p in pols for side in ("src", "dst")}
+    zones = [z for z in zones if z.get("kind") != "group" or z["id"] in used]     # a group no rule names is no zone of its own
     known = {z["id"] for z in zones}
     for p in pols:                                   # a rule may name an interface the account could not list
         for side in (p["src"], p["dst"]):
@@ -731,10 +733,12 @@ def to_neutral(raw: dict) -> dict:
     state = {"v": 2, "zones": zones, "networks": nets, "devices": [], "equipment": [], "ports": [], "policies": pols,
              "ssids": [], "dhcp_reservations": _reservations(raw), "port_forwards": _forwards(raw, aliases), "wans": wans,
              "vpn": _vpn(raw), "raw": _raw_extra(raw, topo)}
-    state["allow"] = neutral.derive_allow(state, default="block") if pols else []
+    groups = {z["id"] for z in zones if z.get("kind") == "group"}
+    # traffic always goes to an interface's network or the firewall itself: a group is a place for rules, never a target
+    state["allow"] = [p for p in neutral.derive_allow(state, default="block") if p[1] not in groups] if pols else []
     external = {z["id"] for z in zones if z.get("system") == "external"}
     for z in zones:
-        z["internet"] = any(a == z["id"] and (b in external or b == ANY) for a, b in state["allow"])
+        z["internet"] = z.get("system") == "external" or any(a == z["id"] and b in external for a, b in state["allow"])
         z["discovery"] = False
     state["findings"] = findings(state, gws)
     state["rule_digest"] = rule_digest(pols)

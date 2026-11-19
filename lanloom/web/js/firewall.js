@@ -707,7 +707,9 @@
       groups.sort((x, y) => (zi(x.src) - zi(y.src)) || (zi(x.dst) - zi(y.dst)));
       listBox.replaceChildren(...(groups.length ? groups.map(g => h('section', { class: 'fw-pol__group' },
         h('h3', { class: 'fw-pol__pair' }, zoneName(s, g.src), h('span', { class: 'muted', 'aria-hidden': 'true' }, ' → '), zoneName(s, g.dst),
-          h('span', { class: 'chip ' + (allow.has(g.k) ? 'chip--ok' : 'chip--muted') }, t(allow.has(g.k) ? 'fw.pol.allow' : 'fw.pol.block'))),
+          // a pair with "any zone" on one side has no single verdict (it covers every zone): no allowed/blocked chip
+          g.src === '*' || g.dst === '*' ? null
+            : h('span', { class: 'chip ' + (allow.has(g.k) ? 'chip--ok' : 'chip--muted') }, t(allow.has(g.k) ? 'fw.pol.allow' : 'fw.pol.block'))),
         h('ol', { class: 'fw-pol__rows' }, g.rows.map(p => h('li', { class: 'fw-rule' + (p.enabled ? '' : ' is-off') + (p.builtin ? ' is-builtin' : '') + (f.insight && f.insight.plain && f.insight.plain[p.id] ? ' has-plain' : '') },
           h('span', { class: 'fw-rule__act fw-rule__act--' + p.action }, t('fw.pol.action.' + (['allow', 'block', 'reject'].includes(p.action) ? p.action : 'other'))),
           h('div', { class: 'fw-rule__main' },
