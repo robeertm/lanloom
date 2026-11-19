@@ -19,7 +19,7 @@
   const LL = window.Lanloom;
   const { h, t, api } = LL;
   const F = LL.Fuzzy;
-  const RECENT_KEY = 'll-recent';
+  const recentKey = () => LL.siteKey('ll-recent');        // recent device hits belong to one site (M2)
   const MAX_RECENT = 8;
   const SHOW_TYPED = { cmd: 6, devices: 6, guests: 5, services: 6, automations: 5, entities: 8 };
   const GROUP_ORDER = ['cmd', 'devices', 'guests', 'services', 'automations', 'entities'];
@@ -51,14 +51,14 @@
 
   // ------------------------------------------------------------------ recent choices (this browser only)
   function recents() {
-    try { const v = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); return Array.isArray(v) ? v.slice(0, MAX_RECENT) : []; } catch (e) { return []; }
+    try { const v = JSON.parse(localStorage.getItem(recentKey()) || '[]'); return Array.isArray(v) ? v.slice(0, MAX_RECENT) : []; } catch (e) { return []; }
   }
   function remember(entry) {
     const key = e => e.k + ':' + (e.k === 'cmd' ? e.id : e.hit.kind + ':' + e.hit.id);
     const list = [entry].concat(recents().filter(e => e && e.k && key(e) !== key(entry))).slice(0, MAX_RECENT);
-    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) { /* private mode */ }
+    try { localStorage.setItem(recentKey(), JSON.stringify(list)); } catch (e) { /* private mode */ }
   }
-  const forget = () => { try { localStorage.removeItem(RECENT_KEY); } catch (e) { /* ignore */ } };
+  const forget = () => { try { localStorage.removeItem(recentKey()); } catch (e) { /* ignore */ } };
   const slim = hit => { const o = {}; HIT_KEYS.forEach(k => { if (hit[k] != null) o[k] = hit[k]; }); return o; };
 
   // ------------------------------------------------------------------ copy

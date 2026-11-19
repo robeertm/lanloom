@@ -86,23 +86,79 @@
     err.status = 0; err.key = 'error.timeout'; err.timeout = true; err.after = ms;
     return err;
   }
+  // The site of this page (M2). The cookie that remembers the last site is shared by every tab of the browser, so it cannot
+  // say which site THIS page shows: every request carries the page's own site in a header, the server names the site it
+  // answered for in the same header, and an answer for any other site is thrown away. A page has one site for its whole
+  // life; switching reloads it (after every running request was cancelled).
+  const TAB_SITE = 'lanloom.site.tab', RESYNC_KEY = 'lanloom.site.resync', SITE_RE = /^(home|s-[0-9a-f]{8})$/;
+  const inflight = new Set();                 // cancel handles of the requests that are running
+  let switching = false;                      // a switch or a resync is on its way: nothing that is still running is drawn or counted
+  const never = () => new Promise(() => {});
+  function tabSite() {
+    let v = null;
+    try { v = sessionStorage.getItem(TAB_SITE) || localStorage.getItem('ll-site'); } catch (e) { /* storage closed */ }
+    return v && SITE_RE.test(v) ? v : null;
+  }
+  LL.pageSite = () => { const s = LL.state && LL.state.site; return (s && s.id) || tabSite(); };
+  LL.switching = () => switching;
+  // key of the browser storage that belongs to the site of this page (the home site keeps the plain key)
+  LL.siteKey = base => { const id = LL.pageSite(); return id && id !== 'home' ? base + '@' + id : base; };
+  // deep link into a site: '#/devices/d-1' -> '#/devices/d-1?site=s-12345678' (the page switches before it draws)
+  LL.siteHash = (hash, id) => id && id !== LL.pageSite() ? hash + (hash.indexOf('?') >= 0 ? '&' : '?') + 'site=' + encodeURIComponent(id) : hash;
+  LL.rememberTabSite = id => { try { sessionStorage.setItem(TAB_SITE, id); } catch (e) { /* storage closed */ } };
+  // everything that belongs to the site that is left stops: running requests are cancelled and never settle (a cancelled
+  // request is no failure), the live feed is closed without a message
+  LL.leaveSite = function () {
+    switching = true;
+    inflight.forEach(c => { try { c.abort(); } catch (e) { /* already done */ } });
+    inflight.clear();
+    if (LL.live && LL.live.shutdown) LL.live.shutdown();
+  };
+  // the server answered for (or told us about) another site than this page shows: follow it once, never in a loop
+  LL.siteResync = async function (actual) {
+    if (switching) return;
+    let at = 0;
+    try { at = Number(sessionStorage.getItem(RESYNC_KEY)) || 0; } catch (e) { /* storage closed */ }
+    if (Date.now() - at < 8000) return;        // just done: the message stays, no reload loop
+    if (!actual) {
+      try { const st = await api('/api/state', { allow401: true, noSite: true }); actual = st && st.site && st.site.id; } catch (e) { return; }
+    }
+    if (!actual || actual === LL.pageSite()) return;
+    try { sessionStorage.setItem(RESYNC_KEY, String(Date.now())); } catch (e) { /* storage closed */ }
+    LL.leaveSite();
+    LL.rememberTabSite(actual);
+    try { localStorage.setItem('ll-site', actual); } catch (e) { /* private mode */ }
+    location.reload();
+  };
   async function api(path, opts) {
     opts = opts || {};
     const init = { method: opts.method || 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } };
     if (init.method !== 'GET') init.headers['X-Lanloom'] = '1';
+    const asked = opts.noSite ? null : LL.pageSite();
+    if (asked) init.headers['X-Lanloom-Site'] = asked;
+    if (switching) return never();
     if (opts.body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
     const limit = LL.apiTimeout(path, opts.timeout);
     const timer = ctl ? setTimeout(() => ctl.abort(), limit) : 0;
-    if (ctl) init.signal = ctl.signal;
+    if (ctl) { init.signal = ctl.signal; inflight.add(ctl); }
     let r, data = {};
     try {
       r = await fetch(LL.url(path), init);
       try { data = await r.json(); } catch (e) { if (ctl && ctl.signal.aborted) throw e; /* empty body */ }
     } catch (e) {
+      if (switching) return never();           // cancelled by the switch: not a failure, nothing is shown
       if (ctl && ctl.signal.aborted) throw timedOut(limit);
       throw e;
-    } finally { clearTimeout(timer); }
+    } finally { clearTimeout(timer); if (ctl) inflight.delete(ctl); }
+    if (switching) return never();             // an answer that arrives while the page leaves its site is dropped
+    const got = r.headers.get('X-Lanloom-Site');
+    if (asked && got && got !== asked && path !== '/api/state') {
+      // an answer made for another site than this page shows (the access changed, the site is gone): never drawn
+      LL.siteResync(got);
+      const err = new Error('site.err.changed'); err.status = 409; err.key = 'site.err.changed'; err.site = got;
+      throw err;
+    }
     if (!r.ok) {
       // critical actions ask for a fresh confirmation (passkey, one-time code or password) and are then sent once more
       if (r.status === 403 && data.error === 'auth.err.stepup' && !opts.noStepUp && LL.stepUp) {
@@ -338,8 +394,14 @@
     LL.query = new URLSearchParams(qpos >= 0 ? raw.slice(qpos + 1) : '');
     const [name, ...rest] = (qpos >= 0 ? raw.slice(0, qpos) : raw).split('/');
     let st;
+    const before = LL.state && LL.state.site && LL.state.site.id;
     try { st = LL.state = await api('/api/state', { allow401: true }); if (st && st.rate_unit) LL.rateUnit = st.rate_unit === 'bits' ? 'bits' : 'bytes'; }
-    catch (e) { app.replaceChildren(h('div', { class: 'boot-error' }, t('error.offline'))); return; }
+    catch (e) { if (switching) return; app.replaceChildren(h('div', { class: 'boot-error' }, t('error.offline'))); return; }
+    if (switching || seq !== routeSeq) return;
+    if (st && st.site && st.site.id) {          // M2: the site of this page is the one the server answered for
+      if (before && before !== st.site.id && LL.siteResync) { LL.siteResync(st.site.id); return; }     // the access changed while the page was open
+      LL.rememberTabSite(st.site.id);
+    }
     if (!Object.keys(LL.strings).length || (st.language && st.language !== LL.lang)) await loadLang(LL.pickLang(st.language));
     let target = name || 'overview';
     if (st.setup_needed) target = 'setup';
@@ -353,6 +415,9 @@
     if (st.authenticated) signedOut = false;
     if ((target === 'login' || target === 'enroll') && name !== target && !st.setup_needed) rememberReturn(location.hash);   // O9: deep link before the sign-in
     if (target !== name) history.replaceState(null, '', LL.base + '#/' + target);
+    // a deep link into another site (#/devices/<id>?site=<id>, M2) switches before anything is drawn, also from a cold start
+    if (st.authenticated && LL.query.has('site') && LL.siteDeepLink && await LL.siteDeepLink()) return;
+    if (seq !== routeSeq) return;
     if (current && current.destroy) { try { current.destroy(); } catch (e) { /* ignore */ } }
     current = null;
     const fn = views[target] || views.map;

@@ -8,7 +8,8 @@
   'use strict';
   const LL = window.Lanloom;
   const { h, t, api } = LL;
-  const STORE = 'll-ask';
+  const STORE_BASE = 'll-ask';
+  const store = () => LL.siteKey(STORE_BASE);
   const MAX_TURNS = 30;
   const SPARK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9L12 16.5l-1.9-4.6L5.5 10l4.6-1.9z"/><path d="M18.5 15.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/></svg>';
 
@@ -52,8 +53,8 @@
   };
 
   // conversation of this browser tab (never stored on the server)
-  function loadTurns() { try { const v = JSON.parse(sessionStorage.getItem(STORE) || '[]'); return Array.isArray(v) ? v.slice(-MAX_TURNS) : []; } catch (e) { return []; } }
-  function saveTurns(turns) { try { sessionStorage.setItem(STORE, JSON.stringify(turns.slice(-MAX_TURNS))); } catch (e) { /* private mode */ } }
+  function loadTurns() { try { const v = JSON.parse(sessionStorage.getItem(store()) || '[]'); return Array.isArray(v) ? v.slice(-MAX_TURNS) : []; } catch (e) { return []; } }
+  function saveTurns(turns) { try { sessionStorage.setItem(store(), JSON.stringify(turns.slice(-MAX_TURNS))); } catch (e) { /* private mode */ } }
 
   let panel = null;
   LL.openAsk = function (question) {

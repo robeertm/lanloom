@@ -4939,6 +4939,7 @@
  "site.ctl.pick": "Site of the controller",
  "site.ctl.show": "Show its sites",
  "site.ctl.title": "A site of your controller",
+ "site.err.changed": "The site this page shows changed. Opening the page again with the right one.",
  "site.err.controller_site": "Please choose a site of the controller.",
  "site.err.home": "The home site cannot be removed.",
  "site.err.kind": "Only remote sites can be added; the site Lanloom runs in is Home.",

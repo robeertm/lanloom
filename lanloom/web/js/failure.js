@@ -17,7 +17,8 @@
   const KIND_ICON = { device: null, node: 'switch', container: 'container', connection: 'service', hub: 'hub', hub_device: 'iot', automation: 'service',
     script: 'service', entity: 'iot', internet: 'internet' };
   const PARTS = ['devices', 'hub_devices', 'automations', 'entities', 'connections'];
-  const HIDE_KEY = 'll-fc-outage-hidden';
+  const HIDE_KEY_BASE = 'll-fc-outage-hidden';
+  const hideKey = () => LL.siteKey(HIDE_KEY_BASE);       // the hidden outage belongs to one site (M2)
   const S = { id: null, dir: 'down', sim: false, d: null, busy: false, err: null, nr: 0, list: false, open: new Set([1, 2]),
     map: null, outage: null, outT: 0, outBusy: false, needs: null, needsKey: '' };
   const phone = () => window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
@@ -259,7 +260,7 @@
     return S.outage;
   };
   const outSig = () => (S.outage ? S.outage.outages.map(o => o.id).join(',') : '');
-  function hiddenSig() { try { return sessionStorage.getItem(HIDE_KEY) || ''; } catch (e) { return ''; } }
+  function hiddenSig() { try { return sessionStorage.getItem(hideKey()) || ''; } catch (e) { return ''; } }
   function outageShown() { return !!(S.outage && S.outage.items.length && S.outage.outages.length && hiddenSig() !== outSig()); }
   function rootNames(roots) {
     const names = roots.map(nodeName);
@@ -282,7 +283,7 @@
       h('div', { class: 'fc-outage__tools' },
         h('button', { class: 'btn btn--sm', type: 'button', onclick: () => F.show(roots[0].id, 'down') }, t('fail.out.show')),
         h('button', { class: 'btn btn--ghost btn--icon btn--sm', type: 'button', 'aria-label': t('fail.out.close'), title: t('fail.out.close'),
-          onclick: () => { try { sessionStorage.setItem(HIDE_KEY, outSig()); } catch (e) { /* private mode */ } apply(); render(); } }, '✕')));
+          onclick: () => { try { sessionStorage.setItem(hideKey(), outSig()); } catch (e) { /* private mode */ } apply(); render(); } }, '✕')));
     if (fresh) host.prepend(note);
   }
   // which outage(s) a part probably suffers from: [root nodes] or null

@@ -46,6 +46,13 @@ Network > Networks and VLANs* first (the same consent as for routed networks at 
 
 **Switch** with the button next to the logo, *Open* on a site card, or the palette (`Ctrl K`, "Switch site").
 
+**Several tabs, several sites.** Each tab keeps the site it shows, also when you switch the site in another tab of the same
+browser: its requests, its live feed and what it draws stay at its own site. A page never draws an answer that was made for
+another site; if the server says the site of a page is not (or no longer) released for you, the page opens the site you may see
+once. Switching cancels everything that is still on its way, without an error message. A link can name a site
+(`#/devices?site=<site id>` - the id is part of the address of the site's cards); it switches before it draws and is
+ignored with a short notice for a site you may not see.
+
 **Who sees which site** (administrators): *Settings > Users > Actions > Sites ...* per person - *All sites* (also the
 ones added later, the default) or a list. An invitation can carry the sites too. Administrators always see every site.
 

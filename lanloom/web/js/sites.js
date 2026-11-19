@@ -25,19 +25,48 @@
   function stored() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
   function remember(id) {
     try { localStorage.setItem(KEY, id); } catch (e) { /* private mode: the cookie alone */ }
+    LL.rememberTabSite(id);
     if (readCookie() !== id) writeCookie(id);
   }
-  (function syncAtLoad() { const s = stored(); if (s && readCookie() !== s) writeCookie(s); })();   // before the first request
+  (function syncAtLoad() {
+    let own = null; try { own = sessionStorage.getItem('lanloom.site.tab'); } catch (e) { /* storage closed */ }
+    const s = own || stored();                      // this tab's own site first (M2), else the last one used in this browser
+    if (s && readCookie() !== s) writeCookie(s);    // before the first request
+  })();
 
   LL.site = () => (LL.state && LL.state.site) || null;
   LL.siteName = s => (s && s.name) || (s && s.home ? t('site.home') : '') || t('site.unnamed');
   // parts that work on the home site only (firewall editor, AI assistant)
   LL.atHome = () => { const s = LL.site(); return !s || !s.id || s.home === true; };
   LL.switchSite = function (id, hash) {
+    if (LL.switching()) return;
+    LL.leaveSite();                       // running requests are cancelled, the live feed closes quietly: no late answer of the old site is drawn
     remember(id);
     sitesCache = null;
     if (hash) history.replaceState(null, '', LL.base + hash);
     location.reload();                    // every view, the live feed and the caches start fresh with the new site
+  };
+  // '#/devices/d-1?x=1&site=s-12345678' -> '#/devices/d-1?x=1'
+  function withoutSite(hash) {
+    const q = hash.indexOf('?');
+    if (q < 0) return hash;
+    const p = new URLSearchParams(hash.slice(q + 1));
+    p.delete('site');
+    const rest = p.toString();
+    return hash.slice(0, q) + (rest ? '?' + rest : '');
+  }
+  // a link with ?site=<id> (M2): the page of that site is opened, only when the person may see it; otherwise the link opens here
+  LL.siteDeepLink = async function () {
+    const want = LL.query.get('site');
+    const clean = withoutSite(location.hash);
+    const strip = () => { history.replaceState(null, '', LL.base + clean); LL.query.delete('site'); };
+    if (!want || want === (LL.site() || {}).id) { strip(); return false; }
+    let list = null;
+    try { list = await LL.siteList(); } catch (e) { list = null; }
+    if (list && (list.sites || []).some(s => s.id === want)) { LL.switchSite(want, clean); return true; }
+    strip();
+    if (list) LL.toast(t('site.err.unknown'), 'error');
+    return false;
   };
 
   let sitesCache = null;

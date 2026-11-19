@@ -370,3 +370,86 @@ def test_the_controller_lists_its_sites_read_only():
     assert ok and found == [{"ref": "default", "name": "Default"}, {"ref": "branch", "name": "Branch"}]
     assert ("GET", "/api/self/sites") in seen and ("POST", "/api/logout") in seen
     assert all(m == "GET" or p in ("/api/login", "/api/logout") for m, p in seen)
+
+
+# ---------------------------------------------------------------------------------------------------------- M2: no mixed picture
+def ask_as(c, who, asked, cookie=None):
+    """Sign in as ``who`` and ask for ``asked`` the way a page does: the page's own site in the header, the cookie
+    (shared by every tab) possibly of another site."""
+    sign_in(c, who)
+    if cookie:
+        c.cookies.set(sites_mod.COOKIE, cookie)
+    return {"X-Lanloom-Site": asked}
+
+
+def test_every_answer_names_the_site_it_was_made_for_and_no_cache_may_mix_them(two_sites):
+    c = two_sites
+    for who, own in (("branch_viewer", c.branch), ("home_viewer", "home")):
+        other = "home" if own != "home" else c.branch
+        for asked in (other, own, None):                       # a page that shows another site than its rights allow, its own, none
+            hdr = ask_as(c, who, asked, cookie=other) if asked else ask_as(c, who, "", cookie=other)
+            if not asked:
+                hdr = {}
+            seen = 0
+            for path in visible_get_routes("viewer"):
+                r = c.get(concrete(path, c, other), headers=dict(HDR, **hdr), params={"q": "1", "window": "24h"})
+                mirrored = r.headers.get("x-lanloom-site")
+                assert mirrored in (None, own), (who, asked, path, mirrored)       # never the site the person may not see
+                vary = r.headers.get("vary", "").lower()
+                assert "cookie" in vary and "x-lanloom-site" in vary, (path, vary)
+                seen += mirrored == own
+            assert seen > 80                                   # the site-bound and the global routes name their site alike
+    # a person who may see both: the answer follows the asked site, whatever the shared cookie says
+    for asked, cookie in (("home", c.branch), (c.branch, "home")):
+        hdr = ask_as(c, "admin", asked, cookie=cookie)
+        r = c.get("/api/devices", headers=dict(HDR, **hdr))
+        assert r.headers["x-lanloom-site"] == asked
+        ips = [d["ip"] for d in r.json()["devices"]]
+        assert ips and all(ip.startswith("10.44.7.") == (asked != "home") for ip in ips)
+        assert c.get("/api/state", headers=hdr).json()["site"]["id"] == asked
+
+
+def test_a_refused_route_and_an_error_name_their_site_too(two_sites):
+    c = two_sites
+    hdr = ask_as(c, "admin", c.branch, cookie="home")
+    fw = [p for (m, p) in access.RULES if m == "GET" and p.startswith("/api/firewall") and "{" not in p]
+    assert fw
+    r = c.get(fw[0], headers=dict(HDR, **hdr))
+    assert r.status_code == 409 and r.json()["error"] == "site.err.primary_only"
+    assert r.headers["x-lanloom-site"] == c.branch
+    r = c.get("/api/reports/1999-01-01", headers=dict(HDR, **hdr))          # an unknown day: an error answer names its site as well
+    assert r.status_code >= 400 and r.headers["x-lanloom-site"] == c.branch
+
+
+def test_the_live_socket_serves_the_site_the_page_asks_for_and_refuses_the_rest(two_sites):
+    from starlette.websockets import WebSocketDisconnect
+    c = two_sites
+    time.sleep(1.5)
+    origin = {"Origin": "http://testserver"}
+    # a person with both sites: the page's own site (address) wins over the cookie of another tab
+    for asked, cookie, own, foreign in (("home", c.branch, "d-024c4c00", "d-024c4c01"), (c.branch, "home", "d-024c4c01", "d-024c4c00")):
+        sign_in(c, "admin")
+        c.cookies.set(sites_mod.COOKIE, cookie)
+        with c.websocket_connect("/api/live?site=" + asked, headers=origin) as ws:
+            text = ws.receive_text()
+        assert own in text and foreign not in text, (asked, cookie)
+    # a person without the right: closed with the "site changed" code, no frame at all
+    sign_in(c, "branch_viewer")
+    c.cookies.set(sites_mod.COOKIE, "home")
+    with pytest.raises(WebSocketDisconnect) as gone:
+        with c.websocket_connect("/api/live?site=home", headers=origin) as ws:
+            ws.receive_text()
+    assert gone.value.code == sites_mod.WS_CHANGED
+    # without an address the old behaviour stays: the released site is served
+    with c.websocket_connect("/api/live", headers=origin) as ws:
+        assert "d-024c4c01" in ws.receive_text()
+
+
+def test_the_browser_code_sends_the_site_discards_foreign_answers_and_cancels_on_switch():
+    """The page code, read as text (the browser run is the test bench in lanloom-pruefstaende/shots/siteswitch.py)."""
+    js = (WEB / "js" / "app.js").read_text()
+    assert "X-Lanloom-Site" in js and "inflight" in js and "LL.leaveSite" in js and "LL.siteResync" in js
+    views = (WEB / "js" / "views.js").read_text()
+    assert "?site=" in views and "4409" in views and "shutdown()" in views
+    sites_js = (WEB / "js" / "sites.js").read_text()
+    assert "LL.leaveSite()" in sites_js and "LL.siteDeepLink" in sites_js

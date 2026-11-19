@@ -326,6 +326,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             response.headers["Strict-Transport-Security"] = HSTS
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
+            # M2: the answer names the site it comes from, so the page can throw away an answer that does not belong to
+            # the site it shows now; and no cache may hand the answer of one site to a request for another
+            sent = getattr(request.state, "site_sent", None)
+            if sent:
+                response.headers[sites_mod.MIRROR] = sent
+            vary = [v.strip() for v in response.headers.get("vary", "").split(",") if v.strip()]
+            for name in ("Cookie", "X-Lanloom-Site"):
+                if name.lower() not in (v.lower() for v in vary):
+                    vary.append(name)
+            response.headers["Vary"] = ", ".join(vary)
         return response
 
     async def guarded(request: Request, call_next):
@@ -423,6 +433,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         asked = conn.headers.get(sites_mod.HEADER) or conn.cookies.get(sites_mod.COOKIE)
         sid = state.sites.pick(viewer, asked)
         sites_mod.ACTIVE.set(sid if sid is not None else "")
+        if sid:
+            conn.state.site_sent = sid                  # mirrored in the answer (M2)
         if sid is None and scope != "global":
             return JSONResponse({"error": "site.err.none"}, status_code=403)
         if scope == "primary" and sid != sites_mod.HOME:
@@ -1566,10 +1578,15 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if state.demo_view.requested(ws.cookies):
             core = await state.demo_view.ensure()
         else:
-            sid = state.sites.pick(user, ws.headers.get(sites_mod.HEADER) or ws.cookies.get(sites_mod.COOKIE))
+            asked = ws.query_params.get("site") or ws.headers.get(sites_mod.HEADER) or ws.cookies.get(sites_mod.COOKIE)
+            sid = state.sites.pick(user, asked)
             core = state.sites.core(sid) if sid else None
             if core is None:
                 await ws.close(code=4403)              # no site released for this person
+                return
+            if ws.query_params.get("site") and ws.query_params.get("site") != sid:
+                await ws.accept()                    # a close before the handshake reaches the browser as a plain 1006, never as a code
+                await ws.close(code=sites_mod.WS_CHANGED)   # M2: the page asked for a site that is not (or no longer) its own
                 return
         await ws.accept()
         queue: asyncio.Queue = asyncio.Queue()

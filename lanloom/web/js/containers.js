@@ -6,7 +6,7 @@
   const LL = window.Lanloom;
   const { h, t } = LL;
   const enc = encodeURIComponent;
-  const KEY = id => 'll.fold.' + id;
+  const KEY = id => LL.siteKey('ll.fold.' + id);          // per site (M2)
 
   // ------------------------------------------------------------------ fold state
   LL.foldHosts = LL.foldHosts || [];                 // ids of the hosts whose containers the open map can fold

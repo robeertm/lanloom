@@ -47,6 +47,8 @@ log = logging.getLogger("lanloom.sites")
 HOME = "home"
 COOKIE = "ll_site"
 HEADER = "x-lanloom-site"
+MIRROR = "X-Lanloom-Site"        # the answer names the site it was made for (M2)
+WS_CHANGED = 4409               # live socket: the page asked for a site that is not released (any more)
 ACTIVE = contextvars.ContextVar("lanloom_site", default=None)
 MAX_SITES = 16
 NAME_MAX = 60

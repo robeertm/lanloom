@@ -19,16 +19,22 @@
     if (live.ws && live.ws.readyState <= 1) return;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     if (live.state !== 'live') liveState('connecting');
-    const ws = live.ws = new WebSocket(proto + '//' + location.host + LL.url('/api/live'));
+    // the page's own site rides in the address (a socket cannot carry headers): the server closes with 4409 when it is not the
+    // one it may serve any more, and never serves the cookie's site to a page that shows another one (M2)
+    const asked = LL.pageSite && LL.pageSite();
+    const ws = live.ws = new WebSocket(proto + '//' + location.host + LL.url('/api/live') + (asked ? '?site=' + encodeURIComponent(asked) : ''));
     ws.onmessage = ev => {
+      if (live.ws !== ws || (LL.switching && LL.switching())) return;     // a socket of the site that was left draws nothing
       let f; try { f = JSON.parse(ev.data); } catch (e) { return; }
       live.last = f; live.retry = 1000; live.lastAt = Date.now();
       if (f.t) live.offset = Date.now() / 1000 - f.t;       // clock offset browser - server (plus the transport time)
       liveState('live');
       live.listeners.forEach(fn => fn(f));
     };
-    ws.onclose = () => {
+    ws.onclose = ev => {
       if (live.ws === ws) live.ws = null;
+      if (LL.switching && LL.switching()) return;           // leaving the site is no loss of the connection: no "Disconnected"
+      if (ev && ev.code === 4409 && LL.siteResync) { LL.siteResync(); return; }   // not this page's site any more: follow the server once
       if (live.paused) { liveState('paused'); return; }
       liveState('offline');
       if (live.listeners.size) { clearTimeout(live.timer); live.timer = setTimeout(liveConnect, live.retry); live.retry = Math.min(15000, live.retry * 2); }
@@ -49,6 +55,18 @@
     subscribe: liveSubscribe,
     onStatus(fn) { live.statusListeners.add(fn); return () => live.statusListeners.delete(fn); },
     state: () => live.state, lastAt: () => live.lastAt, last: () => live.last, offset: () => live.offset,
+    // the page leaves its site: the socket closes for good, quietly (no state change, no retry)
+    shutdown() {
+      clearTimeout(live.timer); live.paused = true;
+      const old = live.ws; live.ws = null;
+      if (old) {
+        try {
+          old.onclose = null; old.onmessage = null;
+          if (old.readyState === 0) old.onopen = () => { try { old.close(); } catch (e) { /* closing */ } };    // not yet open: closing now would only make a console error
+          else old.close();
+        } catch (e) { /* closing */ }
+      }
+    },
     reconnect() {
       live.paused = false; live.retry = 1000; clearTimeout(live.timer);
       const old = live.ws; live.ws = null;

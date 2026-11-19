@@ -4939,6 +4939,7 @@
  "site.ctl.pick": "Standort des Controllers",
  "site.ctl.show": "Seine Standorte zeigen",
  "site.ctl.title": "Ein Standort deines Controllers",
+ "site.err.changed": "Der Standort, den diese Seite zeigt, hat sich geändert. Die Seite wird mit dem richtigen Standort neu geöffnet.",
  "site.err.controller_site": "Bitte einen Standort des Controllers wählen.",
  "site.err.home": "Der Standort Zuhause lässt sich nicht entfernen.",
  "site.err.kind": "Hinzufügen lassen sich nur entfernte Standorte; der Standort, in dem Lanloom läuft, ist Zuhause.",

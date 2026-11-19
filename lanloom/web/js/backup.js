@@ -17,7 +17,7 @@
   // ------------------------------------------------------------------ requests with a body that is not JSON
   // Files go through fetch directly. A 403 asking for a fresh confirmation opens the step-up dialog and sends the request once more.
   async function send(path, opts, retried) {
-    const init = { method: opts.method || 'GET', credentials: 'same-origin', cache: 'no-store', headers: Object.assign({ 'X-Lanloom': '1' }, opts.headers || {}) };
+    const init = { method: opts.method || 'GET', credentials: 'same-origin', cache: 'no-store', headers: Object.assign({ 'X-Lanloom': '1' }, LL.pageSite() ? { 'X-Lanloom-Site': LL.pageSite() } : {}, opts.headers || {}) };
     if (opts.json !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.json); }
     if (opts.raw !== undefined) { init.headers['Content-Type'] = 'application/octet-stream'; init.body = opts.raw; }
     const r = await fetch(LL.url(path), init);

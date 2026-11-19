@@ -285,10 +285,10 @@
   const MAX_AFFECTED = 40;
 
   // ------------------------------------------------------------------ sections that fold, the state stays across live updates
-  const FOLD_KEY = 'll-card-folds';
+  const foldKey = () => LL.siteKey('ll-card-folds');
   let folds = {};
-  try { folds = JSON.parse(sessionStorage.getItem(FOLD_KEY) || '{}') || {}; } catch (e) { folds = {}; }
-  const saveFolds = () => { try { sessionStorage.setItem(FOLD_KEY, JSON.stringify(folds)); } catch (e) { /* private mode */ } };
+  try { folds = JSON.parse(sessionStorage.getItem(foldKey()) || '{}') || {}; } catch (e) { folds = {}; }
+  const saveFolds = () => { try { sessionStorage.setItem(foldKey(), JSON.stringify(folds)); } catch (e) { /* private mode */ } };
   LL.foldSections = function (root) {
     const apply = () => root.querySelectorAll('.detail__sec').forEach(sec => {
       const head = sec.firstElementChild;
