@@ -62,6 +62,8 @@ class IntegrationManifest:
     catalog: str = ""
     # scheme of the address the setup assistant pre-fills for a detected device (a DNS filter usually has no TLS)
     prefill_scheme: str = "https"
+    # the setup assistant's step-by-step guide (``setup.guide.<guide>.*``); empty = chosen from the capabilities
+    guide: str = ""
 
     def validate(self) -> "IntegrationManifest":
         if not FAMILY_RE.match(self.family or ""):
@@ -81,6 +83,8 @@ class IntegrationManifest:
             raise ManifestError("docs")
         if self.prefill_scheme not in ("http", "https") or (self.catalog and not re.fullmatch(r"[a-z][a-z0-9_]{1,31}", self.catalog)):
             raise ManifestError("catalog/prefill")
+        if self.guide and not re.fullmatch(r"[a-z][a-z0-9_]{1,23}", self.guide):
+            raise ManifestError("guide")
         if set(self.secret_fields) & set(self.write_secret_fields):
             raise ManifestError("read and write credentials must be different fields")
         caps_mod.validate(self.capabilities, self.family)

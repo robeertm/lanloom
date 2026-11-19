@@ -37,7 +37,7 @@ BUILTIN_SIGNS = {
     "mqtt": ({"port": 1883}, {"port": 8883}, {"mdns": "_mqtt._tcp"}),
 }
 # guide per kind of source: the text keys live under setup.guide.<guide>.* (steps 1..n)
-GUIDE_STEPS = {"hub": 4, "mqtt": 4, "snmp": 4, "controller": 4, "hv": 4, "family": 4, "dns": 4}
+GUIDE_STEPS = {"hub": 4, "mqtt": 4, "snmp": 4, "controller": 4, "hv": 4, "family": 4, "dns": 4, "apikey": 4}
 
 # result key of a connection test -> what the person should look at
 _REJECTED = ("auth_failed", "forbidden", "key_refused", "token_refused", "subscribe_denied")
@@ -239,6 +239,8 @@ def _configured_hosts(core) -> dict:
 def _guide_of(kind: str, fam) -> str:
     if fam is None:
         return kind
+    if getattr(fam, "guide", "") in GUIDE_STEPS:
+        return fam.guide
     if "dns" in (fam.capabilities.get("read") or []):
         return "dns"
     return "hv" if "guests" in (fam.capabilities.get("read") or []) else "family"

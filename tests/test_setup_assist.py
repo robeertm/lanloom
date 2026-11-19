@@ -87,7 +87,7 @@ def _family(caps_guests: bool, port_alone: bool = None):
     """A built-in family by its kind of API (controller or hypervisor) and by its signs (``port_alone``: one sign is
     an open port alone), never by name."""
     return next(f for f in registry.families(selectable_only=True) if ("guests" in f.capabilities["read"]) == caps_guests and f.detect
-                and "dns" not in f.capabilities["read"] and (port_alone is None or any(set(d) == {"port"} for d in f.detect) == port_alone))
+                and "dns" not in f.capabilities["read"] and not f.guide and (port_alone is None or any(set(d) == {"port"} for d in f.detect) == port_alone))
 
 
 def _sign(fam, *keys):

@@ -348,6 +348,66 @@ def firewall_capabilities(family: str) -> dict:
             "lockout": ["mgmt_network", "gateway_uplink", "self_path", "admin_interface"]}
 
 
+# ---------------------------------------------------------------------------- sample gateway firewall (rule API)
+def _gw_raw(changed: bool) -> dict:
+    """Collected replies of a sample gateway firewall with a rule API (interfaces as zones, rules on interfaces) as its
+    family's read half hands them to the translation module, built from the demo network: a lab gateway 192.168.50.254
+    with the home network, a smart-device VLAN, a guest VLAN, a lab and the internet side. ``changed`` is what
+    "happened tonight" in the demo report: a rule from the internet side to the lab arrived and a rule was switched off."""
+    ifaces = [("wan", "Internet", "203.0.113.10/24", None, "dhcp", ["Internet uplink"]),
+              ("lan", "Home", "192.168.50.254/24", None, "static", []),
+              ("opt1", "Smart devices", "192.168.30.254/24", 30, "static", []),
+              ("opt2", "Guests", "192.168.80.254/24", 80, "static", []),
+              ("opt3", "Lab", "192.168.90.254/24", None, "static", [])]
+    rows = [{"identifier": i, "description": d, "addr4": a, "vlan_tag": str(v) if v else None, "link_type": l, "gateways": g,
+             "enabled": True, "status": "up"} for i, d, a, v, l, g in ifaces]
+
+    def rule(n, desc, iface, *, action="pass", src="", dst="any", proto="any", port="", enabled="1"):
+        return ("a0d0%04d-0000-4000-8000-%012d" % (n, n),
+                {"enabled": enabled, "sequence": str(n * 10), "action": action, "quick": "1", "interface": iface,
+                 "direction": "in", "ipprotocol": "inet", "protocol": proto, "source_net": src or iface or "any",
+                 "source_not": "0", "destination_net": dst, "destination_not": "0", "destination_port": port,
+                 "description": desc, "statetype": "keep"})
+
+    rules = [rule(1, "Home to anywhere", "lan"),
+             rule(2, "Smart devices to the broker", "opt1", dst="192.168.50.13", proto="TCP", port="8883"),
+             rule(3, "Smart devices may not reach home", "opt1", action="block", dst="lan"),
+             rule(4, "Smart devices to the web", "opt1", proto="TCP", port="443"),
+             rule(5, "Guests may not reach home", "opt2", action="block", dst="lan"),
+             rule(6, "Guests to the internet", "opt2"),
+             rule(7, "Home to the lab", "lan", dst="opt3", enabled="0" if changed else "1"),
+             rule(8, "Firewall admin from outside", "wan", src="any", dst="(self)", proto="TCP", port="443"),
+             rule(9, "[lanloom] Lab may not reach smart devices", "opt3", action="block", dst="opt1")]
+    if changed:
+        rules.append(rule(10, "Lab test from outside", "wan", src="any", dst="opt3"))
+    return {"version": "demo", "interfaces": {"rows": rows}, "filter": {"rules": {"rule": dict(rules)}},
+            "groups": {"rows": [{"ifname": "Inside", "members": "lan,opt1", "descr": "Home and smart devices"}]},
+            "dnat": {"rows": [{"descr": "Lab web server", "disabled": "0", "protocol": "TCP", "destination.port": "8443",
+                               "target": "192.168.90.20", "local-port": "443"}]},
+            "kea": {"rows": [{"ip_address": "192.168.50.40", "hw_address": "02:4c:4c:00:00:40", "hostname": "office-printer"}]},
+            "routes": {"rows": [{"network": "10.30.0.0/16", "gateway": "Lab router", "disabled": "0"}]},
+            "gateways": {"items": [{"name": "Internet uplink", "status": "none"}]},
+            "vpn_tunnel": {"rows": [{"name": "Phones on the road", "enabled": "1"}]},
+            "vpn_ipsec": {"rows": [{"description": "Holiday flat", "enabled": "1"}]}}
+
+
+def gateway_sample(family: str, changed: bool = False) -> dict:
+    """Neutral state of the sample gateway firewall, made by the family's own translation module."""
+    from . import integrations
+    st = integrations.load_model(family).to_neutral(_gw_raw(changed))
+    st["controller"]["label"] = "Sample gateway firewall"
+    st["controller"]["version"] = "demo"
+    neutral.validate(st)
+    return st
+
+
+def gateway_capabilities(family: str) -> dict:
+    return {"family": family, "api": {"kind": "official-local", "version": "demo"},
+            "read": ["zones", "networks", "policies", "port_forwards", "dhcp_reservations", "wans", "vpn", "firewall"],
+            "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
+            "lockout": ["mgmt_network", "gateway_uplink", "self_path", "admin_interface"]}
+
+
 # ---------------------------------------------------------------------------- sample access-point controller
 def _ctl_raw(changed: bool = False) -> dict:
     """Collected replies of a sample access-point controller as its family's read half hands them to the translation

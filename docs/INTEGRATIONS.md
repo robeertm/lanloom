@@ -35,6 +35,8 @@ An access-point controller state uses `equipment`, `ports`, `devices`, `networks
 
 A zone firewall state uses the common lists (`zones`, `networks`, `policies`, `port_forwards`, `dhcp_reservations`, `wans`, `vpn`, `raw`, `findings`); a policy whose zone is `*` applies to every zone. It adds `rule_digest` (one line per vendor rule: name, on/off, a fingerprint of what decides its effect), which the night report keeps to tell changed rules apart without keeping the whole rule list.
 
+A gateway firewall state (rules on interfaces) uses the same lists as a zone firewall: every assigned interface is a zone with `interface: true` (and `system: external` when it carries a gateway), interface groups are zones of their own, and the firewall itself is a zone with `system: gateway`. A rule on an interface becomes one policy per zone pair it covers; `order` follows the firewall's evaluation (floating rules, then group rules, then interface rules, each by sequence; classic rules after them, `builtin: true`). Only *simple* rules (one interface, direction in, both zones real zones, no address list, alias, schedule or policy routing) are `editable`. `controller.native_rollback` says whether the release has the firewall's own revert timer (`true`, `false`, or `null` when the release is unknown).
+
 A hypervisor state adds `hosts`, `guests`, `guest_nics`, `guest_rules`, `fw_rules`, `fw_options`, `bridges`, `sdn_zones`, `sdn_vnets`, `storage`, `backup_jobs` and `findings` to the neutral model (see `lanloom/firewall/neutral.py`); the component card of a node and of a guest shows them.
 
 ## Night report contributions
