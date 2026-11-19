@@ -11,6 +11,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Setup assistant:** a device whose web page on port 443 carries the firewall's login title is suggested with a step-by-step guide of its own (key of a user with only the pages Lanloom reads). Family manifests can name their guide (`guide`).
 - Sample network: a *Sample gateway firewall* with five interfaces, an interface group, thirteen rules, a forwarding, a reservation, a route and two VPN instances; during the last demo night a rule from the internet side to the lab arrived and a rule was switched off.
 
+### Fixed
+- **Image build no longer cancelled by a later push:** the publish workflow used to cancel a running build as soon as another change reached the main branch, so the image of a release candidate could end as cancelled and the release gate went red without any real defect. A running build now finishes; a newer push waits behind it.
+
 ## [1.48.0] – 2026-11-19
 
 1.44.0, 1.44.1, 1.45.0, 1.46.0, 1.46.1 and 1.47.0 below were not released on their own; they are part of this release.

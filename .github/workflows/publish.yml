@@ -13,9 +13,12 @@ on:
     paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
 
+# A run that is already going is never cancelled by a later push: the release gate needs the image of
+# exactly the commit it checks, and several changes land on main while that image is being built.
+# A newer push only waits (and replaces older waiting runs).
 concurrency:
   group: publish-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
