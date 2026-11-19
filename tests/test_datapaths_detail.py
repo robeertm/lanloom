@@ -72,7 +72,7 @@ def env(tmp_path, real_geo):
     g = geo.Geo(detail=data)
     g.db = real_geo.db                                  # the bundled country data, loaded once for the module
     store = Store(":memory:")
-    paths = DataPaths(store, g, lambda: {"home_country": "", "paths_own_networks": [], "paths_no_internet": []}, clock=lambda: NOW)
+    paths = DataPaths(store, g, lambda: {"home_country": "", "paths_own_networks": ["198.51.100.0/24"], "paths_no_internet": []}, clock=lambda: NOW)
     return paths, g, data, cc, store
 
 
@@ -177,7 +177,7 @@ def test_anycast_own_and_unassigned_never_get_a_city(env):
     paths, g, data, cc, store = env
     turn_on(data)
     paths.book("dev1", "8.8.8.8", 10, 10, NOW)                  # anycast
-    paths.book("dev1", "100.64.1.1", 10, 10, NOW)               # own (overlay VPN space)
+    paths.book("dev1", "198.51.100.7", 10, 10, NOW)             # own (a network listed in the settings)
     paths.book("dev1", "10.1.2.3", 10, 10, NOW)                 # reserved: own
     paths.flush(NOW)
     assert store.one("SELECT COUNT(*) AS n FROM paths_city_hour")["n"] == 0

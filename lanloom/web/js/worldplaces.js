@@ -1180,7 +1180,6 @@
 [882.61,369.0,"Albury","AU",3],
 [844.13,89.22,"Aleksandrovsk Sakhalinskiy","RU",3],
 [387.08,2.93,"Alert","CA",3],
-[544.07,344.9,"Alexander Bay","ZA",3],
 [255.19,151.71,"Alexandria","US",3],
 [548.62,33.62,"Alta","NO",3],
 [738.07,103.3,"Altai","MN",3],

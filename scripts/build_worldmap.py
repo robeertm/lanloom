@@ -4,6 +4,8 @@
 Usage:  python3 -I scripts/build_worldmap.py <ne_110m_admin_0_countries.geojson> <ne_50m_admin_0_countries.geojson> <ne_10m_populated_places_simple.geojson>
         python3 -I scripts/build_worldmap.py <ne_110m_admin_0_countries.geojson> <ne_50m_admin_0_countries.geojson>
         python3 -I scripts/build_worldmap.py --refine      (re-apply only the overseas/territory step to the current file)
+Optional, after the three inputs: --exclude-places FILE   leaves out every place whose name contains one of the words in FILE
+(one per line, any case); for names that must not appear in the published files. The output stays deterministic for the same inputs.
 Writes (paths resolved relative to the repository root, independent of the cwd):
   lanloom/web/js/worldmap.js        base map 1:110m (+ label points 1:50m), always loaded
   lanloom/web/js/worldmap_fine.js   fine map 1:50m for high zoom levels, shapes only    (only with three inputs)
@@ -314,8 +316,18 @@ def build_fine(features50):
     return fine
 
 
-def build_places(features):
+def _excluder(path):
+    """A predicate for the names listed in the file at ``path`` (whole words, any case); None means nothing is excluded."""
+    if not path:
+        return lambda name: False
+    words = [w.strip() for w in Path(path).read_text(encoding="utf-8").splitlines() if w.strip() and not w.lstrip().startswith("#")]
+    rx = re.compile(r"(?<!\w)(?:%s)(?!\w)" % "|".join(re.escape(w) for w in words), re.I) if words else None
+    return lambda name: bool(rx and rx.search(name))
+
+
+def build_places(features, exclude=None):
     """Orientation places: [x, y, name, ISO-A2, rank], rank 0 capital/world city ... 3 small (from scalerank)."""
+    skip = _excluder(exclude)
     out = []
     for f in features:
         p = f["properties"]
@@ -330,7 +342,7 @@ def build_places(features):
         cc = (p.get("iso_a2") or "").strip()
         if not cc or cc == "-99":
             cc = PLACE_CODE_FALLBACK.get(p.get("adm0_a3"), "")
-        if not name or not cc:
+        if not name or not cc or skip(name) or skip((p.get("nameascii") or "")):
             continue
         x, y = project(p["longitude"], p["latitude"])
         out.append([round(x, 2), round(y, 2), name, cc, rank])
@@ -338,7 +350,7 @@ def build_places(features):
     return out
 
 
-def main(path110, path50, path_places=None):
+def main(path110, path50, path_places=None, exclude=None):
     f110, f50 = _load(path110), _load(path50)
     # Shapes: one code, several features -> concatenate (main feature with its own ISO_A2 first;
     # ISO_A2_EH resolves France, Norway, Kosovo and similar -99 cases)
@@ -374,7 +386,7 @@ def main(path110, path50, path_places=None):
     write(countries, points)
     if path_places:
         write_fine(build_fine(f50))
-        write_places(build_places(_load(path_places)))
+        write_places(build_places(_load(path_places), exclude))
 
 
 def write(countries, points):
@@ -464,7 +476,15 @@ def refine_current():
 if __name__ == "__main__":
     if sys.argv[1:] == ["--refine"]:
         refine_current()
-    elif len(sys.argv) not in (3, 4):
-        sys.exit(__doc__)
     else:
-        main(*sys.argv[1:])
+        args = sys.argv[1:]
+        exclude = None
+        if "--exclude-places" in args:
+            i = args.index("--exclude-places")
+            if i != len(args) - 2 or len(args[:i]) != 3:
+                sys.exit(__doc__)
+            exclude = args[i + 1]
+            args = args[:i]
+        if len(args) not in (2, 3):
+            sys.exit(__doc__)
+        main(*args, exclude=exclude)
