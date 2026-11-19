@@ -124,7 +124,7 @@ def _measure_of(ent: dict) -> Optional[str]:
 
 
 def _is_mobile(vals: dict) -> bool:
-    """RSRP or RSRQ are mobile-only figures; SINR (also SNR of a DSL line) and RSSI (every Wi-Fi sensor has one) count only
+    """RSRP or RSRQ are mobile-only figures; SINR (also SNR of a DSL line) and RSSI (every wireless sensor has one) count only
     together with something that is mobile too - operator, network type, band, cell or data volume."""
     if "rsrp" in vals or "rsrq" in vals:
         return True

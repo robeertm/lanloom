@@ -446,7 +446,7 @@ def test_the_live_socket_serves_the_site_the_page_asks_for_and_refuses_the_rest(
 
 
 def test_the_browser_code_sends_the_site_discards_foreign_answers_and_cancels_on_switch():
-    """The page code, read as text (the browser run is the test bench in lanloom-pruefstaende/shots/siteswitch.py)."""
+    """The page code, read as text (the browser run covers the switch itself)."""
     js = (WEB / "js" / "app.js").read_text()
     assert "X-Lanloom-Site" in js and "inflight" in js and "LL.leaveSite" in js and "LL.siteResync" in js
     views = (WEB / "js" / "views.js").read_text()

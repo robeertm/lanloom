@@ -248,10 +248,10 @@ def test_a_router_without_signal_values_is_no_card():
 
 
 def test_an_rssi_or_snr_alone_is_no_mobile_router():
-    """Every Wi-Fi sensor has an RSSI and every DSL line an SNR margin: neither makes a mobile-router card on its own."""
-    wifi = hub_core([ent("sensor.plug_rssi", "dev1", "RSSI", "dBm"), ent("sensor.plug_signal", "dev1", "Signal strength", "dBm")],
+    """Every Wireless sensor has an RSSI and every DSL line an SNR margin: neither makes a mobile-router card on its own."""
+    wireless = hub_core([ent("sensor.plug_rssi", "dev1", "RSSI", "dBm"), ent("sensor.plug_signal", "dev1", "Signal strength", "dBm")],
                     {"sensor.plug_rssi": ("-60", T0), "sensor.plug_signal": ("-60", T0)})
-    assert cellular.cards(wifi, T0) == []
+    assert cellular.cards(wireless, T0) == []
     dsl = hub_core([ent("sensor.dsl_snr", "dev1", "SNR margin", "dB")], {"sensor.dsl_snr": ("12", T0)})
     assert cellular.cards(dsl, T0) == []
     both = hub_core([ent("sensor.m_rssi", "dev1", "RSSI", "dBm"), ent("sensor.m_net", "dev1", "Network type")],

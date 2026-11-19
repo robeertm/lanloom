@@ -6613,7 +6613,7 @@
  "cr.wan.switches": "{n, plural, one {# Wechsel} other {# Wechsel}} auf die Reserveleitung in 24 Stunden",
  "cr.wan.latency": "Antwortzeit {ms} ms",
  "cr.wan.no_probe": "Nur das Wort des Gateways - keine Außenprüfung eingerichtet",
- "cr.wan.signal": "{name}: Signal ist {grade}",
+ "cr.wan.signal": "{name}: Signalstärke ist {grade}",
  "cr.wan.data": "{name}: {pct} % des Datenvolumens verbraucht",
  "cr.grade.excellent": "ausgezeichnet",
  "cr.grade.good": "gut",

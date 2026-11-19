@@ -6776,7 +6776,7 @@
  "cr.ui.basis.gateway": "reported by the gateway",
  "cr.ui.cell.section": "Mobile-network routers",
  "cr.ui.cell.title": "Mobile router",
- "cr.ui.cell.signal": "Signal: {grade}",
+ "cr.ui.cell.signal": "Signal strength: {grade}",
  "cr.ui.cell.bands": "{n, plural, one {# carrier in use} other {# carriers in use}}",
  "cr.ui.cell.data": "Data volume",
  "cr.ui.cell.data_of": "{used} of {limit} ({pct} %)",

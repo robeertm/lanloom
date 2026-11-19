@@ -91,7 +91,7 @@ def test_gateway_events_of_a_family_state_are_booked_once(tmp_path):
     st = {"devices": [], "networks": [], "wans": [], "wan_events": [{"t": T - 100, "kind": "down", "line": "Fibre"}, {"t": T - 50, "kind": "up", "line": "Fibre"}]}
     neutral.validate(st)
     from lanloom.demo_live import gateway_capabilities
-    ev = {"type": "config", "family": "unifi", "state": st, "capabilities": gateway_capabilities("unifi")}
+    ev = {"type": "config", "family": "gateway-x", "state": st, "capabilities": gateway_capabilities("gateway-x")}
     c._book_config(integ["id"], ev, T)
     c._book_config(integ["id"], ev, T + 60)
     rows = c.store.query("SELECT kind, line FROM wan_log ORDER BY t")
