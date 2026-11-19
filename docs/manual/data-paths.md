@@ -27,7 +27,7 @@ unusually much.
 
 ![Countries and devices](../screenshots/paths-lists-light.png)
 
-## Country detail
+### Country detail
 
 Click a country and a large sheet opens: the country zoomed on a finer map, **bubbles** for the places the devices talk
 to, key figures (received, sent, share, devices, operators, cities), the history, the **cities**, the **network
