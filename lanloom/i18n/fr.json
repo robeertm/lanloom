@@ -4939,6 +4939,7 @@
  "site.ctl.pick": "Site du contrôleur",
  "site.ctl.show": "Afficher ses sites",
  "site.ctl.title": "Un site de votre contrôleur",
+ "site.err.changed": "Le site affiché par cette page a changé. La page se rouvre avec le bon site.",
  "site.err.controller_site": "Veuillez choisir un site du contrôleur.",
  "site.err.home": "Le site principal ne peut pas être supprimé.",
  "site.err.kind": "Seuls des sites distants peuvent être ajoutés ; le site où tourne Lanloom est Accueil.",

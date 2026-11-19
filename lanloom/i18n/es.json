@@ -4939,6 +4939,7 @@
  "site.ctl.pick": "Sitio del controlador",
  "site.ctl.show": "Mostrar sus sitios",
  "site.ctl.title": "Un sitio de tu controlador",
+ "site.err.changed": "El sitio que muestra esta página ha cambiado. La página se vuelve a abrir con el sitio correcto.",
  "site.err.controller_site": "Elige un sitio del controlador.",
  "site.err.home": "El sitio principal no se puede quitar.",
  "site.err.kind": "Solo se pueden añadir sitios remotos; el sitio en el que se ejecuta Lanloom es Casa.",

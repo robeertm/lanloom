@@ -4939,6 +4939,7 @@
  "site.ctl.pick": "Locatie van de controller",
  "site.ctl.show": "Zijn locaties tonen",
  "site.ctl.title": "Een locatie van je controller",
+ "site.err.changed": "De locatie die deze pagina toont is veranderd. De pagina wordt opnieuw geopend met de juiste locatie.",
  "site.err.controller_site": "Kies een locatie van de controller.",
  "site.err.home": "De thuislocatie kan niet worden verwijderd.",
  "site.err.kind": "Alleen externe locaties kunnen worden toegevoegd; de locatie waarop Lanloom draait is Thuis.",

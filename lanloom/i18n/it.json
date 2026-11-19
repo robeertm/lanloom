@@ -4939,6 +4939,7 @@
  "site.ctl.pick": "Sede del controller",
  "site.ctl.show": "Mostra le sue sedi",
  "site.ctl.title": "Una sede del tuo controller",
+ "site.err.changed": "La sede mostrata da questa pagina è cambiata. La pagina si riapre con la sede giusta.",
  "site.err.controller_site": "Scegli una sede del controller.",
  "site.err.home": "La sede principale non può essere rimossa.",
  "site.err.kind": "Si possono aggiungere solo sedi remote; la sede in cui gira Lanloom è Casa.",
