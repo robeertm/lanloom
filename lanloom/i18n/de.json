@@ -3045,6 +3045,8 @@
  "login.password": "Passwort",
  "login.public": "Fremder oder gemeinsam genutzter Rechner",
  "login.public.hint": "Kurze Sitzung: endet beim Schließen des Browsers oder nach 30 Minuten ohne Nutzung.",
+ "login.return.denied": "Deine Rolle darf diese Seite nicht öffnen, deshalb bist du auf der Übersicht.",
+ "login.return.gone": "Diese Seite gibt es nicht mehr, deshalb bist du auf der Übersicht.",
  "login.second.back": "Zurück zur Anmeldung",
  "login.second.label.passkey": "Passkey",
  "login.second.label.recovery": "Wiederherstellungscode",

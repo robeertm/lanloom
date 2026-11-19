@@ -23,6 +23,53 @@
   }
   LL.h = h;
 
+  // ------------------------------------------------------------------ deep link survives the sign-in (O9)
+  // A signed-out visitor who opens a deep link (#/devices/<id>, #/reports/<day> ...) or whose session ends in the middle of the
+  // work is sent to the sign-in. The tab remembers where they wanted to go - only the hash of this very page, only a known view,
+  // short, valid for ten minutes, usable once - and brings them there after the sign-in (password, second step, passkey,
+  // required enrolment). The hash never reaches the server, so there is no redirect target that someone else could set.
+  const RETURN_KEY = 'lanloom.return', RETURN_MAX_MS = 10 * 60 * 1000, RETURN_MAX_LEN = 200;
+  const AUTH_VIEWS = ['login', 'setup', 'invite', 'enroll'];
+  let signedOut = false;        // after an explicit sign-out nothing is remembered until the next sign-in
+  let pendingNotice = null;     // shown once the view after the sign-in is drawn (in the language of the account)
+  function parseReturn(hash) {
+    if (typeof hash !== 'string' || hash.length > RETURN_MAX_LEN || !/^#\/[\w.~%:@,;=&+\/?-]*$/.test(hash)) return null;
+    const raw = hash.slice(2), qpos = raw.indexOf('?');
+    const parts = (qpos >= 0 ? raw.slice(0, qpos) : raw).split('/');
+    return { hash, name: parts[0], parts, plain: qpos < 0 && parts.length === 1 };
+  }
+  // a hash worth remembering: a known view of the app that is not part of the sign-in itself
+  function knownView(p) { return !!p && !!p.name && !AUTH_VIEWS.includes(p.name) && !!views[p.name]; }
+  function rememberReturn(hash) {
+    if (signedOut) return;
+    const p = parseReturn(hash);
+    if (!knownView(p) || (p.name === 'overview' && p.plain)) return;
+    try { sessionStorage.setItem(RETURN_KEY, JSON.stringify({ h: hash, t: Date.now() })); } catch (e) { /* storage closed: no return, the overview as before */ }
+  }
+  function clearReturn() { try { sessionStorage.removeItem(RETURN_KEY); } catch (e) { /* ignore */ } }
+  function takeReturn() {          // usable once: reading deletes
+    let v = null;
+    try { v = JSON.parse(sessionStorage.getItem(RETURN_KEY) || 'null'); } catch (e) { v = null; }
+    clearReturn();
+    if (!v || typeof v.h !== 'string' || typeof v.t !== 'number') return null;
+    const age = Date.now() - v.t;
+    return age >= 0 && age <= RETURN_MAX_MS ? v.h : null;
+  }
+  // the lowest role a deep link needs (the same rule the navigation and the palette follow; the server decides anyway)
+  LL.routeRole = function (hash) {
+    const p = parseReturn(hash);
+    if (!p) return 'viewer';
+    const sub = p.parts[1];
+    if (p.name === 'sites') return 'admin';
+    if (p.name === 'settings') {
+      if (sub === 'reports') return 'operate';
+      const page = (LL.settingsPages || []).find(x => x[1] && x[1] === sub);
+      return page ? (page[3] === 'admin' ? 'admin' : (page[3] === 'viewer' ? 'viewer' : 'operate')) : 'viewer';
+    }
+    if (p.name === 'firewall' && ['pick', 'networks', 'forwards', 'reservations'].includes(sub)) return 'operate';
+    return 'viewer';
+  };
+
   // ------------------------------------------------------------------ API
   // Every address is relative to the page, so Lanloom also works below a sub-path of a reverse proxy.
   LL.base = location.pathname.replace(/[^/]*$/, '') || '/';
@@ -42,10 +89,11 @@
       }
       const err = new Error(data.error || data.detail || ('HTTP ' + r.status));
       err.status = r.status; err.key = data.error || data.detail; err.wait = data.wait; err.vars = data.vars;
-      if (r.status === 401 && !opts.allow401) LL.go('#/login');
+      if (r.status === 401 && !opts.allow401) { rememberReturn(location.hash); LL.go('#/login'); }   // session over in the middle of the work: come back to this view
       if (r.status === 403 && data.error === 'auth.err.enroll') LL.go('#/enroll');
       throw err;
     }
+    if (init.method === 'POST' && path === '/api/logout') { signedOut = true; clearReturn(); }
     return data;
   }
   LL.api = api;
@@ -280,11 +328,14 @@
     else if (target === 'setup' && !st.demo_view && LL.can('admin') && LL.setupAgainActive && LL.setupAgainActive()) target = 'setup';   // Settings > Setup: run again
     else if (target === 'login' || target === 'setup' || target === 'invite' || target === 'enroll') target = 'overview';
     if (seq !== routeSeq) return;            // a newer navigation started meanwhile
+    if (st.authenticated) signedOut = false;
+    if ((target === 'login' || target === 'enroll') && name !== target && !st.setup_needed) rememberReturn(location.hash);   // O9: deep link before the sign-in
     if (target !== name) history.replaceState(null, '', LL.base + '#/' + target);
     if (current && current.destroy) { try { current.destroy(); } catch (e) { /* ignore */ } }
     current = null;
     const fn = views[target] || views.map;
     current = await fn(app, rest, st) || null;
+    if (pendingNotice && st.authenticated && seq === routeSeq) { LL.toast(t(pendingNotice)); pendingNotice = null; }
   }
   LL.route = route;
   // Deep link of a state inside a view (selected component, opened report, filter): the address follows, the back key
@@ -308,8 +359,29 @@
       LL.footer()));
   }
   LL.authPage = authPage;
-  function afterSignIn(res) {
-    if (res && res.enroll) LL.go('#/enroll'); else LL.go('#/overview');
+  // After the sign-in: the remembered deep link (once), unless the account is on a public computer or the link came with an
+  // invitation; a view the role may not use or that is gone leads to the overview with a quiet notice.
+  // opts: {publicComputer, plain}
+  function afterSignIn(res, opts) {
+    opts = opts || {};
+    signedOut = false;
+    if (res && res.enroll) { LL.go('#/enroll'); return; }           // the remembered link waits for the enrolment
+    finishSignIn(opts);
+  }
+  async function finishSignIn(opts) {
+    let dest = takeReturn();
+    if (opts.plain || opts.publicComputer) dest = null;
+    if (dest) {
+      try {
+        LL.state = await api('/api/state', { allow401: true });       // the rights of the account that just signed in
+        const p = parseReturn(dest), need = LL.routeRole(dest);
+        if (!knownView(p) || (need !== 'viewer' && !LL.can(need === 'admin' ? 'admin' : 'operate'))) {
+          pendingNotice = knownView(p) ? 'login.return.denied' : 'login.return.gone';
+          dest = null;
+        }
+      } catch (e) { dest = null; }
+    }
+    LL.go(dest || '#/overview');
   }
   LL.afterSignIn = afterSignIn;
 
@@ -324,14 +396,14 @@
       try {
         const res = await api('/api/login', { method: 'POST', body: { username: user.value, password: pass.value, public_computer: pub.checked }, allow401: true });
         if (res.second) { secondStep(app, res.second, pub.checked); return; }
-        afterSignIn(res);
+        afterSignIn(res, { publicComputer: pub.checked });
       } catch (e) { LL.msg(msg, LL.errText(e), 'error'); submit.disabled = false; pass.select(); }
     } }, LL.field(t('login.username'), user), LL.field(t('login.password'), pass),
       h('label', { class: 'check' }, pub, h('span', {}, t('login.public'), h('span', { class: 'field__hint' }, t('login.public.hint')))), msg, submit);
     pub.addEventListener('change', () => { user.setAttribute('autocomplete', pub.checked ? 'off' : 'username'); });
     const pk = LL.passkeySupported() ? h('button', { class: 'btn btn--ghost btn--block', type: 'button', onclick: async () => {
       LL.msg(msg, '');
-      try { afterSignIn(await LL.passkeyLogin({ public_computer: pub.checked })); } catch (e) { LL.msg(msg, LL.errText(e), 'error'); }
+      try { afterSignIn(await LL.passkeyLogin({ public_computer: pub.checked }), { publicComputer: pub.checked }); } catch (e) { LL.msg(msg, LL.errText(e), 'error'); }
     } }, t('login.passkey')) : null;
     authPage(app, h('h1', { class: 'auth-card__title' }, t('login.title')), form,
       pk ? h('div', { class: 'divider' }, h('span', {}, t('login.or'))) : null, pk,
@@ -350,7 +422,7 @@
     const lead = h('p', { class: 'muted' }, '');
     const form = h('form', { class: 'stack', onsubmit: async ev => {
       ev.preventDefault(); submit.disabled = true; LL.msg(msg, '');
-      try { afterSignIn(await api('/api/login/second', { method: 'POST', body: { ticket: second.ticket, kind, code: code.value }, allow401: true })); }
+      try { afterSignIn(await api('/api/login/second', { method: 'POST', body: { ticket: second.ticket, kind, code: code.value }, allow401: true }), { publicComputer }); }
       catch (e) {
         submit.disabled = false; code.select();
         if (e.key === 'auth.err.ticket') { LL.msg(msg, t('auth.err.ticket'), 'error'); setTimeout(() => LL.go('#/login'), 1800); }
@@ -369,7 +441,7 @@
     }
     async function usePasskey() {
       LL.msg(msg, '');
-      try { afterSignIn(await LL.passkeyLogin({ ticket: second.ticket, public_computer: publicComputer })); } catch (e) { form.hidden = false; LL.msg(msg, LL.errText(e), 'error'); }
+      try { afterSignIn(await LL.passkeyLogin({ ticket: second.ticket, public_computer: publicComputer }), { publicComputer }); } catch (e) { form.hidden = false; LL.msg(msg, LL.errText(e), 'error'); }
     }
     authPage(app, h('h1', { class: 'auth-card__title' }, t('login.second.title')), form, sw,
       h('p', { class: 'auth-card__foot muted' }, h('a', { href: '#/login', onclick: ev => { ev.preventDefault(); LL.route(); } }, t('login.second.back'))));

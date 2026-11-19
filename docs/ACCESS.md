@@ -61,6 +61,10 @@ You enter the password first. If the account has a second factor, a second step 
 
 ![Second step of the sign-in](screenshots/access-second-step-light.png)
 
+### Opening a link while signed out
+
+A link to a page of Lanloom (a device, a map, a nightly report, a bookmark) leads to the sign-in when there is no session, and after the sign-in - password, second step, passkey or the required set-up of the second factor - on to that page. The same holds when a session ends in the middle of the work: after signing in again you are on the view you were on. The browser tab remembers the address in its session storage for ten minutes and uses it once; only the part after the `#` of Lanloom's own pages is remembered and it never reaches the server. If your role may not open the page, or it does not exist any more, you land on the overview with a short note. Invitation and reset links, the first set-up and the sample network work as before. **Signing out** and ticking **Public or shared computer** delete the remembered address.
+
 ### Which roles need it
 
 *Settings → Security* sets which roles must use a second factor. The default is **required for admins only**. After you change the setting, a grace period applies (default 48 hours; choices are 0, 24, 48, 72 hours, 7, 14 and 30 days). During it, the password alone works and the account page shows a note. Afterwards the next sign-in leads to a set-up page, and only the set-up is possible until a factor exists.

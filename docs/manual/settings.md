@@ -147,6 +147,9 @@ limit for cloud requests. Off by default. See [AI](ai.md).
 - Add a connection under *General > Connections*, press *Test connection*, then *Save*. Prefer a view-only account
   and an access token over a password; never an owner account.
 - Run **Scan now** after changing networks; automatic rescans cover only the networks you chose and the ranges you agreed to.
+- Opened a link while signed out, or did the session end in the middle of the work? After signing in you are taken to that page
+  (once, within ten minutes; not on a public or shared computer). A page your role may not open leads to the overview with a note.
+  Details: [ACCESS.md](../ACCESS.md).
 - Before upgrading or moving a host, make a backup (*Backup > Back up now*) and keep the passphrase apart from the file.
 
 ## Limits

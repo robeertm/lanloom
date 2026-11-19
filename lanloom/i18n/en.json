@@ -3045,6 +3045,8 @@
  "login.password": "Password",
  "login.public": "Public or shared computer",
  "login.public.hint": "Short session that ends when the browser closes or after 30 minutes without use.",
+ "login.return.denied": "Your role may not open that page, so you are on the overview.",
+ "login.return.gone": "That page does not exist any more, so you are on the overview.",
  "login.second.back": "Back to the sign-in",
  "login.second.label.passkey": "Passkey",
  "login.second.label.recovery": "Recovery code",

@@ -992,6 +992,7 @@
     ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['backup', 'backup', 'backup.tab', 'admin'],
     ['storage', 'storage', 'storage.tab', 'admin'], ['network', 'network', 'settings.tab.network', 'viewer'], ['agents', 'agents', 'agents.tab', 'viewer'], ['api', 'api', 'api.tab', 'viewer'], ['ai', 'ai', 'ai.tab', 'admin'],
     ['sites', 'sites', 'nav.sites', 'admin']];   // the sites have a page of their own (#/sites, M1)
+  LL.settingsPages = SETTINGS_PAGES;      // the lowest role of each page also decides whether a remembered deep link may lead there (app.js)
   function settingsSubnav(active) {
     const homeOnly = p => p[0] !== 'ai' || !LL.atHome || LL.atHome();        // the AI assistant works on the home site
     const allowed = p => homeOnly(p) && (p[3] === 'viewer' || LL.can(p[3] === 'admin' ? 'admin' : 'operate'));

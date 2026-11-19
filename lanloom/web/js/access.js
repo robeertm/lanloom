@@ -177,7 +177,7 @@
             h('a', { class: 'btn btn--primary btn--block', href: '#/login' }, t('invite.to_login')));
           return;
         }
-        LL.afterSignIn(r);
+        LL.afterSignIn(r, { plain: true });        // an invitation leads to the overview, never to an older remembered link
       } catch (e) { LL.msg(msg, LL.errText(e), 'error'); submit.disabled = false; }
     } },
     reset ? h('p', {}, t('invite.reset.lead', { user: info.username })) : h('p', {}, t('invite.lead'), ' ', roleChip(info.role)),
@@ -193,7 +193,7 @@
     let me;
     try { me = await api('/api/account'); } catch (e) { return; }
     const body = h('div', { class: 'stack enroll' });
-    const done = () => LL.go('#/overview');
+    const done = () => LL.afterSignIn(null, { publicComputer: !!me.public_computer });      // O9: on to the link the visitor came for
     const choose = () => fill(body, 
       h('p', {}, t('enroll.lead', { role: t('role.name.' + me.role) })),
       h('div', { class: 'enroll__choices' },
