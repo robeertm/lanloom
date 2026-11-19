@@ -3,6 +3,11 @@
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [1.54.0] – 2026-11-19
+
+1.44.0, 1.44.1, 1.45.0, 1.46.0, 1.46.1, 1.47.0, 1.48.0, 1.49.0, 1.50.0, 1.50.1, 1.51.0, 1.52.0 and 1.53.0 below were not released on their own; they are part of this release.
+
 - **Plain wording in the translations and one screenshot cropped to a screen.** Dutch, French and Spanish texts say *wireless network* instead of the trademarked spelling, a few labels name the signal strength instead of the bare word, and the control room picture in the README is cut to a real screen height.
 
 ### Added
