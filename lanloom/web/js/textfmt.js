@@ -17,8 +17,18 @@
     n = Number(n);
     if (!isFinite(n)) return '–';
     const o = digits == null ? { maximumFractionDigits: 2 } : { minimumFractionDigits: digits, maximumFractionDigits: digits };
-    try { return new Intl.NumberFormat(lang, o).format(n); } catch (e) { return digits == null ? String(n) : n.toFixed(digits); }
+    try {
+      // Spanish and Italian write a four-digit whole number without the separator (1234, but 12.345: CLDR "minimum grouping
+      // digits" 2). Older Intl data (an older Node or browser) still groups it, so the rule is applied here, the same way as
+      // in lanloom/textfmt.py: the numbers read alike on every browser and on the server.
+      if (MIN_GROUPING_2[String(lang).toLowerCase().split('-')[0]]) {
+        const plain = new Intl.NumberFormat(lang, Object.assign({ useGrouping: false }, o)).format(n);
+        if (plain.replace(/^[^\d]+/, '').split(/[^\d]/)[0].length === 4) return plain;
+      }
+      return new Intl.NumberFormat(lang, o).format(n);
+    } catch (e) { return digits == null ? String(n) : n.toFixed(digits); }
   }
+  const MIN_GROUPING_2 = { es: 1, it: 1 };
 
   function plurals(s, vars, lang) {
     let out = '', i = 0;
