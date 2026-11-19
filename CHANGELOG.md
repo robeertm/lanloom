@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.46.0] – 2026-11-19
+
+1.44.0, 1.44.1 and 1.45.0 below were not released on their own; they are part of this release.
+
 ### Added
 - **Services and web interfaces per device.** The *Services* section of a device card lists what the device offers: name, port, protocol, the version where the device names it itself (a `Server` header, a DNS-SD text record, the UPnP product line, never guessed from a port) and whether it is a web interface. Sources: the scan and its banners, mDNS, UPnP and the ports a host agent reports as listening.
 - **Links view** (*Devices › Links*, `#/devices?view=links`, palette *Go to Links*): every web interface with the state of its probe and a button that opens it in a new tab. A probe runs every 3 minutes on **known** services only (one plain `GET /`, no sweeping, never a login). 2xx, 3xx and other non-error answers are alive, **401/403 is alive**, **5xx is red** and still a link; **two misses in a row switch the link off** (greyed out, not clickable) and the next good answer switches it back on by itself, without a message. Services without a web page get one TCP connection, closed at once, as the functional probe. Filters *All*, *Problems*, *Certificates*; the services without a web page sit under *Other services*.
