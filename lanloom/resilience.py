@@ -18,7 +18,7 @@ Seven axes per component, each a weakness 0 ... 1 (0 = good, None = unknown) wit
              no entry: unknown.
   backup     backup chains that cover it (directly or through its host): ok with a restore checked in the last 90 days 0,
              ok 0.25, running 0.25, late 0.5, unknown 0.5, failed 0.9; a part that keeps data (storage, server, hub, broker,
-             container, Lanloom itself) without a chain 1; network gear without a chain: unknown; everything else does not count.
+             container, Lanloom itself, a host with guests or containers) without a chain 1; network gear without a chain: unknown; everything else does not count.
   power      own field (or derived): ups 0.1 (0.35 when the UPS asks for a new battery), battery 0.15, mains 1, unknown None.
              PoE follows the switch it hangs on, a guest, container or connection follows its host. A device a battery backup
              reports through is taken as "on the UPS" (derived, the card says so and the field overrides it).
@@ -426,7 +426,8 @@ class Resilience:
         res = self._compute(g, now)
         with self.lock:
             self._res = (key, now, res)
-        self._remember(res, now)
+        if abs(now - self.clock()) < 600:          # a report built for a past night must not write that day's history
+            self._remember(res, now)
         return res
 
     # ----------------------------------------------------------------- sources
@@ -645,7 +646,8 @@ class Resilience:
             has_dep = bool(z["sure"])
             part = parts.get(nid) or {}
             ax["spare"] = axis_spare(part.get("spare"), has_dep, None, part.get("note") or "")
-            keeps = dk in DATA_KINDS or kind == "container" or bool(by_dev.get(nid))
+            hosts_guests = any(g.edges[i][2] in ("container", "virtual") for i in g.down.get(nid, ()))
+            keeps = dk in DATA_KINDS or kind == "container" or bool(by_dev.get(nid)) or hosts_guests      # a host keeps its guests' disks
             ax["backup"] = axis_backup(cover_of(nid), keeps, dk in NET_GEAR or kind == "node", now)
             pw = power_of(nid)
             ax["power"] = axis_power(pw[0], pw[1], pw[2], pw[3], part.get("note") or "")
@@ -763,9 +765,9 @@ class Resilience:
         found = self.core.failure.search(g, roots, "down", DEPTH) if roots else {}
         return found, roots
 
-    def _top_names(self, g, found: dict, rated: dict, n: int = 4) -> list:
+    def _top_names(self, g, found: dict, rated: dict, n: int = 4, likely: bool = False) -> list:
         rows = [((rated.get(nid) or {}).get("a", 0.0), self.core.failure.name(g, nid)) for nid, rec in found.items()
-                if rec[1] == "sure" and g.nodes[nid]["kind"] in ("device", "node", "container", "connection", "hub")]
+                if (rec[1] == "sure" or likely) and g.nodes[nid]["kind"] in ("device", "node", "container", "connection", "hub")]
         out = []
         for _a, nm in sorted(rows, key=lambda x: (-x[0], x[1].casefold())):
             if nm not in out:
@@ -846,7 +848,7 @@ class Resilience:
             hub_off = any(h in found and found[h][1] == "sure" for h in hub_nodes)
             out.append({"id": "internet", "kind": "internet", "counts": z, "reserve": wan.get("reserve"), "on_reserve": wan.get("on_reserve", False),
                         "autos": {"total": n_auto, "off": autos_off}, "hub_off": hub_off, "has_hub": bool(hub_nodes),
-                        "names": self._top_names(g, found, rated), "manual_n": sum(1 for i in g.down.get("internet", ()) if g.edges[i][2].startswith("manual_"))})
+                        "names": self._top_names(g, found, rated, 4, likely=True), "manual_n": sum(1 for i in g.down.get("internet", ()) if g.edges[i][2].startswith("manual_"))})
         # --- single parts: gateway, storage, servers, the hub host, then the highest impact
         picks = []
         for r in sorted(rated.values(), key=lambda r: -r["a"]):
@@ -858,14 +860,20 @@ class Resilience:
         for r in sorted(rated.values(), key=lambda r: -r["a"]):
             if r["id"] not in picks and r["kind"] in ("device", "node") and r["a"] > 0:
                 picks.append(r["id"])
-        for nid in picks[:NODE_SCENARIOS]:
+        n_node = 0
+        for nid in picks:
+            if n_node >= NODE_SCENARIOS:
+                break
             found, rr = self._run(g, [nid])
             z = self._sum(g, found, [])
             info = g.nodes[nid]
+            if not z["sure"] and not info.get("gateway"):
+                continue                               # nothing fails with it: not an emergency
+            n_node += 1
             role = "gateway" if info.get("gateway") else (rated[nid]["dev_kind"] or rated[nid]["kind"])
             out.append({"id": "node:" + nid, "kind": "node", "node": nid, "name": name(nid), "role": role, "counts": z,
                         "hub_off": any(h in found and found[h][1] == "sure" for h in hub_nodes),
-                        "names": self._top_names(g, found, rated), "spare": (rated[nid]["axes"]["spare"] or {}).get("value"),
+                        "names": [x for x in self._top_names(g, found, rated, 5) if x != name(nid)][:4], "spare": (rated[nid]["axes"]["spare"] or {}).get("value"),
                         "risk": rated[nid]["risk"], "level": rated[nid]["level"]})
         return out
 
@@ -940,7 +948,7 @@ class Resilience:
             risks = [rated[m]["risk"] for m in members if rated[m]["ranked"]]
             worst = max(risks) if risks else None
             weakest = max((m for m in members if rated[m]["ranked"]), key=lambda m: rated[m]["risk"], default=None)
-            row = {"id": lid, "n": len(members), "members": sorted((fl.name(g, m) if m != "internet" else "" for m in members), key=str.casefold)[:40],
+            row = {"id": lid, "n": len(members), "members": sorted({fl.name(g, m) for m in members if m != "internet"}, key=str.casefold)[:40],
                    "risk": worst, "level": level_of(worst), "breaks": per, "names": self._top_names(g, found, rated, 6),
                    "weakest": {"id": weakest, "name": fl.name(g, weakest) if weakest != "internet" else ""} if weakest else None}
             if lid == "internet":

@@ -272,7 +272,7 @@
 
 /* ---------------------------------------------------------------- risk lens (S13)
    A frame in the colour of the risk level (the five steps of the grade scale) and, from "elevated" up, the risk number in a badge
-   bottom right - never colour alone. Under a failure chain the lens rests (the chain explains more). */
+   on the top frame - never colour alone. Under a failure chain the lens rests (the chain explains more). */
 .ll-board.is-lens .ll-tile { --rl: var(--ll-grade-unknown); }
 .ll-board.is-lens .ll-tile.rl-low { --rl: var(--ll-grade-realtime); }
 .ll-board.is-lens .ll-tile.rl-moderate { --rl: var(--ll-grade-near); }
@@ -283,7 +283,7 @@
 .ll-board.is-lens:not(.is-chain) .ll-tile.rl-low { box-shadow: 0 0 0 1px var(--rl), var(--ll-pcb-tile-shadow); }
 .ll-board.is-lens:not(.is-chain) .ll-tile:not([class*="rl-"]) { opacity: .55; }
 .ll-rl-badge {
-  position: absolute; bottom: 4px; right: 4px; z-index: 2; box-shadow: 0 0 0 2px var(--ll-pcb-tile);
+  position: absolute; top: -10px; right: 26px; z-index: 3; box-shadow: 0 0 0 2px var(--ll-pcb-board);   /* on the top frame, left of the status light: never over the port marks */
   min-width: 22px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: var(--ll-radius-pill); border: 2px solid var(--rl);
   background: var(--ll-pcb-tile); color: var(--ll-text); font: var(--ll-fw-bold) 11px/14px var(--ll-font); text-align: center; pointer-events: none;
 }

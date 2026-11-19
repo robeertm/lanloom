@@ -42,6 +42,8 @@ The same page in the dark theme: [controlroom-dark.png](../screenshots/controlro
 - **How fresh the readings are**: every connection Lanloom reads from, with its grade and age.
 - `#/wan`, `#/nas` and `#/backups` open this page at their part; the command palette has *Go to Control room*, *Go to
   Internet*, *Go to Storage boxes* and *Go to Backups*. When something needs a look, the overview shows a card for it.
+- *Resilience and scenarios* (top right) opens the [resilience](resilience.md) page: score, weak spots, emergency
+  scenarios and the layers the network rests on.
 
 On a phone the blocks sit in one column, with what needs a look first:
 
@@ -77,4 +79,4 @@ optionally the name of one UPS; port 3493). Lanloom reads only; it sends no logi
 
 ## See also
 
-[Network](network.md) · [Nightly report](nightly-reports.md) · [Settings](settings.md) · [API](api.md)
+[Resilience](resilience.md) · [Network](network.md) · [Nightly report](nightly-reports.md) · [Settings](settings.md) · [API](api.md)

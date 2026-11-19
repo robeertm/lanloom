@@ -414,11 +414,12 @@
     const v = S.map.view ? S.map.view() : null;
     const key = kind + ':' + (v ? v.structure : '');
     if (!force && key === S.lensKey && S.lensData) { b.setLens({ tiles: S.lensData.tiles }); lensBar(); return; }
-    if (S.lensBusy) return;
+    if (S.lensBusy) { S.lensAgain = true; return; }       // one request at a time; a wish that came meanwhile runs right after it
     S.lensBusy = true;
     try { S.lensData = await api('/api/resilience/lens?view=' + kind); S.lensKey = key; }
     catch (e) { S.lensData = { tiles: {} }; }
     S.lensBusy = false;
+    if (S.lensAgain) { S.lensAgain = false; loadLens(true); return; }
     const b2 = board();
     if (b2 && S.lens) b2.setLens({ tiles: S.lensData.tiles });
     lensBar();

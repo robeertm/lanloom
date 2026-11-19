@@ -12,7 +12,7 @@
 .rs-head__btns { flex: none; }
 .rs-body { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .rs-body > .skeleton { height: 260px; }
-.rs-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.rs-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 16px 18px; }
 .rs-card:focus { outline: none; }
 .rs-sec__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .rs-sec__head h2 { margin: 0; font-size: var(--ll-fs-lg); }
@@ -170,6 +170,7 @@
 
 /* phones */
 @media (max-width: 760px) {
+  .rs-card { padding: 14px; }
   .rs-hero { grid-template-columns: auto minmax(0, 1fr); padding: 14px; gap: 12px 14px; }
   .rs-hero__hist { grid-column: 1 / -1; }
   .rs-grade { width: 68px; height: 68px; border-width: 4px; }
