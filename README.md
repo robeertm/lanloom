@@ -236,6 +236,17 @@ The Network view has two faces: the board and a **tree** that folds, Internet, g
 
 <img src="docs/screenshots/apctl-phone.png" width="260" alt="Equipment of an access-point controller on a phone">
 
+### Home router and mesh (read only)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/homerouter-equipment-light.png" width="100%" alt="Network equipment of a home router: the router and a repeater with their state and uplink"><br><sub>The router and its mesh devices with model, firmware, address and uplink.</sub></td>
+<td width="50%"><img src="docs/screenshots/homerouter-report-dark.png" width="100%" alt="Nightly report section of the home router: a repeater got a new firmware, a device the router had not known"><br><sub>Nightly report: what changed on the home router since the last report.</sub></td>
+</tr>
+</table>
+
+<img src="docs/screenshots/homerouter-phone.png" width="260" alt="Equipment of a home router on a phone">
+
 ### Hypervisor
 
 ![Component card of a hypervisor node: load, findings, guests with their newest backup, storage](docs/screenshots/hypervisor-node-dark.png)
