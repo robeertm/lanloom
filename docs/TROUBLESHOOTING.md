@@ -164,6 +164,7 @@ The adapters of device families (controller, hypervisor, firewall; the list is i
 | Account was rejected | user name or password wrong, or the account is not a local one |
 | The controller does not know this controller ID | the ID entered next to the application is wrong; clear the field so the controller's own announcement is used |
 | The router answers nothing on its management port / Unexpected answer | the local interface of the router is switched off (allow access for applications in its home network settings) or the address is not the router |
+| The router answers 'Unexpected answer' on its REST port | the address is not the router, or its secure web service (`www-ssl`, or `www`) is switched off or on another port |
 | Sign-in paused for a while after repeated attempts | Lanloom stops trying for about 15 minutes after repeated refusals so it cannot lock the account; check the secret first, then wait |
 | This account can change settings | Lanloom refuses an account that is able to write where it can check it; use a view-only role or a token with only read rights |
 | Access denied for this account | the role lacks the right to read; set every area to read-only, not to none |

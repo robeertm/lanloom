@@ -708,6 +708,99 @@ def home_capabilities(family: str) -> dict:
             "lockout": ["mgmt_network", "gateway_uplink", "self_path"]}
 
 
+# ---------------------------------------------------------------------------- sample switching router
+def _ros_raw(changed: bool = False) -> dict:
+    """Collected replies of a sample switching router as its family's read half hands them to the translation module: a
+    router with a bridge, two VLANs, a line to the internet on port 1, a trunk to a switch on port 2, a NAS on port 3, a
+    powered camera on port 4 and two wireless devices. ``changed`` is what "happened tonight" in the demo report: a
+    forwarding rule was added, a visitor's phone joined and the router got a newer release."""
+    def mac(n):
+        return "02:4C:4C:00:02:%02X" % n
+
+    def iface(name, typ, m, running=True, rx=0, tx=0):
+        return {"name": name, "type": typ, "mac-address": m, "running": "true" if running else "false", "disabled": "false",
+                "rx-byte": str(rx), "tx-byte": str(tx)}
+
+    nas, cam, tab, phn, vis, sw = (mac(n) for n in (0x20, 0x21, 0x30, 0x31, 0x32, 0x10))
+    ifaces = [iface("ether1", "ether", mac(1), True, 8_400_000_000, 1_100_000_000),
+              iface("ether2", "ether", mac(2), True, 2_300_000_000, 5_900_000_000),
+              iface("ether3", "ether", mac(3), True, 900_000_000, 3_100_000_000),
+              iface("ether4", "ether", mac(4), True, 41_000_000, 6_200_000_000),
+              iface("bridge", "bridge", mac(2)), iface("vlan30", "vlan", mac(2))]
+    leases = [{"mac-address": nas, "address": "10.77.0.20", "host-name": "storage", "dynamic": "false", "status": "bound"},
+              {"mac-address": cam, "address": "10.77.0.21", "host-name": "yard-camera", "dynamic": "false", "status": "bound"},
+              {"mac-address": tab, "address": "10.77.0.101", "host-name": "kitchen-tablet", "dynamic": "true", "status": "bound"},
+              {"mac-address": phn, "address": "10.77.0.102", "host-name": "phone", "dynamic": "true", "status": "bound"}]
+    hosts = [{"mac-address": nas, "on-interface": "ether3", "local": "false"},
+             {"mac-address": cam, "on-interface": "ether4", "local": "false"},
+             {"mac-address": sw, "on-interface": "ether2", "local": "false"},
+             {"mac-address": tab, "on-interface": "wlan1", "local": "false"},
+             {"mac-address": phn, "on-interface": "wlan1", "local": "false"}]
+    arp = [{"address": "10.77.0.20", "mac-address": nas, "interface": "bridge", "status": "reachable", "complete": "true"},
+           {"address": "10.77.0.21", "mac-address": cam, "interface": "bridge", "status": "reachable", "complete": "true"},
+           {"address": "10.77.0.101", "mac-address": tab, "interface": "bridge", "status": "reachable", "complete": "true"},
+           {"address": "10.77.0.102", "mac-address": phn, "interface": "bridge", "status": "stale", "complete": "true"}]
+    reg = [{"mac-address": tab, "ssid": "Home", "band": "5ghz-ax"}, {"mac-address": phn, "ssid": "Home", "band": "2ghz-n"}]
+    if changed:
+        leases.append({"mac-address": vis, "address": "10.77.30.101", "host-name": "visitor-phone", "dynamic": "true", "status": "bound"})
+        hosts.append({"mac-address": vis, "on-interface": "wlan1", "local": "false"})
+        arp.append({"address": "10.77.30.101", "mac-address": vis, "interface": "vlan30", "status": "reachable", "complete": "true"})
+        reg.append({"mac-address": vis, "ssid": "Guests", "band": "5ghz-ax"})
+    filt = [{".id": "*1", "chain": "input", "action": "accept", "connection-state": "established,related", "comment": "accept established"},
+            {".id": "*2", "chain": "input", "action": "drop", "in-interface": "ether1", "comment": "drop everything from the internet side"},
+            {".id": "*3", "chain": "forward", "action": "accept", "connection-state": "established,related", "comment": "accept established"},
+            {".id": "*4", "chain": "forward", "action": "drop", "connection-state": "invalid", "comment": "drop invalid"},
+            {".id": "*5", "chain": "forward", "action": "drop", "in-interface": "vlan30", "out-interface": "bridge", "comment": "guests stay out of the home network"},
+            {".id": "*6", "chain": "forward", "action": "accept", "disabled": "true", "comment": "old test rule"}]
+    if changed:
+        filt.append({".id": "*7", "chain": "forward", "action": "accept", "protocol": "tcp", "dst-port": "25565", "comment": "game server"})
+    return {"resource": {"board-name": "Sample switching router", "version": "7.16.2 (stable)" if changed else "7.16.1 (stable)",
+                         "uptime": "12d4h31m", "cpu-load": "4", "total-memory": "536870912", "free-memory": "402653184"},
+            "identity": {"name": "edge-router"}, "routerboard": {"model": "Sample switching router"},
+            "interfaces": ifaces,
+            "ethernet": [{"name": "ether1", "speed": "1Gbps"}, {"name": "ether2", "speed": "2.5Gbps"},
+                         {"name": "ether3", "speed": "1Gbps"}, {"name": "ether4", "speed": "100Mbps"}],
+            "poe": [{"name": "ether4", "poe-out": "auto-on", "poe-out-status": "powered-on"}],
+            "bridges": [{"name": "bridge", "vlan-filtering": "true", "pvid": "1"}],
+            "bridge_ports": [{"interface": "ether2", "bridge": "bridge", "pvid": "1"},
+                             {"interface": "ether3", "bridge": "bridge", "pvid": "1"},
+                             {"interface": "ether4", "bridge": "bridge", "pvid": "1"}],
+            "bridge_vlans": [{"bridge": "bridge", "vlan-ids": "30", "tagged": "bridge,ether2"}],
+            "vlans": [{"name": "vlan30", "vlan-id": "30", "interface": "bridge"}],
+            "addresses": [{"address": "10.77.0.1/24", "interface": "bridge", "comment": "Home"},
+                          {"address": "10.77.30.1/24", "interface": "vlan30", "comment": "Guests"},
+                          {"address": "198.51.100.7/24", "interface": "ether1", "dynamic": "true"}],
+            "pools": [{"name": "home", "ranges": "10.77.0.100-10.77.0.200"}, {"name": "guests", "ranges": "10.77.30.100-10.77.30.200"}],
+            "dhcp_servers": [{"interface": "bridge", "address-pool": "home"}, {"interface": "vlan30", "address-pool": "guests"}],
+            "dhcp_clients": [{"interface": "ether1", "status": "bound"}],
+            "routes": [{"dst-address": "0.0.0.0/0", "gateway": "198.51.100.1", "immediate-gw": "198.51.100.1%ether1",
+                        "active": "true", "distance": "1"}],
+            "leases": leases, "arp": arp, "bridge_hosts": hosts,
+            "neighbors": [{"mac-address": sw, "address4": "10.77.0.2", "identity": "Sample switch", "board": "CRS-sample",
+                           "version": "7.15 (stable)", "interface": "ether2"}],
+            "wifi_reg": reg, "wireless_reg": [], "filter": filt,
+            "nat": [{".id": "*8", "chain": "srcnat", "action": "masquerade", "out-interface": "ether1"},
+                    {".id": "*9", "chain": "dstnat", "action": "dst-nat", "protocol": "tcp", "dst-port": "8080",
+                     "to-addresses": "10.77.0.20", "to-ports": "80", "comment": "web"}]}
+
+
+def ros_sample(family: str, changed: bool = False) -> dict:
+    """Neutral state of the sample switching router, made by the family's own translation module."""
+    from . import integrations
+    st = integrations.load_model(family).to_neutral(_ros_raw(changed))
+    st["controller"]["label"] = "Sample switching router"
+    neutral.validate(st)
+    return st
+
+
+def ros_capabilities(family: str) -> dict:
+    return {"family": family, "api": {"kind": "official-local", "version": "demo"},
+            "read": ["inventory", "clients", "topology", "networks", "ports", "policies", "port_forwards", "dhcp_reservations",
+                     "wans", "stats"],
+            "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
+            "lockout": ["mgmt_network", "gateway_uplink", "self_path", "uplink_ports", "admin_interface"]}
+
+
 def seed_history(core, key: str, now: float = None) -> None:
     """Gives the demo the history a running installation would have: three hours of hit counters (blocked today, hits of
     the last hour) and a few link drops and error episodes on two sample ports."""

@@ -586,6 +586,11 @@ class Demo:
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
                                (home, "Sample home router", _json.dumps({"url": "http://192.168.178.1", "username": "lanloom"}),
                                 time.time()))
+        ros = _demo_ros()
+        if ros:                           # a switching router family reading ports, bridge VLANs, clients, forwards and filter rules (read only)
+            core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
+                               (ros, "Sample switching router", _json.dumps({"url": "https://10.77.0.1", "username": "lanloom"}),
+                                time.time()))
         apc = _demo_apc()
         if apc:                           # an access-point controller family reading devices, ports, wireless networks and rules (read only)
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
@@ -780,6 +785,12 @@ class Demo:
             from .demo_live import home_capabilities, home_sample
             h_before, h_now = home_sample(home), home_sample(home, changed=True)
             home_states = [h_before, h_before, h_now]
+        ros = _demo_ros()
+        ros_states = []
+        if ros and ros in ids:               # the switching router: the neighbouring switch went quiet, a filter rule arrived
+            from .demo_live import ros_capabilities, ros_sample
+            s_before, s_now = ros_sample(ros), ros_sample(ros, changed=True)
+            ros_states = [s_before, s_before, s_now]
         apc = _demo_apc()
         apc_states = []
         if apc and apc in ids:               # the access-point controller: an access point went offline, a rule arrived
@@ -805,6 +816,8 @@ class Demo:
                 core.live_cfg[ids[apc]] = {"state": apc_states[i], "caps": controller_capabilities(apc), "family": apc, "t": time.time()}
             if gw_states:
                 core.live_cfg[ids[gw]] = {"state": gw_states[i], "caps": gateway_capabilities(gw), "family": gw, "t": time.time()}
+            if ros_states:
+                core.live_cfg[ids[ros]] = {"state": ros_states[i], "caps": ros_capabilities(ros), "family": ros, "t": time.time()}
             if home_states:
                 core.live_cfg[ids[home]] = {"state": home_states[i], "caps": home_capabilities(home), "family": home, "t": time.time()}
             if rt_states:
@@ -830,6 +843,7 @@ class Demo:
         core.live_cfg.pop(ids.get(gw), None)
         core.live_cfg.pop(ids.get(rt), None)
         core.live_cfg.pop(ids.get(home), None)
+        core.live_cfg.pop(ids.get(ros), None)
         for day in days[:2]:
             core.store.execute("UPDATE reports SET read=? WHERE day=?", (now, day.isoformat()))
         first = rep.get(days[0].isoformat())
@@ -930,6 +944,12 @@ class Demo:
                     core.on_event("int:%d" % ids[rt], ids[rt], {"type": "config", "source": "family", "family": rt, "t": now,
                                                                "state": router_sample(rt, changed=True),
                                                                "capabilities": router_capabilities(rt)})
+                ros = _demo_ros()
+                if ros and ros in ids:
+                    from .demo_live import ros_capabilities, ros_sample
+                    core.on_event("int:%d" % ids[ros], ids[ros], {"type": "config", "source": "family", "family": ros, "t": now,
+                                                                 "state": ros_sample(ros, changed=True),
+                                                                 "capabilities": ros_capabilities(ros)})
                 home = _demo_home()
                 if home and home in ids:
                     from .demo_live import home_capabilities, home_sample
@@ -1063,7 +1083,7 @@ def _demo_gateway():
     from . import integrations
     fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read
             and {"policies", "port_forwards"} <= set(m.capabilities.get("read") or [])
-            and "ssids" not in (m.capabilities.get("read") or [])
+            and not {"ssids", "ports"} & set(m.capabilities.get("read") or [])
             and not hasattr(integrations.load_model(m.family), "parse_reply")]
     return fams[0] if fams else None
 
@@ -1075,6 +1095,16 @@ def _demo_router():
     fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read
             and {"policies", "ssids", "zones"} <= set(m.capabilities.get("read") or [])
             and "port_profiles" not in (m.capabilities.get("read") or [])]
+    return fams[0] if fams else None
+
+
+def _demo_ros():
+    """The switching router family (reads ports, filter rules and port forwarding but has no zone firewall and no
+    wireless networks): "Sample switching router"."""
+    from . import integrations
+    fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read
+            and {"ports", "policies", "port_forwards"} <= set(m.capabilities.get("read") or [])
+            and not {"zones", "ssids"} & set(m.capabilities.get("read") or [])]
     return fams[0] if fams else None
 
 
