@@ -646,6 +646,68 @@ def controller_capabilities(family: str) -> dict:
             "lockout": ["mgmt_network", "gateway_uplink", "self_path", "uplink_ports"]}
 
 
+# ---------------------------------------------------------------------------- sample home router
+def _home_raw(changed: bool = False) -> dict:
+    """Collected replies of a sample home router as its family's read half hands them to the translation module: the box
+    with a repeater on its 5 GHz radio, a NAS and a printer on LAN ports, a tablet and a phone on wireless. ``changed`` is
+    what "happened tonight" in the demo report: the repeater got a new firmware and a visitor's phone joined."""
+    def mac(n):
+        return "02:4C:4C:00:01:%02X" % n
+
+    box, rep, nas, prn, tab, phn, vis = (mac(n) for n in (1, 2, 0x10, 0x11, 0x20, 0x21, 0x22))
+
+    def iface(uid, name, typ, m, links=()):
+        return {"uid": uid, "name": name, "type": typ, "mac_address": m, "node_links": list(links)}
+
+    def link(uid, typ, a, b, ia, ib):
+        return {"uid": uid, "type": typ, "state": "CONNECTED", "node_1_uid": a, "node_2_uid": b,
+                "node_interface_1_uid": ia, "node_interface_2_uid": ib}
+
+    def node(uid, name, m, ip, role="unknown", model="", fw="", ifaces=()):
+        return {"uid": uid, "device_name": name, "device_model": model, "device_firmware_version": fw, "device_mac_address": m,
+                "ip_address": ip, "is_meshed": role != "unknown", "mesh_role": role, "node_interfaces": list(ifaces)}
+
+    nodes = [node("n-box", "home.box", box, "192.168.178.1", "master", "Sample home router", "7.57", [
+                 iface("b-l2", "LAN:2", "LAN", box, [link("l1", "LAN", "n-box", "n-nas", "b-l2", "nas-i")]),
+                 iface("b-l3", "LAN:3", "LAN", box, [link("l2", "LAN", "n-box", "n-prn", "b-l3", "prn-i")]),
+                 iface("b-5g", "AP:5G:0", "WLAN", box, [link("l3", "WLAN", "n-box", "n-rep", "b-5g", "rep-s")]),
+                 iface("b-2g", "AP:2G:0", "WLAN", box, [link("l4", "WLAN", "n-box", "n-tab", "b-2g", "tab-i")])]),
+             node("n-rep", "Sample repeater", rep, "192.168.178.2", "slave", "Sample repeater", "7.58" if changed else "7.57", [
+                 iface("rep-s", "STA:5G:0", "WLAN", rep),
+                 iface("rep-2g", "AP:2G:0", "WLAN", rep, [link("l5", "WLAN", "n-rep", "n-phn", "rep-2g", "phn-i")])]),
+             node("n-nas", "NAS", nas, "192.168.178.20", ifaces=[iface("nas-i", "LAN:1", "LAN", nas)]),
+             node("n-prn", "Office printer", prn, "192.168.178.31", ifaces=[iface("prn-i", "LAN:1", "LAN", prn)]),
+             node("n-tab", "Kitchen tablet", tab, "192.168.178.52", ifaces=[iface("tab-i", "STA:2G:0", "WLAN", tab)]),
+             node("n-phn", "Phone", phn, "192.168.178.53", ifaces=[iface("phn-i", "STA:2G:0", "WLAN", phn)])]
+    hosts = [{"ip": "192.168.178.2", "mac": rep, "active": True, "name": "Sample repeater", "interface": "802.11", "port": 0},
+             {"ip": "192.168.178.20", "mac": nas, "active": True, "name": "NAS", "interface": "Ethernet", "port": 2},
+             {"ip": "192.168.178.31", "mac": prn, "active": True, "name": "Office printer", "interface": "Ethernet", "port": 3},
+             {"ip": "192.168.178.52", "mac": tab, "active": True, "name": "Kitchen tablet", "interface": "802.11", "port": 0},
+             {"ip": "192.168.178.53", "mac": phn, "active": True, "name": "Phone", "interface": "802.11", "port": 0}]
+    if changed:
+        hosts.append({"ip": "192.168.178.54", "mac": vis, "active": True, "name": "Visitor phone", "interface": "802.11", "port": 0})
+    return {"info": {"model": "Sample home router", "firmware": "7.57", "uptime_s": 1036800},
+            "lan": {"ip": "192.168.178.1", "mask": "255.255.255.0", "dhcp": True, "first": "192.168.178.20", "last": "192.168.178.200"},
+            "lan_mac": box, "wans": [{"kind": "ip", "status": "Connected", "uptime_s": 86400}],
+            "hosts": hosts, "mesh": {"schema_version": "1.9", "nodes": nodes}}
+
+
+def home_sample(family: str, changed: bool = False) -> dict:
+    """Neutral state of the sample home router, made by the family's own translation module."""
+    from . import integrations
+    st = integrations.load_model(family).to_neutral(_home_raw(changed))
+    st["controller"]["label"] = "Sample home router"
+    neutral.validate(st)
+    return st
+
+
+def home_capabilities(family: str) -> dict:
+    return {"family": family, "api": {"kind": "official-local", "version": "demo"},
+            "read": ["inventory", "clients", "topology", "networks", "wans", "stats"],
+            "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
+            "lockout": ["mgmt_network", "gateway_uplink", "self_path"]}
+
+
 def seed_history(core, key: str, now: float = None) -> None:
     """Gives the demo the history a running installation would have: three hours of hit counters (blocked today, hits of
     the last hour) and a few link drops and error episodes on two sample ports."""
