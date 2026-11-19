@@ -175,6 +175,9 @@ def step_lockout(state: dict, step: dict, guard: dict = None):
             mode = (port.get("poe") or {}).get("mode") if isinstance(port.get("poe"), dict) else None
             if mode not in (None, "auto", "off"):
                 return "pc.block.poe_mode"
+            prof = profile(state, after.get("profile", port.get("profile")))
+            if prof and isinstance(prof.get("poe"), bool):
+                return "pc.block.profile_poe"
         if "profile" in after and after["profile"] and profile(state, after["profile"]) is None:
             return "fw.block.unknown"
         if after.get("profile") and set(after) & {"native_network", "native_vlan", "tagged_mode", "tagged"}:
@@ -286,7 +289,7 @@ def matches(state: dict, port: dict, after: dict) -> bool:
         now = poe_on(port) if f == "poe" else port.get(f)
         if f == "tagged":
             now, v = sorted(now or []), sorted(v or [])
-        if f == "name" and v in ("", None):
+        if f == "name" and v in ("", None, str(port.get("idx"))):
             continue                                  # back to the family's default name: whatever it calls the port
         if now != v and not (f == "profile" and not now and not v):
             return False

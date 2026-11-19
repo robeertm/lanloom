@@ -15,7 +15,12 @@ fields than ``_id``, ``name`` and ``network_ids`` (400); a network belongs to ex
 it out of the other; taken out of a zone of its own it goes back to the internal zone); a default zone cannot be
 deleted (400); deleting a zone puts its networks back into the internal zone **and deletes every rule that names it,
 without a word**; rule bodies are taken only whole (400 for a missing field); new rules go to the end of their zone
-pair (``index`` 10000 upwards); ``batch-reorder`` numbers the rules of one pair again."""
+pair (``index`` 10000 upwards); ``batch-reorder`` numbers the rules of one pair again.
+
+Switch ports: ``PUT rest/device/<id>`` takes only ``port_overrides`` and replaces the whole list (an entry left out is
+gone); the port table itself stays as it was until the switch provisions again (it does not here, as with a switch
+that is offline). ``POST cmd/devmgr`` with ``power-cycle`` counts the cycles of a port; a port without power answers
+``api.err.PoeNotSupported``."""
 import copy
 import ipaddress
 import json
@@ -26,6 +31,11 @@ from .fake_controller import CSRF, PW, USER, FakeController
 
 OID = re.compile(r"\A[0-9a-f]{24}\Z")
 U_OFFICE, U_PRINTER, U_PHONE, U_GUEST = ("5f00000000000000000007%02x" % i for i in range(1, 5))
+D_GW, D_SW, D_AP = ("5f0000000000000000000c%02x" % i for i in range(1, 4))
+# what a switch keeps per port besides the settings the write half may change (copied from a recorded console)
+KEEP = {"autoneg": True, "egress_rate_limit_kbps_enabled": False, "isolation": False, "port_security_enabled": False,
+        "port_security_mac_address": [], "setting_preference": "auto", "stormctrl_bcast_enabled": False,
+        "stormctrl_bcast_rate": 100, "voice_networkconf_id": ""}
 FIELDS = {"name", "use_fixedip", "fixed_ip", "network_id", "virtual_network_override_enabled", "virtual_network_override_id"}
 
 
@@ -37,6 +47,19 @@ def writable_data() -> dict:
     users[0]["is_wired"] = True
     users.append({"_id": U_PHONE, "mac": fx.MAC_PHONE, "name": "Phone", "is_wired": False})
     users.append({"_id": U_GUEST, "mac": fx.MAC_GUEST, "is_wired": False, "is_guest": True})
+    for d, did in zip(data["device"]["data"], (D_GW, D_SW, D_AP)):
+        d["_id"] = did
+    data["networkconf"]["data"][0]["attr_hidden_id"] = "LAN"          # the site's default network
+    sw = data["device"]["data"][1]
+    sw["port_overrides"] = [dict(KEEP, port_idx=3, name="Port 3", op_mode="switch", poe_mode="auto", forward="all",
+                                 tagged_vlan_mgmt="auto"),
+                            dict(KEEP, port_idx=4, name="Lab desk", forward="native", native_networkconf_id=fx.C_NET_LAB,
+                                 tagged_vlan_mgmt="block_all")]
+    sw["port_table"][1]["poe_mode"] = "auto"
+    sw["port_table"].insert(3, {"port_idx": 5, "name": "Port 5", "up": True, "speed": 1000, "media": "GE", "port_poe": True,
+                                "poe_enable": False, "poe_mode": "off", "forward": "all"})
+    sw["port_table"].insert(4, {"port_idx": 6, "name": "Port 6", "up": False, "media": "GE", "port_poe": True,
+                                "poe_enable": False, "poe_mode": "pasv24", "forward": "all"})
     by_mac = {u["mac"]: u["_id"] for u in users}
     for i, c in enumerate(data["sta"]["data"]):
         if c["mac"] in by_mac:
@@ -58,6 +81,9 @@ class WritableFake(FakeController):
         self.require_csrf = style == "console"
         self.next_id = 0
         self.config_writes = []          # (method, area, id) of every network / port forward write
+        self.device_puts = []            # (device id, body) of every switch write
+        self.cycles = []                 # (mac, port) of every power cycle
+        self.fail_device = 0             # the n-th switch write answers 500
         self.fail_config = 0             # the n-th network / port forward write answers 500
         self.drop_config = 0             # ... is applied and then the connection is cut
         self.classic.setdefault("zone", [])
@@ -218,6 +244,32 @@ class WritableFake(FakeController):
             o.update(body)
         return 200, {"meta": {"rc": "ok"}, "data": [copy.deepcopy(o)]}
 
+    def device(self, did):
+        return next((d for d in self.classic["device"]["data"] if d.get("_id") == did), None)
+
+    def put_device(self, did, body):
+        d = self.device(did)
+        if d is None:
+            return 400, {"meta": {"rc": "error", "msg": "api.err.IdInvalid"}, "data": []}
+        if not isinstance(body, dict) or set(body) - {"port_overrides"} or not isinstance(body.get("port_overrides"), list):
+            return 400, {"meta": {"rc": "error", "msg": "api.err.InvalidPayload"}, "data": []}
+        self.device_puts.append((did, copy.deepcopy(body)))
+        if len(self.device_puts) == self.fail_device:
+            return 500, {"meta": {"rc": "error", "msg": "api.err.Internal"}}
+        if not self.ignore_put:
+            d["port_overrides"] = copy.deepcopy(body["port_overrides"])
+        return 200, {"meta": {"rc": "ok"}, "data": [copy.deepcopy(d)]}
+
+    def power_cycle(self, body):
+        if not isinstance(body, dict) or body.get("cmd") != "power-cycle":
+            return 400, {"meta": {"rc": "error", "msg": "api.err.InvalidCommand"}, "data": []}
+        d = next((x for x in self.classic["device"]["data"] if x.get("mac") == body.get("mac")), None)
+        p = next((x for x in (d or {}).get("port_table") or [] if x.get("port_idx") == body.get("port_idx")), None)
+        if p is None or not p.get("port_poe"):
+            return 400, {"meta": {"rc": "error", "msg": "api.err.PoeNotSupported"}, "data": []}
+        self.cycles.append((body["mac"], body["port_idx"]))
+        return 200, {"meta": {"rc": "ok"}, "data": []}
+
     def put_user(self, uid, body):
         """Returns (status, reply) like the controller."""
         u = self.user(uid)
@@ -319,7 +371,26 @@ class WritableFake(FakeController):
                     return None
                 return self.reply(status, reply)
 
+            def _device(self, method):
+                n = int(self.headers.get("Content-Length") or 0)
+                try:
+                    body = json.loads(self.rfile.read(n) or b"{}") if n else None
+                except ValueError:
+                    body = None
+                self.record(body)
+                cookie = self.headers.get("Cookie") or ""
+                sid = next((c.split("=", 1)[1] for c in cookie.split("; ") if c.split("=", 1)[0] in ("TOKEN", "unifises")), None)
+                if sid not in fake.sessions:
+                    return self.reply(401, {"meta": {"rc": "error", "msg": "api.err.LoginRequired"}})
+                if fake.require_csrf and self.headers.get("X-CSRF-Token") != CSRF:
+                    return self.reply(403, {"meta": {"rc": "error", "msg": "api.err.Csrf"}})
+                if method == "POST":
+                    return self.reply(*fake.power_cycle(body))
+                return self.reply(*fake.put_device(self.path.rsplit("/", 1)[1], body))
+
             def do_POST(self):
+                if self.path == fake.prefix + "/api/s/default/cmd/devmgr":
+                    return self._device("POST")
                 if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)", self.path):
                     return self._config("POST")
                 if self.path.startswith(fake.prefix + "/v2/api/site/default/firewall"):
@@ -334,6 +405,8 @@ class WritableFake(FakeController):
             def do_PUT(self):
                 if self.path.startswith(fake.prefix + "/v2/api/site/default/firewall"):
                     return self._v2("PUT")
+                if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/device/[0-9a-f]{24}", self.path):
+                    return self._device("PUT")
                 if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)/[0-9a-f]{24}", self.path):
                     return self._config("PUT")
                 n = int(self.headers.get("Content-Length") or 0)
@@ -370,4 +443,4 @@ class WritableFake(FakeController):
         return H
 
 
-__all__ = ["WritableFake", "writable_data", "USER", "PW", "U_OFFICE", "U_PRINTER", "U_PHONE", "U_GUEST"]
+__all__ = ["WritableFake", "writable_data", "USER", "PW", "U_OFFICE", "U_PRINTER", "U_PHONE", "U_GUEST", "D_SW", "KEEP"]

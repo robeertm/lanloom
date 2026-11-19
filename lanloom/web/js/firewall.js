@@ -27,6 +27,8 @@
     if (nc) return nc;
     const zf = LL.zfSumText ? LL.zfSumText(x) : null;
     if (zf) return zf;
+    const pc = LL.pcSumText ? LL.pcSumText(x) : null;
+    if (pc) return pc;
     if (x.kind === 'guest.power') return x.name + ' · ' + t(x.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
     if (x.kind === 'guest.firewall') return x.name + ' · ' + t(x.on ? 'fw.sum.fw_on' : 'fw.sum.fw_off');
     if (x.kind === 'guest.fw_rule_create') return x.name + ' · ' + t('fw.sum.rule_new');
@@ -108,7 +110,8 @@
       function canGuest(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!(v.state && (v.state.guests || []).length) && Object.keys(w).some(k => k.startsWith('guest.')); }
       function canNet(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.netconf && Object.keys(w).some(k => /^(network|dhcp|forward)\./.test(k)); }
       function canZone(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.zonefw && Object.keys(w).some(k => /^(zone|policy)\./.test(k) || k === 'network.update.zone'); }
-      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip') || canGuest(v) || canNet(v) || canZone(v); }
+      function canPort(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.portconf && Object.keys(w).some(k => /^port\./.test(k)); }
+      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip') || canGuest(v) || canNet(v) || canZone(v) || canPort(v); }
       function hasBoard(v) { return (v.state.zones || []).length > 0 && (v.state.networks || []).length > 0; }
       function netCtx(v) {
         return { change: st.mode === 'change', can: key => LL.can('operate') && hasKey(v, key), ops: v.draft.ops || {}, setOp, dropOp,
@@ -140,6 +143,8 @@
         if (v.mode !== 'live' && v.netconf && LL.ncCards) kids.push(...LL.ncCards(v, netCtx(v)));
         if (LL.zfRemember) LL.zfRemember(v.state);
         if (v.mode !== 'live' && v.zonefw && LL.zfCards) kids.push(...LL.zfCards(v, netCtx(v)));
+        if (LL.pcRemember) LL.pcRemember(v.state);
+        if (v.mode !== 'live' && v.portconf && LL.pcCards) kids.push(...LL.pcCards(v, netCtx(v)));
         if (v.mode !== 'live' && v.state.hosts && v.state.hosts.length) kids.push(...LL.hvEditCards(v.state, guestCtx(v)));
         st.pol.source = v.mode === 'live' ? v.source : null;     // "Explain" (AI) reads the rule from this live source
         st.pol.insight = insight;                                 // rules in plain words and hit chips (js/fwinsight.js)
@@ -399,6 +404,8 @@
         if (nc) return nc;
         const zf = LL.zfOpLabel ? LL.zfOpLabel(s, o) : null;
         if (zf) return zf;
+        const pc = LL.pcOpLabel ? LL.pcOpLabel(s, o) : null;
+        if (pc) return pc;
         const g = id => (s.guests || []).find(x => x.id === id) || {};
         const a = o.after || {};
         if (o.kind === 'guest.power') return g(o.object).name + ' · ' + t(a.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
@@ -570,6 +577,13 @@
         const box = page.querySelector(want === 'zones' ? '#zf-zones' : want === 'ask' ? '#fw-ask' : '.fw-pol');
         if (box) box.scrollIntoView({ block: 'start' }); else LL.toast(t('zf.none_here'), 'info');
         if (box && want === 'rules' && rest[1] === 'new' && canZone(st.view) && LL.zfNewRule) LL.zfNewRule(st.view.state, netCtx(st.view));
+      }
+      if (want === 'ports' && st.view) {              // switch ports: the faceplates of the editor (js/portconf.js)
+        if (st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; try { localStorage.setItem('ll-fw-source', 'editor'); } catch (e) { /* ignore */ } await load(); }
+        window.history.replaceState(null, '', LL.base + '#/firewall');
+        if (canPort(st.view)) { st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ } render(); }
+        const box = page.querySelector('#fw-ports');
+        if (box) box.scrollIntoView({ block: 'start' }); else LL.toast(t('pc.none_here'), 'info');
       }
       if ((want === 'device' || want === 'pick') && st.view && st.view.state) {
         if (st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; await load(); }

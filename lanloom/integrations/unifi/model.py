@@ -803,11 +803,15 @@ def port_refs(raw) -> dict:
             continue
         ovs = [o for o in d.get("port_overrides") or [] if isinstance(o, dict)]
         by_idx = {num(o.get("port_idx")): o for o in ovs if num(o.get("port_idx")) is not None}
+        # the switch keeps tagged networks per port as a mode plus an excluded list (releases since 7.x); older ones
+        # know only "all / untagged only / customize"
+        new_style = any("tagged_vlan_mgmt" in x for x in list(ovs) + [p for p in d.get("port_table") or [] if isinstance(p, dict)]) \
+            or version_tuple(version_of(raw)) >= (7, 4)
         for p in d.get("port_table") or []:
             idx = num(p.get("port_idx")) if isinstance(p, dict) else None
             if idx is None:
                 continue
-            out[oid("p", "%s:%s" % (mac, idx))] = {"device": str(d["_id"]), "mac": mac, "idx": idx,
+            out[oid("p", "%s:%s" % (mac, idx))] = {"device": str(d["_id"]), "mac": mac, "idx": idx, "new_style": new_style,
                                                    "override": by_idx.get(idx), "overrides": ovs,
                                                    "table": {k: p.get(k) for k in PORT_KEYS + ("port_poe",) if k in p}}
     return out

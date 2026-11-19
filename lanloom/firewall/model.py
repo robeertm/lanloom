@@ -473,8 +473,8 @@ def lockout_reason(state: dict, step: dict):
         return "fw.block.not_own"                 # (a fixed address is released, not deleted: any may go)
     if kind.area == "networks" and obj.get("management"):
         return "fw.block.management"
-    if kind.area == "ports" and obj.get("is_uplink"):
-        return "fw.block.uplink"
+    if kind.area == "ports" and obj.get("is_uplink") and set(step.get("after") or {}) - {"name"}:
+        return "fw.block.uplink"                  # (an uplink keeps its networks and power; a name never cuts anything)
     if kind.area == "policies" and kind.verb != "delete":
         after = dict(obj, **step["after"])
         # never a blocking rule from or to the management network or zone, or towards the gateway itself

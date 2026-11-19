@@ -144,3 +144,8 @@
 .fw-eq__ports { min-width: 0; }
 .fw-eq__ports:empty { display: none; }
 @media (max-width: 640px) { .fw-eq__list { columns: 1; } }
+
+/* a port with a change in the draft of the firewall editor (js/portconf.js): a dashed accent ring, never colour alone
+   (the panel says "Planned" in words) */
+.pf-pad.is-planned { box-shadow: 0 0 0 2px var(--ll-accent); }
+.pf-pad.is-planned::after { content: ""; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--ll-accent); }

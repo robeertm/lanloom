@@ -26,6 +26,8 @@
   }
   // values in the preview: the address service as a range, a forward's protocol in words, the rest like guest values
   LL.ncValText = function (field, v) {
+    const pc = LL.pcValText ? LL.pcValText(field, v) : null;      // switch port values (js/portconf.js)
+    if (pc != null) return pc;
     if (field === 'dhcp' && v && typeof v === 'object') return dhcpText(v);
     if ((field === 'src' || field === 'dst') && v && typeof v === 'object' && LL.zfSideText) return LL.zfSideText(v);
     if (field === 'zone' && typeof v === 'string' && v && LL.zfZoneName) return LL.zfZoneName(v);

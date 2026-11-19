@@ -441,3 +441,17 @@
   .zf-rule__tools { justify-content: flex-start; }
   .zf-rule__tools .btn { min-height: 40px; }
 }
+
+/* switch ports in the editor (js/portconf.js) */
+.pc-card .pc-switch + .pc-switch { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--ll-border); }
+.pc-lock { display: flex; align-items: flex-start; gap: 6px; margin: 8px 0 0; font-size: var(--ll-fs-sm); }
+.pc-lock__ico { flex: none; display: inline-flex; margin-top: 2px; color: var(--ll-text-3); }
+.pc-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pc-dlg .pc-nets { display: flex; flex-direction: column; gap: 10px; }
+.pc-dlg .pc-nets[hidden] { display: none; }
+.pc-tags { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 12px; padding: 4px 0 2px; }
+.pc-tags[hidden], .pc-tag[hidden], .pc-poe[hidden] { display: none; }
+.pc-poe { margin-top: 4px; }
+.pc-cycle { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px;
+  border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); background: var(--ll-surface-2); }
+.pc-cycle .fw-hint { margin: 0; flex: 1 1 220px; }

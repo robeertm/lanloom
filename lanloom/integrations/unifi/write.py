@@ -21,6 +21,11 @@ What it can change - nothing else, whatever a plan says:
 * ``policy.create|update|delete|reorder`` rules between zones (any traffic or a few ports, a whole zone or one network
                           of it); change only rules whose every setting Lanloom can carry over; delete only rules this
                           write half created; reorder the own rules of one zone pair
+* ``port.set``            a switch port's name, port profile, untagged network, tagged networks (all, none or a choice)
+                          and power over Ethernet (automatic mode or off) - never an uplink, an internet port, a port
+                          with network equipment or another device announcing itself (LLDP) behind it, a mirror or
+                          aggregation port, nor a port that carries a device Lanloom protects or the own path
+* ``port.cycle``          switch a port's power off and on again (restarts the device it feeds), with the same rules
 
 Client settings, networks and port forwards are written over the classic API (the official integration API has no
 client or port forward writes, and network writes only on recent releases), so the write half signs in with a local
@@ -45,11 +50,18 @@ controller's own session limit, and at most four sign-ins an hour across process
 refused session (``session.FileLedger``). Product names are used only to identify compatible products; no
 affiliation or endorsement.
 
+Switch ports are written as the switch's port overrides (``PUT rest/device/<id>`` with the field ``port_overrides``
+only): the controller replaces the whole list, so the half sends the list exactly as it read it and changes only the
+entry of the planned port, and only its name, profile, untagged network, tagged mode and networks and power mode; a
+body that differs anywhere else is refused before it is sent. A power cycle is the command ``power-cycle`` of
+``cmd/devmgr`` for one port of one switch.
+
 Zones and rules are written over the classic API of the zone-based firewall (``v2/api/site/<site>/firewall/zone``,
 ``firewall-policies``, ``firewall-policies/batch-reorder``), with the same account; a rule body always carries the
 complete, checked set of fields (the controller does not take partial rule updates). Before a plan with zone or rule
 steps runs, the half checks that the path from its own address to the controller stays open (``firewall.zonefw``).
 """
+import copy
 import ipaddress
 import json
 import logging
@@ -63,7 +75,7 @@ from . import WRITE_CAPABILITIES, model, session
 from .. import capabilities
 from ..credentials import Secret, vet_write_account
 from ..transport import Forbidden, Rule, Transport, TransportError, write_allowlist
-from ...firewall import netconf, zonefw
+from ...firewall import netconf, portconf, zonefw
 from ...firewall import steps as stepkinds
 from ...firewall.adapter import ControllerAdapter
 
@@ -184,6 +196,67 @@ def _pol_side(v):
     return "port" not in v
 
 
+OVERRIDE_KEY = re.compile(r"\A[a-z0-9_]{1,48}\Z")
+MAC_RE = re.compile(r"\A[0-9a-f]{2}(?::[0-9a-f]{2}){5}\Z")
+OVERRIDE_ENUMS = {"poe_mode": ("auto", "off", "pasv24", "passthrough"), "tagged_vlan_mgmt": ("auto", "block_all", "custom"),
+                  "forward": ("all", "native", "customize", "disabled"), "op_mode": ("switch", "mirror", "aggregate")}
+PORT_WRITE_KEYS = frozenset(("name", "portconf_id", "native_networkconf_id", "tagged_vlan_mgmt", "forward",
+                             "excluded_networkconf_ids", "poe_mode"))
+TAGGED_OUT = {"all": "auto", "none": "block_all", "custom": "custom"}
+
+
+def _plain(v, depth=0) -> bool:
+    """A value of a port override as the controller stores it: numbers, short text, flags, lists of those, one level
+    of small objects. Anything else (deep nesting, control characters, long text) is refused."""
+    if v is None or isinstance(v, (bool, int, float)):
+        return True
+    if isinstance(v, str):
+        return _name_ok(v)
+    if isinstance(v, list):
+        return len(v) <= 256 and all(_plain(x, depth + 1) for x in v) and depth < 2
+    if isinstance(v, dict):
+        return depth < 1 and len(v) <= 32 and all(isinstance(k, str) and OVERRIDE_KEY.match(k) and _plain(x, depth + 1)
+                                                  for k, x in v.items())
+    return False
+
+
+def _overrides(v):
+    """The port override list of a switch: at most 64 entries, one per port number, known shapes of the fields this
+    half may change; the other fields as the controller keeps them (the body builder sends them unchanged)."""
+    if not isinstance(v, list) or len(v) > 64:
+        return False
+    seen = set()
+    for o in v:
+        if not isinstance(o, dict) or len(o) > 80 or not all(isinstance(k, str) and OVERRIDE_KEY.match(k) for k in o):
+            return False
+        idx = o.get("port_idx")
+        if isinstance(idx, bool) or not isinstance(idx, int) or not 1 <= idx <= 64 or idx in seen:
+            return False
+        seen.add(idx)
+        if not all(_plain(x) for x in o.values()):
+            return False
+        for k, allowed in OVERRIDE_ENUMS.items():
+            if k in o and o[k] not in allowed:
+                return False
+        if "portconf_id" in o and not _oid_or_empty(o["portconf_id"]):
+            return False
+        if "native_networkconf_id" in o and not _oid_or_empty(o["native_networkconf_id"]):
+            return False
+        if "excluded_networkconf_ids" in o and not _oid_list(o["excluded_networkconf_ids"]):
+            return False
+        if "name" in o and (not isinstance(o["name"], str) or len(o["name"]) > 64):
+            return False
+    return True
+
+
+def _port_idx(v):
+    return isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 64
+
+
+def _mac(v):
+    return isinstance(v, str) and bool(MAC_RE.match(v))
+
+
 USER_VALUES = {"name": _name_ok, "use_fixedip": _bool, "fixed_ip": _ip_or_empty, "network_id": _oid_or_empty,
                "virtual_network_override_enabled": _bool, "virtual_network_override_id": _oid_or_empty}
 # a new internal network: nothing but these fields, each with its only allowed values (never WAN, VPN or a guest portal)
@@ -204,6 +277,8 @@ POLICY_VALUES = {"name": _short_name, "enabled": _bool, "action": _const("ALLOW"
                  "ip_version": _const("BOTH", "IPV4"), "connection_state_type": _const("ALL"), "connection_states": _empty_list,
                  "match_ip_sec": _false, "match_opposite_protocol": _false, "icmp_typename": _const("ANY"),
                  "icmp_v6_typename": _const("ANY"), "schedule": _always, "source": _pol_side, "destination": _pol_side}
+DEVICE_VALUES = {"port_overrides": _overrides}
+CYCLE_VALUES = {"cmd": _const("power-cycle"), "mac": _mac, "port_idx": _port_idx}
 REORDER_VALUES = {"source_zone_id": _oid, "destination_zone_id": _oid, "before_predefined_ids": _oid_list,
                   "after_predefined_ids": _oid_list}
 READ_PATHS = (
@@ -237,7 +312,9 @@ ALLOW = write_allowlist(
             values=POLICY_VALUES, exact=True),
        Rule("DELETE", _P + r"/v2/api/site/%s/firewall-policies/%s" % (_S, OID)),
        Rule("PUT", _P + r"/v2/api/site/%s/firewall-policies/batch-reorder" % _S, fields=tuple(REORDER_VALUES),
-            values=REORDER_VALUES, exact=True)])
+            values=REORDER_VALUES, exact=True),
+       Rule("PUT", _P + r"/api/s/%s/rest/device/%s" % (_S, OID), fields=tuple(DEVICE_VALUES), values=DEVICE_VALUES, exact=True),
+       Rule("POST", _P + r"/api/s/%s/cmd/devmgr" % _S, fields=tuple(CYCLE_VALUES), values=CYCLE_VALUES, exact=True)])
 LOGIN = {"console": "/api/auth/login", "classic": "/api/login"}
 LOGOUT = {"console": "/api/auth/logout", "classic": "/api/logout"}
 PREFIX = {"console": "/proxy/network", "classic": ""}
@@ -348,6 +425,8 @@ class UnifiWriter(ControllerAdapter):
         self._fwds = {}
         self._zones = {}
         self._pols = {}
+        self._ports = {}
+        self._profiles = {}
         self._created = {}                     # "new:" id of a plan step -> neutral id of the object it created
         self._relogin_free = False
         self._dead = None
@@ -505,6 +584,8 @@ class UnifiWriter(ControllerAdapter):
         self._fwds = model.forward_refs(raw)
         self._zones = model.zone_refs(raw)
         self._pols = model.policy_refs(raw)
+        self._ports = model.port_refs(raw)
+        self._profiles = model.profile_refs(raw)
 
     def read(self) -> dict:
         raw = self._read_raw()
@@ -821,10 +902,17 @@ class UnifiWriter(ControllerAdapter):
                              "record": dict(r["record"])} for zid, r in self._zones.items()]
             out["policies"] = [{"id": pid, "ref": r["id"], "own": self._own.has("policy", r["id"]), "record": dict(r["record"])}
                                for pid, r in self._pols.items() if not r["record"].get("predefined")]
+        if any(oid in self._ports for oid in real):
+            body = self._get("device", optional=False)
+            raw["device"] = body
+            self._raw = raw
+            self._index(raw)
+            out["ports"] = [{"id": oid, "device": self._ports[oid]["device"], "idx": self._ports[oid]["idx"],
+                             "override": copy.deepcopy(self._ports[oid]["override"])} for oid in real if oid in self._ports]
         for oid in ids:
             if stepkinds.NEW_ID.match(str(oid)):
                 continue
-            if oid in self._zones or oid in self._pols:
+            if oid in self._zones or oid in self._pols or oid in self._ports:
                 continue
             if oid in self._refs:
                 ref = self._refs[oid]
@@ -842,7 +930,7 @@ class UnifiWriter(ControllerAdapter):
                                              "record": dict(ref.get("record") or {})})
             else:
                 raise WriteError("unifi.object_unknown")
-        return {k: v for k, v in out.items() if v or k in ("devices", "zones", "policies") and k in out}
+        return {k: v for k, v in out.items() if v or k in ("devices", "zones", "policies", "ports") and k in out}
 
     def apply(self, step: dict):
         kind = step["kind"]
@@ -857,6 +945,12 @@ class UnifiWriter(ControllerAdapter):
             return None
         if kind == "network.create":
             return self._create_network(step)
+        if kind == "port.set":
+            self._set_port(step)
+            return None
+        if kind == "port.cycle":
+            self._cycle_port(step["object"])
+            return None
         if kind == "network.update":
             ref = self._net_ref(step["object"])
             if ref["purpose"] not in LOCAL_PURPOSES:
@@ -907,6 +1001,185 @@ class UnifiWriter(ControllerAdapter):
             self._delete("portforward", self._fwd_ref(step["object"])["id"])
             return None
         raise WriteError("unifi.kind_not_supported")
+
+    # ------------------------------------------------------------------ plan steps -> switch ports
+    def _port_ref(self, pid: str) -> dict:
+        ref = self._ports.get(pid)
+        if not ref:
+            raise WriteError("unifi.port_unknown")
+        return ref
+
+    def _fresh_port(self, pid: str):
+        """The switch list read fresh; (classic reference, neutral state, neutral port)."""
+        self._fresh("device")
+        st = model.to_neutral(self._raw)
+        port = next((p for p in st.get("ports") or [] if p.get("id") == pid), None)
+        if port is None:
+            raise WriteError("unifi.port_unknown")
+        return self._port_ref(pid), st, port
+
+    def _port_entry(self, ref: dict, after: dict) -> dict:
+        """The override entry of one port with ``after`` applied (a copy; the port's own settings otherwise kept)."""
+        idx = ref["idx"]
+        entry = copy.deepcopy(ref["override"]) if isinstance(ref.get("override"), dict) else {"port_idx": idx}
+        table = ref.get("table") or {}
+        nets_raw = model.items(self._raw, "networkconf")
+        if "name" in after:
+            if after["name"] in ("", str(idx)):
+                entry.pop("name", None)
+            else:
+                entry["name"] = after["name"]
+        if "profile" in after:
+            if after["profile"]:
+                vid = self._profiles.get(after["profile"])
+                if not vid:
+                    raise WriteError("unifi.profile_unknown")
+                entry["portconf_id"] = vid
+            else:
+                entry.pop("portconf_id", None)
+        if "native_network" in after:
+            net = self._net_ref(after["native_network"])
+            if net["purpose"] not in LOCAL_PURPOSES:
+                raise WriteError("unifi.network_not_local")
+            entry["native_networkconf_id"] = net["id"]
+        new_style = ref.get("new_style") or "tagged_vlan_mgmt" in entry or not ("forward" in entry or "forward" in table)
+        conf = model.port_settings(table, entry, {}, nets_raw, model.default_network(nets_raw))
+        mode = after.get("tagged_mode", conf["mode"])
+        if "tagged_mode" in after or "tagged" in after:
+            if mode == "custom" and not new_style:
+                raise WriteError("unifi.field_not_supported")
+            if new_style:
+                entry["tagged_vlan_mgmt"] = TAGGED_OUT[mode]
+            if mode == "custom":
+                want = set()
+                for nid in after.get("tagged", []):
+                    ref_n = self._net_ref(nid)
+                    want.add(ref_n["id"])
+                native = entry.get("native_networkconf_id") or conf["native"]
+                entry["excluded_networkconf_ids"] = [k for k in model.taggable(nets_raw) if k not in want and k != native]
+        if ("forward" in entry or "forward" in table) and set(after) & {"native_network", "tagged_mode", "tagged"}:
+            native = entry.get("native_networkconf_id") or conf["native"]
+            if mode == "none":
+                entry["forward"] = "native"                # the untagged network only
+            elif mode == "all" and (not native or native == model.default_network(nets_raw)):
+                entry["forward"] = "all"                   # the site's default: default network untagged, all tagged
+            else:
+                entry["forward"] = "customize"             # an untagged network of its own and/or a choice of tagged ones
+        if "poe" in after:
+            if not table.get("port_poe"):
+                raise WriteError("unifi.no_poe")
+            entry["poe_mode"] = "auto" if after["poe"] else "off"
+        return entry
+
+    def _overrides_with(self, ref: dict, entries: dict) -> list:
+        """The switch's override list as read, with the entries of some ports replaced (port number -> entry, or None
+        to remove it); checked: nothing but those entries differs, and in them only the fields this half may change."""
+        fresh = [o for o in ref.get("overrides") or [] if isinstance(o, dict)]
+        out, done = [], set()
+        for o in fresh:
+            idx = o.get("port_idx")
+            if idx in entries:
+                done.add(idx)
+                if entries[idx] is not None:
+                    out.append(entries[idx])
+            else:
+                out.append(copy.deepcopy(o))
+        for idx, e in sorted(entries.items()):
+            if idx not in done and e is not None:
+                out.append(e)
+        before = {o.get("port_idx"): o for o in fresh}
+        after = {o.get("port_idx"): o for o in out}
+        for idx in set(before) | set(after):
+            b, a = before.get(idx), after.get(idx)
+            if b == a:
+                continue
+            if idx not in entries:
+                raise WriteError("unifi.body_check")
+            keys = set(b or {}) | set(a or {})
+            changed = {k for k in keys if (b or {}).get(k, None) != (a or {}).get(k, None)} - {"port_idx"}
+            if b is not None and a is not None and changed - PORT_WRITE_KEYS:
+                raise WriteError("unifi.body_check")
+        return out
+
+    def _put_overrides(self, device_id: str, overrides: list) -> None:
+        rel = "api/s/{site}/rest/device/" + device_id
+        status, reply = self._call("PUT", rel, {"port_overrides": overrides})
+        meta = reply.get("meta") if isinstance(reply, dict) else None
+        if not 200 <= status < 300 or (isinstance(meta, dict) and meta.get("rc") not in (None, "ok")):
+            raise WriteError("unifi.write_refused", _msg(reply))
+        self.writes.append((device_id, ["port_overrides"]))
+
+    def _set_port(self, step: dict) -> None:
+        ref, st, port = self._fresh_port(step["object"])
+        if portconf.matches(st, port, step["after"]):
+            return                                         # already as planned
+        entry = self._port_entry(ref, step["after"])
+        body = self._overrides_with(ref, {ref["idx"]: entry})
+        self._put_overrides(ref["device"], body)
+        ref, st, port = self._fresh_port(step["object"])
+        if not portconf.matches(st, port, step["after"]):
+            raise WriteError("unifi.not_applied")
+
+    def _cycle_port(self, pid: str) -> None:
+        ref = self._port_ref(pid)
+        status, reply = self._call("POST", "api/s/{site}/cmd/devmgr", {"cmd": "power-cycle", "mac": ref["mac"], "port_idx": ref["idx"]})
+        meta = reply.get("meta") if isinstance(reply, dict) else None
+        if not 200 <= status < 300 or (isinstance(meta, dict) and meta.get("rc") not in (None, "ok")):
+            raise WriteError("unifi.write_refused", _msg(reply))
+        self.writes.append((pid, ["power-cycle"]))
+
+    def _restore_ports(self, items: list) -> None:
+        """Port overrides as saved, one write per switch (only the entries of the saved ports change)."""
+        items = [i for i in items or [] if isinstance(i, dict) and _OID_RE.match(str(i.get("device") or "")) and _port_idx(i.get("idx"))]
+        if not items:
+            return
+        self._fresh("device")
+        by_dev = {}
+        for i in items:
+            by_dev.setdefault(i["device"], {})[i["idx"]] = copy.deepcopy(i.get("override")) if isinstance(i.get("override"), dict) else None
+        for dev, entries in by_dev.items():
+            ref = next((r for r in self._ports.values() if r["device"] == dev), None)
+            if ref is None:
+                raise WriteError("unifi.not_applied")
+            now = {o.get("port_idx"): o for o in ref.get("overrides") or []}
+            if all(now.get(idx) == e for idx, e in entries.items()):
+                continue
+            self._put_overrides(dev, self._overrides_with(ref, entries))
+
+    def _port_lockout(self, state: dict, step: dict):
+        """Family rules for ports: the port and its switch are known; power only on ports that deliver it and only in
+        the automatic mode or off; profiles and networks the controller knows (tagged networks need a VLAN of their own);
+        a choice of tagged networks only on releases that keep it per port."""
+        ref = self._ports.get(step.get("object"))
+        if not ref:
+            return "fw.block.unknown"
+        after = step.get("after") or {}
+        table = ref.get("table") or {}
+        if step.get("kind") == "port.cycle":
+            return None if table.get("port_poe") else "pc.block.no_poe"
+        if "poe" in after:
+            mode = (ref.get("override") or {}).get("poe_mode", table.get("poe_mode"))
+            if not table.get("port_poe"):
+                return "pc.block.no_poe"
+            if mode not in (None, "auto", "off"):
+                return "pc.block.poe_mode"
+        if after.get("profile") and after["profile"] not in self._profiles:
+            return "fw.block.unknown"
+        if "native_network" in after:
+            net = self._nets.get(after["native_network"])
+            if not net:
+                return "fw.block.unknown"
+            if net["purpose"] not in LOCAL_PURPOSES:
+                return "fw.block.network_kind"
+        taggable = set(model.taggable(model.items(self._raw, "networkconf")))
+        for nid in after.get("tagged") or []:
+            net = self._nets.get(nid)
+            if not net or net["id"] not in taggable:
+                return "pc.block.tagged_vlan"
+        if after.get("tagged_mode") == "custom" and not ref.get("new_style") and \
+                ("forward" in table or "forward" in (ref.get("override") or {})):
+            return "fw.block.capability"
+        return None
 
     # ------------------------------------------------------------------ plan steps -> zones and rules
     def _internal_zone(self):
@@ -1282,6 +1555,8 @@ class UnifiWriter(ControllerAdapter):
             self._fresh("networkconf")
             self._restore_zones(snapshot.get("zones"))
             self._restore_policies(snapshot.get("policies"))
+        if snapshot.get("ports"):
+            self._restore_ports(snapshot.get("ports"))
 
     def _prune_own(self) -> None:
         """Forget own objects that no longer exist on the controller (removed there by hand)."""
@@ -1341,7 +1616,7 @@ class UnifiWriter(ControllerAdapter):
         for st in steps:
             ref = self._refs.get(stepkinds.step_object(st)) or {}
             if st["kind"] not in ("move", "client.set"):
-                wait = max(wait, min(self.settle_s, SETTLE_CONFIG_S) if st["kind"].startswith(("network.", "forward.", "zone.", "policy."))
+                wait = max(wait, min(self.settle_s, SETTLE_CONFIG_S) if st["kind"].startswith(("network.", "forward.", "zone.", "policy.", "port."))
                            else SETTLE_ADDRESS_S if self.settle_s else 0)
             elif st["kind"] == "move" or "network" in st["after"]:
                 if ref.get("online") and not ref.get("wired"):
@@ -1402,11 +1677,22 @@ class UnifiWriter(ControllerAdapter):
             self._fresh_fw()
             fw = model.to_neutral(self._raw)
         res_ids = {r["reservation"]: r for r in self._refs.values() if r.get("reservation")}
+        ports_now = None
+        if any(st["kind"] == "port.set" for st in steps):
+            self._fresh("device")
+            ports_now = model.to_neutral(self._raw)
         missing = []
         for st in steps:
             kind, after = st["kind"], st["after"]
             oid = self._created.get(st["object"], st["object"])
             ok = True
+            if kind == "port.cycle":
+                continue                                # a one-off command: nothing to keep
+            if kind == "port.set":
+                port = next((p for p in ports_now.get("ports") or [] if p.get("id") == oid), None)
+                if port is None or not portconf.matches(ports_now, port, after):
+                    missing.append(oid)
+                continue
             if fw is not None and (kind in zonefw.ZONE_KINDS or (kind.startswith("network.") and "zone" in after)):
                 area = "zones" if kind.startswith("zone.") else "policies" if kind.startswith("policy.") else "networks"
                 obj = next((o for o in fw.get(area) or [] if o.get("id") == oid), None)
@@ -1462,7 +1748,7 @@ class UnifiWriter(ControllerAdapter):
     def plan_lockout(self, state: dict, steps: list):
         """The gateway rules over the whole plan, then the zone firewall: rule order, and this executor keeps its way
         to the controller."""
-        why = netconf.plan_lockout(state, steps)
+        why = netconf.plan_lockout(state, steps) or portconf.plan_lockout(state, steps)
         if why:
             return why
         if not any(st.get("kind") in zonefw.ZONE_KINDS or "zone" in (st.get("after") or {}) for st in steps):
@@ -1526,6 +1812,13 @@ class UnifiWriter(ControllerAdapter):
         kind = step.get("kind")
         if kind in zonefw.ZONE_KINDS:
             return self._zone_lockout(state, step)
+        if kind in portconf.PORT_KINDS:
+            guard = [self._host]
+            try:
+                guard += [a for a in (self._controller_ip(), self.self_address()) if a]
+            except OSError:
+                pass
+            return portconf.step_lockout(state, step, {"addresses": guard}) or self._port_lockout(state, step)
         if kind in netconf.NET_KINDS:
             why = netconf.step_lockout(state, step, critical=[self._host])
             if why:

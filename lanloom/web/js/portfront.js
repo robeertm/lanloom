@@ -1,7 +1,8 @@
 /* Lanloom — the front view ("faceplate") of a switch, router or access point: the ports drawn like the hardware (odd numbers
    on the top row, even below, SFP cages as a small group at the end), link and speed, power over Ethernet, uplink, the number
-   of devices behind a port and the health of the last 24 hours. A port opens a panel right below the plate. Read-only: it only
-   shows what the controller reports (GET /api/ports, or detail.portfront of a device card).
+   of devices behind a port and the health of the last 24 hours. A port opens a panel right below the plate with its profile,
+   untagged and tagged networks and power. Read-only: it only shows what the controller reports (GET /api/ports, or
+   detail.portfront of a device card); the firewall editor hands in its own tools for the panel (opts.extra, js/portconf.js).
    The pure layout and wording helpers are exported for the Node test (tests/js/portfront_test.js). */
 (function () {
   'use strict';
@@ -94,7 +95,7 @@
 
   function pad(front, p, panelId) {
     const lv = level(p.level), poeOn = !!(p.poe && p.poe.on);
-    const el = h('button', { type: 'button', class: 'pf-pad' + (p.link ? ' is-up' : ' is-down') + (p.sfp ? ' pf-pad--sfp' : '') + (p.uplink ? ' is-uplink' : '') + ' pf-pad--' + lv,
+    const el = h('button', { type: 'button', class: 'pf-pad' + (p.link ? ' is-up' : ' is-down') + (p.sfp ? ' pf-pad--sfp' : '') + (p.uplink ? ' is-uplink' : '') + (p.planned ? ' is-planned' : '') + ' pf-pad--' + lv,
       'aria-label': padLabel(p), 'aria-pressed': 'false', 'aria-controls': panelId, tabindex: '-1', dataset: { port: p.id } });
     el.append(h('span', { class: 'pf-led', 'aria-hidden': 'true' }));
     const marks = h('span', { class: 'pf-marks', 'aria-hidden': 'true' });
@@ -110,15 +111,21 @@
 
   function fact(label, value) { return value == null || value === '' ? null : [h('dt', {}, label), h('dd', {}, value)]; }
 
-  function panel(front, p) {
+  function panel(front, p, extra) {
     const lv = level(p.level);
     const rows = [];
     rows.push(fact(t('pf.f.link'), [p.link ? t('pf.link.up') : t('pf.link.down'), p.link && p.speed ? speedFull(p.speed, fmt, t) : null,
       p.link && p.duplex ? t('pf.duplex.' + (p.duplex === 'half' ? 'half' : 'full')) : null].filter(Boolean).join(' · ')));
     const net = [p.network, p.vlan != null ? t('pf.vlan', { id: p.vlan }) : null].filter(Boolean).join(' · ');
-    rows.push(fact(t('pf.f.network'), [net, p.tagged ? t('pf.tagged') : null].filter(Boolean).join(' · ')));
+    rows.push(fact(t('pf.f.profile'), p.profile));
+    rows.push(fact(t('pf.f.network'), [net, p.tagged && !p.tagged_mode ? t('pf.tagged') : null].filter(Boolean).join(' · ')));
+    if (p.tagged_mode) {
+      rows.push(fact(t('pf.f.tagged'), p.tagged_mode === 'custom' ? ((p.tagged_names || []).join(', ') || t('pf.tagged_mode.none'))
+        : t('pf.tagged_mode.' + (p.tagged_mode === 'all' ? 'all' : 'none'))));
+    }
     if (p.poe && p.poe.capable !== false && !p.sfp) {
-      rows.push(fact(t('pf.f.poe'), p.poe.on ? (p.poe.watts != null ? t('pf.poe.watts', { w: fmt(p.poe.watts) }) : t('pf.poe.on')) : t('pf.poe.off')));
+      rows.push(fact(t('pf.f.poe'), p.poe.on ? (p.poe.watts ? t('pf.poe.watts', { w: fmt(p.poe.watts) }) : t('pf.poe.on'))
+        : t(p.poe_mode === 'off' ? 'pf.poe.switched_off' : 'pf.poe.off')));
     }
     if (p.uplink) rows.push(fact(t('pf.f.role'), t('pf.uplink_long')));
     rows.push(fact(t('pf.f.neighbor'), p.neighbor));
@@ -132,8 +139,10 @@
     rows.push(fact(t('pf.f.health'), h('span', { class: 'pf-hl pf-hl--' + lv }, lv !== 'ok' ? h('b', { 'aria-hidden': 'true' }, levelMark(lv)) : null,
       ' ', t(levelKey(lv)), ' — ', healthText(p, t))));
     if (p.rate && p.link) rows.push(fact(t('pf.f.rate'), t('pf.rate', { tx: LL.fmtRate(p.rate.tx || 0), rx: LL.fmtRate(p.rate.rx || 0) })));
-    return [h('h4', { class: 'pf-panel__title' }, portName(p), p.sfp ? h('span', { class: 'chip chip--muted' }, t('pf.sfp')) : null),
-      h('dl', { class: 'pf-facts' }, rows.filter(Boolean).flat())];
+    const more = extra ? (extra(p) || []).filter(Boolean) : [];
+    return [h('h4', { class: 'pf-panel__title' }, portName(p), p.sfp ? h('span', { class: 'chip chip--muted' }, t('pf.sfp')) : null,
+      p.planned ? h('span', { class: 'chip chip--accent' }, t('pf.planned')) : null),
+      h('dl', { class: 'pf-facts' }, rows.filter(Boolean).flat())].concat(more);
   }
 
   function legend() {
@@ -188,7 +197,7 @@
     }
     function refreshPanel() {
       const pid = selected.get(front.id), p = ports.find(x => x.id === pid);
-      if (!p) { selected.delete(front.id); info.hidden = true; info.replaceChildren(); } else { info.replaceChildren(...panel(front, p)); info.hidden = false; }
+      if (!p) { selected.delete(front.id); info.hidden = true; info.replaceChildren(); } else { info.replaceChildren(...panel(front, p, opts.extra)); info.hidden = false; }
       pads.forEach(el => { const on = !!p && el.dataset.port === p.id; el.classList.toggle('is-selected', on); el.setAttribute('aria-pressed', String(on)); el.setAttribute('aria-expanded', String(on)); });
     }
     function setStop(el) { pads.forEach(x => x.setAttribute('tabindex', x === el ? '0' : '-1')); tabStop = el; }

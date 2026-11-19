@@ -150,6 +150,94 @@ def _zm_build(ctx) -> dict:
 register(Contribution("zonematrix", 54, "report.sec.zonematrix", _zm_available, _zm_build))
 
 
+# Section "Port settings": which switch ports changed their profile, untagged network, tagged networks or power since
+# the last report (whoever changed them: Lanloom, the controller's own pages, someone else), from the configurations
+# the connections read. There only when a connection reads port settings. Names only - no addresses.
+PC_MAX_PORTS = 2000
+
+
+def _pc_sources(ctx) -> list:
+    out = []
+    try:
+        live = ctx.core.live_configs() or []
+    except Exception:
+        live = []
+    for cfg in live:
+        st = cfg.get("state") or {}
+        if any(isinstance(p, dict) and (p.get("native_network") or p.get("tagged_mode") or p.get("profile"))
+               for p in st.get("ports") or []):
+            out.append(cfg)
+    return out
+
+
+def _pc_available(ctx) -> bool:
+    return bool(_pc_sources(ctx))
+
+
+def _pc_snapshot(st: dict) -> dict:
+    from . import portconf
+    nets = {n["id"]: str(n.get("name") or "?")[:40] for n in st.get("networks") or [] if n.get("id")}
+    profs = {p["id"]: str(p.get("name") or "?")[:40] for p in st.get("port_profiles") or [] if p.get("id")}
+    out = {}
+    for p in (st.get("ports") or [])[:PC_MAX_PORTS]:
+        if not isinstance(p, dict) or not p.get("id"):
+            continue
+        eff = portconf.effective(st, p)
+        out[p["id"]] = {"label": portconf.label(st, p)[:80], "profile": profs.get(eff["profile"]) or "",
+                        "net": nets.get(eff["native_network"]) or (("VLAN %s" % eff["native_vlan"]) if eff["native_vlan"] else ""),
+                        "tagged": "%s:%s" % (eff["tagged_mode"] or "", ",".join(sorted(nets.get(t, "?") for t in eff["tagged"]))),
+                        "poe": eff["poe"]}
+    return out
+
+
+def _pc_build(ctx) -> dict:
+    before = ((ctx.prev or {}).get("keep") or {}).get("portconf") or {}
+    now, items, changed, power_off = {}, [], 0, 0
+    first = not before
+    for cfg in _pc_sources(ctx):
+        snap = _pc_snapshot(cfg["state"])
+        now[cfg["key"]] = snap
+        old = before.get(cfg["key"])
+        if old is None:
+            continue
+        src = str(cfg.get("name") or "?")[:40]
+        for pid, cur in sorted(snap.items(), key=lambda kv: kv[1]["label"]):
+            was = old.get(pid)
+            if not was:
+                continue
+            iid = "pc:%s:%s" % (cfg["key"], pid)
+            hit = False
+            if was.get("profile") != cur["profile"]:
+                hit = True
+                items.append(item(iid + ":profile", "report.pc.profile", "info", False, source=src, port=cur["label"],
+                                  **{"from": was.get("profile") or "-", "to": cur["profile"] or "-"}))
+            if was.get("net") != cur["net"]:
+                hit = True
+                items.append(item(iid + ":net", "report.pc.native", "warn", True, source=src, port=cur["label"],
+                                  **{"from": was.get("net") or "-", "to": cur["net"] or "-"}))
+            if was.get("tagged") != cur["tagged"]:
+                hit = True
+                items.append(item(iid + ":tagged", "report.pc.tagged", "info", False, source=src, port=cur["label"]))
+            if was.get("poe") is not None and cur["poe"] is not None and was.get("poe") != cur["poe"]:
+                hit = True
+                if cur["poe"]:
+                    items.append(item(iid + ":poe", "report.pc.poe_on", "info", False, source=src, port=cur["label"]))
+                else:
+                    power_off += 1
+                    items.append(item(iid + ":poe", "report.pc.poe_off", "warn", True, source=src, port=cur["label"]))
+            changed += 1 if hit else 0
+    ctx.keep["portconf"] = now
+    n_ports = sum(len(v) for v in now.values())
+    if first:
+        return section("portconf", "report.sec.portconf", "report.pc.baseline", items, n=n_ports)
+    if not items:
+        return section("portconf", "report.sec.portconf", "report.pc.calm", items, n=n_ports)
+    return section("portconf", "report.sec.portconf", "report.pc.summary", items, n=changed)
+
+
+register(Contribution("portconf", 55, "report.sec.portconf", _pc_available, _pc_build))
+
+
 def _executor_configured(core) -> bool:
     return os.environ.get("LANLOOM_FW_EXECUTOR", "").strip().lower() == "external"
 
