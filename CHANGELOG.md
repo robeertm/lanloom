@@ -15,6 +15,12 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 - Wireless network security in the neutral step contract uses the names the adapters read: `open`, `wpa2_personal`, `wpa2_wpa3_personal`, `wpa3_personal`.
 
+### Fixed
+- **Requests have a deadline.** Every request through `LL.api` ends after 20 s (120 s for the ways that really work long: AI, update, backup, export and import, the vulnerability feed, clean-up, scans and tests of connections; a caller can set its own) with a calm error ("The request took too long and was stopped") instead of waiting for ever. A change that ran into its deadline is never sent a second time. Before, a server, reverse proxy or network that never answered left a view stuck until the page was reloaded.
+- **No view is blocked by a request that never ends.** The "one request at a time" locks of the map, the data paths view and its country sheet, and the port front now give a request up after max(30 s, three cadences) and ask again; a late answer of the abandoned request is not drawn. The firewall view keeps its state and asks again after a failed request instead of staying on the error.
+- **A stale view says so.** Every view that shows its own data remembers the age of its last good state; when it is older than three cadences (at least three minutes) a calm band "Data stale since HH:MM - refreshing by itself" appears over the view (all languages), the content is dimmed, and the view is asked again by itself every 15 s. It is checked every second against the clock, so it also appears when no answer arrives at all, while the live channel still says *Live*; the next good state removes it.
+- **Back from sleep or after a network change, views fetch again at once** (the tab becomes visible, `online`): every visible view whose state is older than 30 s asks immediately; a state of a few seconds is left alone so that open parts and focus stay. A page that could not start (no state) starts again by itself.
+
 ## [1.51.0] – 2026-11-19
 
 1.44.0, 1.44.1, 1.45.0, 1.46.0, 1.46.1, 1.47.0, 1.48.0, 1.49.0, 1.50.0 and 1.50.1 below were not released on their own; they are part of this release.

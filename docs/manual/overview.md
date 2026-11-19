@@ -73,6 +73,15 @@ adds figures and cards through `Lanloom.registerOverviewTile` and `Lanloom.regis
 
 ![Right now rail](../screenshots/overview-rail-dark.png)
 
+### When the data is old
+
+If the start page (or any other view) has not received a good state for more than three refresh cycles, at least three
+minutes, a calm band *Data stale since HH:MM – refreshing by itself* appears above it and the content is dimmed. The
+header may still say *Live*: the live channel is separate. The page asks again by itself, and back from sleep or after a
+network change it fetches at once. See [Troubleshooting](../TROUBLESHOOTING.md).
+
+![The band on a phone, dark theme](../screenshots/phone-overview-stale.png)
+
 ## Limits
 
 - The 24-hour strip and the figures reflect what Lanloom has measured since it started; a fresh start or restart has

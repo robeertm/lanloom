@@ -252,6 +252,10 @@ has no update button in the add-on. See [ADDON.md](ADDON.md).
 | The nightly report did not come | Lanloom was off at the report time; it is made at the next start and says so ([NIGHTLY-REPORT.md](NIGHTLY-REPORT.md)) |
 | Everything is slow on a small host | see [PERFORMANCE.md](PERFORMANCE.md); lower the retention under *Settings > Storage* |
 
+## A view shows "Data stale since ..."
+
+Every view that shows its own data remembers when it last received a good state. If that is more than three refresh cycles ago (at least three minutes), a calm band says *Data stale since HH:MM – refreshing by itself* and the content is dimmed; the view asks again every 15 seconds and the band goes away with the next good state. The header can still say *Live* – the live channel is separate and only carries changes. Typical causes: the laptop was asleep, the network changed, a reverse proxy in front of Lanloom stopped answering, or the container is overloaded. Every request has a deadline of 20 seconds (120 seconds for AI, update, backup, export and scans) and ends with "The request took too long and was stopped" instead of waiting for ever. When the tab becomes visible again or the network is back, views older than 30 seconds fetch at once. If the band stays, check `docker logs` of the container and the reverse proxy timeouts.
+
 ## Still stuck?
 
 Open an issue with the matching form (bug, wish, adapter request or test report) and attach the diagnostic file. **Never post secrets**: no passwords, tokens, API keys, setup codes, passkeys or recovery codes. See [CONTRIBUTING.md](../CONTRIBUTING.md) and, for security problems, [SECURITY.md](../SECURITY.md).
