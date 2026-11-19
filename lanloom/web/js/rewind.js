@@ -321,7 +321,7 @@
     g.beginPath(); g.moveTo(0, hh);
     for (let i = 0; i < n; i++) g.lineTo((i + 0.5) / n * w, yOf(d.tot[i]));
     g.lineTo(w, hh); g.closePath();
-    g.fillStyle = css('--ll-accent-soft') || 'rgba(0,0,0,.08)'; g.fill();
+    g.fillStyle = css('--ll-accent-soft') || '#e6f2f0'; g.fill();
     g.strokeStyle = css('--ll-accent'); g.lineWidth = 1.2; g.beginPath();
     for (let i = 0; i < n; i++) { const xx = (i + 0.5) / n * w, yy = yOf(d.tot[i]); if (i) g.lineTo(xx, yy); else g.moveTo(xx, yy); }
     g.stroke();
