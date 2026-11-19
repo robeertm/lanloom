@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.49.0] – 2026-11-19
+
+1.44.0, 1.44.1, 1.45.0, 1.46.0, 1.46.1, 1.47.0 and 1.48.0 below were not released on their own; they are part of this release.
+
 ### Added
 - **OPNsense family, read and rule changes** (stage A, and stage B through the executor; product names identify compatible products only; no affiliation or endorsement; guide [docs/integrations/opnsense.md](docs/integrations/opnsense.md), entry in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)). The read half uses an API key of a user made for Lanloom and sends `GET` requests to a fixed list of paths only: interfaces become zones (with network, VLAN and address), interface groups zones of their own, the firewall itself the zone *This firewall*; rules appear in the firewall's evaluation order (floating, group, interface; from release 25.1 also the classic rules, read only), with aliases, source NAT, NPT and 1:1 NAT, destination NAT (26.1 and later), fixed addresses, static routes, gateways and VPN instances. Fields that carry keys, secrets, passwords or certificates are dropped as the reply arrives.
 - **Rule changes for this family through the executor** (a key of its own): add a rule between two interfaces or to the firewall itself (marked as Lanloom's own), change or switch simple rules, remove own rules; every field checked by the executor's allow-list; written into the configuration and put live with one apply. Way back: Lanloom's backup on every release, plus the firewall's savepoint and 60 second revert timer on releases 23.1 to 26.1 (the executor confirms only after reading every changed rule back; release 26.7 dropped the savepoint, the capability list then says so).
