@@ -55,12 +55,18 @@
   const countryRow = cc => (S.d && S.d.countries.find(c => c.cc === cc)) || null;
   const isEU = cc => !!(countryRow(cc) && countryRow(cc).eu);
 
+  // one request at a time, but a request that never ends is given up after 30 s (O10) and the data is asked for again
+  const gate = LL.fresh.gate(20000);
+  let fw = null;        // the "Data stale since ..." watch of the page (set up with the view)
   async function load() {
-    if (S.loading) return;
-    S.loading = true;
-    try { S.d = await api('/api/paths?window=' + S.window); S.error = null; }
-    catch (e) { S.error = LL.errText(e); }
-    S.loading = false;
+    const k = gate.enter();
+    if (!k) return;
+    let good = false;
+    try { const d = await api('/api/paths?window=' + S.window); if (gate.live(k)) { S.d = d; S.error = null; good = true; } }
+    catch (e) { if (gate.live(k)) S.error = LL.errText(e); }
+    gate.leave(k);
+    if (!gate.live(k)) return;          // given up meanwhile: a newer request draws
+    if (fw) { if (good) fw.ok(); else fw.fail(); }
     render();
   }
   function setWindow(w) {
@@ -651,6 +657,7 @@
     fr.main.append(page);
     S.d = null; S.sel = null; S.zv = { page: null, full: null };
     render();
+    fw = LL.fresh.watch(page, 20000, load);
     await load();
     // deep link #/paths/<ISO>: the country sheet opens on this very history entry
     const want = rest && rest[0] && /^[A-Za-z]{2}$/.test(rest[0]) ? rest[0].toUpperCase() : null;
@@ -664,6 +671,7 @@
     const unsubLive = LL.liveSubscribe ? LL.liveSubscribe(f => {
       if (f.pathsver == null) return;
       if (pv != null && f.pathsver !== pv) owed = true;
+      else if (!owed && S.d && fw) fw.ok();       // the data only changes with a new version: no change = the shown state is still current
       pv = f.pathsver;
       if (owed && !document.hidden && Date.now() - lastLoad > 20000) { owed = false; lastLoad = Date.now(); load(); }
     }) : null;
@@ -674,6 +682,7 @@
     return { destroy() {
       fr.destroy && fr.destroy();
       clearInterval(S.timer); S.timer = 0;
+      if (fw) { fw.destroy(); fw = null; }
       if (unsubLive) unsubLive();
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);

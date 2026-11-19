@@ -97,10 +97,11 @@
           h('div', { class: 'svc-list', role: 'list' }, other.map(row))) : null].filter(Boolean));
     }
     async function load() {
-      try { data = await api('/api/services'); draw(); } catch (e) { el.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); }
+      try { data = await api('/api/services'); fw.ok(); draw(); } catch (e) { if (!data) el.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); }
     }
+    const fw = LL.fresh.watch(el, 60000, load);
     load();
-    const timer = setInterval(() => { if (!alive(el)) { clearInterval(timer); return; } if (!document.hidden) load(); }, 60000);
+    const timer = setInterval(() => { if (!alive(el)) { clearInterval(timer); fw.destroy(); return; } if (!document.hidden) load(); }, 60000);
     el.redraw = draw;
     return el;
   };
@@ -112,6 +113,7 @@
     async function load() {
       let d;
       try { d = await api('/api/devices/' + encodeURIComponent(deviceId) + '/services'); } catch (e) { sec.remove(); return; }
+      fw.ok();
       if (!d.rows.length) { sec.remove(); return; }
       body.replaceChildren(h('ul', { class: 'svc-clist' }, d.rows.map(r => h('li', { class: 'svc-citem svc-citem--' + r.state },
         h('div', { class: 'svc-citem__main' }, h('strong', { class: 'mono' }, portText(r)), h('span', { class: 'muted svc-citem__sub' }, [r.label, product(r)].filter(Boolean).join(' · ') || '')),
@@ -119,8 +121,9 @@
         h('div', { class: 'svc-citem__act' }, forgetButton(r, load), openLink(r, false))))),
         h('p', { class: 'muted svc-note' }, t(d.enabled ? 'svc.card.note' : 'svc.disabled')));
     }
+    const fw = LL.fresh.watch(sec, 60000, load, { band: false });
     load();
-    const timer = setInterval(() => { if (!alive(sec)) { clearInterval(timer); return; } if (!document.hidden) load(); }, 60000);
+    const timer = setInterval(() => { if (!alive(sec)) { clearInterval(timer); fw.destroy(); return; } if (!document.hidden) load(); }, 60000);
     return sec;
   };
 

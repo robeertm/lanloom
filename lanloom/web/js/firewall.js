@@ -52,13 +52,20 @@
       const st = { view: null, mode: 'view', pv: null, drag: null, timer: null, source: null, pol: { pair: null, builtin: false, q: '' } };
       try { st.mode = localStorage.getItem('ll-fw-mode') === 'change' ? 'change' : 'view'; st.source = localStorage.getItem('ll-fw-source') || null; } catch (e) { /* private mode */ }
 
+      let fw = null;      // refresh after sleep / network change (set up with the view)
       async function load() {
-        try { st.view = await api('/api/firewall' + (st.source ? '?source=' + encodeURIComponent(st.source) : '')); } catch (e) { page.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
+        try { st.view = await api('/api/firewall' + (st.source ? '?source=' + encodeURIComponent(st.source) : '')); }
+        catch (e) {      // a request that was stopped or failed: the shown state stays, the page asks again by itself (O10)
+          if (!st.view) page.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); else LL.toast(LL.errText(e), 'error');
+          clearTimeout(st.timer); st.timer = setTimeout(load, 15000);
+          return;
+        }
         st.pv = st.view.mode !== 'live' && draftCount(st.view) ? await api('/api/firewall/preview', { method: 'POST', body: {} }).catch(() => null) : null;
         // plain-language rules, checks with advice, hits and the board of a zone firewall; the tab works without it
         st.insight = st.view.mode === 'live' && st.view.state && (st.view.state.policies || []).length && !(st.view.state.hosts || []).length
           ? await api('/api/firewall/insight?source=' + encodeURIComponent(st.view.source || '')).catch(() => null) : null;
         if (st.insight && (!st.insight.source || st.insight.source !== st.view.source)) st.insight = null;
+        if (fw) fw.ok();
         render();
         clearTimeout(st.timer);
         if (st.view.running) st.timer = setTimeout(load, 1500);
@@ -613,7 +620,8 @@
           else if (want === 'pick' || ip) { if (ip && !dev) LL.toast(t('fw.pick.not_here'), 'info'); openPicker(st.view); }
         } else LL.toast(t(LL.can('operate') ? 'fw.executor.readonly' : 'fw.role.readonly'), 'info');
       }
-      return { destroy: () => { clearTimeout(st.timer); fr.destroy(); } };
+      fw = LL.fresh.watch(page, 60000, () => { if (st.view && !st.drag) return load(); }, { band: false });    // back from sleep / network: fetch again at once
+      return { destroy: () => { clearTimeout(st.timer); fw.destroy(); fr.destroy(); } };
     };
   }
 

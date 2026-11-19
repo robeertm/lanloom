@@ -266,6 +266,7 @@
     }
 
     // ---------------------------------------------------------------- the parts
+    let fw = null;
     async function loadPart() {
       const seq = Symbol('load');
       loadPart.seq = seq;
@@ -274,6 +275,7 @@
         if (mode !== 'list') part = await api('/api/hub/' + integ + '/auto/' + mode);
       } catch (e) { if (alive) body.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
       if (!alive || loadPart.seq !== seq) return;
+      if (fw) fw.ok();
       if (!data.connected) { body.replaceChildren(h('div', { class: 'empty-note' }, t('auto.waiting'))); count.textContent = ''; return; }
       if (mode === 'list') { body.replaceChildren(listBlock()); return; }
       count.textContent = '';
@@ -495,6 +497,7 @@
 
     body.append(h('div', { class: 'skeleton' }));
     drawSeg();
+    fw = LL.fresh.watch(body, 15000, loadPart);
     await loadPart();
     const every = () => ({ list: 15000, who: 15000, timeline: 10000, plan: 60000, rooms: 10000, health: 30000 }[mode] || 15000);
     const loop = () => { timer = setTimeout(async () => { if (!document.hidden && !(mode === 'list' && document.activeElement && body.contains(document.activeElement) && document.activeElement.tagName === 'SELECT')) await loadPart(); if (alive) loop(); }, every()); };
@@ -502,7 +505,7 @@
     const onOutage = () => { if (alive && mode === 'list') renderList(); };
     document.addEventListener('ll-outage', onOutage);
     if (LL.failure) LL.failure.loadOutages();
-    return { destroy: () => { alive = false; clearTimeout(timer); document.removeEventListener('ll-outage', onOutage); fr.destroy(); } };
+    return { destroy: () => { alive = false; clearTimeout(timer); fw.destroy(); document.removeEventListener('ll-outage', onOutage); fr.destroy(); } };
   }
 
   // ------------------------------------------------------------------ one automation
@@ -515,11 +518,12 @@
     const runsBox = h('div', { class: 'card au-runs' });
     const boardBox = h('div', { class: 'card au-boardcard' });
     page.append(back, head, grid);
-    let traces = null, traceWait = null, board = null;
+    let traces = null, traceWait = null, board = null, fw = null;
     async function load() {
       try { d = await api('/api/hub/' + integ + '/auto/item/' + enc(eid)); }
-      catch (e) { if (alive) grid.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
+      catch (e) { if (alive && !d) grid.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
       if (!alive) return;
+      if (fw) fw.ok();
       draw();
     }
     function draw() {
@@ -606,12 +610,13 @@
     }
     try { const got = await api('/api/hub/' + integ + '/traces/' + enc(eid)); traces = got.traces; } catch (e) { /* none yet */ }
     grid.append(h('div', { class: 'skeleton' }));
+    fw = LL.fresh.watch(grid, 15000, load);
     await load();
     const unsub = LL.live.subscribe(f => { if (board && f.autoruns) board.pulse(f.autoruns.filter(x => x[0] === integ)); });
     const timer = setInterval(() => { if (!document.hidden && !traceWait) load(); }, 15000);
     const onResize = () => { if (board) board.layout(); };
     window.addEventListener('resize', onResize);
-    return { destroy: () => { alive = false; unsub(); clearInterval(timer); if (traceWait) clearInterval(traceWait); window.removeEventListener('resize', onResize); fr.destroy(); } };
+    return { destroy: () => { alive = false; unsub(); clearInterval(timer); fw.destroy(); if (traceWait) clearInterval(traceWait); window.removeEventListener('resize', onResize); fr.destroy(); } };
   }
 
   // ------------------------------------------------------------------ the dependency board
@@ -706,27 +711,29 @@
 
   async function boardPage(fr, page, integ, eid) {
     page.classList.add('au-boardpage');
-    let alive = true, board = null;
+    let alive = true, board = null, fw = null;
     const back = h('a', { class: 'sn-back', href: '#/automations/' + integ + (store('ll-auto-mode') && store('ll-auto-mode') !== 'list' ? '?view=' + store('ll-auto-mode') : '') }, '← ' + t('auto.back'));
     const head = h('div', { class: 'page__head' }, h('h1', {}, t('auto.board.title')));
     const box = h('div', { class: 'card au-boardcard au-boardcard--page' });
     page.append(back, head, h('p', { class: 'muted au-note' }, t('auto.board.note')), box);
     async function load() {
       let b;
-      try { b = await api('/api/hub/' + integ + '/auto/board/' + enc(eid)); } catch (e) { if (alive) box.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
+      try { b = await api('/api/hub/' + integ + '/auto/board/' + enc(eid)); } catch (e) { if (alive && !board) box.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
       if (!alive) return;
+      if (fw) fw.ok();
       head.replaceChildren(h('h1', {}, t('auto.board.title_of', { name: b.center.name })));
       board = boardEl(integ, b, false);
       box.replaceChildren(adminNote({ admin: b.admin, exact: b.known ? 1 : 0 }) || '', board.el);
       board.layout();
     }
     box.append(h('div', { class: 'skeleton' }));
+    fw = LL.fresh.watch(box, 15000, load);
     await load();
     const unsub = LL.live.subscribe(f => { if (board && f.autoruns) board.pulse(f.autoruns.filter(x => x[0] === integ)); });
     const timer = setInterval(() => { if (!document.hidden) load(); }, 15000);
     const onResize = () => { if (board) board.layout(); };
     window.addEventListener('resize', onResize);
-    return { destroy: () => { alive = false; unsub(); clearInterval(timer); window.removeEventListener('resize', onResize); fr.destroy(); } };
+    return { destroy: () => { alive = false; unsub(); clearInterval(timer); fw.destroy(); window.removeEventListener('resize', onResize); fr.destroy(); } };
   }
 
   LL.view('automations', autoView);

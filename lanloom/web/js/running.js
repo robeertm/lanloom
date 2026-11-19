@@ -267,7 +267,7 @@
     const fr = LL.frame(app, 'running');
     const page = h('div', { class: 'page ru-page' });
     fr.main.append(page);
-    let alive = true, data = null, timer = null;
+    let alive = true, data = null, timer = null, fw = null;
     const lead = h('p', { class: 'muted ru-lead' });
     const filters = h('div', { class: 'seg ru-filters', role: 'group', 'aria-label': t('running.filter.label') });
     const search = h('input', { class: 'input ru-search', type: 'search', placeholder: t('running.search'), 'aria-label': t('running.search'), value: ui.search,
@@ -304,17 +304,19 @@
     async function load() {
       try { data = await api('/api/running'); } catch (e) { if (alive && !data) list.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
       if (!alive) return;
+      if (fw) fw.ok();
       draw();
       loadHealth(list, data.hosts, () => alive).then(n => { if (n && alive) draw(); });
     }
     const onTheme = () => draw();
     document.addEventListener('ll-theme', onTheme);
     list.append(h('div', { class: 'skeleton' }));
+    fw = LL.fresh.watch(list, REFRESH_MS, load);
     await load();
     timer = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);
     const onResize = () => paintSparks(list);
     window.addEventListener('resize', onResize);
-    return { destroy: () => { alive = false; clearInterval(timer); LL.runningRedraw = null; document.removeEventListener('ll-theme', onTheme); window.removeEventListener('resize', onResize); fr.destroy(); } };
+    return { destroy: () => { alive = false; clearInterval(timer); fw.destroy(); LL.runningRedraw = null; document.removeEventListener('ll-theme', onTheme); window.removeEventListener('resize', onResize); fr.destroy(); } };
   }
   LL.view('running', runningView);
 })();

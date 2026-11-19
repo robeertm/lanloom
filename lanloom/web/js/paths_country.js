@@ -409,16 +409,21 @@
     const v = Z.zv || parts.svg.viewBox.baseVal;
     placeLabels(stage, parts.svg, parts, { x: v.x, y: v.y, w: v.w != null ? v.w : v.width });
   }
+  const gate = LL.fresh.gate(60000);        // one request at a time, a request that never ends is given up (O10)
   async function load() {
-    if (Z.loading || !Z.cc) return;
-    Z.loading = true;
+    if (!Z.cc) return;
+    const k = gate.enter();
+    if (!k) return;
     const cc = Z.cc, w = Z.window;
+    let good = false;
     try {
       const d = await api('/api/paths/country/' + encodeURIComponent(cc) + '?window=' + w);
-      if (cc === Z.cc && w === Z.window) { Z.d = d; Z.error = null; }
-    } catch (e) { Z.error = LL.errText(e); }
-    Z.loading = false;
+      if (gate.live(k) && cc === Z.cc && w === Z.window) { Z.d = d; Z.error = null; good = true; }
+    } catch (e) { if (gate.live(k)) Z.error = LL.errText(e); }
+    gate.leave(k);
+    if (!gate.live(k)) return;
     if (cc !== Z.cc || w !== Z.window) { load(); return; }
+    if (Z.fw) { if (good) Z.fw.ok(); else Z.fw.fail(); }
     draw();
   }
   function teardown(fromPop) {
@@ -429,6 +434,7 @@
     window.removeEventListener('popstate', Z.pop);
     window.removeEventListener('resize', onResize);
     clearInterval(Z.timer);
+    if (Z.fw) { Z.fw.destroy(); Z.fw = null; }
     if (Z.cleanup) { Z.cleanup(); Z.cleanup = null; }
     el.remove();
     document.body.classList.remove('pw-noscroll');
@@ -451,6 +457,7 @@
       else Z.pushed = false;
     }
     draw();
+    if (fresh && Z.el) Z.fw = LL.fresh.watch(Z.el.querySelector('.pc-body'), 60000, load);
     load();
     clearInterval(Z.timer);
     Z.timer = setInterval(() => { if (Z.el && !document.hidden) load(); }, 60000);

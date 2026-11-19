@@ -78,6 +78,7 @@
     async function load() {
       let d;
       try { d = await api('/api/availability/dev:' + encodeURIComponent(deviceId)); } catch (e) { sec.remove(); return; }
+      fw.ok();
       if (!d.known) { sec.remove(); return; }
       const chips = [];
       if (d.open) chips.push(h('span', { class: 'chip chip--danger' }, t('avail.open')));
@@ -96,8 +97,9 @@
         list.length ? h('ul', { class: 'avail-list' }, list.map(i => h('li', {}, h('span', { class: 'mono' }, stamp(i.from, true)),
           h('span', { class: 'muted' }, ' · ' + (i.open ? t('avail.ongoing') : LL.fmtAge(i.dur)))))) : h('p', { class: 'muted avail__none' }, t('avail.none')));
     }
+    const fw = LL.fresh.watch(sec, 60000, load, { band: false });
     load();
-    const timer = setInterval(() => { if (!alive(sec)) { clearInterval(timer); return; } if (!document.hidden) load(); }, 60000);
+    const timer = setInterval(() => { if (!alive(sec)) { clearInterval(timer); fw.destroy(); return; } if (!document.hidden) load(); }, 60000);
     return sec;
   };
 
@@ -176,6 +178,7 @@
     async function load() {
       if (range === 'live') return;
       try { data = await plotData(id, range); } catch (e) { data = null; readout.textContent = LL.errText(e); return; }
+      fw.ok();
       paint();
     }
     function paint(cursor) {
@@ -202,8 +205,9 @@
       if (range === 'live') LL.plotRange = 'live'; else LL.plotRange = range;
     }
     watchSize(canvas, () => paint());
+    const fw = LL.fresh.watch(wrap, 60000, () => { if (range !== 'live') { cache.delete(id + '|' + range); return load(); } }, { band: false });
     show();
-    const timer = setInterval(() => { if (!alive(wrap)) { clearInterval(timer); return; } if (!document.hidden && range !== 'live') { cache.delete(id + '|' + range); load(); } }, 60000);
+    const timer = setInterval(() => { if (!alive(wrap)) { clearInterval(timer); fw.destroy(); return; } if (!document.hidden && range !== 'live') { cache.delete(id + '|' + range); load(); } }, 60000);
     return wrap;
   }
   LL.trafficPlot = (id, live, title) => plot(id, { live, title, range: LL.plotRange && LL.plotRange !== 'live' ? LL.plotRange : (live ? 'live' : '1h') });
@@ -342,10 +346,11 @@
     }
     const open = id => { if (id.startsWith('dev:') && opts.onOpen) opts.onOpen(id.slice(4)); };
     async function load() {
-      try { data = await api('/api/stability'); draw(); } catch (e) { el.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); }
+      try { data = await api('/api/stability'); fw.ok(); draw(); } catch (e) { if (!data) el.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); }
     }
+    const fw = LL.fresh.watch(el, 60000, load);
     load();
-    const timer = setInterval(() => { if (!alive(el)) { clearInterval(timer); return; } if (!document.hidden) load(); }, 60000);
+    const timer = setInterval(() => { if (!alive(el)) { clearInterval(timer); fw.destroy(); return; } if (!document.hidden) load(); }, 60000);
     el.redraw = draw;
     return el;
   };

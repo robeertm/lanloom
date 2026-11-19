@@ -1,0 +1,8 @@
+/* Lanloom — "Data stale since ..." band and the dimmed content of a view that has not had a good state for a while (O10).
+   Colours from the tokens only (every palette and mode); the band wraps on a phone, nothing is cut off. */
+.ll-stale { display: flex; align-items: flex-start; gap: var(--ll-space-2); margin: 0 0 var(--ll-space-3); padding: 8px 12px; box-sizing: border-box; max-width: 100%;
+  border: 1px solid var(--ll-warn); border-radius: var(--ll-radius-sm); background: var(--ll-warn-soft); color: var(--ll-warn-text); font-size: var(--ll-fs-sm); line-height: 1.4; }
+.ll-stale__dot { flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--ll-warn); }
+.ll-stale__text { min-width: 0; overflow-wrap: anywhere; }
+.is-outdated { opacity: .55; transition: opacity var(--ll-dur-fast, .15s) var(--ll-ease, ease); }
+@media (prefers-reduced-motion: reduce) { .is-outdated { transition: none; } }

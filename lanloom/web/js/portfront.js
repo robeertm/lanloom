@@ -275,15 +275,19 @@
   };
 
   // ------------------------------------------------------------------ data: one request per ~15 s for all fronts
+  // (one request at a time; a request that never ends is given up after 30 s and asked again - O10)
   let cache = null, inflight = null;
+  const gate = LL.fresh.gate(15000);
   LL.portFrontsCached = () => (cache && Date.now() - cache.at < 15000 ? cache.fronts : null);
   LL.portFronts = function () {
     const c = LL.portFrontsCached();
     if (c) return Promise.resolve(c);
-    if (inflight) return inflight;
-    inflight = LL.api('/api/ports').then(d => { cache = { at: Date.now(), fronts: (d && d.fronts) || [] }; return cache.fronts; })
-      .catch(() => []).then(r => { inflight = null; return r; });
-    return inflight;
+    const k = gate.enter();
+    if (!k) return inflight || Promise.resolve([]);
+    const run = LL.api('/api/ports').then(d => { const fronts = (d && d.fronts) || []; if (gate.live(k)) cache = { at: Date.now(), fronts }; return fronts; })
+      .catch(() => []).then(r => { gate.leave(k); if (inflight === run) inflight = null; return r; });
+    inflight = run;
+    return run;
   };
 
   // ------------------------------------------------------------------ palette: "Switch ports" opens the firewall tab at the equipment card

@@ -184,6 +184,7 @@
   async function load() {
     if (!S || document.hidden) return;
     try { S.d = await api('/api/overview'); S.err = false; } catch (e) { if (!S.d) S.body.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
+    if (S && S.fw) S.fw.ok();
     draw();
   }
   LL.overviewRedraw = draw;              // tests: one live redraw on demand
@@ -194,12 +195,13 @@
     const body = h('div', { class: 'ov-body' }, h('div', { class: 'skeleton ov-skel' }));
     const page = h('div', { class: 'page page--wide ov-page' }, h('div', { class: 'page__head ov-head' }, h('h1', {}, t('nav.overview')), stamp), body);
     fr.main.append(page);
-    S = { page, body, stamp, d: null, scroller: fr.main };
+    S = { page, body, stamp, d: null, scroller: fr.main, fw: null };
+    S.fw = LL.fresh.watch(body, EVERY_MS, load);
     await load();
     const timer = setInterval(load, EVERY_MS);
     const onVis = () => { if (!document.hidden) load(); };
     document.addEventListener('visibilitychange', onVis);
-    return { destroy: () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVis); S = null; fr.destroy(); } };
+    return { destroy: () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVis); if (S && S.fw) S.fw.destroy(); S = null; fr.destroy(); } };
   }
   LL.view('overview', overviewView);
 })();

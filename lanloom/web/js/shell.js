@@ -119,8 +119,8 @@
   }
 
   // ------------------------------------------------------------------ "Right now"
-  let nowTimer = null, nowSeq = 0;
-  function stopNow() { clearInterval(nowTimer); nowTimer = null; nowSeq++; }
+  let nowTimer = null, nowSeq = 0, nowWatch = null;
+  function stopNow() { clearInterval(nowTimer); nowTimer = null; nowSeq++; if (nowWatch) { nowWatch.destroy(); nowWatch = null; } }
   function startNow() {
     stopNow();
     const seq = nowSeq;
@@ -129,8 +129,10 @@
       if (document.hidden || !rails.now || rails.now.hidden) return;
       let d; try { d = await api('/api/overview/now'); } catch (e) { return; }
       if (seq !== nowSeq) return;
+      if (nowWatch) nowWatch.ok();
       drawNow(d);
     };
+    nowWatch = LL.fresh.watch(rails.now, NOW_EVERY_MS, load, { band: false });
     load();
     nowTimer = setInterval(load, NOW_EVERY_MS);
   }

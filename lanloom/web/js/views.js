@@ -353,15 +353,21 @@
       // change channel instead of polling: the live frame carries the structure version and a map version that rises
       // when statuses, flow traces or source states change; the map is fetched only then (and once after a hidden tab)
       let structure = data.structure, mapver = null, stale = false;
-      let refreshing = false;
+      // one fetch at a time, but one that never ends is given up after 30 s and the board is fetched again (O10)
+      const rgate = LL.fresh.gate(60000);
       async function refresh() {
-        if (refreshing) { stale = true; return; }
-        refreshing = true;
-        try { data = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview')); structure = data.structure; redraw(); }
+        const k = rgate.enter();
+        if (!k) { stale = true; return; }
+        try {
+          const nd = await api('/api/map?view=' + (kind === 'network' ? 'network' : 'overview'));
+          if (rgate.live(k)) { data = nd; structure = data.structure; fw.ok(); redraw(); }
+        }
         catch (e) { /* keep the old board */ }
-        refreshing = false;
-        if (stale) { stale = false; refresh(); }
+        rgate.leave(k);
+        if (stale && rgate.live(k)) { stale = false; refresh(); }
       }
+      // how old is the board: the live frames say nothing changed (or a change is owed), a fetch brings the change
+      const fw = LL.fresh.watch(host, 60000, () => refresh());
       const unsub = liveSubscribe(f => {
         if (document.hidden || (LL.rewind && LL.rewind.active())) { if (f.structure !== structure || (mapver != null && f.mapver !== mapver)) stale = true; mapver = f.mapver; return; }
         board.live(f);
@@ -369,11 +375,12 @@
         if (talkOn && f.pathsver != null && f.pathsver !== talkVer) loadTalk();
         const changed = f.structure !== structure || (mapver != null && f.mapver != null && f.mapver !== mapver);
         mapver = f.mapver;
+        if (!changed && !stale) fw.ok();
         if (changed || stale) { stale = false; refresh(); }
       });
       const onVis = () => { if (!document.hidden && stale) { stale = false; refresh(); } };
       document.addEventListener('visibilitychange', onVis);
-      return { destroy: () => { unsub(); if (fcDetach) fcDetach(); if (rwDetach) rwDetach(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; if (fullScreen) fullScreen.destroy(); board.destroy(); fr.destroy(); } };
+      return { destroy: () => { unsub(); fw.destroy(); if (fcDetach) fcDetach(); if (rwDetach) rwDetach(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; if (fullScreen) fullScreen.destroy(); board.destroy(); fr.destroy(); } };
     };
   }
 

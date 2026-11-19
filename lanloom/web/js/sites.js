@@ -273,13 +273,14 @@
     const page = h('div', { class: 'page page--wide site-page' },
       h('div', { class: 'page__head' }, h('h1', {}, t('site.all')), stamp), summary, grid, extra);
     fr.main.append(page);
-    let alive = true;
+    let alive = true, fw = null;
     async function load() {
       if (!alive || document.hidden) return;
       let ov, list;
       try { [ov, list] = await Promise.all([api('/api/sites/overview'), LL.siteList(true)]); }
       catch (e) { grid.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
       if (!alive) return;
+      if (fw) fw.ok();
       const cur = (LL.site() || {}).id;
       const bad = ov.sites.filter(s => levelOf(s) === 'danger' || levelOf(s) === 'warn').length;
       summary.textContent = t(bad ? 'site.summary.bad' : 'site.summary.ok', { n: ov.sites.length, online: ov.online, total: ov.devices, bad });
@@ -291,9 +292,10 @@
       }
     }
     function reload() { extra.replaceChildren(); LL.siteList(true).then(() => LL.route()); }
+    fw = LL.fresh.watch(grid, EVERY_MS, load);
     await load();
     const timer = setInterval(load, EVERY_MS);
-    return { destroy: () => { alive = false; clearInterval(timer); fr.destroy(); } };
+    return { destroy: () => { alive = false; clearInterval(timer); fw.destroy(); fr.destroy(); } };
   }
   LL.view('sites', sitesView);
 

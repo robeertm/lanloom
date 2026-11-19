@@ -192,11 +192,13 @@
     async function reload() {
       if (!alive) return;
       try { data = await api('/api/agents'); } catch (e) { return; }
+      fw.ok();
       render();
     }
     render();
-    const timer = setInterval(() => { if (!host.isConnected) { alive = false; clearInterval(timer); return; } if (!document.hidden && !host.querySelector('input')) reload(); }, 15000);
+    const fw = LL.fresh.watch(host, 15000, () => { if (!host.querySelector('input')) return reload(); });
+    const timer = setInterval(() => { if (!host.isConnected) { alive = false; clearInterval(timer); fw.destroy(); return; } if (!document.hidden && !host.querySelector('input')) reload(); }, 15000);
     if (admin && LL.query && LL.query.get('pair')) { history.replaceState(null, '', LL.base + '#/settings/agents'); pairDialog(reload); }
-    return { destroy: () => { alive = false; clearInterval(timer); } };
+    return { destroy: () => { alive = false; clearInterval(timer); fw.destroy(); } };
   };
 })();

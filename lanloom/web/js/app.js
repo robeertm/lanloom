@@ -74,14 +74,35 @@
   // Every address is relative to the page, so Lanloom also works below a sub-path of a reverse proxy.
   LL.base = location.pathname.replace(/[^/]*$/, '') || '/';
   LL.url = path => (path.charAt(0) === '/' ? LL.base + path.slice(1) : path);
+  // Every request has a deadline (O10): a server, proxy or network that never answers must not hold a view for ever. 20 s for
+  // everything; the places that really work long (AI, update, backup, export/import, vulnerability feed, clean-up, scans,
+  // tests of connections) get 120 s, and a caller can set its own with opts.timeout. An expired deadline is a calm error
+  // ('error.timeout', e.timeout), never a crash; it is never repeated quietly (a change may have reached the server).
+  const API_TIMEOUT_MS = 20000, API_LONG_TIMEOUT_MS = 120000;
+  const LONG_PATHS = /^\/api\/(ai|backup|export|vulns|storage|update|integrations|mqtt-out|notify|agents\/proxy|scan|reports\/test|diagnostics)(\/|\?|$)/;
+  LL.apiTimeout = (path, timeout) => timeout > 0 ? timeout : (LONG_PATHS.test(path) ? API_LONG_TIMEOUT_MS : API_TIMEOUT_MS);
+  function timedOut(ms) {
+    const err = new Error('timed out');
+    err.status = 0; err.key = 'error.timeout'; err.timeout = true; err.after = ms;
+    return err;
+  }
   async function api(path, opts) {
     opts = opts || {};
     const init = { method: opts.method || 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } };
     if (init.method !== 'GET') init.headers['X-Lanloom'] = '1';
     if (opts.body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
-    const r = await fetch(LL.url(path), init);
-    let data = {};
-    try { data = await r.json(); } catch (e) { /* empty body */ }
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const limit = LL.apiTimeout(path, opts.timeout);
+    const timer = ctl ? setTimeout(() => ctl.abort(), limit) : 0;
+    if (ctl) init.signal = ctl.signal;
+    let r, data = {};
+    try {
+      r = await fetch(LL.url(path), init);
+      try { data = await r.json(); } catch (e) { if (ctl && ctl.signal.aborted) throw e; /* empty body */ }
+    } catch (e) {
+      if (ctl && ctl.signal.aborted) throw timedOut(limit);
+      throw e;
+    } finally { clearTimeout(timer); }
     if (!r.ok) {
       // critical actions ask for a fresh confirmation (passkey, one-time code or password) and are then sent once more
       if (r.status === 403 && data.error === 'auth.err.stepup' && !opts.noStepUp && LL.stepUp) {

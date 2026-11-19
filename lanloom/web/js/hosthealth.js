@@ -96,6 +96,7 @@
     async function load() {
       let d;
       try { d = await api('/api/hosthealth/' + encodeURIComponent(deviceId)); } catch (e) { sec.remove(); return; }
+      fw.ok();
       if (!d.known) { sec.remove(); return; }
       const gauges = (d.gauges || []).slice().sort((a, b) => ORDER.indexOf(a.metric) - ORDER.indexOf(b.metric));
       const r = d.ring || {};
@@ -118,8 +119,9 @@
           calm.length ? h('p', { class: 'hh-fc__calm muted' }, t('hh.fc.calm', { list: calm.join(', ') })) : null,
           !moving.length && !calm.length ? h('p', { class: 'hh-fc__calm muted' }, t(few ? 'hh.fc.collecting' : 'hh.fc.none')) : null));
     }
+    const fw = LL.fresh.watch(sec, 60000, load, { band: false });
     load();
-    const timer = setInterval(() => { if (!alive(sec)) { clearInterval(timer); return; } if (!document.hidden) load(); }, 60000);
+    const timer = setInterval(() => { if (!alive(sec)) { clearInterval(timer); fw.destroy(); return; } if (!document.hidden) load(); }, 60000);
     return sec;
   };
 

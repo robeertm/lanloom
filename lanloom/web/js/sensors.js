@@ -101,7 +101,8 @@
     }
     async function load() {
       try { data = await api('/api/hub/' + integ + '/sensors'); }
-      catch (e) { body.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
+      catch (e) { if (!data) body.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
+      if (fw) fw.ok();
       const keep = areaSel.value;
       const used = new Set(data.entities.map(e => e.area || '-'));
       areaSel.replaceChildren(h('option', { value: '' }, t('sensors.area.all')),
@@ -114,9 +115,10 @@
     q.addEventListener('input', () => { shown = PAGE; render(); });
     areaSel.addEventListener('change', () => { shown = PAGE; render(); });
     body.append(h('div', { class: 'skeleton' }));
+    const fw = LL.fresh.watch(body, 15000, load);
     await load();
     const timer = setInterval(() => { if (!document.hidden) load(); }, 15000);
-    return { destroy: () => { clearInterval(timer); fr.destroy(); } };
+    return { destroy: () => { clearInterval(timer); fw.destroy(); fr.destroy(); } };
   }
 
   // ------------------------------------------------------------------ on site
@@ -185,7 +187,7 @@
   // ------------------------------------------------------------------ sensor page (one entity)
   async function entityPage(fr, page, integ, eid) {
     let range = RANGES.includes(store('ll-sensor-range')) ? store('ll-sensor-range') : '24h';
-    let data = null, alive = true;
+    let data = null, alive = true, fw = null;
     const head = h('div', { class: 'sn-ent__head' });
     const rangeSeg = h('div', { class: 'sn-seg sn-seg--range', role: 'tablist', 'aria-label': t('sensorview.range') });
     const chartWrap = h('div', { class: 'sn-chart' });
@@ -226,6 +228,7 @@
       try { data = await api('/api/hub/' + integ + '/entity/' + encodeURIComponent(eid) + '?range=' + range); LL.msg(msg, ''); }
       catch (e) { LL.msg(msg, LL.errText(e), 'error'); return; }
       if (!alive) return;
+      if (fw) fw.ok();
       drawHead(); drawFacts(); draw();
     }
     function colors() {
@@ -319,9 +322,10 @@
     const onResize = () => draw();
     window.addEventListener('resize', onResize);
     document.addEventListener('ll-theme', onResize);
+    fw = LL.fresh.watch(canvas, 10000, () => load(true), { band: false });
     await load();
     const timer = setInterval(() => { if (!document.hidden && range === '1h') load(true); }, 10000);
-    return { destroy: () => { alive = false; clearInterval(timer); window.removeEventListener('resize', onResize); document.removeEventListener('ll-theme', onResize); fr.destroy(); } };
+    return { destroy: () => { alive = false; clearInterval(timer); fw.destroy(); window.removeEventListener('resize', onResize); document.removeEventListener('ll-theme', onResize); fr.destroy(); } };
   }
 
   LL.view('sensors', sensorsView);
