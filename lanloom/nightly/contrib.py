@@ -280,6 +280,17 @@ def _paths(ctx: Ctx) -> dict:
             items.append(item("path:detail:stale", "report.paths.detail_stale", "info", False, month=city.file.month))
         elif city.state["updated"] and ctx.until - city.state["updated"] < 86400 and city.file is not None:
             items.append(item("path:detail:updated", "report.paths.detail_updated", "info", False, month=city.file.month))
+    rw = getattr(ctx.core, "routes", None)                     # network routes (an option, off by default): calm notes only
+    if rw is not None and (rw.settings()["enabled"] or rw.demo):
+        for r in rw.changes_between(ctx.since, ctx.until)[:5]:
+            target = r.get("operator") or ("AS%d" % r["asn"] if r.get("asn") else "")
+            items.append(item("path:route:%s" % r["key"], "report.paths.route_changed_anycast" if r.get("anycast") else "report.paths.route_changed",
+                              "info", False, target=target or "-", place_cc=r.get("cc") or "", city=r.get("city") or ""))
+        st = rw.state
+        if rw.settings()["enabled"] and not rw.demo and rw.caps is not None and not any(rw.caps["methods"].values()):
+            items.append(item("path:route:impossible", "report.paths.routes_impossible", "info", False))
+        elif st.get("skipped") == "load" and st.get("last_run") is None:
+            items.append(item("path:route:busy", "report.paths.routes_busy", "info", False))
     tot = s.get("totals") or {}
     share = tot.get("outside_eu_share")
     top = [c["cc"] for c in (s.get("countries") or [])[:3]]

@@ -44,9 +44,14 @@ DEFAULT_SETTINGS = {
     "netflow_port": netflow.DEFAULT_PORT,
     "netflow_exporters": [],    # addresses allowed to send flows; packets from anyone else are dropped
     "netflow_lan_networks": [], # extra own LAN ranges for NetFlow (the detected local networks always count)
+    "paths_routes": False,      # data paths: network routes (sends a few probe packets towards the top destinations; off by default)
+    "paths_routes_targets": 5,  # how many destination groups are measured (1..20)
+    "paths_routes_interval_h": 6,   # each at most every N hours (1..168)
+    "paths_routes_peeringdb": False,  # exchange points from PeeringDB (fetches three public lists; off by default)
 }
 # settings of the instance, not of one site (a further site reads and writes them in the home store)
-INSTANCE_SETTINGS = frozenset({"update_check", "language", "setup_done", "rate_unit", "paths_detail"})
+INSTANCE_SETTINGS = frozenset({"update_check", "language", "setup_done", "rate_unit", "paths_detail", "paths_routes",
+                               "paths_routes_targets", "paths_routes_interval_h", "paths_routes_peeringdb"})
 NETFLOW_LAN_REFRESH = 300.0
 
 INTEGRATION_FIELDS = {
@@ -160,6 +165,10 @@ class Core:
         self._merge_cache = None           # (key, hubmerge.match result)
         self._radio_cache: dict = {}       # integration id -> (key, monotonic time, radio view)
         self.paths = datapaths.DataPaths(store, self.geo, self.settings)
+        from .routewatch import RouteWatch
+        live_routes = data_dir is not None and not getattr(cfg, "demo", False) and not getattr(cfg, "probe", False)
+        self.routes = RouteWatch(self, (data_dir if live_routes else None))     # network routes (DW2), off by default
+        self.paths.route_sink = self.routes
         self.availability = availability_mod.Availability(store)     # 5-minute slots per device/connection (S2)
         self.services = services_mod.Services(self)                  # services, web interfaces, link probe, certificates (E5)
         self.traffic_log = trafficlog_mod.TrafficLog(store)           # bytes per minute per trace (plot ranges up to 7 days)
@@ -234,7 +243,8 @@ class Core:
                    "uplink_iface": str, "rate_unit": str, "home_country": str, "paths_own_networks": list,
                    "paths_no_internet": list, "netflow_enabled": bool, "netflow_port": int, "netflow_exporters": list,
                    "netflow_lan_networks": list, "adapter_inventory": bool, "port_noise": bool, "service_probe": bool,
-                   "paths_detail": bool}
+                   "paths_detail": bool, "paths_routes": bool, "paths_routes_targets": int, "paths_routes_interval_h": int,
+                   "paths_routes_peeringdb": bool}
         nets = {}
         for key in ("paths_own_networks", "paths_no_internet", "netflow_lan_networks"):   # all or nothing: check first
             if key in patch:
@@ -271,11 +281,19 @@ class Core:
                     continue
                 if key == "rate_unit" and value not in live.RATE_UNITS:
                     continue
+                if key == "paths_routes_targets" and not 1 <= value <= 20:
+                    raise ValueError("settings.routes.invalid_targets")
+                if key == "paths_routes_interval_h" and not 1 <= value <= 168:
+                    raise ValueError("settings.routes.invalid_interval")
+                if key in ("paths_routes", "paths_routes_peeringdb") and value and self.remote:
+                    raise ValueError("site.err.routes_home")      # measured from the host Lanloom runs on, at the home site
                 self._setting_store(key).set_setting(key, value)
         if any(k in patch for k in nf_keys):
             self._netflow_schedule()
         if "paths_detail" in patch and isinstance(patch["paths_detail"], bool):
             self.geo.city.configure(patch["paths_detail"])
+        if any(k.startswith("paths_routes") for k in patch):
+            self.routes.apply_settings()
         return self.settings()
 
     # ------------------------------------------------------------------ NetFlow / IPFIX receiver (data paths)
@@ -351,6 +369,8 @@ class Core:
         self.geo.start()
         if self.settings().get("paths_detail") and not self.remote:
             self.geo.city.configure(True)         # was switched on before: map the file, check once a day
+        if not self.demo and not self.remote:
+            self.routes.start()                   # network routes: the loop does nothing while the option is off
         self.oui.start()
         self.reports.on_start()
         if self.demo:
@@ -381,6 +401,7 @@ class Core:
 
     async def stop(self) -> None:
         self.netflow.stop()
+        self.routes.stop()
         for task in list(self._tasks) + list(self._source_tasks.values()) + ([self._scan_task] if self._scan_task else []):
             task.cancel()
         for task in list(self._tasks) + list(self._source_tasks.values()):
@@ -714,6 +735,8 @@ class Core:
         devices = self._paths_devices()
         out = dict(self.paths.summary(window, devices))
         out["source"] = self.paths_source()
+        out["routes"] = self.routes.rows(limit=20) if self.routes.settings()["enabled"] or self.routes.demo else []
+        out["routes_on"] = bool(self.routes.settings()["enabled"])
         return out
 
     def _paths_devices(self) -> dict:
@@ -736,9 +759,28 @@ class Core:
 
     def paths_country(self, cc: str, window: str) -> dict:
         """The detail sheet of one country (cities and operators only with the option on), with device titles."""
-        out = dict(self.paths.country_view(cc, window, self._paths_devices()))
+        rw = self.routes
+        on = bool(rw.settings()["enabled"])
+        cc_n = (cc or "").strip().upper()[:2]
+        out = dict(self.paths.country_view(cc, window, self._paths_devices(), route_places=rw.places_for(cc_n) if on else None))
         out["source"] = self.paths_source()
+        out["routes"] = rw.rows(cc_n) if on else []
+        out["routes_on"] = on
         return out
+
+    def paths_routes(self) -> dict:
+        """Network routes (DW2): state of the option, what is possible here, and the stored (condensed) routes."""
+        rw = self.routes
+        return {"status": rw.status(), "routes": rw.rows(limit=40) if (rw.settings()["enabled"] or rw.demo) else []}
+
+    def paths_routes_action(self, action: str) -> dict:
+        """``measure`` (operator: measure the top destinations now), ``clear`` (administrator: forget every stored route)."""
+        if action == "measure":
+            return self.routes.measure_now()
+        if action == "clear":
+            self.routes.clear()
+            return self.routes.status()
+        raise ValueError("paths.routes.action")
 
     def paths_detail_action(self, action: str) -> dict:
         """Administrator actions on the city data: ``refresh`` (check now), ``clear`` (delete files and stored figures)."""

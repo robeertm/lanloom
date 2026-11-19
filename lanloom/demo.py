@@ -219,6 +219,8 @@ def _diurnal(hour: int) -> float:
 
 def seed_paths(core, now: float = None, seed: int = 11) -> None:
     """Thirty days of synthetic data paths for the demo (only if there are none yet)."""
+    from . import demo_routes
+    demo_routes.seed(core, now)             # network routes of the sample network (synthetic, nothing is measured)
     if core.store.one("SELECT hour FROM paths_hour LIMIT 1") or core.store.one("SELECT day FROM paths_day LIMIT 1"):
         return
     rng = random.Random(seed)

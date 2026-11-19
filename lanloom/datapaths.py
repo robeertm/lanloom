@@ -163,6 +163,7 @@ class DataPaths:
         self.keep_hours = KEEP_HOURS       # retention (Settings > Storage, see storage.py)
         self.keep_days = KEEP_DAYS
         self.version = 0                   # change channel: rises with every flush that wrote data
+        self.route_sink = None             # network routes (routewatch.py): remembers destinations in memory, only with that option on
         with store.transaction() as tx:
             for stmt in SCHEMA.strip().split(";"):
                 if stmt.strip():
@@ -208,23 +209,28 @@ class DataPaths:
                 self.unbooked += tx + rx
             return False
         self.book_bucket(device, cat, tx, rx, now)
+        hit = None
         if not cat.startswith("~"):
-            self._book_detail(device, peer, cat, tx, rx, now)
+            hit = self._book_detail(device, peer, cat, tx, rx, now)
+        sink = self.route_sink
+        if sink is not None and (cat == ANYCAST or not cat.startswith("~")) and sink.wants():
+            sink.note(peer, cat, hit[1] if hit else 0, hit[0] if hit else "", tx + rx, now)
         return True
 
-    def _book_detail(self, device: str, peer: str, cc: str, tx: int, rx: int, now: Optional[float]) -> None:
+    def _book_detail(self, device: str, peer: str, cc: str, tx: int, rx: int, now: Optional[float]) -> Optional[tuple]:
         """City and operator of the peer, with the option on and a file loaded; the address is looked up and dropped."""
         lookup = getattr(self.geo, "detail", None)          # a geo source without city data (tests, the demo) books none
         if lookup is None:
-            return
+            return None
         try:
             hit = lookup(str(ipaddress.ip_address(peer)), cc)
         except ValueError:
-            return
+            return None
         if hit is None:
-            return
+            return None
         city, asn, place, operator = hit
         self.book_detail_bucket(device, cc, city, asn, tx, rx, now, place, operator)
+        return hit
 
     def book_detail_bucket(self, device: str, cc: str, city: str, asn: int, tx: int, rx: int, now: Optional[float] = None,
                            place: Optional[dict] = None, operator: Optional[str] = None) -> None:
@@ -531,13 +537,16 @@ class DataPaths:
         out.update({"countries": countries[:40], "own": own, "anycast": anycast, "unassigned": unassigned, "lan": lan[:40]})
         return out
 
-    def country_view(self, cc: str, window: str, devices: dict, now: Optional[float] = None) -> dict:
+    def country_view(self, cc: str, window: str, devices: dict, now: Optional[float] = None, route_places: Optional[dict] = None) -> dict:
         """The detail sheet of one country: figures, history, cities, operators, devices and targets.
 
         Sum rule: the figures of the header, the bubbles of the map and the list of devices all add up to the same
         number, the bytes of the country in the window (``totals.bytes``, from the country tables). What has no city is
         not dropped: it is drawn as an approximate bubble at the largest known city of the same operator in this
-        country, or at the middle of the country (``lat``/``lon`` empty). Nothing here carries an address."""
+        country, or at the middle of the country (``lat``/``lon`` empty). With network routes measured (DW2,
+        ``route_places``: AS number -> place of the destination network, 0 = traffic without an operator) that traffic is
+        drawn at the measured place instead (still approximate, ``via`` = "route"); the sum stays the same. Nothing here
+        carries an address."""
         cc = (cc or "").strip().upper()[:2]
         if window not in PERIODS:
             window = "24h"
@@ -546,7 +555,8 @@ class DataPaths:
         now = self.clock() if now is None else now
         self.flush(now)
         key = (cc, window)
-        dev_key = hash(tuple(sorted((k, v.get("title")) for k, v in devices.items())))
+        dev_key = hash((tuple(sorted((k, v.get("title")) for k, v in devices.items())),
+                        tuple(sorted((a, p["lat"], p["lon"]) for a, p in (route_places or {}).items()))))
         hit = self._country_cache.get(key)
         if hit and now - hit[0] < CACHE_S and hit[2] == dev_key:
             return hit[1]
@@ -630,20 +640,30 @@ class DataPaths:
         for k, c in by_city.items():
             if k not in places:
                 approx[None] = approx.get(None, 0) + c["bytes"]
+        rp = {int(a): p for a, p in (route_places or {}).items() if isinstance(p, dict) and p.get("lat") is not None and p.get("lon") is not None}
         for (asn, city), p in pairs.items():
             if city and city != OTHER_CITY:
                 continue
-            pos = best_city.get(asn) if (asn > 0 and city == "") else None
-            if pos is not None and pos not in places:
-                pos = None
+            if city == "" and asn in rp:                      # a measured route knows where this operator's destinations are
+                pos = "route:%d" % asn
+            else:
+                pos = best_city.get(asn) if (asn > 0 and city == "") else None
+                if pos is not None and pos not in places:
+                    pos = None
             approx[pos] = approx.get(pos, 0) + p["bytes"]
         if no_detail:
-            approx[None] = approx.get(None, 0) + no_detail
+            pos = "route:0" if 0 in rp else None             # without operator data: the measured place of the country's traffic
+            approx[pos] = approx.get(pos, 0) + no_detail
         points = [{"key": k, "approx": False, "bytes": b, **{x: places[k][x] for x in ("name", "region", "lat", "lon")}}
                   for k, b in known.items()]
-        points += [{"key": k, "approx": True, "bytes": b,
+        def approx_point(k, b):
+            if k and k.startswith("route:"):
+                rpl = rp[int(k[6:])]
+                return {"key": k, "approx": True, "bytes": b, "via": "route", "name": rpl.get("name") or "", "region": "",
+                        "lat": rpl["lat"], "lon": rpl["lon"]}
+            return {"key": k, "approx": True, "bytes": b,
                     **({x: places[k][x] for x in ("name", "region", "lat", "lon")} if k else {"name": "", "region": "", "lat": None, "lon": None})}
-                   for k, b in approx.items() if b > 0]
+        points += [approx_point(k, b) for k, b in approx.items() if b > 0]
         points.sort(key=lambda p: (-p["bytes"], p["key"] or "", p["approx"]))
         if len(points) > MAX_MAP_POINTS:                # keep the sum: the small ones are merged into the middle of the country
             head, tail = points[:MAX_MAP_POINTS - 1], points[MAX_MAP_POINTS - 1:]

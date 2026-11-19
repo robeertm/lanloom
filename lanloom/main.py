@@ -651,6 +651,21 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         except ValueError as exc:
             return err(str(exc))
 
+    @app.get("/api/paths/routes")
+    async def get_paths_routes():
+        return await asyncio.to_thread(state.core.paths_routes)
+
+    @app.post("/api/paths/routes/measure")
+    async def post_paths_routes_measure(request: Request):
+        try:
+            return await asyncio.to_thread(state.core.paths_routes_action, "measure")
+        except ValueError as exc:
+            return err(str(exc))
+
+    @app.post("/api/paths/routes/clear")
+    async def post_paths_routes_clear(request: Request):
+        return await asyncio.to_thread(state.core.paths_routes_action, "clear")
+
     @app.get("/api/netflow")
     async def get_netflow():
         return state.core.netflow_status()
