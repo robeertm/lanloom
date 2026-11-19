@@ -153,10 +153,11 @@ def references(state: dict, net_id: str) -> dict:
     for s in state.get("ssids") or []:
         if s.get("network") == net_id:
             out["ssids"] += 1
-    if isinstance(vlan, int):
-        for p in state.get("ports") or []:
-            if p.get("native_vlan") == vlan or vlan in (p.get("tagged") or []) or p.get("native_network") == net_id:
-                out["ports"] += 1
+    for p in state.get("ports") or []:
+        tagged = p.get("tagged") or []
+        if p.get("native_network") == net_id or (p.get("tagged_mode") in (None, "custom") and net_id in tagged) or \
+                (isinstance(vlan, int) and (p.get("native_vlan") == vlan and not p.get("native_network") or vlan in tagged)):
+            out["ports"] += 1
     for f in state.get("port_forwards") or []:
         if inside(f.get("dst_ip")):
             out["forwards"] += 1

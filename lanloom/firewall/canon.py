@@ -63,8 +63,15 @@ def fingerprint(state: dict) -> str:
             continue
         fields = fields or _writable_fields()
         keep = ("id",) + tuple(sorted(fields.get(area, ())))
-        core[area] = [{k: it.get(k) for k in keep if k in it} for it in items if isinstance(it, dict)]
+        core[area] = [{k: _writable_value(area, k, it.get(k)) for k in keep if k in it} for it in items if isinstance(it, dict)]
     return "fp:" + digest_hex(_no_floats(core))[:20]
+
+
+def _writable_value(area: str, field: str, v):
+    """A port's power counts as on/off only: its measured draw changes all the time."""
+    if area == "ports" and field == "poe" and isinstance(v, dict):
+        return bool(v.get("on"))
+    return v
 
 
 def _no_floats(x, depth=0):

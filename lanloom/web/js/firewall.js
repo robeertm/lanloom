@@ -779,7 +779,7 @@
             eqPorts(e, ports.length ? h('ul', { class: 'fw-ports', 'aria-label': t('fw.eq.ports') }, ports.map(p => h('li', {
               class: 'fw-port' + (p.link ? ' is-up' : '') + (p.is_uplink ? ' is-uplink' : '') + (p.poe && p.poe.on ? ' is-poe' : ''),
               title: [p.name, p.link ? (p.speed ? p.speed + ' Mbit/s' : t('fw.eq.link')) : t('fw.eq.nolink'), p.native_vlan != null ? 'VLAN ' + p.native_vlan : null,
-                p.poe && p.poe.on ? t('fw.eq.poe') : null, p.is_uplink ? t('fw.eq.is_uplink') : null, p.profile].filter(Boolean).join(' · ') },
+                p.poe && p.poe.on ? t('fw.eq.poe') : null, p.is_uplink ? t('fw.eq.is_uplink') : null, p.profile_name].filter(Boolean).join(' · ') },
               h('span', { class: 'fw-port__n' }, String(p.idx)),
               h('span', { class: 'fw-port__s' }, p.link ? (p.speed >= 1000 ? LL.fmtNum(p.speed / 1000) + 'G' : p.speed ? String(p.speed) : '•') : '–')))) : null));
         }))));

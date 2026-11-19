@@ -65,11 +65,11 @@ def test_switch_ports_link_speed_poe_profile_neighbour_and_uplink(st):
     assert sorted(ports) == list(range(1, 9))
     assert ports[3]["link"] and ports[3]["speed"] == 1000 and ports[3]["poe"] == {"capable": True, "on": True, "watts": None}
     assert ports[3]["lldp_neighbor"] == by_name(st["equipment"], "Hall AP")["id"] and ports[3]["infra"] is True
-    assert ports[6]["speed"] == 100 and ports[6]["profile"] == "IoT ports"
+    assert ports[6]["speed"] == 100 and ports[6]["profile_name"] == "IoT ports"
     assert ports[6]["native_network"] == by_name(st["networks"], "IoT")["id"] and ports[6]["native_vlan"] == 20
     assert ports[1]["link"] is False and ports[1]["speed"] is None
     assert [i for i, p in ports.items() if p["is_uplink"]] == [5]
-    assert ports[1]["profile"] == "All" and ports[1]["native_vlan"] is None          # VLAN 1 is the default
+    assert ports[1]["profile_name"] == "All" and ports[1]["native_vlan"] is None          # VLAN 1 is the default
 
 
 def test_clients_wired_wireless_parents_and_flags(st):

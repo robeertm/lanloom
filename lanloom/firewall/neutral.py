@@ -12,8 +12,11 @@ executor that has not been updated yet keep working) and adds optional lists::
                         fixed_ip?, parent?, band?, blocked?, online?, network_by_port?}]   end devices ("clients")
                         network_by_port: the device's network follows its switch port (a client setting cannot move it)
     v2  equipment     [{id, name, kind, model, firmware, mgmt_ip, uplink {device, port}}]   network equipment
-    v2  ports         [{id, device, idx, name, link, speed, poe {capable, on}, profile, native_vlan, tagged[],
-                        is_uplink, lldp_neighbor}]
+    v2  ports         [{id, device, idx, name, link, speed, poe {capable, on, mode?, watts?}, profile (id or ""),
+                        profile_name?, native_network, native_vlan, tagged_mode (all|none|custom), tagged[] (network
+                        ids of "custom"), is_uplink, wan?, mode? (switch|mirror|aggregate), infra?, lldp?, lldp_neighbor}]
+                        a step writes poe as on/off (bool); the state keeps the details
+    v2  port_profiles [{id, name, native_network, native_vlan, tagged_mode, tagged[], poe?}]   named port settings
     v2  policies      [{id, name, src {zone, match?, ports?}, dst {zone, match?}, action, proto, ports, return_traffic,
                         enabled, order, states?, scheduled?, hits?, builtin?, editable?, vendor_ref?}]
                         match = {kind: network|ip|client|region|app|domain|vpn|other, items?, count?, opposite?}
@@ -41,7 +44,7 @@ import re
 
 from . import steps
 
-V2_LISTS = ("equipment", "ports", "policies", "ssids", "guests", "guest_nics", "guest_rules", "bridges",
+V2_LISTS = ("equipment", "ports", "port_profiles", "policies", "ssids", "guests", "guest_nics", "guest_rules", "bridges",
             "dhcp_reservations", "port_forwards", "raw", "hosts", "sdn_zones", "sdn_vnets", "fw_rules", "fw_options",
             "storage", "backup_jobs", "findings")
 V1_LISTS = ("zones", "networks", "devices")

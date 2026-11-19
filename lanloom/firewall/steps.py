@@ -94,6 +94,19 @@ def _vlans(v):
         _int(1, 4094)(x)
 
 
+def _idents(v):
+    """A list of object ids (e.g. the networks a switch port carries tagged): unique, at most 256."""
+    if not isinstance(v, list) or len(v) > 256 or len(set(v)) != len(v):
+        raise FieldError("ids")
+    for x in v:
+        _ident(x)
+
+
+def _true(v):
+    if v is not True:
+        raise FieldError("bool")
+
+
 def _enum(*values):
     allowed = frozenset(values)
 
@@ -149,8 +162,11 @@ ZONE_FIELDS = {"name": _text(), "internet": _bool, "discovery": _bool}
 POLICY_FIELDS = {"name": _text(), "src": _endpoint, "dst": _endpoint, "action": _enum("allow", "block", "reject"),
                  "proto": _enum("any", "tcp", "udp", "tcp_udp", "icmp"), "ports": _ports, "return_traffic": _bool,
                  "enabled": _bool}
-PORT_FIELDS = {"name": _text(empty=True), "profile": _ident_or_empty, "native_vlan": _vlan_or_none, "tagged": _vlans,
-               "poe": _bool}
+# a switch port: its name, a port profile ("" = the port's own settings), the network it carries untagged
+# (``native_network``, or ``native_vlan`` for families that name it by number), which networks it carries tagged
+# (``tagged_mode`` all | none | custom, ``tagged`` = the network ids of "custom"), power over Ethernet on or off
+PORT_FIELDS = {"name": _text(32, empty=True), "profile": _ident_or_empty, "native_network": _ident_or_empty,
+               "native_vlan": _vlan_or_none, "tagged_mode": _enum("all", "none", "custom"), "tagged": _idents, "poe": _bool}
 SSID_FIELDS = {"name": _text(32), "network": _ident, "bands": _bands, "security": _enum("open", "wpa2", "wpa3", "wpa2_wpa3"),
                "hidden": _bool, "enabled": _bool}
 FORWARD_FIELDS = {"name": _text(), "proto": _enum("tcp", "udp", "tcp_udp"), "wan_port": _ports, "dst_ip": _ip,
@@ -198,9 +214,11 @@ class Kind:
     def __init__(self, name, area, fields, *, verb="set", required=(), inverse=None, confirm_fields=(), confirm=False):
         self.name, self.area, self.fields, self.verb = name, area, dict(fields), verb
         self.required = tuple(required)
-        self.inverse = inverse or name
+        self.inverse = None if verb == "action" else (inverse or name)
         self.confirm = confirm                      # every step of this kind needs its own confirmation (B*)
         self.confirm_fields = frozenset(confirm_fields)   # ... or only when one of these fields changes
+        # verb "action": a one-off command on an object (power cycling a port): ``before`` is {}, ``after`` carries
+        # every field of the kind; there is nothing to back up and no way back (``inverse`` None)
 
 
 def _k(name, area, fields, **kw):
@@ -225,6 +243,8 @@ KINDS = dict([
     _k("policy.delete", "policies", POLICY_FIELDS, verb="delete", inverse="policy.create"),
     _k("policy.reorder", "policies", {"order": _int(0, 100000)}),
     _k("port.set", "ports", PORT_FIELDS, confirm_fields=("poe",)),
+    # switch the power of a port off and on again (restarts the device it feeds); always confirmed, never undone
+    _k("port.cycle", "ports", {"cycle": _true}, verb="action", confirm=True),
     _k("ssid.create", "ssids", SSID_FIELDS, verb="create", required=("name", "network", "bands", "security"), inverse="ssid.delete"),
     _k("ssid.update", "ssids", SSID_FIELDS),
     _k("ssid.delete", "ssids", SSID_FIELDS, verb="delete", inverse="ssid.create"),
@@ -267,7 +287,7 @@ def changed_fields(step: dict) -> list:
     kind = KINDS.get(step.get("kind"))
     if kind is None:
         return []
-    if kind.verb == "create":
+    if kind.verb in ("create", "action"):
         return sorted(step["after"])
     if kind.verb == "delete":
         return sorted(step["before"])
@@ -302,6 +322,9 @@ def check_step(step) -> None:
     elif kind.verb == "delete":
         if after or not before or set(before) - set(kind.fields):
             raise FieldError("shape")
+    elif kind.verb == "action":
+        if before or set(after) != set(kind.fields):
+            raise FieldError("shape")
     else:
         if not after or set(before) != set(after) or set(after) - set(kind.fields):
             raise FieldError("shape")
@@ -324,11 +347,14 @@ def confirm_token(step: dict) -> str:
     return "confirm:%s:%s" % (step["kind"], step_object(step))
 
 
-def inverse_step(step: dict, created_id: str = None) -> dict:
+def inverse_step(step: dict, created_id: str = None):
     """The step that undoes ``step``. A create is undone by deleting the object under the id the adapter gave it
-    (``created_id``); a delete is undone by creating it again under a fresh ``new:`` id."""
+    (``created_id``); a delete is undone by creating it again under a fresh ``new:`` id. An action (power cycling a
+    port) has none: None."""
     import hashlib
     kind = KINDS[step["kind"]]
+    if kind.inverse is None:
+        return None
     key = "device" if kind.name == "move" else "object"
     obj = step[key]
     if kind.verb == "create":

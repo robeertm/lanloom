@@ -12,7 +12,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import guests, model, netconf, segplan, zonefw
+from . import guests, model, netconf, portconf, segplan, zonefw
 from . import steps as stepkinds
 from .adapter import SimulatedController, with_sample_gateway, with_sample_hypervisor
 from .canon import digest
@@ -137,6 +137,7 @@ class Editor:
         gops = guests.clean_ops(st, raw_ops)
         gops.update(netconf.clean_ops(st, raw_ops))
         gops.update(zonefw.clean_ops(st, raw_ops))
+        gops.update(portconf.clean_ops(st, raw_ops))
         n = len(set(clean) | set(ed)) + len(gops)
         if n > model.MAX_OBJECTS:
             raise model.Refused("fw.block.too_many", n=n, max=model.MAX_OBJECTS)
@@ -212,6 +213,8 @@ class Editor:
                                   "default_zone": netconf.default_zone(st),
                                   "refs": {n["id"]: netconf.references(st, n["id"]) for n in st.get("networks") or []}}
             out["requester"] = next((d["id"] for d in st.get("devices") or [] if d.get("ip") == client_ip), None)
+            if st.get("ports") and any(k.startswith("port.") for k in (self.capabilities().get("write") or {})):
+                out["portconf"] = portconf.info(st, self.port_guard(st, client_ip, out["requester"]))
             if st.get("guests"):
                 crit = self.critical(st)
                 out["guests"] = {"critical": crit, "bridges": {g["id"]: sorted(guests.target_bridges(st, g)) for g in st["guests"]
@@ -255,7 +258,8 @@ class Editor:
             steps = list(model.preview(st, d.get("moves") or {}, edits=model.clean_edits(st, d.get("edits")))["steps"])
         except model.Refused:
             steps = []
-        return steps + list(netconf.clean_ops(st, d.get("ops")).values()) + list(zonefw.clean_ops(st, d.get("ops")).values())
+        return steps + list(netconf.clean_ops(st, d.get("ops")).values()) + list(zonefw.clean_ops(st, d.get("ops")).values()) + \
+            list(portconf.clean_ops(st, d.get("ops")).values())
 
     def set_segplan(self, items: dict) -> dict:
         """Mark target networks (``{device id: {"net": id} | {"label": text} | None}``); Lanloom data, nothing written to
@@ -293,6 +297,7 @@ class Editor:
         gops = guests.clean_ops(st, d.get("ops"))
         nops = netconf.clean_ops(st, d.get("ops"))
         zops = zonefw.clean_ops(st, d.get("ops"))
+        pops = portconf.clean_ops(st, d.get("ops"))
         parts = []
         if gops:
             parts.append(guests.preview(st, gops, self.critical(st)))
@@ -300,6 +305,9 @@ class Editor:
             parts.append(netconf.preview(st, nops, deps=self.dependencies(st), critical=self.forward_critical(st)))
         if zops:
             parts.append(zonefw.preview(st, zops))
+        if pops:
+            parts.append(portconf.preview(st, pops, deps=self.dependencies(st),
+                                          guard=self.port_guard(st, client_ip, pv.get("requester"))))
         for g in parts:
             pv["steps"] = pv["steps"] + g["steps"]
             pv["changes"] = pv["changes"] + g["changes"]
@@ -356,6 +364,22 @@ class Editor:
                             seen.add(key)
                             out.setdefault(d["id"], []).append({"via": u.get("via"), "by": u.get("by")})
         return out
+
+    def port_guard(self, st: dict, client_ip: str = None, requester: str = None) -> dict:
+        """Who must keep the networks and power of their switch port: Lanloom itself, the gateway, the controllers and
+        hubs it reads (what the app knows), the approver's device; the simulation adds the sample's own addresses."""
+        addrs = {}
+        if self.identity:
+            try:
+                addrs, _ = self.identity()
+            except Exception:
+                addrs = {}
+        if self.mode == "simulation":
+            addrs = dict((st.get("hints") or {}).get("critical_addresses") or {}, **addrs)
+        out = sorted(ip for ip in addrs if ip)
+        if client_ip:
+            out.append(client_ip)
+        return {"addresses": out, "devices": [requester] if requester else []}
 
     def forward_critical(self, st: dict) -> list:
         """Addresses a port forward must never reach: the gateway, the controller and hubs Lanloom reads."""
@@ -424,11 +448,13 @@ class Editor:
         job = next((j for j in self.history() if j["plan"] == plan_id), None)
         if not job or job.get("status") != "done" or not job.get("inverse") or not job.get("undo_until") or time.time() > job["undo_until"]:
             raise model.Refused("fw.err.undo_gone")
-        if any(s.get("kind") not in ("move", "client.set") + guests.GUEST_KINDS + netconf.NET_KINDS + zonefw.ZONE_KINDS for s in job["inverse"]):
+        if any(s.get("kind") not in ("move", "client.set") + guests.GUEST_KINDS + netconf.NET_KINDS + zonefw.ZONE_KINDS + portconf.PORT_KINDS
+               for s in job["inverse"]):
             raise model.Refused("fw.err.undo_gone")      # only kinds this editor drafts
         moves, edits, ops = {}, {}, {}
         for s in job["inverse"]:
-            if s["kind"] in guests.GUEST_KINDS or s["kind"] in netconf.NET_KINDS or s["kind"] in zonefw.ZONE_KINDS:
+            if s["kind"] in guests.GUEST_KINDS or s["kind"] in netconf.NET_KINDS or s["kind"] in zonefw.ZONE_KINDS or \
+                    s["kind"] in portconf.PORT_KINDS:
                 ops[guests.op_key(s["kind"], s["object"])] = {"kind": s["kind"], "object": s["object"], "after": s["after"]}
                 continue
             if s["kind"] == "move":
@@ -462,6 +488,11 @@ class Editor:
                         "fields": [f for f in stepkinds.changed_fields(s) if f not in ("client", "zone", "purpose")]}
                 if s["kind"] in ("dhcp.reserve", "dhcp.release"):
                     item["ip"] = (s["after"] or s["before"]).get("ip")
+                summary.append(item)
+            elif s["kind"] in portconf.PORT_KINDS:
+                item = {"name": portconf.label(st, s), "kind": s["kind"], "fields": stepkinds.changed_fields(s)}
+                if "poe" in s["after"]:
+                    item["on"] = s["after"]["poe"]
                 summary.append(item)
             elif s["kind"] in guests.GUEST_KINDS:
                 _, label = guests._label(st, s)

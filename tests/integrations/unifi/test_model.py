@@ -87,7 +87,7 @@ def test_ports_forwards_reservations_and_client_ports_come_from_classic():
     st = model.to_neutral(fx.both())
     assert len(st["ports"]) == 4
     p2 = next(p for p in st["ports"] if p["idx"] == 2)
-    assert p2["poe"] == {"capable": True, "on": True, "watts": 3.5} and p2["profile"] == "Office ports" and p2["speed"] == 1000
+    assert {k: p2["poe"][k] for k in ("capable", "on", "watts")} == {"capable": True, "on": True, "watts": 3.5} and p2["profile_name"] == "Office ports" and p2["speed"] == 1000
     uplink = next(p for p in st["ports"] if p["idx"] == 8)
     assert uplink["is_uplink"] and uplink["infra"] and uplink["lldp_neighbor"] == model.oid("e", fx.MAC_GW)
     assert [f["name"] for f in st["port_forwards"]] == ["Web"] and st["port_forwards"][0]["dst_ip"] == "192.168.50.20"

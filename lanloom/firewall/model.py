@@ -17,7 +17,7 @@ import ipaddress
 import secrets
 import time
 
-from . import neutral, netconf, steps as stepkinds, zonefw
+from . import neutral, netconf, portconf, steps as stepkinds, zonefw
 from .canon import digest_hex, fingerprint
 
 from .steps import MAX_OBJECTS  # noqa: E402  (re-exported: model.MAX_OBJECTS)
@@ -494,6 +494,8 @@ def lockout_reason(state: dict, step: dict):
 def _now_value(obj: dict, field: str, planned):
     """The fresh value to compare with a step's ``before``: a missing text value counts as empty text."""
     v = obj.get(field)
+    if field == "poe" and isinstance(v, dict):         # a port's power: the step carries on/off, the state the details
+        return bool(v.get("on"))
     return "" if v is None and isinstance(planned, str) else v
 
 
@@ -549,18 +551,24 @@ def _gate_v2(state, plan, *, target, now, quiet, busy, healthy, caps) -> None:
                 raise Refused("fw.block.conflict")
         if kind.area == "devices" and kind.name in ("move", "client.set"):
             _gate_device(state, obj, st)
-        why = lockout_reason(state, st) or zonefw.step_lockout(state, st)
+        why = lockout_reason(state, st) or zonefw.step_lockout(state, st) or \
+            portconf.step_lockout(state, st, {"devices": [req] if req else []})
         if why:
+            if kind.area == "ports":
+                raise Refused(why, **portconf.block_vars(state, st))
             raise Refused(why, name=(obj or {}).get("name", "") or st["after"].get("name", ""), reason=(obj or {}).get("protected") or "")
         if req and oid == req and "self" not in plan["confirmed"]:
             raise Refused("fw.block.confirm")
-        if (stepkinds.needs_confirmation(st) or zonefw.needs_confirmation(state, st)) and \
+        if (stepkinds.needs_confirmation(st) or zonefw.needs_confirmation(state, st) or portconf.needs_confirmation(state, st)) and \
                 stepkinds.confirm_token(st) not in plan["confirmed"]:
             raise Refused("fw.block.confirm")
     # rules over the whole plan: rule order, and the approver's device keeps its way to the gateway
     why, vars_ = zonefw.plan_lockout_vars(state, plan["steps"], requester=req)
     if why:
         raise Refused(why, **vars_)
+    why = portconf.plan_lockout(state, plan["steps"])
+    if why:
+        raise Refused(why)
     if quiet and "quiet" not in plan["confirmed"]:
         raise Refused("fw.block.quiet")
 
@@ -581,7 +589,8 @@ def apply_moves(state: dict, steps: list) -> dict:
 def inverse(steps: list, created: dict = None) -> list:
     """The steps that undo ``steps``, newest first. ``created`` maps ``new:`` ids to the ids the adapter assigned."""
     created = created or {}
-    return [stepkinds.inverse_step(s, created.get(stepkinds.step_object(s))) for s in reversed(steps)]
+    out = [stepkinds.inverse_step(s, created.get(stepkinds.step_object(s))) for s in reversed(steps)]
+    return [s for s in out if s is not None]          # an action (power cycling a port) has no way back
 
 
 def in_quiet_hours(spec: str, now: float) -> bool:

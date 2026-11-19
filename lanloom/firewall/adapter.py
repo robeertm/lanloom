@@ -210,12 +210,66 @@ def with_sample_rules(state: dict) -> dict:
     return out
 
 
+# the sample switch: 16 copper ports and one fibre cage, the two access points on power over Ethernet behind a trunk
+# profile, the wired devices of the sample on their ports (rehearsal target for switch port changes)
+SAMPLE_EQUIPMENT = [
+    {"id": "e_gw", "name": "Gateway", "kind": "router", "model": "GW-1", "firmware": "4.1.2", "mgmt_ip": "192.168.10.1",
+     "online": True, "uplink": None},
+    {"id": "e_sw", "name": "Core switch", "kind": "switch", "model": "SW-16P", "firmware": "7.2.1", "mgmt_ip": "192.168.10.2",
+     "online": True, "uplink": {"device": "e_gw", "port": 2, "medium": "wired"}},
+    {"id": "e_ap1", "name": "Access point upstairs", "kind": "ap", "model": "AP-6", "firmware": "6.7.4", "mgmt_ip": "192.168.10.3",
+     "online": True, "uplink": {"device": "e_sw", "port": 2, "medium": "wired"}},
+    {"id": "e_ap2", "name": "Access point garden", "kind": "ap", "model": "AP-6 Outdoor", "firmware": "6.7.4", "mgmt_ip": "192.168.10.4",
+     "online": True, "uplink": {"device": "e_sw", "port": 3, "medium": "wired"}},
+]
+SAMPLE_PROFILES = [
+    {"id": "pp_trunk", "name": "Access point trunk", "native_network": "n_mgmt", "tagged_mode": "all", "tagged": []},
+    {"id": "pp_cams", "name": "Cameras", "native_network": "n_cams", "tagged_mode": "none", "tagged": [], "poe": True},
+    {"id": "pp_smart", "name": "Smart home", "native_network": "n_smart", "tagged_mode": "none", "tagged": []},
+    {"id": "pp_work", "name": "Work desk", "native_network": "n_work", "tagged_mode": "none", "tagged": []},
+]
+# port -> (device on it, untagged network, profile, power: None = no power, watts when on)
+_SAMPLE_PORTS = {1: (None, "n_mgmt", "", None), 2: (None, "n_mgmt", "pp_trunk", 6.8), 3: (None, "n_mgmt", "pp_trunk", 7.4),
+                 4: ("d05", "n_main", "", None), 5: ("d06", "n_main", "", None), 6: ("d07", "n_main", "", None),
+                 7: ("d08", "n_main", "", 0.0), 8: ("d09", "n_main", "", 0.0), 9: ("d12", "n_main", "", False),
+                 10: ("d17", "n_smart", "", None), 11: ("d18", "n_smart", "", None), 12: ("d24", "n_smart", "", False),
+                 13: ("d25", "n_cams", "pp_cams", 4.2), 14: (None, "n_main", "", 0.0), 15: (None, "n_main", "", None),
+                 16: (None, "n_media", "", None), 17: (None, "n_main", "", None)}
+_SAMPLE_NAMES = {1: "Uplink", 2: "AP upstairs", 3: "AP garden", 13: "Front door", 17: "SFP+ 1"}
+
+
+def with_sample_switch(state: dict) -> dict:
+    """The sample plus its switch (equipment, ports, port profiles) and the wired devices on their ports. A state that
+    already has ports is returned unchanged."""
+    if state.get("ports") or not any(n.get("id") == "n_main" for n in state.get("networks") or []):
+        return state
+    out = dict(state)
+    vlans = {n["id"]: n.get("vlan") for n in state.get("networks") or []}
+    ports = []
+    for idx, (dev, net, prof, power) in sorted(_SAMPLE_PORTS.items()):
+        trunk = prof == "pp_trunk" or idx == 1
+        ports.append({"id": "p_sw_%d" % idx, "device": "e_sw", "idx": idx, "name": _SAMPLE_NAMES.get(idx, str(idx)),
+                      "link": dev is not None or idx in (1, 2, 3), "speed": 10000 if idx == 17 else 1000 if dev or idx <= 3 else None,
+                      "media": "SFP+" if idx == 17 else "GE",
+                      "poe": None if power is None and idx != 9 and idx != 12 else
+                      {"capable": True, "on": isinstance(power, float), "watts": power if isinstance(power, float) else 0, "mode": "auto" if isinstance(power, float) else "off"},
+                      "profile": prof, "profile_name": next((p["name"] for p in SAMPLE_PROFILES if p["id"] == prof), None),
+                      "native_network": net, "native_vlan": vlans.get(net), "tagged_mode": "all" if trunk else "none", "tagged": [],
+                      "is_uplink": idx == 1, "mode": "switch", "infra": idx in (2, 3), "lldp_neighbor": None})
+    out["ports"] = ports
+    out["port_profiles"] = copy.deepcopy(SAMPLE_PROFILES)
+    out["equipment"] = copy.deepcopy(SAMPLE_EQUIPMENT)
+    on_port = {dev: idx for idx, (dev, _, _, _) in _SAMPLE_PORTS.items() if dev}
+    out["devices"] = [dict(d, parent="e_sw", port=on_port[d["id"]]) if d.get("id") in on_port else d for d in state.get("devices") or []]
+    return out
+
+
 def with_sample_gateway(state: dict) -> dict:
     """The sample network plus the sample gateway's settings: an address range per network, two port forwards and
-    the zone rules. Fixed addresses are not stored separately: the sample derives them from its devices (as a gateway
-    does from its client list). A state that already has port forwards keeps them."""
+    the zone rules, and the sample switch. Fixed addresses are not stored separately: the sample derives them from its
+    devices (as a gateway does from its client list). A state that already has port forwards keeps them."""
     if "port_forwards" in state:
-        return with_sample_rules(state)
+        return with_sample_switch(with_sample_rules(state))
     out = dict(state)
     nets = []
     for n in state.get("networks") or []:
@@ -227,7 +281,7 @@ def with_sample_gateway(state: dict) -> dict:
         nets.append(n)
     out["networks"] = nets
     out["port_forwards"] = copy.deepcopy(SAMPLE_FORWARDS)
-    return with_sample_rules(out)
+    return with_sample_switch(with_sample_rules(out))
 
 
 def sample_reservations(state: dict) -> list:
@@ -353,6 +407,8 @@ class SimulatedController(ControllerAdapter):
                 self._save()
                 return {"id": new_id}
             obj = next((o for o in items if o.get("id") == oid), None)
+            if kind.area == "ports":
+                return self._apply_port(step, obj)
             if step["kind"] == "policy.reorder":
                 from . import zonefw
                 moved = zonefw.reorder(self._state, oid, step["after"]["order"])
@@ -387,6 +443,22 @@ class SimulatedController(ControllerAdapter):
                 from . import zonefw
                 zonefw.refresh_allow(self._state)
 
+    def _apply_port(self, step: dict, port):
+        """A sample switch port: settings like a switch takes them; a power cycle is counted, nothing else changes."""
+        from . import portconf
+        if port is None:
+            raise RuntimeError("unknown port")
+        if step["kind"] == "port.cycle":
+            port["cycles"] = int(port.get("cycles") or 0) + 1
+            self.writes.append(step["object"])
+            self._save()
+            return None
+        if not portconf.matches(self._state, port, step["after"]):
+            portconf.apply_to(self._state, port, step["after"])
+            self.writes.append(step["object"])
+            self._save()
+        return None
+
     def _apply_reservation(self, step: dict):
         """A fixed address of the sample lives on its device (``r_<device>``)."""
         if step["kind"] == "dhcp.reserve":
@@ -419,11 +491,13 @@ class SimulatedController(ControllerAdapter):
     def lockout(self, state: dict, step: dict):
         """The guest rules of a hypervisor family, with the sample's own critical addresses; the gateway rules; the
         zone firewall rules."""
-        from . import netconf, zonefw
+        from . import netconf, portconf, zonefw
         if step.get("kind") in netconf.NET_KINDS:
             return netconf.step_lockout(state, step)
         if step.get("kind") in zonefw.ZONE_KINDS:
             return zonefw.step_lockout(state, step)
+        if step.get("kind") in portconf.PORT_KINDS:
+            return portconf.step_lockout(state, step, {"addresses": sorted((state.get("hints") or {}).get("critical_addresses") or {})})
         if not str(step.get("kind", "")).startswith("guest."):
             return None
         from . import guests
@@ -431,8 +505,8 @@ class SimulatedController(ControllerAdapter):
         return guests.step_lockout(state, step, crit)
 
     def plan_lockout(self, state: dict, steps: list):
-        from . import guests, netconf
-        return guests.plan_lockout(state, steps) or netconf.plan_lockout(state, steps)
+        from . import guests, netconf, portconf
+        return guests.plan_lockout(state, steps) or netconf.plan_lockout(state, steps) or portconf.plan_lockout(state, steps)
 
     def restore(self, snapshot: dict) -> None:
         with self._lock:

@@ -485,6 +485,84 @@ def _legacy_rules(raw) -> list:
 
 
 # ---------------------------------------------------------------------------- equipment, ports, clients
+TAGGED_MODES = {"auto": "all", "block_all": "none", "custom": "custom"}
+FORWARD_MODES = {"all": "all", "native": "none", "customize": "custom"}
+PORT_KEYS = ("name", "portconf_id", "native_networkconf_id", "tagged_vlan_mgmt", "forward", "excluded_networkconf_ids",
+             "poe_mode", "op_mode")
+
+
+def default_network(nets_raw) -> str:
+    """The classic id of the site's default network (the untagged network of a port that names none)."""
+    for n in nets_raw:
+        if str(n.get("attr_hidden_id") or "") == "LAN" and n.get("_id"):
+            return str(n["_id"])
+    for n in nets_raw:
+        if n.get("attr_no_delete") and str(n.get("purpose") or "") == "corporate" and n.get("_id"):
+            return str(n["_id"])
+    return ""
+
+
+def taggable(nets_raw) -> list:
+    """Classic ids of the networks a switch port can carry tagged: local networks with a VLAN of their own."""
+    return sorted(str(n["_id"]) for n in nets_raw if n.get("_id") and str(n.get("purpose") or "") in ("corporate", "guest", "vlan-only")
+                  and n.get("vlan_enabled", True) is not False and num(n.get("vlan")))
+
+
+def port_settings(pt: dict, override, profiles: dict, nets_raw, default_net: str) -> dict:
+    """The settings of one switch port as the controller keeps them: the switch's override for the port first, then
+    what the port table reports, then the port's profile, then the site's default network. ``tagged`` lists the classic
+    ids of the networks carried tagged when the mode is "custom"."""
+    o = override if isinstance(override, dict) else {}
+
+    def get(key):
+        if key in o:
+            return o.get(key)
+        return pt.get(key) if isinstance(pt, dict) else None
+    pid = get("portconf_id") or ""
+    prof = profiles.get(pid) or {}
+    native = get("native_networkconf_id") or (prof.get("native_networkconf_id") if prof else None)
+    mode = TAGGED_MODES.get(str(get("tagged_vlan_mgmt") or "")) or FORWARD_MODES.get(str(get("forward") or ""))
+    if prof and not (get("tagged_vlan_mgmt") or get("forward")):
+        mode = TAGGED_MODES.get(str(prof.get("tagged_vlan_mgmt") or "")) or FORWARD_MODES.get(str(prof.get("forward") or ""))
+    if not native and mode in ("all", "none", "custom"):
+        native = default_net or None
+    tagged = []
+    if mode == "custom":
+        excl = set(get("excluded_networkconf_ids") or (prof.get("excluded_networkconf_ids") if prof else None) or [])
+        tagged = [k for k in taggable(nets_raw) if k not in excl and k != native]
+    op = str(get("op_mode") or "switch")
+    if isinstance(pt, dict) and pt.get("aggregated_by"):
+        op = "aggregate"
+    poe_mode = get("poe_mode") if (isinstance(pt, dict) and pt.get("port_poe")) else None
+    return {"name": get("name"), "portconf_id": str(pid) if pid else "", "native": str(native) if native else None,
+            "mode": mode, "tagged": tagged, "op_mode": op if op in ("switch", "mirror", "aggregate") else op[:16],
+            "poe_mode": str(poe_mode) if poe_mode else None}
+
+
+def _wan_port(p: dict) -> bool:
+    """A gateway port that carries an internet uplink (its network is a WAN, or it has an address of its own outside
+    the local networks)."""
+    name = str(p.get("network_name") or "").lower()
+    return name.startswith("wan") or (bool(name) and name != "lan")
+
+
+def _profiles_classic(raw, ids) -> list:
+    nets_raw = items(raw, "networkconf")
+    vlan_of = {n.get("_id"): num(n.get("vlan")) for n in nets_raw}
+    out = []
+    for pr in items(raw, "portconf"):
+        if not pr.get("_id"):
+            continue
+        conf = port_settings({}, pr, {}, nets_raw, default_network(nets_raw))
+        poe = pr.get("poe_mode")
+        out.append({"id": oid("pp", pr["_id"]), "name": text(pr.get("name")) or "?",
+                    "native_network": ids.net_id(conf["native"]) if conf["native"] else None,
+                    "native_vlan": vlan_of.get(conf["native"]) if conf["native"] else None,
+                    "tagged_mode": conf["mode"], "tagged": [ids.net_id(k) for k in conf["tagged"]],
+                    "poe": None if poe in (None, "") else poe != "off"})
+    return out
+
+
 def _kind_classic(d) -> str:
     return DEVICE_KINDS.get(str(d.get("type") or ""), "other")
 
@@ -495,7 +573,9 @@ def _equipment_classic(raw) -> tuple:
     by_mac = {norm_mac(d.get("mac")): oid("e", norm_mac(d.get("mac"))) for d in devs if norm_mac(d.get("mac"))}
     profiles = {p.get("_id"): p for p in items(raw, "portconf")}
     ids = _Ids(raw)
-    vlan_of = {n.get("_id"): num(n.get("vlan")) for n in items(raw, "networkconf")}
+    nets_raw = items(raw, "networkconf")
+    vlan_of = {n.get("_id"): num(n.get("vlan")) for n in nets_raw}
+    default_net = default_network(nets_raw)
     eq, ports = [], []
     for d in devs:
         mac = norm_mac(d.get("mac"))
@@ -514,36 +594,34 @@ def _equipment_classic(raw) -> tuple:
                    "stats": {"cpu": num(stats.get("cpu")), "mem": num(stats.get("mem")), "uptime_s": num(d.get("uptime")),
                              "clients": num(d.get("num_sta"))},
                    "radios": _radios_classic(d)})
-        lldp = {}
+        lldp = {}                        # port -> known equipment id, or None for a neighbour the controller does not manage
         for n in d.get("lldp_table") or []:
             if isinstance(n, dict) and num(n.get("local_port_idx")) is not None:
                 lldp[num(n["local_port_idx"])] = by_mac.get(norm_mac(n.get("chassis_id")))
+        overrides = {num(o.get("port_idx")): o for o in d.get("port_overrides") or [] if isinstance(o, dict) and num(o.get("port_idx")) is not None}
+        router = _kind_classic(d) == "router"
         for p in d.get("port_table") or []:
             if not isinstance(p, dict) or num(p.get("port_idx")) is None:
                 continue
             idx = num(p["port_idx"])
-            prof = profiles.get(p.get("portconf_id")) if p.get("portconf_id") else None
-            native = p.get("native_networkconf_id") or (prof or {}).get("native_networkconf_id")
-            tagged_mode = p.get("tagged_vlan_mgmt") or (prof or {}).get("tagged_vlan_mgmt")
-            if tagged_mode == "block_all":
-                tagged = []
-            elif tagged_mode == "custom":
-                excl = set(p.get("excluded_networkconf_ids") or (prof or {}).get("excluded_networkconf_ids") or [])
-                tagged = sorted(ids.net_id(k) for k in vlan_of if k not in excl and k != native)
-            elif tagged_mode == "auto":
-                tagged = ["*"]
-            else:
-                tagged = None
+            conf = port_settings(p, overrides.get(idx), profiles, nets_raw, default_net)
+            prof = profiles.get(conf["portconf_id"]) if conf["portconf_id"] else None
+            native = conf["native"]
             ports.append({"id": oid("p", "%s:%s" % (mac, idx)), "device": eid, "idx": idx,
-                          "name": text(p.get("name"), 32) or str(idx), "link": bool(p.get("up")),
+                          "name": text(conf["name"], 32) or str(idx), "link": bool(p.get("up")),
                           "speed": num(p.get("speed")) if p.get("up") else None, "media": text(p.get("media"), 12),
-                          "poe": {"capable": bool(p.get("port_poe")), "on": bool(p.get("poe_enable")) if p.get("port_poe") else False,
-                                  "watts": num(p.get("poe_power"))} if p.get("port_poe") is not None else None,
-                          "profile": text((prof or {}).get("name")) if prof else None,
+                          "poe": {"capable": bool(p.get("port_poe")),
+                                  "on": (conf["poe_mode"] != "off") if conf["poe_mode"] else bool(p.get("poe_enable")),
+                                  "watts": num(p.get("poe_power")), "mode": conf["poe_mode"],
+                                  "powered": bool(p.get("poe_enable"))} if p.get("port_poe") else None,
+                          "profile": oid("pp", conf["portconf_id"]) if conf["portconf_id"] else "",
+                          "profile_name": text((prof or {}).get("name")) if prof else None,
                           "native_vlan": vlan_of.get(native) if native else None,
                           "native_network": ids.net_id(native) if native else None,
-                          "tagged": tagged, "is_uplink": bool(p.get("is_uplink")) or (umac is not None and own_up == idx),
-                          "infra": lldp.get(idx) is not None, "lldp_neighbor": lldp.get(idx),
+                          "tagged_mode": conf["mode"], "tagged": [ids.net_id(k) for k in conf["tagged"]],
+                          "is_uplink": bool(p.get("is_uplink")) or (umac is not None and own_up == idx),
+                          "wan": router and _wan_port(p), "mode": conf["op_mode"],
+                          "infra": lldp.get(idx) is not None, "lldp": idx in lldp, "lldp_neighbor": lldp.get(idx),
                           "rx_bytes": num(p.get("rx_bytes")), "tx_bytes": num(p.get("tx_bytes")),
                           "rx_errors": num(p.get("rx_errors")), "tx_errors": num(p.get("tx_errors")),
                           "rx_dropped": num(p.get("rx_dropped")), "tx_dropped": num(p.get("tx_dropped")),
@@ -715,6 +793,31 @@ def network_refs(raw) -> dict:
     return out
 
 
+def port_refs(raw) -> dict:
+    """Neutral port id -> {"device": classic id of the switch, "mac", "idx", "override": the switch's override entry
+    for the port (None when it has none), "overrides": the switch's whole override list as stored now}."""
+    out = {}
+    for d in items(raw, "device"):
+        mac = norm_mac(d.get("mac"))
+        if not mac or not d.get("_id"):
+            continue
+        ovs = [o for o in d.get("port_overrides") or [] if isinstance(o, dict)]
+        by_idx = {num(o.get("port_idx")): o for o in ovs if num(o.get("port_idx")) is not None}
+        for p in d.get("port_table") or []:
+            idx = num(p.get("port_idx")) if isinstance(p, dict) else None
+            if idx is None:
+                continue
+            out[oid("p", "%s:%s" % (mac, idx))] = {"device": str(d["_id"]), "mac": mac, "idx": idx,
+                                                   "override": by_idx.get(idx), "overrides": ovs,
+                                                   "table": {k: p.get(k) for k in PORT_KEYS + ("port_poe",) if k in p}}
+    return out
+
+
+def profile_refs(raw) -> dict:
+    """Neutral port profile id -> classic id."""
+    return {oid("pp", p["_id"]): str(p["_id"]) for p in items(raw, "portconf") if p.get("_id")}
+
+
 def forward_refs(raw) -> dict:
     """Neutral port forward id -> {"id": classic object id, "record": {the settings as stored now}}."""
     out = {}
@@ -865,6 +968,7 @@ def to_neutral(raw: dict) -> dict:
     devices, reservations = _clients(raw, ids, nets)
     ssids = _merge_by_id(_ssids_official(raw), _ssids_classic(raw, ids), fill=("network", "bands"))
     state = {"v": 2, "zones": zones, "networks": nets, "devices": devices, "equipment": eq, "ports": ports,
+             "port_profiles": _profiles_classic(raw, ids),
              "policies": pols, "ssids": ssids, "dhcp_reservations": reservations, "port_forwards": _forwards(raw),
              "wans": _wans(raw, ids), "vpn": _vpn(raw, ids), "raw": _raw_extra(raw)}
     for z in state["zones"]:
