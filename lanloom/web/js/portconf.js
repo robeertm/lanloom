@@ -69,7 +69,7 @@
       if (op && 'poe' in op.after) cur.poe = Object.assign({}, p.poe || {}, { on: op.after.poe });
       const native = byId(s.networks, cur.native_network);
       const list = devs[p.id] || [];
-      return { id: p.id, idx: p.idx, name: cur.name || String(p.idx), link: !!p.link, speed: p.speed, duplex: p.duplex,
+      return { id: p.id, idx: p.idx, name: cur.name && cur.name !== String(p.idx) ? cur.name : null, link: !!p.link, speed: p.speed, duplex: p.duplex,
         sfp: /SFP/i.test(String(p.media || '') + ' ' + String(p.name || '')),
         poe: p.poe && typeof p.poe === 'object' ? { capable: p.poe.capable !== false, on: poeOn(cur), watts: p.poe.watts } : null,
         vlan: native ? native.vlan : cur.native_vlan, network: native ? native.name : null,

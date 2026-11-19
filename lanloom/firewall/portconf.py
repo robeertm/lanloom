@@ -415,7 +415,8 @@ def preview(state: dict, ops: dict, *, deps: dict = None, guard: dict = None, lo
         devs = devices_on(state, port)
         names = ", ".join(d.get("name") or "?" for d in devs[:3]) + (" +%d" % (len(devs) - 3) if len(devs) > 3 else "")
         if kind == "port.cycle":
-            warnings.append(["pc.warn.cycle", {"name": name, "devices": names or "-", "confirm": token}])
+            warnings.append(["pc.warn.cycle", {"name": name, "devices": names, "confirm": token}] if devs else
+                            ["pc.warn.cycle_empty", {"name": name, "confirm": token}])
             continue
         if "name" in after and len(after) == 1:
             warnings.append(["pc.warn.rename", {"name": name, "new": after["name"] or str(port.get("idx") or "")}])
@@ -451,7 +452,8 @@ def preview(state: dict, ops: dict, *, deps: dict = None, guard: dict = None, lo
             if after["poe"]:
                 warnings.append(["pc.warn.poe_on", {"name": name, "confirm": token}])
             else:
-                warnings.append(["pc.warn.poe_off", {"name": name, "devices": names or "-", "confirm": token}])
+                warnings.append(["pc.warn.poe_off", {"name": name, "devices": names, "confirm": token}] if devs else
+                                ["pc.warn.poe_off_empty", {"name": name, "confirm": token}])
         if "name" in after:
             warnings.append(["pc.warn.rename", {"name": name, "new": after["name"] or str(port.get("idx") or "")}])
     why = plan_lockout(state, steps)

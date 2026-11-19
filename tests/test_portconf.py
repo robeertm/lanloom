@@ -83,7 +83,7 @@ def test_clean_ops_keeps_only_real_valid_changes():
            {"kind": "port.set", "object": "p_nope", "after": {"name": "x"}},
            {"kind": "port.cycle", "object": "p_sw_13", "after": {}}]
     out = portconf.clean_ops(s, ops)
-    assert out["port.set|p_sw_7"]["after"] == {"name": "Desk"} and out["port.set|p_sw_7"]["before"] == {"name": "7"}
+    assert out["port.set|p_sw_7"]["after"] == {"name": "Desk"} and out["port.set|p_sw_7"]["before"] == {"name": "Port 7"}
     assert out["port.set|p_sw_8"]["after"] == {"profile": "pp_work"}
     assert out["port.set|p_sw_14"]["after"] == {"tagged": ["n_media"], "tagged_mode": "custom"}
     assert out["port.cycle|p_sw_13"] == {"kind": "port.cycle", "object": "p_sw_13", "before": {}, "after": {"cycle": True}}
@@ -129,7 +129,7 @@ def test_the_own_path_keeps_its_port():
     assert portconf.step_lockout(s, st, {"addresses": [laptop["ip"]]}) == "pc.block.self_path"
     assert portconf.step_lockout(s, st, {"devices": ["d08"]}) == "pc.block.self_path"
     assert portconf.step_lockout(s, step(s, 7, name="Mine"), {"devices": ["d08"]}) is None
-    assert portconf.block_vars(s, st) == {"name": "Core switch · 7", "device": "Office laptop", "reason": ""}
+    assert portconf.block_vars(s, st) == {"name": "Core switch · Port 7", "device": "Office laptop", "reason": ""}
 
 
 def test_preview_warnings_and_confirmations():
@@ -140,14 +140,14 @@ def test_preview_warnings_and_confirmations():
                    {"kind": "port.set", "object": "p_sw_16", "after": {"native_network": "n_mgmt"}}])
     assert not pv["blocks"], pv["blocks"]
     keys = [w[0] for w in pv["warnings"]]
-    assert ["pc.warn.native", {"name": "Core switch · 7", "net": "Work", "devices": "Office laptop", "n": 1}] in pv["warnings"]
+    assert ["pc.warn.native", {"name": "Core switch · Port 7", "net": "Work", "devices": "Office laptop", "n": 1}] in pv["warnings"]
     assert "pc.warn.fixed_ip" in keys                                       # the laptop keeps its old fixed address
-    assert "pc.warn.poe_off" in keys and "pc.warn.cycle" in keys and "pc.warn.native_empty" in keys
+    assert "pc.warn.poe_off_empty" in keys and "pc.warn.cycle" in keys and "pc.warn.native_empty" in keys
     assert "pc.warn.to_management" in keys
     assert sorted(pv["confirm"]) == ["confirm:port.cycle:p_sw_13", "confirm:port.set:p_sw_14", "confirm:port.set:p_sw_16"]
     assert {c["what"] for c in pv["changes"]} == {"pc.change.port", "pc.change.cycle"}
     blocked = pv_of(s, [{"kind": "port.set", "object": "p_sw_4", "after": {"native_network": "n_media"}}])
-    assert blocked["blocks"] == [["pc.block.protected", {"name": "Core switch · 4", "device": "Storage", "reason": ""}]]
+    assert blocked["blocks"] == [["pc.block.protected", {"name": "Core switch · Port 4", "device": "Storage", "reason": ""}]]
 
 
 def test_what_uses_a_device_by_address_warns_when_its_port_changes_network():
@@ -165,8 +165,8 @@ def test_power_cycle_step_shape_and_no_way_back():
         with pytest.raises(steps.FieldError):
             steps.check_step(bad)
     assert steps.inverse_step(good) is None and steps.needs_confirmation(good)
-    assert model.inverse([good, {"kind": "port.set", "object": "p_sw_7", "before": {"name": "7"}, "after": {"name": "D"}}]) == \
-        [{"kind": "port.set", "object": "p_sw_7", "before": {"name": "D"}, "after": {"name": "7"}}]
+    assert model.inverse([good, {"kind": "port.set", "object": "p_sw_7", "before": {"name": "Port 7"}, "after": {"name": "D"}}]) == \
+        [{"kind": "port.set", "object": "p_sw_7", "before": {"name": "D"}, "after": {"name": "Port 7"}}]
     caps = capmod.validate(SIM_CAPS)
     assert capmod.stage_for(caps, good) == "B*"
     assert capmod.stage_for(caps, {"kind": "port.set", "object": "p", "before": {"poe": True}, "after": {"poe": False}}) == "B*"
@@ -262,11 +262,11 @@ def test_change_a_port_through_the_api_then_undo(c):
     v = wait_done(c)
     job = v["history"][0]
     assert job["status"] == "done", job
-    assert job["summary"] == [{"name": "Core switch · 7", "kind": "port.set", "fields": ["name", "native_network"]}]
+    assert job["summary"] == [{"name": "Core switch · Port 7", "kind": "port.set", "fields": ["name", "native_network"]}]
     p7 = next(x for x in v["state"]["ports"] if x["id"] == "p_sw_7")
     assert p7["native_network"] == "n_work" and p7["name"] == "Desk"
     d = c.post("/api/firewall/undo", json={"plan": job["plan"]}, headers=HDR).json()
-    assert d["ops"]["port.set|p_sw_7"]["after"] == {"name": "7", "native_network": "n_main"}
+    assert d["ops"]["port.set|p_sw_7"]["after"] == {"name": "Port 7", "native_network": "n_main"}
     entries = c.get("/api/audit?limit=30").json()["entries"]
     assert any(e["action"].startswith("firewall.") for e in entries)
 
@@ -363,8 +363,8 @@ def test_nightly_port_settings_baseline_changes_and_calm(tmp_path):
     assert keys == ["report.pc.native", "report.pc.native", "report.pc.poe_off", "report.pc.profile"]
     assert s2["summary"]["vars"] == {"n": 3} and s2["level"] == "warn"
     t2 = texts(r2, s2)
-    assert any("Core switch · 7 carries Work untagged now (before: Main)" in x for x in t2["en"])
-    assert any("Core switch · 14 liefert keinen Strom mehr" in x for x in t2["de"])
+    assert any("Core switch · Port 7 carries Work untagged now (before: Main)" in x for x in t2["en"])
+    assert any("Core switch · Port 14 liefert keinen Strom mehr" in x for x in t2["de"])
     clock.t = at(2026, 11, 21, 6, 30)
     r3 = asyncio.run(rep.run_due(clock.t))
     s3 = section(r3, "portconf")

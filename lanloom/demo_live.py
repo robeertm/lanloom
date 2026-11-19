@@ -118,14 +118,24 @@ def live_sample(now: float = None) -> dict:
             rate = (((i * 37 + len(dev) * 11) % 90) + 5) * 20_000 if link else 0
             ports.append({"id": "p_%s_%d" % (dev, i), "device": dev, "idx": i, "name": "Port %d" % i, "link": link,
                           "speed": speed if link else None, "media": "SFP+" if (dev, i) == ("e_sw1", 15) else "GE",
-                          "poe": {"capable": dev == "e_sw1", "on": poe, "watts": 4.2 if poe else None},
-                          "profile": None, "native_vlan": 20 if (dev, i) == ("e_sw1", 7) else None, "native_network": None,
-                          "tagged": ["*"] if uplink else None, "is_uplink": uplink, "infra": uplink or (dev, i) in (("e_sw1", 3), ("e_sw1", 4)),
+                          "poe": {"capable": dev == "e_sw1", "on": poe, "watts": 4.2 if poe else None,
+                                  "mode": ("auto" if poe else "off") if dev == "e_sw1" else None},
+                          "profile": DEMO_PORT_PROFILE.get((dev, i), ""),
+                          "profile_name": next((x["name"] for x in DEMO_PROFILES if x["id"] == DEMO_PORT_PROFILE.get((dev, i))), None),
+                          "native_vlan": None, "native_network": DEMO_PORT_NET.get((dev, i), "n_mgmt" if uplink else "n_main"),
+                          "tagged_mode": "all" if uplink or (dev, i) in (("e_sw1", 3), ("e_sw1", 4)) else
+                          "custom" if (dev, i) == ("e_sw1", 12) else "none",
+                          "tagged": ["n_media", "n_smart"] if (dev, i) == ("e_sw1", 12) else [],
+                          "is_uplink": uplink, "infra": uplink or (dev, i) in (("e_sw1", 3), ("e_sw1", 4)),
                           "lldp_neighbor": "e_ap1" if (dev, i) == ("e_sw1", 3) else "e_ap2" if (dev, i) == ("e_sw1", 4) else None,
                           "rx_bytes": 5 * 10**10 + rate * int(max(0, now - T0)), "tx_bytes": 9 * 10**10 + rate * 3 * int(max(0, now - T0)),
                           "rx_errors": int(max(0, now - T0) // 43200) if (dev, i) == ("e_sw1", 7) else 0, "tx_errors": 0,
                           "rx_dropped": 0, "tx_dropped": 0, "duplex": "full" if link else None})
+    vlans = {n["id"]: n.get("vlan") for n in st.get("networks") or []}
+    for p in ports:
+        p["native_vlan"] = vlans.get(p["native_network"])
     st["ports"] = ports
+    st["port_profiles"] = [dict(x) for x in DEMO_PROFILES]
     # who sits behind which port (wired) and on which access point (wireless)
     wired = {"Storage": ("e_sw1", 9), "Home server": ("e_sw1", 12), "Backup server": ("e_sw1", 16), "Office laptop": ("e_sw2", 2),
              "Studio desktop": ("e_sw2", 4), "Office printer": ("e_sw1", 7), "Message broker": ("e_sw1", 10), "Automation hub": ("e_sw1", 11), "Solar inverter": ("e_sw2", 6), "Front door camera": ("e_sw1", 5), "Garage camera": ("e_sw1", 6)}
@@ -161,9 +171,22 @@ def live_sample(now: float = None) -> dict:
     return st
 
 
+# the demo switch's port profiles and which ports follow one; untagged networks of ports without a profile
+DEMO_PROFILES = [
+    {"id": "pp_ap", "name": "Access point trunk", "native_network": "n_mgmt", "native_vlan": None, "tagged_mode": "all", "tagged": []},
+    {"id": "pp_cams", "name": "Cameras", "native_network": "n_cams", "native_vlan": None, "tagged_mode": "none", "tagged": [], "poe": True},
+    {"id": "pp_smart", "name": "Smart home", "native_network": "n_smart", "native_vlan": None, "tagged_mode": "none", "tagged": []},
+]
+DEMO_PORT_PROFILE = {("e_sw1", 3): "pp_ap", ("e_sw1", 4): "pp_ap", ("e_sw1", 5): "pp_cams", ("e_sw1", 6): "pp_cams",
+                     ("e_sw1", 10): "pp_smart", ("e_sw1", 11): "pp_smart", ("e_sw2", 6): "pp_smart"}
+DEMO_PORT_NET = {("e_sw1", 3): "n_mgmt", ("e_sw1", 4): "n_mgmt", ("e_sw1", 5): "n_cams", ("e_sw1", 6): "n_cams",
+                 ("e_sw1", 10): "n_smart", ("e_sw1", 11): "n_smart", ("e_sw2", 6): "n_smart"}
+
+
 def live_capabilities(family: str) -> dict:
     return {"family": family, "api": {"kind": "official-local", "version": "demo"},
-            "read": ["inventory", "clients", "topology", "networks", "zones", "policies", "ports", "ssids", "port_forwards", "wans"],
+            "read": ["inventory", "clients", "topology", "networks", "zones", "policies", "ports", "port_profiles", "ssids",
+                     "port_forwards", "wans"],
             "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
             "lockout": ["mgmt_network", "self_path"]}
 

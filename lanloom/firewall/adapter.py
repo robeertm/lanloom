@@ -248,7 +248,7 @@ def with_sample_switch(state: dict) -> dict:
     ports = []
     for idx, (dev, net, prof, power) in sorted(_SAMPLE_PORTS.items()):
         trunk = prof == "pp_trunk" or idx == 1
-        ports.append({"id": "p_sw_%d" % idx, "device": "e_sw", "idx": idx, "name": _SAMPLE_NAMES.get(idx, str(idx)),
+        ports.append({"id": "p_sw_%d" % idx, "device": "e_sw", "idx": idx, "name": _SAMPLE_NAMES.get(idx, "Port %d" % idx),
                       "link": dev is not None or idx in (1, 2, 3), "speed": 10000 if idx == 17 else 1000 if dev or idx <= 3 else None,
                       "media": "SFP+" if idx == 17 else "GE",
                       "poe": None if power is None and idx != 9 and idx != 12 else
