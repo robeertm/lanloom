@@ -41,8 +41,8 @@ the back gesture close it; on a phone it fills the screen. The address is `#/pat
 - Sizes use the unit that fits (B to TB) in the number format of your language. The mouse wheel or two fingers zoom up to
   64 times; places for orientation appear with every zoom step.
 - **Cities and network operators are an option, off by default** (*Settings > General*, administrators). Switching it on
-  makes Lanloom fetch exactly two public files (about 90 MB the first time; at most one check a day, a new file once a
-  month) and keep a compact file of a few tens of MB. Without it the sheet shows everything about the country and says
+  makes Lanloom fetch exactly two public files (about 90 MB to download; at most one check a day, a new file once a
+  month) and keep a compact file of about 90 MB. Without it the sheet shows everything about the country and says
   that cities are off. *Check now* asks at once, *Delete files and stored figures* removes everything and switches it off.
   The cities are approximate: the source assigns whole networks to one place, often the seat of a data centre.
 
