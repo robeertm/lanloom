@@ -24,7 +24,8 @@ The write half signs in with a login of its own (separate from the read-only one
 Safety below the adapter: every request goes through ``transport.Transport`` with a field-exact allow-list of
 JSON-RPC calls: ``uci add`` (config ``firewall``, type ``rule``, a ``lanloom_`` section name, a complete rule of the
 fields below whose name carries the mark), ``uci set`` (some of those fields on one section), ``uci delete`` (a whole
-section only when it is named ``lanloom_...``; otherwise only the options ``dest`` and ``dest_port``), ``uci
+section only when it is named ``lanloom_...``; otherwise only the options ``dest``, ``dest_port``, ``enabled``,
+``proto`` and ``target``, which equals writing their default), ``uci
 changes``/``revert`` of the firewall configuration, ``uci apply`` (with ``rollback`` and a timeout of 90 to 600
 seconds, or without), ``uci confirm`` and ``uci rollback``; reading ``uci get`` of the firewall and network
 configuration, ``system board`` and ``network.interface dump``. Every value is checked (one zone name, ``*`` as a

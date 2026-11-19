@@ -651,15 +651,15 @@ def _reservations(raw, nets) -> list:
 
 
 def _security(enc: str) -> str:
+    """The encryption option of a wireless interface as a neutral security word (``psk2+ccmp`` -> ``wpa2_personal``)."""
     e = str(enc or "none").strip().lower()
     base = e.split("+")[0]
     if base in SECURITY:
         return SECURITY[base]
-    if base.startswith(("psk", "sae")):
-        return "wpa_personal"
-    if base.startswith(("wpa", "wpa2", "wpa3")):
-        return "wpa_enterprise"
-    return "other"
+    return {"psk": "wpa_personal", "psk2": "wpa2_personal", "psk-mixed": "wpa2_personal", "sae": "wpa3_personal",
+            "sae-mixed": "wpa2_wpa3_personal", "wpa": "wpa_enterprise", "wpa2": "wpa2_enterprise",
+            "wpa-mixed": "wpa2_enterprise", "wpa3": "wpa3_enterprise", "wpa3-mixed": "wpa2_wpa3_enterprise",
+            "wpa3-192": "wpa3_enterprise"}.get(base, "other")
 
 
 def _band_of(dev: dict):
@@ -802,7 +802,7 @@ def _equipment(raw, topo: Topology) -> list:
     has_radio = bool(sections(raw.get("wireless"), RADIO_SECTION))
     return [{"id": oid("e", "router"), "name": text(b.get("hostname"), 48) or "Router",
              "kind": "router" if wan or not has_radio else "ap", "model": text(b.get("model"), 64),
-             "firmware": text(rel.get("version"), 24), "mgmt_ip": lan, "uplink": None,
+             "firmware": text(rel.get("version"), 24), "mgmt_ip": lan, "uplink": None, "online": True if b else None,
              "target": text(rel.get("target"), 32)}]
 
 

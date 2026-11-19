@@ -212,9 +212,16 @@ The Network view has two faces: the board and a **tree** that folds, Internet, g
 
 ### Router with a ubus API
 
-![Firewall tab with a router source: zones, rules in configuration order and the zone matrix](docs/screenshots/router-rules-light.png)
+![Firewall tab with a router source: firewall zones, the zone matrix and the rules in configuration order](docs/screenshots/router-rules-light.png)
 
-<img src="docs/screenshots/router-phone.png" width="260" alt="Router checks and wireless networks on a phone">
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/router-wireless-dark.png" width="100%" alt="The router as network equipment, its wireless networks with security and state, and port forwarding"><br><sub>Wireless networks, the router and port forwarding</sub></td>
+<td width="50%"><img src="docs/screenshots/router-report-light.png" width="100%" alt="Nightly report section of the router: a new rule from the internet side, a rule switched off, a wireless network switched on"><br><sub>Nightly report: what changed on the router overnight</sub></td>
+</tr>
+</table>
+
+<img src="docs/screenshots/router-phone.png" width="260" alt="Router checks on a phone">
 
 ### Access points and switches (read only)
 

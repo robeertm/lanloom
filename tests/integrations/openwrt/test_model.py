@@ -1,6 +1,7 @@
 """Translation module of the OpenWrt family: ubus/UCI replies -> neutral model v2 (zones, rules in order, forwardings
 and input policies, networks, wireless networks, clients, findings) for firewall3 and firewall4 releases."""
 import json
+from pathlib import Path
 
 import pytest
 
@@ -154,13 +155,22 @@ def test_networks_vlans_and_address_pools():
 def test_wireless_networks():
     st = model.to_neutral(raw_of())
     s = [(x["name"], x["bands"], x["security"], x["hidden"], x["clients"]) for x in st["ssids"]]
-    assert s == [("Home", ["2.4ghz"], "wpa_personal", False, 1), ("Home", ["5ghz"], "wpa_personal", False, 0),
-                 ("Guests", ["2.4ghz"], "open", False, 0), ("Things", ["2.4ghz"], "wpa_personal", True, 1)]
+    assert s == [("Home", ["2.4ghz"], "wpa2_personal", False, 1), ("Home", ["5ghz"], "wpa2_wpa3_personal", False, 0),
+                 ("Guests", ["2.4ghz"], "open", False, 0), ("Things", ["2.4ghz"], "wpa2_personal", True, 1)]
     assert all(x["on_air"] for x in st["ssids"]) and next(x for x in st["ssids"] if x["name"] == "Guests")["guest"]
     assert "Uplink" not in {x["name"] for x in st["ssids"]}                  # a client interface is no network of ours
     assert next(x for x in st["ssids"] if x["name"] == "Home" and x["bands"] == ["5ghz"])["wpa3"]
     old = model.to_neutral(raw_of("21.02"))
     assert [x["bands"] for x in old["ssids"]][:2] == [["2.4ghz"], ["5ghz"]]   # hwmode instead of band
+
+
+@pytest.mark.parametrize("enc,want", [("none", "open"), ("owe", "owe"), ("psk2+ccmp", "wpa2_personal"), ("sae", "wpa3_personal"),
+                                      ("sae-mixed", "wpa2_wpa3_personal"), ("wpa2+aes", "wpa2_enterprise"),
+                                      ("wpa3", "wpa3_enterprise"), ("psk", "wpa_personal"), ("wep-open", "wep"), ("x", "other")])
+def test_security_words_have_texts(enc, want):
+    assert model._security(enc) == want
+    texts = json.loads((Path(model.__file__).resolve().parents[2] / "i18n" / "en.json").read_text())
+    assert "fw.sec." + want in texts
 
 
 def test_clients_and_fixed_addresses():

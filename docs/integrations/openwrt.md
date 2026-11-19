@@ -77,7 +77,7 @@ With the executor set up for this family, the zone firewall in the Firewall tab'
 | switch a rule off or on | the same call with `enabled` only |
 | remove a rule | `uci delete` of the whole section, only for sections named `lanloom_...` |
 
-Never, whatever a plan says: interfaces, zones, forwardings, redirects, wireless, the address service, users, system settings, updates and reboots. The executor's allow-list (`lanloom/integrations/openwrt/write.py`) checks every call, field and value before it leaves: `uci add` (configuration `firewall`, type `rule`, a `lanloom_` section name, complete values with the mark), `uci set` (the rule options above), `uci delete` (a whole section only when named `lanloom_...`; otherwise only the options `dest` and `dest_port`), `uci changes` and `uci revert` of `firewall`, `uci apply` (with `rollback` and a timeout of 90 to 600 seconds, or without), `uci confirm`, `uci rollback`; reads `uci get` of `firewall` and `network`, `system board` and `network.interface dump`.
+Never, whatever a plan says: interfaces, zones, forwardings, redirects, wireless, the address service, users, system settings, updates and reboots. The executor's allow-list (`lanloom/integrations/openwrt/write.py`) checks every call, field and value before it leaves: `uci add` (configuration `firewall`, type `rule`, a `lanloom_` section name, complete values with the mark), `uci set` (the rule options above), `uci delete` (a whole section only when named `lanloom_...`; otherwise only the options `dest`, `dest_port`, `enabled`, `proto` and `target`, which is the same as setting the router itself, every port, on, tcp+udp or `DROP`), `uci changes` and `uci revert` of `firewall`, `uci apply` (with `rollback` and a timeout of 90 to 600 seconds, or without), `uci confirm`, `uci rollback`; reads `uci get` of `firewall` and `network`, `system board` and `network.interface dump`.
 
 The changes are staged in the session first, so nothing is live until the one `uci apply` at the end; a plan that fails half-way never puts half a rule set live. The neutral rules of the zone firewall apply as for every family: no blocking rule on the router itself or the management zone, the path from the executor to the router must stay open after the plan, at most 10 objects per plan.
 
@@ -137,6 +137,8 @@ openssl s_client -connect 192.168.1.1:443 </dev/null | openssl x509 -outform der
 |---|---|---|---|
 | 21.02 | fw3 (iptables) | everything above | rules; with the router's own way back |
 | 22.03, 23.05, 24.10 | fw4 (nftables) | everything above | rules; with the router's own way back |
+
+The adapter tests use sample configurations of 21.02 and 23.05; 22.03 and 24.10 store the same configuration format as 23.05.
 
 Checked against the behaviour of the rpcd and uhttpd source and against a stateful stand-in of rpcd's `uci` object (session staging, apply, rollback and confirm timer, renaming of anonymous sections after a commit) in the adapter tests; not yet against a real router. Tested versions are listed in [COMPATIBILITY.md](../COMPATIBILITY.md).
 
