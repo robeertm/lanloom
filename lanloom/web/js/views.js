@@ -201,10 +201,14 @@
         return fr;
       }
       let selected = null;
-      // the Network view has two faces: the circuit board and the tree of the chain (Internet → gateway → switches → devices);
-      // the choice is kept per browser and can be given in the address (#/network?v=tree)
+      // the Network view has three faces: the circuit board, the tree of the chain (Internet → gateway → switches → devices) and the
+      // same chain as a stack of boards in 3D; the choice is kept per browser and can be given in the address (#/network?v=tree, ?v=3d)
       const treeOk = kind === 'network' && !!(LL.Tree && LL.Tree.mount);
-      let mode = treeOk && (LL.query.get('v') === 'tree' || (LL.query.get('v') !== 'board' && LL.prefs.get('ll-netview', 'board') === 'tree')) ? 'tree' : 'board';
+      const s3dOk = treeOk && !!(LL.Scene3D && LL.Scene3D.mount);
+      const FACES = ['board', 'tree'].concat(s3dOk ? ['3d'] : []);
+      const asked = LL.query.get('v'), kept = LL.prefs.get('ll-netview', 'board');
+      let mode = treeOk ? (FACES.includes(asked) ? asked : (FACES.includes(kept) ? kept : 'board')) : 'board';
+      let face = mode, s3dLost = false;          // what is really shown: '3d' falls back to the board without graphics acceleration
       // the address follows the open card (#/map/<id>), the back key closes it again
       const here = id => '#/' + route + (id ? '/' + encodeURIComponent(id) : '') + LL.queryString();
       const onSelectId = (id, fromAddress) => {
@@ -259,7 +263,7 @@
       }
       // the tree filters on its own (it keeps the chain above a match) and has no fold tile: it lists every device
       const noQuiet = v => (v.components.some(c => c.quiet_more) ? Object.assign({}, v, { components: v.components.filter(c => !c.quiet_more) }) : v);
-      const feed = d => (mode === 'tree' ? noQuiet(localise(d)) : show(d));
+      const feed = d => (face === 'tree' || face === '3d' ? noQuiet(localise(d)) : show(d));
       const treeFilter = () => ({ zone: LL.query.get('zone') || '', only: LL.query.get('only') || '' });
       // containers fold under their host (E4): the board hides them until the host is opened (remembered per host)
       const foldIds = () => data.components.filter(c => c.folds).map(c => c.id);
@@ -294,12 +298,12 @@
         const fPath = []; for (let e = filterBar.contains(document.activeElement) ? document.activeElement : null; e && e !== filterBar; e = e.parentNode) fPath.unshift([...e.parentNode.children].indexOf(e));
         filterBar.replaceChildren(...[
           LL.netModes ? LL.netModes('live') : null, LL.netModes ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
-          treeOk ? viewSwitch() : null, mode === 'board' && fullScreen ? fullButton() : null, treeOk || (mode === 'board' && fullScreen) ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
-          mode !== 'board' ? null : talkChip,
-          mode !== 'board' || !LL.resilience ? null : chip(t('rs.lens.chip'), LL.resilience.lensOn(), () => LL.resilience.toggleLens(), ' mf-chip--lens'),   // the risk lens (js/resilience.js, key B)        // the lines in the air belong to the board; the tree has the chain
-          mode === 'board' && LL.rewind ? LL.rewind.chip() : null,
-          mode === 'board' && talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
-          mode === 'board' && LL.foldHosts.length ? chip(t('mapfilter.containers'), LL.allUnfolded(), () => LL.setAllUnfolded(!LL.allUnfolded()), ' mf-chip--containers') : null,
+          treeOk ? viewSwitch() : null, face !== 'tree' && fullScreen ? fullButton() : null, treeOk || (face === 'board' && fullScreen) ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
+          face !== 'board' ? null : talkChip,        // the lines in the air belong to the board; the tree and the 3D view have the chain
+          face !== 'board' || !LL.resilience ? null : chip(t('rs.lens.chip'), LL.resilience.lensOn(), () => LL.resilience.toggleLens(), ' mf-chip--lens'),   // the risk lens (js/resilience.js, key B)
+          face === 'board' && LL.rewind ? LL.rewind.chip() : null,
+          face === 'board' && talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
+          face === 'board' && LL.foldHosts.length ? chip(t('mapfilter.containers'), LL.allUnfolded(), () => LL.setAllUnfolded(!LL.allUnfolded()), ' mf-chip--containers') : null,
           h('span', { class: 'mf-sep', 'aria-hidden': 'true' }),
           zones.length > 1 ? chip(t('mapfilter.all'), !zone, () => set('zone', null)) : null,
           ...(zones.length > 1 ? zones.map(z => chip(z.title || '—', zone === z.id, () => set('zone', zone === z.id ? null : z.id))) : []),
@@ -310,8 +314,22 @@
         if ((zone || only) && !n) filterBar.append(h('span', { class: 'mf-empty muted' }, t(only ? 'mapfilter.none_problems' : 'mapfilter.none')));
       }
       function mountViewer() {
-        host.classList.toggle('board-host--tree', mode === 'tree');
-        if (mode === 'tree') return LL.Tree.mount(host, { view: feed(data), t: LL.t, locale: LL.locale(), filter: treeFilter, onSelect: id => onSelectId(id) });
+        face = mode;
+        let note = null;
+        if (mode === '3d') {
+          // 3D only with real graphics acceleration (or after "Try anyway" in this browser); otherwise a short note and the board
+          const s3d = !s3dLost && LL.Scene3D.available() ? LL.Scene3D.mount(host, { view: noQuiet(localise(data)), t: LL.t, locale: LL.locale(), filter: treeFilter, onSelect: pick,
+            onLost: () => { s3dLost = true; if (face === '3d') { board.destroy(); host.replaceChildren(); board = mountViewer(); drawFilter(); } } }) : null;
+          if (s3d) { host.classList.add('board-host--3d'); host.classList.remove('board-host--tree'); return s3d; }
+          face = 'board';
+          note = h('div', { class: 's3d-fallback', role: 'note' }, h('span', { class: 's3d-fallback__text' }, t('s3d.fallback')),
+            LL.Scene3D.canTry() ? h('button', { class: 'btn btn--sm', type: 'button', onclick: () => { LL.Scene3D.allowSoft(true); remount(); } }, t('s3d.try_anyway')) : null);
+        }
+        host.classList.toggle('board-host--tree', face === 'tree');
+        host.classList.remove('board-host--3d');
+        host.classList.toggle('board-host--note', !!note);
+        if (note) host.appendChild(note);
+        if (face === 'tree') return LL.Tree.mount(host, { view: feed(data), t: LL.t, locale: LL.locale(), filter: treeFilter, onSelect: id => onSelectId(id) });
         return LL.Board.mount(host, { view: feed(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: pick,
           zones: zoneList(), zone: LL.query.get('zone') || null, onZone: id => setFilter('zone', LL.query.get('zone') === id ? null : id) });
       }
@@ -337,25 +355,33 @@
         const x = panel.querySelector('.detail__close'); if (x) x.click();
       };
       document.addEventListener('keydown', onEsc);
-      // Board / Tree: one pair of buttons, the pressed one is the current face; the open card stays open
+      // Board / Tree / 3D: one group of buttons, the pressed one is the current face; the open card stays open
       function viewSwitch() {
-        const btn = (m, label) => h('button', { class: 'seg__btn' + (mode === m ? ' is-active' : ''), type: 'button', 'aria-pressed': mode === m ? 'true' : 'false', onclick: () => switchTo(m) }, t(label));
-        return h('div', { class: 'seg nv-seg', role: 'group', 'aria-label': t('netview.label') }, btn('board', 'netview.board'), btn('tree', 'netview.tree'));
+        const btn = (m, label, title) => {
+          const b = h('button', { class: 'seg__btn' + (mode === m ? ' is-active' : ''), type: 'button', 'aria-pressed': mode === m ? 'true' : 'false', onclick: () => switchTo(m) }, t(label));
+          if (title) b.title = t(title);
+          return b;
+        };
+        return h('div', { class: 'seg nv-seg', role: 'group', 'aria-label': t('netview.label') }, btn('board', 'netview.board'), btn('tree', 'netview.tree'),
+          s3dOk ? btn('3d', 'netview.3d', 'netview.3d_title') : null);
+      }
+      function remount() {
+        board.destroy(); host.replaceChildren();
+        board = mountViewer();
+        if (selected) board.highlight(selected);
+        if (LL.failure) LL.failure.refresh();
+        if (LL.resilience) LL.resilience.refresh();
+        if (face === 'board' && talkOn) loadTalk();
+        drawFilter();
       }
       function switchTo(m) {
         if (m === mode) return;
         mode = m;
         LL.prefs.set('ll-netview', m);
         LL.query.delete('v'); LL.deepLink(here(selected), true);
-        board.destroy(); host.replaceChildren();
-        board = mountViewer();
-        if (selected) board.highlight(selected);
-        if (LL.failure) LL.failure.refresh();
-        if (LL.resilience) LL.resilience.refresh();
-        if (mode === 'board' && talkOn) loadTalk();
-        drawFilter();
+        remount();
         const again = filterBar.querySelector('.nv-seg .is-active'); if (again) again.focus();
-        LL.announce(t(m === 'tree' ? 'netview.now_tree' : 'netview.now_board'), { now: true });
+        LL.announce(t(face === 'tree' ? 'netview.now_tree' : face === '3d' ? 'netview.now_3d' : (mode === '3d' ? 's3d.fallback' : 'netview.now_board')), { now: true });
       }
       drawFilter();
       if (talkOn) loadTalk();

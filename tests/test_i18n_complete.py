@@ -147,6 +147,7 @@ SAME_IN_LANGUAGE = {
     },
     "nl": {
         r"a11y\.key\.shift_tab": "names of two keys",
+        r"a11y\.key\.pgdn": "the name of the key as printed on Dutch keyboards",
         r"agents\.snippet\.run": "a shell command",
         r"account\.title|api\.report\.ingest|devices\.filter\.net_vlan|devices\.tag\.wireless|ws\.chip\.rename|inc\.ch\.(version|firmware)|inc\.before\.firmware|zf\.chip\.(net_zone|zone_rename)": _NAMES,
         r"auto\.ex\.c\.(open|state|states)|notify\.msg\.(dev_offline|incident)|ov\.note\.dev_offline\.sub_unknown": "the Dutch sentence is built like the English one (is open, is offline, incident)",

@@ -7,7 +7,7 @@
    Pure part (no DOM, tested under Node):  build(view, { zone, only }) → { roots, other, count, problems, items }
      roots   top-level nodes (Internet first), other = devices that sit in no chain (a group node, or null)
      node    { id, kind, title, subtitle, status, grade, metric, link, children, depth, count, problems }
-     link    null or { kind: cable|radio|virtual|uplink, port, own_port, band, ssid, medium, measured }
+     link    null or { id (of the trace), kind: cable|radio|virtual|uplink, port, own_port, band, ssid, medium, measured }
    DOM part:  mount(host, { view, t, locale, filter, onSelect }) → { update(view), live(frame), highlight(id), setTheme(), destroy(), focus() }
      role="tree" with treeitems (WAI-ARIA tree pattern): one tab stop (roving), arrow keys move, Right/Left open and close or go
      to the child / parent, Home/End, * opens the level, typing a letter jumps, Enter or Space opens the component's card.
@@ -44,7 +44,7 @@
     if (!trace) return null;
     const p = trace.phys || {};
     const kind = trace.kind === 'uplink' ? 'uplink' : ({ radio: 'radio', virtual: 'virtual' }[trace.kind] || 'cable');
-    return { kind, port: p.port || null, own_port: p.own_port || null, band: p.band || null, ssid: p.ssid || null, medium: p.medium || null, measured: !!trace.measured };
+    return { id: trace.id == null ? null : trace.id, kind, port: p.port || null, own_port: p.own_port || null, band: p.band || null, ssid: p.ssid || null, medium: p.medium || null, measured: !!trace.measured };
   }
 
   const isProblem = c => c.status === 'down' || c.grade === 'interrupted';

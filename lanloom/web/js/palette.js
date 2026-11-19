@@ -99,6 +99,8 @@
 
   LL.registerCommand({ id: 'go.talk', group: 'views', order: 31, typedOnly: true, label: () => t('cmdk.go', { name: t('talk.chip') }),
     keywords: () => t('cmdk.kw.talk'), run: () => LL.go('#/map?talk=1') });
+  LL.registerCommand({ id: 'go.network3d', group: 'views', order: 32, typedOnly: true, label: () => t('cmdk.go', { name: t('netview.3d_title') }),
+    keywords: () => t('cmdk.kw.network3d'), run: () => LL.go('#/network?v=3d') });
 
   const cmdTheme = (id, mode, order) => LL.registerCommand({ id, group: 'commands', order, label: () => t('theme.' + mode), keywords: () => t('cmdk.kw.theme'),
     available: () => LL.theme() !== mode, run: () => { LL.setTheme(mode); LL.toast(t('theme.' + mode)); } });

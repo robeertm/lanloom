@@ -158,6 +158,10 @@
       grp(t('a11y.help.tree'), [
         [or(kbd('up', '↑'), kbd('down', '↓')), 'a11y.help.tree_move'], [kbd('right', '→'), 'a11y.help.tree_open'], [kbd('left', '←'), 'a11y.help.tree_close'],
         [or(kbd('home'), kbd('end')), 'a11y.help.tree_ends'], [or(kbd('enter'), kbd('space')), 'a11y.help.tree_card'], [kbd('star'), 'a11y.help.tree_all'], [t('a11y.help.tree_letter_key'), 'a11y.help.tree_letter']]),
+      grp(t('a11y.help.s3d'), [
+        [or(kbd('left', '←'), kbd('right', '→')), 'a11y.help.s3d_turn'], [or(kbd('up', '↑'), kbd('down', '↓')), 'a11y.help.s3d_tilt'],
+        [or(kbd('plus', '+'), kbd('minus', '−')), 'a11y.help.s3d_zoom'], [kbd('zero', '0'), 'a11y.help.s3d_reset'],
+        [or(kbd('pgdn'), kbd('pgup')), 'a11y.help.s3d_walk'], [or(kbd('enter'), kbd('space')), 'a11y.help.tree_card']]),
       grp(t('a11y.help.board'), [[or(kbd('tab'), kbd('shift_tab')), 'a11y.help.board_tab'], [or(kbd('enter'), kbd('space')), 'a11y.help.board_card']]));
   }
   LL.a11y.help = function () {

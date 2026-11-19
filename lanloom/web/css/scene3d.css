@@ -1,0 +1,46 @@
+/* Lanloom — 3D view of the chain (board/scene3d.js): a stack of boards that can be turned and zoomed. Design tokens only, so light,
+   dark and every colour theme follow; the WebGL picture reads the same tokens. */
+.board-host--3d { overflow: hidden; }
+.s3d { position: absolute; inset: 0; display: flex; flex-direction: column;
+  background: radial-gradient(120% 90% at 50% 0%, var(--ll-pcb-zone) 0%, var(--ll-bg) 70%); }
+.s3d-stage { position: relative; flex: 1; min-height: 0; outline: none; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.s3d-stage:active { cursor: grabbing; }
+.s3d-stage:focus-visible { box-shadow: inset 0 0 0 2px var(--ll-focus); border-radius: var(--ll-radius-md); }
+.s3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.s3d-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.s3d-label { position: absolute; left: 0; top: 0; max-width: 160px; padding: 1px 7px; border-radius: var(--ll-radius-sm); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; font-size: var(--ll-fs-xs); line-height: 16px; color: var(--ll-pcb-silk); background: var(--ll-pcb-legend-bg);
+  border: 1px solid var(--ll-pcb-tile-line); box-shadow: var(--ll-shadow-1); will-change: transform; }
+.s3d-label--l0, .s3d-label--l1 { font-weight: var(--ll-fw-semibold); font-size: var(--ll-fs-sm); line-height: 18px; }
+.s3d-label.is-focus { color: var(--ll-on-accent); background: var(--ll-accent); border-color: var(--ll-accent); z-index: 2; }
+.s3d-focus { position: absolute; left: 12px; bottom: 12px; max-width: min(360px, calc(100% - 80px)); display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 12px; border-radius: var(--ll-radius-md); background: var(--ll-surface); border: 1px solid var(--ll-border); box-shadow: var(--ll-shadow-1);
+  font-size: var(--ll-fs-sm); pointer-events: none; }
+.s3d-focus strong { font-size: var(--ll-fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s3d-tools { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.s3d-tool { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--ll-radius-md);
+  border: 1px solid var(--ll-border); background: var(--ll-surface); color: var(--ll-text); font-size: 18px; line-height: 1; box-shadow: var(--ll-shadow-1); cursor: pointer; }
+.s3d-tool:hover { border-color: var(--ll-border-strong); background: var(--ll-surface-2); }
+.s3d-tool:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 1px; }
+.s3d-layers { position: absolute; left: 12px; top: 12px; margin: 0; padding: 8px 12px; list-style: none; display: flex; flex-direction: column; gap: 3px;
+  border-radius: var(--ll-radius-md); background: var(--ll-pcb-legend-bg); border: 1px solid var(--ll-border); font-size: var(--ll-fs-xs); color: var(--ll-text-2); pointer-events: none; }
+.s3d-layers__item { display: flex; align-items: center; gap: 8px; }
+.s3d-layers__n { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px;
+  background: var(--ll-pcb-icon-bg); color: var(--ll-pcb-icon); font-weight: var(--ll-fw-semibold); font-size: var(--ll-fs-2xs); }
+.s3d-hint { margin: 0; padding: 6px 14px 8px; font-size: var(--ll-fs-xs); text-align: center; }
+.s3d-soft { position: absolute; right: 60px; top: 14px; margin: 0; max-width: 260px; padding: 6px 10px; font-size: var(--ll-fs-xs);
+  border-radius: var(--ll-radius-sm); background: var(--ll-warn-soft); color: var(--ll-warn-text); }
+.s3d-fallback { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 10px;
+  max-width: calc(100% - 24px); padding: 8px 12px; border-radius: var(--ll-radius-md); background: var(--ll-surface); border: 1px solid var(--ll-border-strong);
+  box-shadow: var(--ll-shadow-2); font-size: var(--ll-fs-sm); color: var(--ll-text); }
+.s3d-fallback__text { flex: 1; min-width: 0; }
+
+@media (max-width: 640px) {
+  .s3d-layers { display: none; }
+  .s3d-tools { right: 8px; top: 8px; }
+  .s3d-tool { width: 44px; height: 44px; }
+  .s3d-focus { left: 8px; bottom: 8px; max-width: calc(100% - 16px); }
+  .s3d-hint { display: none; }
+  .s3d-soft { right: 60px; left: 8px; max-width: none; }
+  .s3d-fallback { flex-wrap: wrap; }
+}
