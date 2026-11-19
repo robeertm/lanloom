@@ -50,6 +50,7 @@
   try { const w = localStorage.getItem('lanloom-paths-window'); if (PERIODS.includes(w)) S.window = w; } catch (e) { /* private mode */ }
 
   const home = () => (S.d && S.d.home) || browserRegion();
+  LL.pathsHomeCc = () => home();
   const devTitle = d => d ? (d.title || (d.self ? t('paths.this_host') : d.id === '~unknown' ? t('paths.unknown_device') : d.id)) : '';
   const deviceById = id => (S.d && S.d.devices.find(d => d.id === id)) || null;
   const countryRow = cc => (S.d && S.d.countries.find(c => c.cc === cc)) || null;
@@ -172,6 +173,10 @@
       if (el && (by.has(el.dataset.cc))) openCountry(el.dataset.cc);
     });
     svg._pw = { labelG, labelItems, homeLabel, hp };
+    // network routes (DW2, an option): quiet polylines over the measured places, the chosen one stands out
+    if (LL.pathsRoutes && S.d && S.d.routes && S.d.routes.length && hp && m.project) {
+      LL.pathsRoutes.drawOn(svg, S.d.routes, { project: (lon, lat) => m.project(lon, lat), point, home: hc, quiet: true, before: '.pw-labels' });
+    }
     return { svg, arcs };
   }
 
@@ -430,6 +435,7 @@
       h('span', { class: 'pw-legend__item' }, h('i', { class: 'pw-swatch pw-swatch--out' }), t('paths.legend.out')),
       h('span', { class: 'pw-legend__item' }, h('i', { class: 'pw-swatch pw-swatch--eu' }), t('paths.legend.eu')),
       hc ? h('span', { class: 'pw-legend__item' }, h('i', { class: 'pw-swatch pw-swatch--home' }), t('paths.legend.home', { country: countryName(hc) })) : null,
+      S.d && S.d.routes && S.d.routes.length ? h('span', { class: 'pw-legend__item' }, h('i', { class: 'pw-swatch pw-swatch--route' }), t('routes.legend.route')) : null,
       h('span', { class: 'pw-legend__item pw-legend__hint' }, t('paths.legend.width')),
       h('span', { class: 'pw-legend__item pw-legend__hint' }, t('paths.zoom.hint')));
   }
@@ -567,6 +573,8 @@
     const un = unusualCard(d);
     if (un) kids.push(un);
     kids.push(h('div', { class: 'pw-grid' }, countriesCard(d), devicesCard(d)));
+    const rc = LL.pathsRoutes ? LL.pathsRoutes.card(Object.assign({ home_cc: home() }, d), { cls: 'pw', h: 'h2', title: 'routes.title_all', id: 'pw-routes', max: 10 }) : null;
+    if (rc) kids.push(rc);
     kids.push(attribution(d));
     page.replaceChildren(...kids);
     if (!S.full) requestAnimationFrame(() => { if (stage.isConnected && !S.full) startDots(stage, built.svg, built.arcs); });

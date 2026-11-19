@@ -116,6 +116,13 @@ def parse_error(ancdata):
     return None
 
 
+def open_socket(fam, kind, factory=None):
+    """The one place that opens a probe socket (tests hand in a fake factory)."""
+    if factory is not None:
+        return factory(fam, kind)
+    return socket.socket(fam, kind)
+
+
 class Budget:
     def __init__(self, seconds, clock=time.monotonic):
         self.clock = clock
@@ -132,11 +139,11 @@ def _wait(sock, events, timeout):
     return r[0][1] if r else 0
 
 
-def trace_udp(target, max_hops=30, wait=1.0, gap=4, budget=None, sock_factory=socket.socket, clock=time.monotonic):
+def trace_udp(target, max_hops=30, wait=1.0, gap=4, budget=None, sock_factory=None, clock=time.monotonic):
     """Paris UDP over the error queue. Returns (hops, probes)."""
     fam = _family(target)
     budget = budget or Budget(30, clock)
-    s = sock_factory(fam, socket.SOCK_DGRAM)
+    s = open_socket(fam, socket.SOCK_DGRAM, sock_factory)
     hops, probes, silent = [], 0, 0
     try:
         s.setsockopt(*_recverr_option(fam), 1)
@@ -235,7 +242,7 @@ def _merge(hops):
     return out
 
 
-def trace_tcp(target, port=443, max_hops=30, wait=1.0, gap=4, budget=None, sock_factory=socket.socket, clock=time.monotonic):
+def trace_tcp(target, port=443, max_hops=30, wait=1.0, gap=4, budget=None, sock_factory=None, clock=time.monotonic):
     """Connection attempts with a growing time-to-live; the routers' answers come through the error queue."""
     fam = _family(target)
     budget = budget or Budget(30, clock)
@@ -244,7 +251,7 @@ def trace_tcp(target, port=443, max_hops=30, wait=1.0, gap=4, budget=None, sock_
     for ttl in range(1, min(max_hops, MAX_HOPS) + 1):
         if budget.left() <= 0:
             break
-        s = sock_factory(fam, socket.SOCK_STREAM)
+        s = open_socket(fam, socket.SOCK_STREAM, sock_factory)
         hop = {"ttl": ttl, "ip": None, "rtt": None}
         try:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -299,13 +306,20 @@ def _tcp_error(s):
     return parse_error(anc)
 
 
-def lookup_names(ips, deadline=NAMES_DEADLINE, resolver=socket.gethostbyaddr):
+def reverse_name(ip, resolver=None):
+    """Reverse DNS of one router address through the system resolver (tests hand in a fake)."""
+    if resolver is not None:
+        return resolver(ip)[0]
+    return socket.gethostbyaddr(ip)[0]
+
+
+def lookup_names(ips, deadline=NAMES_DEADLINE, resolver=None):
     """Reverse DNS for the routers, in parallel, with one overall deadline; what is not back by then has no name."""
     out, threads = {}, []
 
     def one(ip):
         try:
-            out[ip] = resolver(ip)[0]
+            out[ip] = reverse_name(ip, resolver)
         except (OSError, UnicodeError, IndexError):
             pass
     for ip in list(dict.fromkeys(ips))[:MAX_HOPS]:
@@ -341,9 +355,10 @@ def scamper_version(path):
 
 
 def run_scamper(path, target, max_hops, wait, gap, budget_s):
-    cmd = [path, "-O", "json", "-c", "trace -P udp-paris -q 1 -w %d -m %d -g %d" % (max(1, int(round(wait))), max_hops, gap), "-f", "-"]
+    command = "trace -P udp-paris -q 1 -w %d -m %d -g %d" % (max(1, int(round(wait))), max_hops, gap)
     try:
-        r = subprocess.run(cmd, input=(target + "\n").encode(), capture_output=True, timeout=max(2.0, budget_s), env={}, check=False)
+        r = subprocess.run(["scamper", "-O", "json", "-c", command, "-f", "-"], executable=path, input=(target + "\n").encode(),
+                           capture_output=True, timeout=max(2.0, budget_s), env={}, check=False)
     except subprocess.TimeoutExpired:
         return None, "timeout"
     except OSError:
@@ -361,11 +376,11 @@ def scamper_usable(path):
 
 
 # ---------------------------------------------------------------------------------------------------------- check / measure
-def check(sock_factory=socket.socket):
+def check(sock_factory=None):
     methods, reasons = {}, {}
     for name, kind in (("udp", socket.SOCK_DGRAM), ("tcp", socket.SOCK_STREAM)):
         try:
-            s = sock_factory(socket.AF_INET, kind)
+            s = open_socket(socket.AF_INET, kind, sock_factory)
             try:
                 s.setsockopt(SOL_IP, IP_RECVERR, 1)
                 s.setsockopt(SOL_IP, socket.IP_TTL, 1)

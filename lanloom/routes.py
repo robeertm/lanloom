@@ -656,6 +656,17 @@ def signature(sections):
     return ">".join(parts)[:400]
 
 
+def is_estimated(section):
+    """A section whose place is only approximate: a place from the city data, or only its country. The destination without
+    a place of its own is not estimated (it is drawn where its network is); a section with nothing known is not drawn."""
+    if not isinstance(section, dict) or section.get("kind") == "home":
+        return False
+    p = section.get("place")
+    if isinstance(p, dict):
+        return not p.get("sure")
+    return bool(section.get("cc")) and section.get("kind") != "target"
+
+
 def uncertain(sections):
-    """True if any section after home has a place that is only approximate (or none at all)."""
-    return any(s.get("kind") != "home" and (s.get("place") is None or not s["place"].get("sure")) for s in sections or ())
+    """True if any section of the chain is estimated (``is_estimated``)."""
+    return any(is_estimated(s) for s in sections or ())

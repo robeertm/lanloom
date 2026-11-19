@@ -7,7 +7,7 @@ What counts as a place (Python, read with the ast module, nothing is imported or
     OpenerDirector.open, http.client.HTTP(S)Connection, socket.socket / create_connection / socketpair is not,
     asyncio.open_connection / open_unix_connection, loop.create_connection / create_datagram_endpoint /
     sock_connect, smtplib.SMTP / SMTP_SSL, websockets.connect, ssl.get_server_certificate, subprocess calls of
-    network tools (curl, wget, ping, nc);
+    network tools (curl, wget, ping, nc, traceroute tools such as scamper);
   * the key is "<file>::<enclosing class.function>::<kind>", so moving code or a second call in the same
     function does not need a new entry, a new function with a connection does.
 What counts as a host: a public host name in an http(s):// or ws(s):// literal of the shipped code (Python and the
@@ -33,7 +33,12 @@ JS_DIRS = ("lanloom/web",)
 CATEGORIES = {
     "update-check": "release feed of the project, optional, can be switched off",
     "optional-download": "a data file from its public source, only after an administrator switched the option on "
-                         "(cities and network operators for the data paths view: one check a day, never an address)",
+                         "(cities and network operators for the data paths view: one check a day, never an address; "
+                         "exchange point lists for the network routes: one check a day, a new copy a month)",
+    "route-probe": "probe packets of the optional network routes measurement (Settings > Data paths > Network routes, off by "
+                   "default): one probe per hop towards the most important destinations of the data paths, rarely, number "
+                   "and interval set by an administrator, from a low-priority helper process; plus reverse DNS of the routers "
+                   "through the system resolver",
     "update-signature": "image registry of the project: signature of an update candidate, asked by the updater only "
                         "during an update or rollback an administrator started",
     "container-runtime": "local socket of the container runtime (one-click updater, local AI setup, host agent - read only)",
@@ -79,7 +84,7 @@ METHODS = {
     "create_connection": "socket", "create_datagram_endpoint": "socket", "sock_connect": "socket",
     "create_unix_connection": "unix-socket", "open_connection": "socket", "getaddrinfo": "dns",
 }
-NET_TOOLS = {"curl", "wget", "ping", "ping6", "nc", "ncat", "socat", "nslookup", "dig", "arping"}
+NET_TOOLS = {"curl", "wget", "ping", "ping6", "nc", "ncat", "socat", "nslookup", "dig", "arping", "scamper", "traceroute", "tracepath", "mtr"}
 SUBPROCESS = {"subprocess.run", "subprocess.Popen", "subprocess.call", "subprocess.check_call",
               "subprocess.check_output", "asyncio.create_subprocess_exec", "os.system", "os.popen"}
 URL = re.compile(r"\b(?:https?|wss?)://([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?=[:/?#\"'\s]|$)")

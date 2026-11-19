@@ -127,7 +127,7 @@
     const max = Math.max(1, ...bubbles.map(b => b.p.bytes));
     const g = svgEl('g', { class: 'pc-bubbles' });
     for (const b of bubbles.slice().sort((a, c) => (c.p.approx ? 1 : 0) - (a.p.approx ? 1 : 0) || c.p.bytes - a.p.bytes)) {
-      const label = (b.p.name ? b.p.name + (b.p.region && b.p.region !== b.p.name ? ', ' + b.p.region : '') : t('pc.bubble.country', { country: name(d.cc) })) + ' — ' + LL.fmtBytes(b.p.bytes) + (b.p.approx ? ' (' + t('pc.approx') + ')' : '');
+      const label = (b.p.name ? b.p.name + (b.p.region && b.p.region !== b.p.name ? ', ' + b.p.region : '') : t('pc.bubble.country', { country: name(d.cc) })) + ' — ' + LL.fmtBytes(b.p.bytes) + (b.p.approx ? ' (' + t(b.p.via === 'route' ? 'pc.approx_route' : 'pc.approx') + ')' : '');
       b.r = bubbleRadius(b.p.bytes, max);
       b.label = label;
       b.el = titled(svgEl('circle', { class: 'pc-bubble ' + side + (b.p.approx ? ' is-approx' : ''), cx: b.x.toFixed(2), cy: b.y.toFixed(2), r: b.r, 'data-r': b.r.toFixed(1), 'data-b': b.p.bytes }), label);
@@ -204,6 +204,8 @@
     listen(svg, 'touchend', end);
     listen(svg, 'touchcancel', end);
     set(Z.zv && Z.zvCc === Z.cc ? Z.zv : base);
+    stage._set = set;                                       // a chosen route frames its whole way (DW2)
+    stage._base = base;
     return () => { mu(); on.forEach(([el, type, fn, opt]) => el.removeEventListener(type, fn, opt)); reset.remove(); };
   }
 
@@ -217,6 +219,7 @@
     const sx = W / v.w, px = x => (x - v.x) * sx, py = y => (y - v.y) * sx;
     const kids = [], used = [];
     const k = Math.max(0.6, Math.min(1, W / 700));
+    if (parts.routes) parts.routes.scale(sx / k);            // route points keep their screen size (DW2)
     parts.bubbles.forEach(b => {                                       // sizes in screen pixels, whatever the zoom
       b.el.setAttribute('r', (b.r * k / sx).toFixed(3));
       const x = px(b.x), y = py(b.y), r = b.r * k;
@@ -381,15 +384,31 @@
     if (!d.totals.bytes) { body.replaceChildren(detailNote(d), h('p', { class: 'muted pc-empty' }, t('pc.empty', { country: name(Z.cc) })), attribution(d)); return; }
     const parts = mapParts(d);
     parts.cc = Z.cc;
+    const homeCc = d.home_cc || (LL.pathsHomeCc && LL.pathsHomeCc()) || '';
+    const routes = (d.routes || []).length && LL.pathsRoutes;
+    parts.routes = routes ? LL.pathsRoutes.drawOn(parts.svg, d.routes, { project: place, point: labelPoint, home: homeCc }) : null;
     const ratio = phone() ? 0.95 : 0.56;
     const stage = h('div', { class: 'pc-stage', style: '--pc-ratio:' + ratio }, parts.svg, h('div', { class: 'pc-labels', 'aria-hidden': 'true' }));
     const legend = h('div', { class: 'pc-legend' }, h('span', {}, h('i', { class: 'pc-lg pc-lg--city ' + parts.side }), t('pc.legend.city')),
       h('span', {}, h('i', { class: 'pc-lg pc-lg--approx ' + parts.side }), t('pc.legend.approx')), h('span', {}, h('i', { class: 'pc-lg pc-lg--place' }), t('pc.legend.place')),
+      routes ? h('span', {}, h('i', { class: 'pc-lg pc-lg--route' }), t('routes.legend.route')) : null,
+      routes ? h('span', {}, h('i', { class: 'pc-lg pc-lg--route pc-lg--route-est' }), t('routes.legend.estimated')) : null,
       h('span', { class: 'pc-legend__hint' }, t(coarsePointer() ? 'pc.map.hint_touch' : 'pc.map.hint')));
     const note = detailNote(d);
+    /* a chosen route frames its whole way on the map; choosing it again returns to the country */
+    const fit = r => {
+      if (!stage._set) return;
+      const b = r && parts.routes ? parts.routes.box(r.key) : null;
+      if (!b) { stage._set(stage._base); return; }
+      const m = world(), w = Math.min(m.w, Math.max((b.x1 - b.x0) * 1.3, (b.y1 - b.y0) * 1.3 / ratio, m.w / MAX_Z));
+      stage._set({ x: (b.x0 + b.x1) / 2 - w / 2, y: (b.y0 + b.y1) / 2 - w * ratio / 2, w });
+      const box = stage.getBoundingClientRect();                // the list sits below the map: bring the map into view
+      if (box.bottom < 60 || box.top > window.innerHeight - 60) stage.scrollIntoView({ block: 'nearest', behavior: reduced() ? 'auto' : 'smooth' });
+    };
+    const routeCard = LL.pathsRoutes ? LL.pathsRoutes.card(Object.assign({ home_cc: homeCc }, d), { onSelect: fit }) : null;
     const left = h('div', { class: 'pc-col' }, h('section', { class: 'card pc-card pc-mapcard' }, stage, legend), historyCard(d, parts.side), targetsCard(d));
     const right = h('div', { class: 'pc-col' }, kpis(d), note, citiesCard(d, parts.side), operatorsCard(d, parts.side), devicesCard(d, parts.side));
-    body.replaceChildren(h('div', { class: 'pc-grid' }, left, right), attribution(d));
+    body.replaceChildren(h('div', { class: 'pc-grid' }, left, right), routeCard, attribution(d));     // routes: the whole width, a chain has room
     body.scrollTop = scroll;
     const pts = parts.bubbles.map(b => [b.x, b.y]);
     Z.zvCc = Z.zvCc || Z.cc;

@@ -1,0 +1,83 @@
+/* Lanloom — data paths: network routes (DW2). Chain "Home → Provider → Exchange point → … → Destination" with the time added per
+   section, and the line on the maps (sure parts solid, estimated parts dashed). Design tokens only (light and dark). */
+
+/* ---------------------------------------------------------------- list of routes */
+.pc-body > .rt-card { margin: 0; }
+.rt-card .rt-list { display: flex; flex-direction: column; gap: 8px; }
+.rt-route { box-sizing: border-box; display: block; width: 100%; min-width: 0; text-align: left; color: var(--ll-text); cursor: pointer;
+  background: var(--ll-surface-2); border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); padding: 9px 12px 10px;
+  transition: border-color var(--ll-dur-fast) var(--ll-ease), background var(--ll-dur-fast) var(--ll-ease); }
+.rt-route:hover { border-color: var(--ll-border-strong); }
+.rt-route:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 1px; }
+.rt-route.is-sel { border-color: var(--ll-accent); background: var(--ll-accent-soft); }
+.rt-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 8px; min-width: 0; }
+.rt-head b { font-size: var(--ll-fs-md); font-weight: var(--ll-fw-semibold); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.rt-head > span:not(.rt-chip) { font-size: var(--ll-fs-sm); color: var(--ll-text-2); }
+.rt-head em { font-style: normal; font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); font-variant-numeric: tabular-nums; margin-left: auto; white-space: nowrap; }
+.rt-head small { flex-basis: 100%; font-size: var(--ll-fs-xs); color: var(--ll-text-3); }
+.rt-chip { font-size: var(--ll-fs-2xs); font-weight: var(--ll-fw-semibold); letter-spacing: .02em; padding: 1px 7px; border-radius: var(--ll-radius-pill);
+  background: var(--ll-surface-3); color: var(--ll-text-2); border: 1px solid var(--ll-border); white-space: nowrap; }
+.rt-chip--est { border-style: dashed; }
+.rt-empty { margin: 4px 0; }
+.rt-foot { font-size: var(--ll-fs-xs); margin: 10px 0 0; }
+
+/* ---------------------------------------------------------------- the chain */
+.rt-chain { list-style: none; margin: 0; padding: 0 0 2px; display: flex; align-items: stretch; overflow-x: auto; scrollbar-width: thin; }
+.rt-node { flex: 1 1 0; min-width: 96px; max-width: 220px; display: flex; flex-direction: column; gap: 1px; padding: 6px 10px; background: var(--ll-surface);
+  border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); min-height: 0; }
+.rt-node small { font-size: var(--ll-fs-2xs); font-weight: var(--ll-fw-semibold); letter-spacing: .06em; text-transform: uppercase; color: var(--ll-text-3); }
+.rt-node b { font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow-wrap: anywhere; line-height: var(--ll-lh-tight); }
+.rt-node span, .rt-node i { font-size: var(--ll-fs-xs); color: var(--ll-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: normal; }
+.rt-node i { color: var(--ll-text-3); font-variant-numeric: tabular-nums; }
+.rt-node.is-est span { font-style: italic; }
+.rt-node.rt-home { background: var(--ll-surface-3); border-color: transparent; min-width: 64px; }
+.rt-node.rt-exchange { border-color: var(--ll-accent); }
+.rt-node.rt-exchange small { color: var(--ll-accent-text); }
+.rt-node.rt-network, .rt-node.rt-target { border-color: var(--ll-border-strong); }
+.rt-node.rt-target { border-style: solid; border-width: 1.5px; }
+.rt-seg { flex: 0 0 58px; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; gap: 2px; }
+.rt-seg::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px solid var(--ll-text-3); opacity: .6; }
+.rt-seg.is-est::before { border-top-style: dashed; }
+.rt-seg span, .rt-seg em { position: relative; z-index: 1; font-size: var(--ll-fs-2xs); line-height: 1; color: var(--ll-text-2); background: var(--ll-surface-2);
+  padding: 1px 4px; border-radius: var(--ll-radius-xs); font-variant-numeric: tabular-nums; white-space: nowrap; font-style: normal; }
+.rt-seg span { transform: translateY(-9px); }
+.rt-seg em { transform: translateY(7px); color: var(--ll-text-3); }
+.rt-seg span:empty { display: none; }
+.rt-route.is-sel .rt-seg span, .rt-route.is-sel .rt-seg em { background: var(--ll-accent-soft); }
+
+/* ---------------------------------------------------------------- the line on a map (country sheet and world map) */
+.rt-lines { pointer-events: none; }
+.rt-path { fill: none; stroke: var(--ll-text-2); stroke-width: 1.8px; vector-effect: non-scaling-stroke; stroke-linecap: round; opacity: .85; transition: opacity var(--ll-dur) var(--ll-ease); }
+.rt-path.is-est { stroke-dasharray: 5 4; }
+.rt-pt { fill: var(--ll-surface); stroke: var(--ll-text-2); stroke-width: 1.4px; vector-effect: non-scaling-stroke; transition: opacity var(--ll-dur) var(--ll-ease); }
+.rt-pt.is-est { stroke-dasharray: 2 2; fill-opacity: .6; }
+.rt-pt--home { fill: var(--ll-text-2); stroke: var(--ll-surface); }
+.rt-pt--exchange { fill: none; stroke: var(--ll-accent); stroke-width: 2.2px; }
+.rt-pt--target, .rt-pt--network { fill: var(--ll-text-2); }
+.rt-lines.is-quiet .rt-path { opacity: .38; stroke-width: 1.2px; }
+.rt-lines.is-quiet .rt-pt { opacity: .5; }
+.rt-lines.has-sel .rt-line { opacity: .18; }
+.rt-lines.has-sel .rt-line.is-sel { opacity: 1; }
+.rt-lines .rt-line.is-sel .rt-path { stroke: var(--ll-text); stroke-width: 2.6px; opacity: 1; }
+.rt-lines .rt-line.is-sel .rt-pt { opacity: 1; }
+.pc-lg--route, .pw-swatch--route { display: inline-block; width: 18px; height: 0 !important; border-radius: 0 !important; background: none !important;
+  border-top: 2px solid var(--ll-text-2); }
+.pc-lg--route-est { border-top-style: dashed; }
+
+/* ---------------------------------------------------------------- settings */
+.rt-set .grid-2 { margin-top: 10px; }
+.rt-set-status { margin-top: 8px; }
+
+@media (max-width: 700px) {
+  /* phone: the chain runs top to bottom, the time added sits beside the line */
+  .rt-chain { flex-direction: column; overflow: visible; padding-left: 2px; }
+  .rt-node { max-width: none; min-width: 0; }
+  .rt-seg { box-sizing: border-box; flex: none; width: 100%; max-width: none; min-width: 0; min-height: 24px; flex-direction: row; justify-content: flex-start;
+    align-items: center; padding-left: 14px; gap: 8px; }
+  .rt-seg::before { left: 14px; right: auto; top: 0; bottom: 0; border-top: 0; border-left: 2px solid var(--ll-text-3); width: 0; }
+  .rt-seg.is-est::before { border-left-style: dashed; }
+  .rt-seg span, .rt-seg em { transform: none; margin-left: 10px; }
+  .rt-seg em { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .rt-path, .rt-pt, .rt-route { transition: none; } }

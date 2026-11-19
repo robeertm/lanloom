@@ -1122,6 +1122,8 @@
       h('div', { class: 'stack-sm' }, h('label', { class: 'check' }, noise, h('span', {}, t('settings.port_noise'))), h('p', { class: 'field__hint' }, t('settings.port_noise.hint')))]));
     if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
     if (LL.pathsDetailSettingsCard) page.append(LL.pathsDetailSettingsCard(s));
+    const routesCard = LL.pathsRoutesSettingsCard ? LL.pathsRoutesSettingsCard(s) : null;
+    if (routesCard) page.append(routesCard);
     if (LL.netflowSettingsCard) page.append(LL.netflowSettingsCard(s));
     const mqttCard = LL.mqttOutCard ? LL.mqttOutCard() : null;
     if (mqttCard) page.append(mqttCard);
@@ -1178,6 +1180,7 @@
     fr.main.append(page);
     if (rest && rest[0] === 'reports' && reportCard) setTimeout(() => reportCard.scrollIntoView({ block: 'start' }), 30);
     if (rest && rest[0] === 'mqtt' && mqttCard) setTimeout(() => mqttCard.scrollIntoView({ block: 'start' }), 400);
+    if (rest && rest[0] === 'routes' && routesCard) setTimeout(() => routesCard.scrollIntoView({ block: 'start' }), 400);
     return fr;
   }
   // Settings > General > Diagnostic export: one redacted JSON file for an issue (lanloom/diagnostics.py); the download is audited

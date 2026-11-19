@@ -764,8 +764,9 @@ class Core:
         cc_n = (cc or "").strip().upper()[:2]
         out = dict(self.paths.country_view(cc, window, self._paths_devices(), route_places=rw.places_for(cc_n) if on else None))
         out["source"] = self.paths_source()
-        out["routes"] = rw.rows(cc_n) if on else []
+        out["routes"] = rw.rows(cc_n) if (on or rw.demo) else []
         out["routes_on"] = on
+        out["home_cc"] = (self.settings().get("home_country") or "").upper()
         return out
 
     def paths_routes(self) -> dict:
