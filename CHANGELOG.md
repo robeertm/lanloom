@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.48.0] – 2026-11-19
+
+1.44.0, 1.44.1, 1.45.0, 1.46.0, 1.46.1 and 1.47.0 below were not released on their own; they are part of this release.
+
 ### Added
 - **Several sites in one Lanloom.** A site is the level above networks, connections, devices, history and nightly reports: a holiday flat, an office or a relative's home next to your own. Every site keeps its data in a database of its own; an existing installation becomes the site *Home* without moving or losing anything.
 - **Reaching another site only over ways that are already there:** one more site of a controller that manages several (*All sites > A site of your controller* lists its sites read-only and copies the connection with the other site name; nothing is written to the controller), or the host agent on a machine there (a pairing code belongs to the site it was made in). A remote site never uses the interfaces of the Lanloom host: no scan, presence check or flow receiver there; a scan of a remote range needs the consent for that range.
