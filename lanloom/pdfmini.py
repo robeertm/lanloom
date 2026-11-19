@@ -2,7 +2,8 @@
 
 No dependency is added to the image for this: the file is PDF 1.4 with the two standard fonts Helvetica and
 Helvetica-Bold (they are part of every PDF reader, so nothing is embedded), text as real text (searchable, copyable),
-shapes as paths. Texts are written in Windows-1252 (English and German are covered; a character outside it becomes ``?``).
+shapes as paths. Texts are written in the Western European 8-bit code page cp1252 (English and German are covered; a character outside it
+becomes ``?``).
 
 Coordinates of the drawing calls are *top-down* like on a screen, in the units of the current view (``view(ox, oy, scale)``
 maps them onto the page); a page is ``Page(width_pt, height_pt)``.
@@ -12,7 +13,7 @@ from __future__ import annotations
 import zlib
 from typing import Iterable, Optional, Sequence
 
-# Helvetica advance widths (1/1000 em) of the characters 32..255 in Windows-1252 (the standard AFM metrics).
+# Helvetica advance widths (1/1000 em) of the characters 32..255 in cp1252 (the standard AFM metrics).
 _W = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556,
       278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722,
       667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500,
@@ -27,7 +28,7 @@ _SPECIAL = {"→": "->", "←": "<-", "·": "·", "—": "—", "–": "–", "�
 
 
 def clean(text) -> str:
-    """Text as the Windows-1252 subset the fonts carry (a control character becomes a space)."""
+    """Text as the cp1252 subset the fonts carry (a control character becomes a space)."""
     out = []
     for ch in str(text if text is not None else ""):
         ch = _SPECIAL.get(ch, ch)
