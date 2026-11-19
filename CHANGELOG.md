@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.50.0] – 2026-11-19
+
+1.44.0, 1.44.1, 1.45.0, 1.46.0, 1.46.1, 1.47.0, 1.48.0 and 1.49.0 below were not released on their own; they are part of this release.
+
 ### Added
 - **Rewind:** the last 24 hours (or 7 days) played back on the Map and Network boards. A bar above the board plays, pauses and steps, at 60x, 300x, 900x or 3600x; the tiles take the state of that moment (down, answered only part of the time, not checked), the dots carry the traffic of that minute (7 days: of those five minutes); a time line shows the activity, the incidents as coloured bands and the stretches when Lanloom itself was not running. Keys `Space`, `←` `→` (with `Shift` an hour or a day), `1`-`4`, `W`, `R`, `Esc`; `R` on a map opens it. Command palette: *Rewind the last 24 hours*, *Rewind the last 7 days* and *Rewind to …* with a typed time (`14:30`, `yesterday 9:15`, `mon 8:00`, `3 h`; German words too). On the phone the bar is a sheet with *At this moment* open.
 - **Incident files** (`#/incidents`): faults bundled into incidents from the availability slots and the event journal. Devices that go down within ten minutes of each other are looked at together; a part that hangs on another one in the failure chain is listed under it (sure or probably), and several parts behind a part that kept answering name it as the probable root. Kinds: outage, flapping (three or more drop-outs in a row), blip (one short drop-out) and maintenance (a maintenance window, Lanloom's own update, or marked by an operator - never a fault). Phones and computers never start an incident on their own. A file shows the probable root with its reason, what changed before (new devices, own updates, controller changes, a failed connection, a changed internet line, firmware jumps of the day before), the timeline, the availability around it, the affected parts and the healing, with *Play in rewind* and *Failure chain*. Rows are kept 120 days.

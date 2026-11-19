@@ -1,5 +1,5 @@
 # The add-on is the published, signed multi-architecture image of the same version plus a small start script.
 # The tag must equal VERSION in the repository root (tests/test_addon.py keeps them equal).
 build_from:
-  aarch64: ghcr.io/robeertm/lanloom:1.49.0
-  amd64: ghcr.io/robeertm/lanloom:1.49.0
+  aarch64: ghcr.io/robeertm/lanloom:1.50.0
+  amd64: ghcr.io/robeertm/lanloom:1.50.0
