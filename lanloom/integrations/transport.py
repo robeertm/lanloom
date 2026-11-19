@@ -35,7 +35,7 @@ WRITE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
 
 
 SOAP_NAME = re.compile(r"\A[A-Za-z][A-Za-z0-9:_.-]{0,95}\Z")
-SOAP_READ_ACTION = re.compile(r"\A(?:X_[A-Za-z]{1,8}-[A-Za-z]{1,8}_)?Get[A-Za-z0-9]{0,64}\Z")      # Get..., Vendor extension X_AVM-DE_Get...
+SOAP_READ_ACTION = re.compile(r"\A(?:X_[A-Za-z]{1,8}-[A-Za-z]{1,8}_)?Get[A-Za-z0-9]{0,64}\Z")      # Get..., or a vendor extension Get action (X_<VENDOR>_Get...)
 
 
 class Forbidden(Exception):

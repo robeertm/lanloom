@@ -4877,7 +4877,7 @@
  "setup.guide.family.4": "Voer hieronder het adres en de sleutel of de gebruiker in en druk op Testen. De adaptergids in de documentatie bevat de details voor jouw model.",
  "setup.guide.family.title": "Een alleen-lezensleutel maken",
  "setup.guide.tr064.1": "Open de webpagina van de box en meld je aan. Sta onder Thuisnetwerk › Netwerk › Netwerkinstellingen toegang voor toepassingen toe (TR-064).",
- "setup.guide.tr064.2": "Voeg onder Systeem › FRITZ!Box-gebruikers een gebruiker toe alleen voor Lanloom, met een eigen lang wachtwoord en alleen toegang vanuit het thuisnetwerk.",
+ "setup.guide.tr064.2": "Voeg onder Systeem › Gebruikers een gebruiker toe alleen voor Lanloom, met een eigen lang wachtwoord en alleen toegang vanuit het thuisnetwerk.",
  "setup.guide.tr064.3": "Geef de gebruiker het recht op de boxinstellingen (TR-064 vereist dat); Lanloom stuurt alleen leesvragen en kan niets wijzigen. Gebruik nooit je eigen account.",
  "setup.guide.tr064.4": "Voer hieronder het adres en de gebruiker in en druk op Testen. Laat de poort weg: Lanloom gebruikt 49000 (49443 voor https).",
  "setup.guide.tr064.title": "Een gebruiker voor Lanloom maken",

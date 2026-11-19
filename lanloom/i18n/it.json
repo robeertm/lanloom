@@ -4877,7 +4877,7 @@
  "setup.guide.family.4": "Inserisci qui sotto l'indirizzo e la chiave o l'utente, poi premi Test. La guida dell'adattatore nella documentazione ha i dettagli per il tuo modello.",
  "setup.guide.family.title": "Crea una chiave di sola lettura",
  "setup.guide.tr064.1": "Apri la pagina web della box e accedi. In Rete domestica › Rete › Impostazioni di rete consenti l'accesso alle applicazioni (TR-064).",
- "setup.guide.tr064.2": "In Sistema › Utenti FRITZ!Box aggiungi un utente solo per Lanloom, con una password lunga tutta sua e accesso solo dalla rete domestica.",
+ "setup.guide.tr064.2": "In Sistema › Utenti aggiungi un utente solo per Lanloom, con una password lunga tutta sua e accesso solo dalla rete domestica.",
  "setup.guide.tr064.3": "Dagli il diritto sulle impostazioni della box (TR-064 lo richiede); Lanloom invia solo richieste di lettura e non può cambiare nulla. Non usare mai il tuo account.",
  "setup.guide.tr064.4": "Inserisci qui sotto l'indirizzo e l'utente, poi premi Test. Lascia fuori la porta: Lanloom usa 49000 (49443 per https).",
  "setup.guide.tr064.title": "Crea un utente per Lanloom",

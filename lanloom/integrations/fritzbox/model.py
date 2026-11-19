@@ -239,7 +239,7 @@ def _hosts(raw) -> list:
 def _link_medium(link_type, parent_if, own_if) -> str:
     if link_type in ("LAN", "WIRED", "ETH") or _iface_port(parent_if) or _iface_port(own_if):
         return "wired"
-    return "radio" if link_type in ("WLAN", "WIFI") or _iface_band(parent_if) or _iface_band(own_if) else None
+    return "radio" if link_type == "WLAN" or _iface_band(parent_if) or _iface_band(own_if) else None
 
 
 class _Tree:

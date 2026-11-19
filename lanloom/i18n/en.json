@@ -4877,7 +4877,7 @@
  "setup.guide.family.4": "Enter the address and the key or the user below, then press Test. The adapter guide in the documentation has the details for your model.",
  "setup.guide.family.title": "Create a read-only key",
  "setup.guide.tr064.1": "Open the box's web page and sign in. Under Home Network › Network › Network Settings allow access for applications (TR-064).",
- "setup.guide.tr064.2": "Under System › FRITZ!Box Users add a user just for Lanloom with a long password of its own, with access from the home network only.",
+ "setup.guide.tr064.2": "Under System › Users add a user just for Lanloom with a long password of its own, with access from the home network only.",
  "setup.guide.tr064.3": "Give it the right to the box settings (TR-064 needs it); Lanloom only sends queries that read and cannot change anything. Never use your own account.",
  "setup.guide.tr064.4": "Enter the address and the user below, then press Test. Leave the port out: Lanloom uses 49000 (or 49443 for https).",
  "setup.guide.tr064.title": "Create a user for Lanloom",
