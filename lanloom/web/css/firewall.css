@@ -455,3 +455,27 @@
 .pc-cycle { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px;
   border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); background: var(--ll-surface-2); }
 .pc-cycle .fw-hint { margin: 0; flex: 1 1 220px; }
+
+/* wireless networks and blocked devices in the editor (js/wireless.js) */
+.ws-ico { flex: none; width: 16px; height: 16px; background: var(--ll-text-3);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M2 8.5a15 15 0 0 1 20 0'/%3E%3Cpath d='M5.5 12.5a10 10 0 0 1 13 0'/%3E%3Cpath d='M9 16.3a5 5 0 0 1 6 0'/%3E%3Ccircle cx='12' cy='20' r='1.2' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M2 8.5a15 15 0 0 1 20 0'/%3E%3Cpath d='M5.5 12.5a10 10 0 0 1 13 0'/%3E%3Cpath d='M9 16.3a5 5 0 0 1 6 0'/%3E%3Ccircle cx='12' cy='20' r='1.2' fill='black'/%3E%3C/svg%3E") center / contain no-repeat; }
+.ws-row.is-off .ws-ico { opacity: .45; }
+.ws-lock { margin: 6px 0 0; }
+.ws-bands { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 4px 0 2px; }
+.ws-dlg .callout.fw-hint { margin: 0; }
+.ws-pick { list-style: none; margin: 10px 0 0; padding: 0; max-height: min(52vh, 460px); overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.ws-pick__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px;
+  border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); background: var(--ll-surface-2); }
+.ws-pick__row.is-locked { opacity: .75; }
+.ws-pick__who { display: flex; flex-direction: column; min-width: 0; }
+.ws-pick__who .muted { font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.ws-pick__why { font-size: var(--ll-fs-sm); text-align: right; max-width: 45%; }
+.ws-devtools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px;
+  border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); background: var(--ll-surface-2); }
+.ws-devtools .fw-hint { margin: 0; flex: 1 1 200px; }
+@media (max-width: 640px) {
+  .ws-pick__row { flex-wrap: wrap; }
+  .ws-pick__why { max-width: none; text-align: left; }
+  .ws-pick__row .btn { min-height: 40px; }
+}

@@ -167,7 +167,8 @@ POLICY_FIELDS = {"name": _text(), "src": _endpoint, "dst": _endpoint, "action": 
 # (``tagged_mode`` all | none | custom, ``tagged`` = the network ids of "custom"), power over Ethernet on or off
 PORT_FIELDS = {"name": _text(32, empty=True), "profile": _ident_or_empty, "native_network": _ident_or_empty,
                "native_vlan": _vlan_or_none, "tagged_mode": _enum("all", "none", "custom"), "tagged": _idents, "poe": _bool}
-SSID_FIELDS = {"name": _text(32), "network": _ident, "bands": _bands, "security": _enum("open", "wpa2", "wpa3", "wpa2_wpa3"),
+SSID_FIELDS = {"name": _text(32), "network": _ident, "bands": _bands,
+               "security": _enum("open", "wpa2_personal", "wpa2_wpa3_personal", "wpa3_personal"),
                "hidden": _bool, "enabled": _bool}
 FORWARD_FIELDS = {"name": _text(), "proto": _enum("tcp", "udp", "tcp_udp"), "wan_port": _ports, "dst_ip": _ip,
                   "dst_port": _ports, "enabled": _bool}

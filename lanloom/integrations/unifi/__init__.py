@@ -14,10 +14,10 @@ Two local APIs of the same controller are read by the web app, never written:
 At least one of the two credentials is needed; both together give the full picture.
 
 The write half (``write.py``) runs only in the executor service, with a local account of its own that the app never
-sees, and changes clients (network, fixed address, name), internal networks (create, rename, address range, delete own
+sees, and changes clients (network, fixed address, name, blocked), internal networks (create, rename, address range, delete own
 ones), fixed addresses, port forwards, the zone firewall (zones of its own, networks in zones, rules between zones
-and their order) and switch ports (name, profile, untagged and tagged networks, power on/off, power cycle). See
-docs/integrations/unifi.md.
+and their order) switch ports (name, profile, untagged and tagged networks, power on/off, power cycle) and wireless networks (name,
+network, bands, security, hidden, on/off; create, delete own ones). See docs/integrations/unifi.md.
 """
 from .. import IntegrationManifest
 
@@ -48,10 +48,14 @@ ZONE_WRITE = {"network.update.zone": "B", "zone.create": "B", "zone.update.name"
 # untagged and tagged networks, power over Ethernet on/off (confirmed) and power cycling a port (confirmed)
 PORT_WRITE = {"port.set.name": "B", "port.set.profile": "B", "port.set.native_network": "B", "port.set.tagged_mode": "B",
               "port.set.tagged": "B", "port.set.poe": "B*", "port.cycle": "B*"}
+# wireless networks (classic ``rest/wlanconf``, same account) and blocking clients (``cmd/stamgr``, confirmed)
+WIRELESS_WRITE = {"ssid.create": "B", "ssid.update.name": "B", "ssid.update.network": "B", "ssid.update.bands": "B",
+              "ssid.update.security": "B", "ssid.update.hidden": "B", "ssid.update.enabled": "B", "ssid.delete": "B",
+              "client.block": "B*"}
 WRITE_CAPABILITIES = dict(CAPABILITIES, api={"kind": "classic-local", "version": ""},
                           read=["inventory", "clients", "topology", "networks", "zones", "policies", "dhcp_reservations",
                                 "port_forwards", "ssids", "ports", "port_profiles"],
-                          write=dict(CAPABILITIES["write"], **NETWORK_WRITE, **ZONE_WRITE, **PORT_WRITE))
+                          write=dict(CAPABILITIES["write"], **NETWORK_WRITE, **ZONE_WRITE, **PORT_WRITE, **WIRELESS_WRITE))
 # The read half itself never writes: what it publishes carries no write keys (the editor takes them from the executor).
 READ_ONLY_WRITE_KEYS = ("move", "client.set")
 

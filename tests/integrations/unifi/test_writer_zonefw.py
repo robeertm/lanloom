@@ -433,7 +433,7 @@ def test_rollback_after_a_partial_write_removes_the_new_zone_and_rule(fake, tmp_
     assert res["status"] == "rolled_back" and res["reason"] == "fw.res.apply_failed"
     assert classic_zone(fake, "Lab") is None and classic_zone(fake, "Lab 2") is None
     assert snapshot(fake) == start
-    assert own_ledger(tmp_path) == {"networkconf": [], "portforward": [], "zone": [], "policy": []}
+    assert own_ledger(tmp_path) == {"networkconf": [], "portforward": [], "zone": [], "policy": [], "wlanconf": []}
     # a zone and a rule: the rule write fails, the zone goes again
     fake.fail_config = 0
     fake.config_writes.clear()

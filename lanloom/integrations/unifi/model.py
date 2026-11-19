@@ -26,6 +26,7 @@ profiles, port forwarding, fixed addresses, the port a client sits on). Classic 
 Never copied: passphrases and pre-shared keys, RADIUS settings, serial numbers, account data. Neutral ids are opaque
 hashes; hardware addresses are only used for the topology observation (the core needs them to match devices).
 """
+import copy
 import hashlib
 import ipaddress
 import re
@@ -790,6 +791,35 @@ def network_refs(raw) -> dict:
                                      "gateway_ip": str(ipaddress.ip_interface(n["ip_subnet"]).ip) if cidr else None,
                                      "vlan": vlan if isinstance(vlan, int) and vlan > 0 else None,
                                      "record": {f: n.get(f) for f in NET_FIELDS if f in n}}
+    return out
+
+
+# what the write half keeps of a wireless network for the way back (never its passwords)
+WLAN_FIELDS = ("name", "networkconf_id", "wlan_bands", "security", "wpa_mode", "wpa3_support", "wpa3_transition", "hide_ssid",
+               "enabled", "is_guest", "private_preshared_keys_enabled", "ap_group_ids", "ap_group_mode", "usergroup_id")
+
+
+def ssid_refs(raw) -> dict:
+    """Neutral SSID id -> {"id": classic object id, "record": {the wireless settings the write half may change or must
+    put back, as stored now - no password, no private keys}, "has_password": bool}."""
+    out = {}
+    for w in items(raw, "wlanconf"):
+        if not w.get("_id"):
+            continue
+        out[oid("s", w.get("external_id") or w["_id"])] = {
+            "id": str(w["_id"]), "record": {f: copy.deepcopy(w.get(f)) for f in WLAN_FIELDS if f in w},
+            "has_password": bool(w.get("x_passphrase"))}
+    return out
+
+
+def client_macs(raw) -> dict:
+    """Neutral client id -> hardware address (the block command names a client by it; never published)."""
+    out = {}
+    for area in ("user", "sta"):
+        for c in items(raw, area):
+            mac = norm_mac(c.get("mac"))
+            if mac:
+                out[oid("c", mac)] = mac
     return out
 
 

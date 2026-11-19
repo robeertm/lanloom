@@ -192,6 +192,43 @@ The preview says in plain words what happens: devices on the port change network
 
 **Confirmations.** Every change of power, every power cycle, and the management network as the untagged network of a port or newly tagged on it need their own confirmation tick in the preview. The last one says that whatever is plugged in reaches the admin pages of the network equipment.
 
+### Wireless networks and blocked devices
+
+When the editor's source can change wireless networks (the simulation can; for real writes see [COMPATIBILITY.md](../COMPATIBILITY.md)), the editor has two cards: **Wireless networks (n)**, every SSID with the network it carries, its bands, its security and the devices that use it, and **Blocked devices (n)**. In Change mode the first card has **New SSID** and a **Change...** button per SSID; the second has **Block a device...**. Viewers see both cards without the buttons.
+
+![The Wireless networks card in Change mode](../screenshots/wireless-editor-light.png)
+
+1. Press **New SSID**, or **Change...** on an SSID.
+2. The dialog offers *Name (SSID)* (up to 32 characters), *Network* (the network whose devices join through it; only local networks are listed), *Bands* (2.4, 5 and 6 GHz; at least one), *Security* (open, WPA2 personal, WPA2/WPA3 personal or WPA3 personal) and *Hide the name*. An SSID can also be switched off and on from its row, and deleted when Lanloom created it.
+3. Add it to the draft, then **Preview** and approve as for every other change (a passkey with the executor, a run in the simulation otherwise). Backup, watch and automatic rollback apply.
+
+![The SSID dialog: name, network, bands, security and hidden](../screenshots/wireless-ssid-dialog-light.png)
+
+<img src="../screenshots/wireless-phone-light.png" width="45%" alt="The Wireless networks card on a phone">
+
+**Passwords.** Lanloom never handles a wireless password. It is not part of a plan, a preview, the history, a snapshot or a log. A new protected SSID (and an open one that becomes protected) gets a random password of 24 characters from the executor. Read it, show its QR code or set your own in the controller's own app.
+
+**Block a device.** The *Blocked devices* card lists every blocked device with **Unblock**. **Block a device...** opens a picker (search by name, address or SSID); the device sheet has a block switch as well. A block cuts the device off at once and it cannot join again until it is unblocked; unblocking goes back on the way back (undo). A block and an unblock always need their own confirmation in the preview. A block is lasting: disconnecting a device (a kick) is never offered, because it simply comes back.
+
+![The Block a device picker](../screenshots/wireless-block-dialog-dark.png)
+
+The preview says in plain words what happens: how many devices lose the wireless network or have to join again, which devices change network and get new addresses, that a name is hidden, that a band is left, that an SSID has no password, that the management network goes on an SSID, that a password is generated, and that more than four SSIDs on one band cost airtime on every access point.
+
+![Preview of a new SSID, a renamed one and a block, with warnings and confirmation checkboxes](../screenshots/wireless-preview-dark.png)
+
+**What is refused.** Before anything is written, in the preview and again in the executor with its own fresh read:
+
+- A change that drops clients (switching off, deleting, renaming, another network, a dropped band, another security) while a device Lanloom protects, the approver's device, the executor, the controller or the host that runs Lanloom is connected over that SSID. Hiding the name never drops anyone.
+- An open SSID anywhere but on a guest network; on a guest network it needs its own confirmation. The management network on an SSID needs its own confirmation and is never open there.
+- 6 GHz with anything but WPA3 personal.
+- A name that another SSID already has; more than one change per SSID or device in a plan.
+- Blocking a device Lanloom protects, the approver's own device, the executor, the controller or the host that runs Lanloom.
+- Deleting an SSID Lanloom did not create.
+
+**What is never offered.** Radio settings (channel, channel width, transmit power), enterprise security that signs devices in through a login server (RADIUS), the network or security of an SSID with private pre-shared keys per device, and passwords.
+
+Command palette: *Change a wireless network* (`#/firewall/wireless`) and *Block a device* (`#/firewall/block`) open the cards in Change mode. A section *Wireless networks* of the nightly report names new, gone and renamed SSIDs, changed networks and security, an SSID that lost its password, and devices that were blocked or unblocked.
+
 ## Limits
 
 - **Checks.** A fixed address must lie inside the device's network, must not be the network's own address or its
@@ -213,6 +250,9 @@ The preview says in plain words what happens: devices on the port change network
 - **Switch ports.** One change per port and plan; a power cycle and new settings of the same port go into two plans.
   Ports in a passive or pass-through power mode keep their power setting, and a port whose setting the controller does
   not report cannot change it. Mirror and aggregation ports change only their name.
+- **Wireless networks.** One change per SSID and per device and plan. A change that drops clients is refused while a protected
+  device, the approver's device, the executor, the controller or Lanloom's host uses the SSID. Passwords are never part of
+  a plan. A block and an unblock always need their own confirmation.
 - **What Lanloom never writes:** firmware, restarts, accounts, keys, remote access, VPN and WAN settings, port
   mirroring and factory resets.
 - Real writes need a separate executor service, a built-in adapter for your controller family with write support
@@ -233,7 +273,7 @@ The preview says in plain words what happens: devices on the port change network
 - **Roles:** viewers look. Operators prepare drafts and previews and undo drafts. Admins apply plans; with the external
   executor each change needs a passkey signature. Operators also keep the network plan. Every draft, plan change,
   approval and undo is in the audit log, and changes on a real controller appear in the nightly report under *Changes
-  written*; the progress of the network plan has a section *Network plan* and the zone pairs that opened or closed a section *Zone matrix*, and changed port profiles, networks and power of switch ports a section *Port settings* (port and network names only, no addresses). Viewers may use *May one reach the other?*.
+  written*; the progress of the network plan has a section *Network plan* and the zone pairs that opened or closed a section *Zone matrix*, and changed port profiles, networks and power of switch ports a section *Port settings* (port and network names only, no addresses), and changed wireless networks and blocked devices a section *Wireless networks* (names only). Viewers may use *May one reach the other?*.
 
 ## See also
 

@@ -26,6 +26,12 @@ What it can change - nothing else, whatever a plan says:
                           with network equipment or another device announcing itself (LLDP) behind it, a mirror or
                           aggregation port, nor a port that carries a device Lanloom protects or the own path
 * ``port.cycle``          switch a port's power off and on again (restarts the device it feeds), with the same rules
+* ``ssid.create|update|delete`` wireless networks: name, network, bands, security (open, WPA2, WPA2/WPA3, WPA3 personal),
+                          hidden, on/off; delete only an SSID this write half created. Never radio settings (channel,
+                          width, transmit power), never enterprise (RADIUS) security, never the network or security of an
+                          SSID with private pre-shared keys. A password is never part of a plan: a new protected SSID gets
+                          a long random one, read or changed in the controller's own app
+* ``client.block``        block or unblock a client (``block-sta`` / ``unblock-sta`` of ``cmd/stamgr``); never a kick
 
 Client settings, networks and port forwards are written over the classic API (the official integration API has no
 client or port forward writes, and network writes only on recent releases), so the write half signs in with a local
@@ -60,6 +66,11 @@ Zones and rules are written over the classic API of the zone-based firewall (``v
 ``firewall-policies``, ``firewall-policies/batch-reorder``), with the same account; a rule body always carries the
 complete, checked set of fields (the controller does not take partial rule updates). Before a plan with zone or rule
 steps runs, the half checks that the path from its own address to the controller stays open (``firewall.zonefw``).
+
+Wireless networks are written over the classic API (``POST/PUT/DELETE rest/wlanconf``) with only the fields of the
+allow-list below; blocking a client is ``cmd/stamgr`` with exactly ``cmd`` and ``mac``. The rules of
+``firewall.wireless`` run again on the half's own fresh read: no SSID that carries a protected device, the controller or
+this executor is switched off, deleted, renamed or moved; no protected device, controller or executor is blocked.
 """
 import copy
 import ipaddress
@@ -75,7 +86,7 @@ from . import WRITE_CAPABILITIES, model, session
 from .. import capabilities
 from ..credentials import Secret, vet_write_account
 from ..transport import Forbidden, Rule, Transport, TransportError, write_allowlist
-from ...firewall import netconf, portconf, zonefw
+from ...firewall import netconf, portconf, wireless, zonefw
 from ...firewall import steps as stepkinds
 from ...firewall.adapter import ControllerAdapter
 
@@ -257,6 +268,27 @@ def _mac(v):
     return isinstance(v, str) and bool(MAC_RE.match(v))
 
 
+def _ssid_name(v):
+    if not isinstance(v, str) or not v.strip() or len(v) > 32 or any(ord(c) < 32 or ord(c) == 127 for c in v):
+        raise ValueError("ssid name")
+
+
+def _passphrase(v):
+    """A password the half chose itself: 16 to 63 printable characters without spaces."""
+    if not isinstance(v, str) or not 16 <= len(v) <= 63 or any(not 33 <= ord(c) <= 126 for c in v):
+        raise ValueError("passphrase")
+
+
+def _wlan_bands(v):
+    if not isinstance(v, list) or not v or len(set(v)) != len(v) or not set(v) <= {"2g", "5g", "6g"}:
+        raise ValueError("bands")
+
+
+def _wlan_mac(v):
+    if not isinstance(v, str) or not MAC_RE.match(v):
+        raise ValueError("mac")
+
+
 USER_VALUES = {"name": _name_ok, "use_fixedip": _bool, "fixed_ip": _ip_or_empty, "network_id": _oid_or_empty,
                "virtual_network_override_enabled": _bool, "virtual_network_override_id": _oid_or_empty}
 # a new internal network: nothing but these fields, each with its only allowed values (never WAN, VPN or a guest portal)
@@ -279,11 +311,19 @@ POLICY_VALUES = {"name": _short_name, "enabled": _bool, "action": _const("ALLOW"
                  "icmp_v6_typename": _const("ANY"), "schedule": _always, "source": _pol_side, "destination": _pol_side}
 DEVICE_VALUES = {"port_overrides": _overrides}
 CYCLE_VALUES = {"cmd": _const("power-cycle"), "mac": _mac, "port_idx": _port_idx}
+# a wireless network: name, network, bands, security (open or a personal password), hidden, on/off - nothing else
+WLAN_UPDATE_VALUES = {"name": _ssid_name, "networkconf_id": _oid, "wlan_bands": _wlan_bands, "security": _const("open", "wpapsk"),
+                      "wpa_mode": _const("wpa2"), "wpa3_support": _bool, "wpa3_transition": _bool, "hide_ssid": _bool,
+                      "enabled": _bool, "x_passphrase": _passphrase}
+WLAN_CREATE_VALUES = dict(WLAN_UPDATE_VALUES, wpa_enc=_const("ccmp"), ap_group_ids=_oid_list, ap_group_mode=_const("all"),
+                          usergroup_id=_oid)
+WLAN_NEEDED = ("name", "networkconf_id", "wlan_bands", "security", "hide_ssid", "enabled")
+STAMGR_VALUES = {"cmd": _const("block-sta", "unblock-sta"), "mac": _wlan_mac}     # never kick-sta: a client comes back at once
 REORDER_VALUES = {"source_zone_id": _oid, "destination_zone_id": _oid, "before_predefined_ids": _oid_list,
                   "after_predefined_ids": _oid_list}
 READ_PATHS = (
     _P + r"/api/s/%s/(?:self|stat/(?:sta|device|sysinfo)|rest/(?:networkconf|user|portforward|wlanconf|portconf))" % _S,
-    _P + r"/api/s/%s/rest/(?:user|networkconf|portforward)/%s" % (_S, OID),
+    _P + r"/api/s/%s/rest/(?:user|networkconf|portforward|wlanconf)/%s" % (_S, OID),
     _P + r"/v2/api/site/%s/(?:firewall/zone|firewall-policies)" % _S,
     _P + r"/v2/api/site/%s/firewall-policies/%s" % (_S, OID),
 )
@@ -314,7 +354,19 @@ ALLOW = write_allowlist(
        Rule("PUT", _P + r"/v2/api/site/%s/firewall-policies/batch-reorder" % _S, fields=tuple(REORDER_VALUES),
             values=REORDER_VALUES, exact=True),
        Rule("PUT", _P + r"/api/s/%s/rest/device/%s" % (_S, OID), fields=tuple(DEVICE_VALUES), values=DEVICE_VALUES, exact=True),
-       Rule("POST", _P + r"/api/s/%s/cmd/devmgr" % _S, fields=tuple(CYCLE_VALUES), values=CYCLE_VALUES, exact=True)])
+       Rule("POST", _P + r"/api/s/%s/cmd/devmgr" % _S, fields=tuple(CYCLE_VALUES), values=CYCLE_VALUES, exact=True),
+       Rule("POST", _P + r"/api/s/%s/rest/wlanconf" % _S, fields=tuple(WLAN_CREATE_VALUES), values=WLAN_CREATE_VALUES,
+            nonempty=True),
+       Rule("PUT", _P + r"/api/s/%s/rest/wlanconf/%s" % (_S, OID), fields=tuple(WLAN_UPDATE_VALUES), values=WLAN_UPDATE_VALUES,
+            nonempty=True),
+       Rule("DELETE", _P + r"/api/s/%s/rest/wlanconf/%s" % (_S, OID)),
+       Rule("POST", _P + r"/api/s/%s/cmd/stamgr" % _S, fields=tuple(STAMGR_VALUES), values=STAMGR_VALUES, exact=True)])
+SECURITY_OUT = {"open": {"security": "open", "wpa3_support": False, "wpa3_transition": False},
+                "wpa2_personal": {"security": "wpapsk", "wpa_mode": "wpa2", "wpa3_support": False, "wpa3_transition": False},
+                "wpa2_wpa3_personal": {"security": "wpapsk", "wpa_mode": "wpa2", "wpa3_support": True, "wpa3_transition": True},
+                "wpa3_personal": {"security": "wpapsk", "wpa_mode": "wpa2", "wpa3_support": True, "wpa3_transition": False}}
+BANDS_OUT = {"2.4ghz": "2g", "5ghz": "5g", "6ghz": "6g"}
+PASS_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"     # no look-alikes (0/O, 1/l/I)
 LOGIN = {"console": "/api/auth/login", "classic": "/api/login"}
 LOGOUT = {"console": "/api/auth/logout", "classic": "/api/logout"}
 PREFIX = {"console": "/proxy/network", "classic": ""}
@@ -337,7 +389,7 @@ class OwnLedger:
 
     def __init__(self, path=None):
         self.path = Path(path) if path else None
-        self.data = {"networkconf": [], "portforward": [], "zone": [], "policy": []}
+        self.data = {"networkconf": [], "portforward": [], "zone": [], "policy": [], "wlanconf": []}
         if self.path is not None:
             try:
                 fd = os.open(self.path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
@@ -427,6 +479,8 @@ class UnifiWriter(ControllerAdapter):
         self._pols = {}
         self._ports = {}
         self._profiles = {}
+        self._ssids = {}
+        self._macs = {}
         self._created = {}                     # "new:" id of a plan step -> neutral id of the object it created
         self._relogin_free = False
         self._dead = None
@@ -586,6 +640,8 @@ class UnifiWriter(ControllerAdapter):
         self._pols = model.policy_refs(raw)
         self._ports = model.port_refs(raw)
         self._profiles = model.profile_refs(raw)
+        self._ssids = model.ssid_refs(raw)
+        self._macs = model.client_macs(raw)
 
     def read(self) -> dict:
         raw = self._read_raw()
@@ -610,6 +666,10 @@ class UnifiWriter(ControllerAdapter):
             ref = self._pols.get(p["id"])
             if ref and self._own.has("policy", ref["id"]):
                 p["own"] = True
+        for w in state.get("ssids") or []:
+            ref = self._ssids.get(w["id"])
+            if ref and self._own.has("wlanconf", ref["id"]):
+                w["own"] = True
         self._state = state
         return state
 
@@ -902,6 +962,14 @@ class UnifiWriter(ControllerAdapter):
                              "record": dict(r["record"])} for zid, r in self._zones.items()]
             out["policies"] = [{"id": pid, "ref": r["id"], "own": self._own.has("policy", r["id"]), "record": dict(r["record"])}
                                for pid, r in self._pols.items() if not r["record"].get("predefined")]
+        if any(oid in self._ssids for oid in real) or len(real) < len(list(ids)):
+            body = self._get("wlanconf")
+            if body is not None:
+                raw["wlanconf"] = body
+                self._raw = raw
+                self._index(raw)
+            out["ssids"] = [{"id": oid, "ref": self._ssids[oid]["id"], "own": self._own.has("wlanconf", self._ssids[oid]["id"]),
+                             "record": copy.deepcopy(self._ssids[oid]["record"])} for oid in real if oid in self._ssids]
         if any(oid in self._ports for oid in real):
             body = self._get("device", optional=False)
             raw["device"] = body
@@ -912,11 +980,12 @@ class UnifiWriter(ControllerAdapter):
         for oid in ids:
             if stepkinds.NEW_ID.match(str(oid)):
                 continue
-            if oid in self._zones or oid in self._pols or oid in self._ports:
+            if oid in self._zones or oid in self._pols or oid in self._ports or oid in self._ssids:
                 continue
             if oid in self._refs:
                 ref = self._refs[oid]
-                out["devices"].append({"id": oid, "user": ref["user"], "record": self._user_record(ref["user"])})
+                out["devices"].append({"id": oid, "user": ref["user"], "record": self._user_record(ref["user"]),
+                                       "blocked": self._blocked_now(ref["user"])})
             elif oid in res_ids:
                 ref = self._refs[res_ids[oid]]
                 out["dhcp_reservations"].append({"id": oid, "user": ref["user"], "record": self._user_record(ref["user"])})
@@ -930,7 +999,7 @@ class UnifiWriter(ControllerAdapter):
                                              "record": dict(ref.get("record") or {})})
             else:
                 raise WriteError("unifi.object_unknown")
-        return {k: v for k, v in out.items() if v or k in ("devices", "zones", "policies", "ports") and k in out}
+        return {k: v for k, v in out.items() if v or k in ("devices", "zones", "policies", "ports", "ssids") and k in out}
 
     def apply(self, step: dict):
         kind = step["kind"]
@@ -1000,7 +1069,142 @@ class UnifiWriter(ControllerAdapter):
         if kind == "forward.delete":
             self._delete("portforward", self._fwd_ref(step["object"])["id"])
             return None
+        if kind == "ssid.create":
+            return self._create_ssid(step)
+        if kind == "ssid.update":
+            self._update_ssid(step["object"], step["after"])
+            return None
+        if kind == "ssid.delete":
+            self._delete("wlanconf", self._ssid_ref(step["object"])["id"])
+            return None
+        if kind == "client.block":
+            self._block(step["object"], bool(step["after"]["blocked"]))
+            return None
         raise WriteError("unifi.kind_not_supported")
+
+    # ------------------------------------------------------------------ plan steps -> wireless networks and blocks
+    def _ssid_ref(self, sid: str) -> dict:
+        ref = self._ssids.get(sid)
+        if not ref:
+            raise WriteError("unifi.ssid_unknown")
+        return ref
+
+    @staticmethod
+    def _new_password() -> str:
+        import secrets
+        return "".join(secrets.choice(PASS_ALPHABET) for _ in range(24))
+
+    def _wlan_net(self, nid: str) -> str:
+        ref = self._nets.get(nid)
+        if not ref:
+            raise WriteError("unifi.network_unknown")
+        if ref["purpose"] not in LOCAL_PURPOSES:
+            raise WriteError("unifi.network_not_local")
+        return ref["id"]
+
+    def _wlan_body(self, after: dict, record: dict = None, has_password: bool = False) -> dict:
+        """The classic fields of an SSID step (``record``: the SSID as stored now, None for a new one). A password goes
+        in only where the SSID gets a protected security and has none yet: a random one, never from a plan."""
+        rec = record or {}
+        if rec.get("security") == "wpaeap" and "security" in after:
+            raise WriteError("unifi.ssid_enterprise")
+        if rec.get("private_preshared_keys_enabled") and ("security" in after or "network" in after):
+            raise WriteError("unifi.ssid_private_keys")
+        body = {}
+        if "name" in after:
+            body["name"] = after["name"]
+        if "network" in after:
+            body["networkconf_id"] = self._wlan_net(after["network"])
+        if "bands" in after:
+            body["wlan_bands"] = [BANDS_OUT[b] for b in after["bands"]]
+        if "hidden" in after:
+            body["hide_ssid"] = bool(after["hidden"])
+        if "enabled" in after:
+            body["enabled"] = bool(after["enabled"])
+        if "security" in after:
+            body.update(SECURITY_OUT[after["security"]])
+            if after["security"] != "open" and (record is None or not has_password):
+                body["x_passphrase"] = self._new_password()
+        if set(after) - {"name", "network", "bands", "hidden", "enabled", "security"}:
+            raise WriteError("unifi.field_not_supported")
+        return body
+
+    @staticmethod
+    def _wlan_matches(record: dict, body: dict) -> bool:
+        def same(k, v):
+            now = record.get(k)
+            if k == "wlan_bands":
+                return sorted(now or []) == sorted(v)
+            if isinstance(v, bool):
+                return bool(now) == v
+            return now == v
+        return all(same(k, v) for k, v in body.items() if k != "x_passphrase")
+
+    def _create_ssid(self, step: dict) -> dict:
+        after = dict(wireless.SSID_DEFAULTS, **step["after"])
+        body = self._wlan_body(after)
+        if body.get("security") == "wpapsk":
+            body["wpa_enc"] = "ccmp"
+        # where the controller keeps access point groups and a user group per SSID, a new one takes those of the
+        # existing SSIDs (all access points; no bandwidth limit of its own)
+        for ref in self._ssids.values():
+            rec = ref["record"]
+            if isinstance(rec.get("ap_group_ids"), list) and rec["ap_group_ids"] and all(_OID_RE.match(str(x)) for x in rec["ap_group_ids"]):
+                body.update(ap_group_ids=list(rec["ap_group_ids"]), ap_group_mode="all")
+            if _OID_RE.match(str(rec.get("usergroup_id") or "")):
+                body["usergroup_id"] = rec["usergroup_id"]
+            if "ap_group_ids" in body or "usergroup_id" in body:
+                break
+        for sid, ref in self._ssids.items():           # already there (a repeated step): nothing to write
+            if ref["record"].get("name") == body["name"] and self._own.has("wlanconf", ref["id"]):
+                self._created[step["object"]] = sid
+                return {"id": sid}
+        made = self._write("POST", "wlanconf", body=body)
+        vid = str(made.get("_id") or "")
+        if not _OID_RE.match(vid):
+            raise WriteError("unifi.write_refused", "no id")
+        self._own.add("wlanconf", vid)                 # remembered before anything else can go wrong
+        rec = self._record("wlanconf", vid)
+        if rec is None or not self._wlan_matches(rec, body):
+            raise WriteError("unifi.not_applied")
+        sid = model.oid("s", rec.get("external_id") or vid)
+        self._created[step["object"]] = sid
+        self._fresh("wlanconf")
+        return {"id": sid}
+
+    def _update_ssid(self, sid: str, after: dict) -> None:
+        ref = self._ssid_ref(sid)
+        rec = self._record("wlanconf", ref["id"])
+        if rec is None:
+            raise WriteError("unifi.not_applied")
+        body = self._wlan_body(after, rec, bool(rec.get("x_passphrase")))
+        if self._wlan_matches(rec, body) and "x_passphrase" not in body:
+            return                                        # already as planned
+        self._write("PUT", "wlanconf", ref["id"], body)
+        rec = self._record("wlanconf", ref["id"])
+        if rec is None or not self._wlan_matches(rec, body):
+            raise WriteError("unifi.not_applied")
+
+    def _blocked_now(self, uid: str) -> bool:
+        status, body = self._call("GET", "api/s/{site}/rest/user/" + uid)
+        data = body.get("data") if isinstance(body, dict) else None
+        if status != 200 or not isinstance(data, list) or not data or not isinstance(data[0], dict):
+            raise WriteError("unifi.client_gone", _msg(body))
+        return bool(data[0].get("blocked"))
+
+    def _block(self, cid: str, blocked: bool) -> None:
+        ref, mac = self._refs.get(cid), self._macs.get(cid)
+        if not ref or not mac:
+            raise WriteError("unifi.client_unknown")
+        if self._blocked_now(ref["user"]) == blocked:
+            return
+        status, reply = self._call("POST", "api/s/{site}/cmd/stamgr", {"cmd": "block-sta" if blocked else "unblock-sta", "mac": mac})
+        meta = reply.get("meta") if isinstance(reply, dict) else None
+        if not 200 <= status < 300 or (isinstance(meta, dict) and meta.get("rc") not in (None, "ok")):
+            raise WriteError("unifi.write_refused", _msg(reply))
+        self.writes.append((ref["user"], ["block" if blocked else "unblock"]))
+        if self._blocked_now(ref["user"]) != blocked:
+            raise WriteError("unifi.not_applied")
 
     # ------------------------------------------------------------------ plan steps -> switch ports
     def _port_ref(self, pid: str) -> dict:
@@ -1548,6 +1752,13 @@ class UnifiWriter(ControllerAdapter):
                 if cid in self._nets:
                     self._delete("networkconf", self._nets[cid]["id"])
             self._prune_own()
+        if created or snapshot.get("ssids"):
+            self._fresh("wlanconf")
+            for cid in created:
+                if cid in self._ssids and self._own.has("wlanconf", self._ssids[cid]["id"]):
+                    self._delete("wlanconf", self._ssids[cid]["id"])
+        for item in snapshot.get("ssids") or []:
+            self._restore_ssid(item)
         self._restore_clients(list(snapshot.get("devices") or []) + list(snapshot.get("dhcp_reservations") or []))
         for item in snapshot.get("port_forwards") or []:
             self._restore_object("portforward", item, model.FORWARD_FIELDS, FWD_UPDATE_VALUES, FWD_VALUES)
@@ -1559,6 +1770,41 @@ class UnifiWriter(ControllerAdapter):
             self._restore_policies(snapshot.get("policies"))
         if snapshot.get("ports"):
             self._restore_ports(snapshot.get("ports"))
+
+    def _restore_ssid(self, item: dict) -> None:
+        """An SSID as saved: its settings written back (never its password); one this write half created and the plan
+        deleted is created again (with a new random password)."""
+        if not isinstance(item, dict) or not _OID_RE.match(str(item.get("ref") or "")):
+            return
+        saved = item.get("record") or {}
+        plain = ("name", "networkconf_id", "wlan_bands", "security", "wpa_mode", "wpa3_support", "wpa3_transition",
+                 "hide_ssid", "enabled")
+        rec = self._record("wlanconf", item["ref"])
+        if rec is not None:
+            body = {k: saved[k] for k in plain if k in saved and saved[k] is not None and rec.get(k) != saved[k]
+                    and self._value_ok(WLAN_UPDATE_VALUES[k], saved[k])}
+            if body.get("security", rec.get("security")) == "wpapsk" and not rec.get("x_passphrase"):
+                body["x_passphrase"] = self._new_password()
+            if body:
+                self._write("PUT", "wlanconf", item["ref"], body)
+            return
+        if not item.get("own"):
+            raise WriteError("unifi.not_applied")         # only what Lanloom created could have been deleted
+        body = {k: saved[k] for k in plain + ("ap_group_ids", "ap_group_mode", "usergroup_id")
+                if k in saved and saved[k] is not None and self._value_ok(WLAN_CREATE_VALUES[k], saved[k])}
+        if body.get("security") == "wpapsk":
+            body.update(x_passphrase=self._new_password(), wpa_enc="ccmp")
+        made = self._write("POST", "wlanconf", body=body)
+        if _OID_RE.match(str(made.get("_id") or "")):
+            self._own.add("wlanconf", str(made["_id"]))
+
+    @staticmethod
+    def _value_ok(check, value) -> bool:
+        try:
+            check(value)
+            return True
+        except (ValueError, TypeError):
+            return False
 
     def _prune_own(self) -> None:
         """Forget own objects that no longer exist on the controller (removed there by hand)."""
@@ -1611,6 +1857,14 @@ class UnifiWriter(ControllerAdapter):
                 failed.append((uid, body))
         for uid, body in failed:
             self._put(uid, body)
+        back = [d for d in items if isinstance(d.get("blocked"), bool) and self._blocked_now(d["user"]) != d["blocked"]]
+        if back:                                         # a block the plan set or lifted goes back as it was
+            if any(d.get("id") not in self._macs for d in back):
+                self._fresh("user")
+            for d in back:
+                if d.get("id") not in self._refs or d.get("id") not in self._macs:
+                    raise WriteError("unifi.client_unknown")
+                self._block(d["id"], d["blocked"])
 
     # ------------------------------------------------------------------ after the change
     def settle(self, steps: list) -> None:
@@ -1618,7 +1872,7 @@ class UnifiWriter(ControllerAdapter):
         for st in steps:
             ref = self._refs.get(stepkinds.step_object(st)) or {}
             if st["kind"] not in ("move", "client.set"):
-                wait = max(wait, min(self.settle_s, SETTLE_CONFIG_S) if st["kind"].startswith(("network.", "forward.", "zone.", "policy.", "port."))
+                wait = max(wait, min(self.settle_s, SETTLE_CONFIG_S) if st["kind"].startswith(("network.", "forward.", "zone.", "policy.", "port.", "ssid."))
                            else SETTLE_ADDRESS_S if self.settle_s else 0)
             elif st["kind"] == "move" or "network" in st["after"]:
                 if ref.get("online") and not ref.get("wired"):
@@ -1683,6 +1937,10 @@ class UnifiWriter(ControllerAdapter):
         if any(st["kind"] == "port.set" for st in steps):
             self._fresh("device")
             ports_now = model.to_neutral(self._raw)
+        wireless_now = None
+        if any(st["kind"] in wireless.SSID_KINDS for st in steps):
+            self._fresh("wlanconf")
+            wireless_now = model.to_neutral(self._raw)
         missing = []
         for st in steps:
             kind, after = st["kind"], st["after"]
@@ -1690,6 +1948,16 @@ class UnifiWriter(ControllerAdapter):
             ok = True
             if kind == "port.cycle":
                 continue                                # a one-off command: nothing to keep
+            if kind in wireless.SSID_KINDS:
+                obj = next((w for w in wireless_now.get("ssids") or [] if w.get("id") == oid), None)
+                if (obj is not None) if kind == "ssid.delete" else (obj is None or not wireless.matches(obj, after)):
+                    missing.append(oid)
+                continue
+            if kind == "client.block":
+                ref = self._refs.get(oid)
+                if not ref or self._blocked_now(ref["user"]) != bool(after["blocked"]):
+                    missing.append(oid)
+                continue
             if kind == "port.set":
                 port = next((p for p in ports_now.get("ports") or [] if p.get("id") == oid), None)
                 if port is None or not portconf.matches(ports_now, port, after):
@@ -1750,7 +2018,7 @@ class UnifiWriter(ControllerAdapter):
     def plan_lockout(self, state: dict, steps: list):
         """The gateway rules over the whole plan, then the zone firewall: rule order, and this executor keeps its way
         to the controller."""
-        why = netconf.plan_lockout(state, steps) or portconf.plan_lockout(state, steps)
+        why = netconf.plan_lockout(state, steps) or portconf.plan_lockout(state, steps) or wireless.plan_lockout(state, steps)
         if why:
             return why
         if not any(st.get("kind") in zonefw.ZONE_KINDS or "zone" in (st.get("after") or {}) for st in steps):
@@ -1760,6 +2028,35 @@ class UnifiWriter(ControllerAdapter):
         why, _ = zonefw.plan_lockout_vars(state, steps, sources=[me] if me else [],
                                           targets=[(ctl, self._port, "zf.path.controller")] if ctl else [])
         return why
+
+    def _wireless_lockout(self, state: dict, step: dict):
+        """Family rules for SSIDs and blocks: the SSID and the client are known to the controller; delete only an SSID this
+        write half created; never the security of an enterprise SSID, never the network or security of one with private
+        pre-shared keys; the network of an SSID is a local one."""
+        kind, after = step.get("kind"), step.get("after") or {}
+        if kind == "client.block":
+            oid = step.get("object")
+            return None if oid in self._refs and oid in self._macs else "fw.block.unknown"
+        if kind == "ssid.create":
+            net = self._nets.get(after.get("network"))
+            return None if net and net["purpose"] in LOCAL_PURPOSES else "fw.block.network_kind" if net else "fw.block.unknown"
+        ref = self._ssids.get(step.get("object"))
+        if not ref:
+            return "fw.block.unknown"
+        rec = ref["record"]
+        if kind == "ssid.delete":
+            return None if self._own.has("wlanconf", ref["id"]) else "fw.block.not_own"
+        if "security" in after and rec.get("security") not in ("open", "wpapsk"):
+            return "ws.block.enterprise"
+        if rec.get("private_preshared_keys_enabled") and ("security" in after or "network" in after):
+            return "ws.block.private_keys"
+        if "network" in after:
+            net = self._nets.get(after["network"])
+            if not net:
+                return "fw.block.unknown"
+            if net["purpose"] not in LOCAL_PURPOSES:
+                return "fw.block.network_kind"
+        return None
 
     def _zone_lockout(self, state: dict, step: dict):
         """Family rules for zones and rules: names only for zones; no address groups, no ICMP rules; only rules whose
@@ -1845,6 +2142,13 @@ class UnifiWriter(ControllerAdapter):
                 if not self._own.has("networkconf" if kind == "network.delete" else "portforward", ref.get("id", "")):
                     return "fw.block.not_own"
             return None
+        if kind in wireless.WIRELESS_KINDS:
+            guard = [self._host]
+            try:
+                guard += [a for a in (self._controller_ip(), self.self_address()) if a]
+            except OSError:
+                pass
+            return wireless.step_lockout(state, step, {"addresses": guard}) or self._wireless_lockout(state, step)
         if kind not in ("move", "client.set"):
             return "fw.block.capability"
         ref = self._refs.get(stepkinds.step_object(step)) or {}

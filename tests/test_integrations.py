@@ -31,7 +31,8 @@ SIM_WRITE = {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "c
              "network.update.zone": "B", "zone.create": "B", "zone.update.name": "B", "zone.delete": "B",
              "policy.create": "B", "policy.update": "B", "policy.delete": "B", "policy.reorder": "B",
              "port.set.name": "B", "port.set.profile": "B", "port.set.native_network": "B", "port.set.tagged_mode": "B",
-             "port.set.tagged": "B", "port.set.poe": "B*", "port.cycle": "B*"}
+             "port.set.tagged": "B", "port.set.poe": "B*", "port.cycle": "B*",
+             "ssid.create": "B", "ssid.update": "B", "ssid.delete": "B", "client.block": "B*"}
 # the sample family: clients, the sample hypervisor's guests, the sample gateway (networks, fixed addresses, forwards),
 # its zone firewall (zones, networks in zones, rules and their order) and its switch ports
 
@@ -172,7 +173,7 @@ def test_transport_is_the_only_raw_send_site_in_integrations():
 # ---------------------------------------------------------------------------- capabilities through the app
 def test_capability_keys_cover_known_step_kinds_only():
     caps = capmod.validate(integrations.get("simulation").capabilities, "simulation")
-    assert capmod.can(caps, "move") and not capmod.can(caps, "ssid.update")
+    assert capmod.can(caps, "move") and capmod.can(caps, "ssid.update") and not capmod.can(caps, "host.bridge")
     assert capmod.stage_for(caps, {"kind": "move", "device": "d1", "before": {"network": "a", "ip": ""},
                                    "after": {"network": "b", "ip": "192.0.2.5"}}) == "B"
 

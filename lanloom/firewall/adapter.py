@@ -264,12 +264,51 @@ def with_sample_switch(state: dict) -> dict:
     return out
 
 
+# the sample's wireless networks: the home network on both bands, a hidden one for smart devices on 2.4 GHz, the guest
+# network (rehearsal target for SSID changes); wireless sample devices carry the SSID they use
+SAMPLE_SSIDS = [
+    {"id": "s_home", "name": "Home", "network": "n_main", "bands": ["2.4ghz", "5ghz"], "security": "wpa2_wpa3_personal",
+     "hidden": False, "enabled": True},
+    {"id": "s_media", "name": "Home Media", "network": "n_media", "bands": ["5ghz"], "security": "wpa2_personal",
+     "hidden": False, "enabled": True},
+    {"id": "s_work", "name": "Office", "network": "n_work", "bands": ["5ghz"], "security": "wpa3_personal",
+     "hidden": False, "enabled": True},
+    {"id": "s_things", "name": "Things", "network": "n_smart", "bands": ["2.4ghz"], "security": "wpa2_personal",
+     "hidden": True, "enabled": True},
+    {"id": "s_cams", "name": "Cameras", "network": "n_cams", "bands": ["2.4ghz"], "security": "wpa2_personal",
+     "hidden": True, "enabled": True},
+    {"id": "s_guest", "name": "Guest", "network": "n_guest", "bands": ["2.4ghz", "5ghz"], "security": "wpa2_personal",
+     "hidden": False, "enabled": True, "guest": True},
+]
+
+SAMPLE_BLOCKED = ("d27",)                 # the visitor's phone was blocked earlier (rehearsal target for unblocking)
+
+
+def with_sample_wireless(state: dict) -> dict:
+    """The sample plus its wireless networks; every wireless device names the SSID of its network and the band it uses
+    (the guest SSID is marked as one). A state that already has SSIDs is returned unchanged."""
+    if state.get("ssids") is not None or not any(n.get("id") == "n_main" for n in state.get("networks") or []):
+        return state
+    out = dict(state)
+    out["ssids"] = copy.deepcopy(SAMPLE_SSIDS)
+    by_net = {s["network"]: s for s in SAMPLE_SSIDS}
+    devs = []
+    for d in state.get("devices") or []:
+        s = by_net.get(d.get("network"))
+        if not d.get("wired") and s:
+            d = dict(d, ssid=s["name"], band="2.4ghz" if s["bands"] == ["2.4ghz"] else d.get("band") or "5ghz",
+                     blocked=bool(d.get("blocked")) or d.get("id") in SAMPLE_BLOCKED)
+        devs.append(d)
+    out["devices"] = devs
+    return out
+
+
 def with_sample_gateway(state: dict) -> dict:
     """The sample network plus the sample gateway's settings: an address range per network, two port forwards and
     the zone rules, and the sample switch. Fixed addresses are not stored separately: the sample derives them from its
     devices (as a gateway does from its client list). A state that already has port forwards keeps them."""
     if "port_forwards" in state:
-        return with_sample_switch(with_sample_rules(state))
+        return with_sample_wireless(with_sample_switch(with_sample_rules(state)))
     out = dict(state)
     nets = []
     for n in state.get("networks") or []:
@@ -281,7 +320,7 @@ def with_sample_gateway(state: dict) -> dict:
         nets.append(n)
     out["networks"] = nets
     out["port_forwards"] = copy.deepcopy(SAMPLE_FORWARDS)
-    return with_sample_switch(with_sample_rules(out))
+    return with_sample_wireless(with_sample_switch(with_sample_rules(out)))
 
 
 def sample_reservations(state: dict) -> list:
@@ -491,7 +530,9 @@ class SimulatedController(ControllerAdapter):
     def lockout(self, state: dict, step: dict):
         """The guest rules of a hypervisor family, with the sample's own critical addresses; the gateway rules; the
         zone firewall rules."""
-        from . import netconf, portconf, zonefw
+        from . import netconf, portconf, wireless, zonefw
+        if step.get("kind") in wireless.WIRELESS_KINDS:
+            return wireless.step_lockout(state, step, {"addresses": sorted((state.get("hints") or {}).get("critical_addresses") or {})})
         if step.get("kind") in netconf.NET_KINDS:
             return netconf.step_lockout(state, step)
         if step.get("kind") in zonefw.ZONE_KINDS:
@@ -505,8 +546,9 @@ class SimulatedController(ControllerAdapter):
         return guests.step_lockout(state, step, crit)
 
     def plan_lockout(self, state: dict, steps: list):
-        from . import guests, netconf, portconf
-        return guests.plan_lockout(state, steps) or netconf.plan_lockout(state, steps) or portconf.plan_lockout(state, steps)
+        from . import guests, netconf, portconf, wireless
+        return guests.plan_lockout(state, steps) or netconf.plan_lockout(state, steps) or portconf.plan_lockout(state, steps) or \
+            wireless.plan_lockout(state, steps)
 
     def restore(self, snapshot: dict) -> None:
         with self._lock:

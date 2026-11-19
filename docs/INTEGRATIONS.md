@@ -67,7 +67,7 @@ Version 1 (since 1.2.0) has `zones`, `allow` (zone pairs), `networks` and `devic
 | `equipment` | id, name, kind, model, firmware, management address, uplink {device, port} |
 | `ports` | id, device, idx, name, link, speed, poe, profile, native_vlan, tagged[], is_uplink, lldp_neighbor |
 | `policies` | id, name, src {zone, net?, group?}, dst {…}, action (allow/block/reject), proto, ports, return_traffic, enabled, order, hits, builtin, vendor_ref |
-| `ssids` | id, name, network, bands[], security, hidden, enabled |
+| `ssids` | id, name, network, bands[], security (`open`, `wpa2_personal`, `wpa2_wpa3_personal`, `wpa3_personal`, others as read), hidden, enabled |
 | `guests`, `guest_nics`, `guest_rules`, `bridges` | virtualization hosts: guests, their network cards and firewall rules, host bridges |
 | `dhcp_reservations`, `port_forwards` | reservations and forwarding rules |
 | `raw` | vendor objects that do not map: shown, never written (`editable: false`) |
@@ -78,7 +78,7 @@ Rules for every list: `id` is an opaque, stable text and never a hardware addres
 
 A step names one object and the values of the fields it changes, as read (`before`) and as wanted (`after`). The executor compares `before` with its own fresh read and refuses on any difference.
 
-`move` · `client.set` (name, fixed address, network) · `client.block` (B*) · `network.create|update|delete` · `zone.create|update|delete` · `policy.create|update|delete|reorder` · `port.set` (name, profile, native VLAN, tagged VLANs, power over Ethernet: B*) · `ssid.create|update|delete` · `dhcp.reserve|release` · `forward.create|update|delete` · `guest.power` (B*) · `guest.nic` · `guest.fw_rule` · `host.bridge` (stage C).
+`move` · `client.set` (name, fixed address, network) · `client.block` (B*) · `network.create|update|delete` · `zone.create|update|delete` · `policy.create|update|delete|reorder` · `port.set` (name, profile, native VLAN, tagged VLANs, power over Ethernet: B*) · `ssid.create|update|delete` (security: `open`, `wpa2_personal`, `wpa2_wpa3_personal`, `wpa3_personal`; never a password) · `dhcp.reserve|release` · `forward.create|update|delete` · `guest.power` (B*) · `guest.nic` · `guest.fw_rule` · `host.bridge` (stage C).
 
 - A plan keeps the **lowest version** that can express it: moves only stay `"v": 1`, exactly as in earlier releases. Any other kind makes it `"v": 2`.
 - An executor refuses an unknown step kind and a plan version above the one it understands, with a clear message; it never half-understands a plan. The app refuses to build a plan the connected executor cannot take.

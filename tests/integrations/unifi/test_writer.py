@@ -66,9 +66,9 @@ def test_allow_list_holds_only_the_listed_fields():
                                ("PUT", "/api/s/default/rest/networkconf/" + fx.C_NET_LAN, {"purpose": "wan"}),
                                ("PUT", "/api/s/default/rest/networkconf/" + fx.C_NET_LAN, {"vlan": 5}),
                                ("POST", "/api/s/default/rest/networkconf", {"name": "x", "purpose": "wan"}),
-                               ("DELETE", "/api/s/default/rest/wlanconf/5f0000000000000000000601", None),
+                               ("POST", "/api/s/default/cmd/stamgr", {"cmd": "kick-sta", "mac": fx.MAC_PHONE}),
                                ("POST", "/api/s/default/rest/portforward", {"name": "x"}),
-                               ("PUT", "/api/s/default/rest/wlanconf/5f0000000000000000000601", {"name": "x"}),
+                               ("PUT", "/api/s/default/rest/wlanconf/5f0000000000000000000601", {"channel": 6}),
                                ("PUT", "/api/s/default/rest/user/../setting", {"name": "x"}),
                                ("POST", "/api/login", {"username": "a"}),
                                ("GET", "/api/s/default/rest/setting", None),
@@ -109,7 +109,7 @@ def test_capabilities_and_endpoints(fake):
     w = writer(fake)
     caps = w.capabilities()
     assert {k: v for k, v in caps["write"].items() if k.startswith(("move", "client."))} == \
-        {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "client.set.network": "B"}
+        {"move": "B", "client.set.name": "B", "client.set.fixed_ip": "B", "client.set.network": "B", "client.block": "B*"}
     assert caps["write"]["network.create"] == "B" and caps["write"]["forward.create"] == "B*" and "network.update.vlan" not in caps["write"]
     assert caps["limits"]["logins_per_hour"] == 4 and w.endpoints() == ["127.0.0.1"]
 

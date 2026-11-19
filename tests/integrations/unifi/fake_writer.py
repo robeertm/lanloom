@@ -20,7 +20,12 @@ pair (``index`` 10000 upwards); ``batch-reorder`` numbers the rules of one pair 
 Switch ports: ``PUT rest/device/<id>`` takes only ``port_overrides`` and replaces the whole list (an entry left out is
 gone); the port table itself stays as it was until the switch provisions again (it does not here, as with a switch
 that is offline). ``POST cmd/devmgr`` with ``power-cycle`` counts the cycles of a port; a port without power answers
-``api.err.PoeNotSupported``."""
+``api.err.PoeNotSupported``.
+
+Wireless networks: ``POST/PUT/DELETE rest/wlanconf`` like networks (a new id, a merge, gone); a protected network without
+a password is refused (``api.err.XPassphraseRequired``), a name another SSID has too (``api.err.WlanNameExist``).
+``POST cmd/stamgr`` with ``block-sta`` / ``unblock-sta`` sets ``blocked`` on the client's user record; an unknown
+address answers ``api.err.UnknownStation``; any other command ``api.err.InvalidCommand``."""
 import copy
 import ipaddress
 import json
@@ -83,6 +88,7 @@ class WritableFake(FakeController):
         self.config_writes = []          # (method, area, id) of every network / port forward write
         self.device_puts = []            # (device id, body) of every switch write
         self.cycles = []                 # (mac, port) of every power cycle
+        self.stamgr = []                 # (cmd, mac) of every block / unblock
         self.fail_device = 0             # the n-th switch write answers 500
         self.fail_config = 0             # the n-th network / port forward write answers 500
         self.drop_config = 0             # ... is applied and then the connection is cut
@@ -207,7 +213,7 @@ class WritableFake(FakeController):
         if m:
             p = self.policy(m.group(1))
             return copy.deepcopy(p) if p else None
-        m = re.fullmatch(re.escape(self.prefix) + r"/api/s/default/rest/(user|networkconf|portforward)/([0-9a-f]{24})", path)
+        m = re.fullmatch(re.escape(self.prefix) + r"/api/s/default/rest/(user|networkconf|portforward|wlanconf)/([0-9a-f]{24})", path)
         if m:
             area, oid = m.groups()
             u = self.user(oid) if area == "user" else self.obj(area, oid)
@@ -221,6 +227,13 @@ class WritableFake(FakeController):
         """networkconf / portforward like the controller: a new id on POST, a merge on PUT, gone on DELETE; a VLAN or
         a subnet another network has is refused (``api.err.VlanUsed`` / ``api.err.IpSubnetConflict``)."""
         rows = self.classic.setdefault(area, fx.classic_wrap([]))["data"]
+        if area == "wlanconf" and method in ("POST", "PUT"):
+            o = None if method == "POST" else self.obj(area, oid)
+            merged = dict(o or {}, **body)
+            if merged.get("security") == "wpapsk" and not merged.get("x_passphrase"):
+                return 400, {"meta": {"rc": "error", "msg": "api.err.XPassphraseRequired"}, "data": []}
+            if any(w.get("name") == merged.get("name") and w is not o for w in rows):
+                return 400, {"meta": {"rc": "error", "msg": "api.err.WlanNameExist"}, "data": []}
         if method == "POST":
             if area == "networkconf":
                 for n in rows:
@@ -259,6 +272,20 @@ class WritableFake(FakeController):
         if not self.ignore_put:
             d["port_overrides"] = copy.deepcopy(body["port_overrides"])
         return 200, {"meta": {"rc": "ok"}, "data": [copy.deepcopy(d)]}
+
+    def sta_cmd(self, body):
+        if not isinstance(body, dict) or body.get("cmd") not in ("block-sta", "unblock-sta"):
+            return 400, {"meta": {"rc": "error", "msg": "api.err.InvalidCommand"}, "data": []}
+        u = next((x for x in self.users() if x.get("mac") == body.get("mac")), None)
+        if u is None:
+            return 400, {"meta": {"rc": "error", "msg": "api.err.UnknownStation"}, "data": []}
+        self.stamgr.append((body["cmd"], body["mac"]))
+        if not self.ignore_put:
+            u["blocked"] = body["cmd"] == "block-sta"
+            c = self.sta(body["mac"])
+            if c is not None and u["blocked"]:
+                self.classic["sta"]["data"].remove(c)      # a blocked client drops off at once
+        return 200, {"meta": {"rc": "ok"}, "data": []}
 
     def power_cycle(self, body):
         if not isinstance(body, dict) or body.get("cmd") != "power-cycle":
@@ -350,7 +377,7 @@ class WritableFake(FakeController):
                 except ValueError:
                     body = None
                 self.record(body)
-                m = re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)(?:/([0-9a-f]{24}))?", self.path)
+                m = re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward|wlanconf)(?:/([0-9a-f]{24}))?", self.path)
                 cookie = self.headers.get("Cookie") or ""
                 sid = next((c.split("=", 1)[1] for c in cookie.split("; ") if c.split("=", 1)[0] in ("TOKEN", "unifises")), None)
                 if sid not in fake.sessions:
@@ -384,14 +411,16 @@ class WritableFake(FakeController):
                     return self.reply(401, {"meta": {"rc": "error", "msg": "api.err.LoginRequired"}})
                 if fake.require_csrf and self.headers.get("X-CSRF-Token") != CSRF:
                     return self.reply(403, {"meta": {"rc": "error", "msg": "api.err.Csrf"}})
+                if method == "POST" and self.path.endswith("/cmd/stamgr"):
+                    return self.reply(*fake.sta_cmd(body))
                 if method == "POST":
                     return self.reply(*fake.power_cycle(body))
                 return self.reply(*fake.put_device(self.path.rsplit("/", 1)[1], body))
 
             def do_POST(self):
-                if self.path == fake.prefix + "/api/s/default/cmd/devmgr":
+                if self.path in (fake.prefix + "/api/s/default/cmd/devmgr", fake.prefix + "/api/s/default/cmd/stamgr"):
                     return self._device("POST")
-                if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)", self.path):
+                if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward|wlanconf)", self.path):
                     return self._config("POST")
                 if self.path.startswith(fake.prefix + "/v2/api/site/default/firewall"):
                     return self._v2("POST")
@@ -407,7 +436,7 @@ class WritableFake(FakeController):
                     return self._v2("PUT")
                 if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/device/[0-9a-f]{24}", self.path):
                     return self._device("PUT")
-                if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward)/[0-9a-f]{24}", self.path):
+                if re.fullmatch(re.escape(fake.prefix) + r"/api/s/default/rest/(networkconf|portforward|wlanconf)/[0-9a-f]{24}", self.path):
                     return self._config("PUT")
                 n = int(self.headers.get("Content-Length") or 0)
                 try:

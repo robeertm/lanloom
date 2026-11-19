@@ -238,6 +238,96 @@ def _pc_build(ctx) -> dict:
 register(Contribution("portconf", 55, "report.sec.portconf", _pc_available, _pc_build))
 
 
+# Section "Wireless networks": which SSIDs came, went, changed their network or security or were switched off, and which
+# devices were blocked or unblocked since the last report (whoever did it), from the configurations the connections
+# read. There only when a connection reads wireless networks. Names only - no addresses, never a password.
+WS_MAX = 500
+
+
+def _ws_sources(ctx) -> list:
+    try:
+        live = ctx.core.live_configs() or []
+    except Exception:
+        live = []
+    return [cfg for cfg in live if isinstance((cfg.get("state") or {}).get("ssids"), list)]
+
+
+def _ws_available(ctx) -> bool:
+    return bool(_ws_sources(ctx))
+
+
+def _ws_snapshot(st: dict) -> dict:
+    nets = {n["id"]: str(n.get("name") or "?")[:40] for n in st.get("networks") or [] if n.get("id")}
+    ssids = {}
+    for w in (st.get("ssids") or [])[:WS_MAX]:
+        if isinstance(w, dict) and w.get("id"):
+            ssids[w["id"]] = {"name": str(w.get("name") or "?")[:40], "net": nets.get(w.get("network")) or "",
+                              "security": str(w.get("security") or "")[:32], "on": w.get("enabled") is not False,
+                              "hidden": bool(w.get("hidden"))}
+    blocked = {d["id"]: str(d.get("name") or "?")[:60] for d in (st.get("devices") or [])
+               if isinstance(d, dict) and d.get("id") and d.get("blocked")}
+    return {"ssids": ssids, "blocked": dict(list(blocked.items())[:WS_MAX])}
+
+
+def _ws_build(ctx) -> dict:
+    before = ((ctx.prev or {}).get("keep") or {}).get("wireless") or {}
+    now, items = {}, []
+    first = not before
+    n_ssids = n_blocked = 0
+    for cfg in _ws_sources(ctx):
+        snap = _ws_snapshot(cfg["state"])
+        now[cfg["key"]] = snap
+        n_ssids += len(snap["ssids"])
+        n_blocked += len(snap["blocked"])
+        old = before.get(cfg["key"])
+        if old is None:
+            continue
+        src = str(cfg.get("name") or "?")[:40]
+        iid = "ws:%s:" % cfg["key"]
+        olds = old.get("ssids") or {}
+        for sid, cur in sorted(snap["ssids"].items(), key=lambda kv: kv[1]["name"]):
+            was = olds.get(sid)
+            if not was:
+                items.append(item(iid + sid + ":new", "report.ws.new", "warn" if cur["security"] == "open" else "info",
+                                  cur["security"] == "open", source=src, ssid=cur["name"], net=cur["net"] or "-"))
+                continue
+            if was.get("name") != cur["name"]:
+                items.append(item(iid + sid + ":name", "report.ws.renamed", "info", False, source=src, ssid=cur["name"],
+                                  **{"from": was.get("name") or "-"}))
+            if was.get("net") != cur["net"]:
+                items.append(item(iid + sid + ":net", "report.ws.network", "warn", True, source=src, ssid=cur["name"],
+                                  **{"from": was.get("net") or "-", "to": cur["net"] or "-"}))
+            if was.get("security") != cur["security"]:
+                opened = cur["security"] == "open"
+                items.append(item(iid + sid + ":sec", "report.ws.opened" if opened else "report.ws.security",
+                                  "danger" if opened else "info", opened, source=src, ssid=cur["name"]))
+            if was.get("on") != cur["on"]:
+                items.append(item(iid + sid + ":on", "report.ws.on" if cur["on"] else "report.ws.off",
+                                  "info" if cur["on"] else "warn", not cur["on"], source=src, ssid=cur["name"]))
+            if was.get("hidden") != cur["hidden"]:
+                items.append(item(iid + sid + ":hid", "report.ws.hidden" if cur["hidden"] else "report.ws.visible", "info",
+                                  False, source=src, ssid=cur["name"]))
+        for sid, was in sorted(olds.items(), key=lambda kv: kv[1].get("name") or ""):
+            if sid not in snap["ssids"]:
+                items.append(item(iid + sid + ":gone", "report.ws.gone", "warn", True, source=src, ssid=was.get("name") or "?"))
+        oldb = old.get("blocked") or {}
+        for did, name in sorted(snap["blocked"].items(), key=lambda kv: kv[1]):
+            if did not in oldb:
+                items.append(item(iid + did + ":blk", "report.ws.blocked", "info", False, source=src, device=name))
+        for did, name in sorted(oldb.items(), key=lambda kv: kv[1]):
+            if did not in snap["blocked"]:
+                items.append(item(iid + did + ":unblk", "report.ws.unblocked", "info", False, source=src, device=name))
+    ctx.keep["wireless"] = now
+    if first:
+        return section("wireless", "report.sec.wireless", "report.ws.baseline", items, n=n_ssids, blocked=n_blocked)
+    if not items:
+        return section("wireless", "report.sec.wireless", "report.ws.calm", items, n=n_ssids, blocked=n_blocked)
+    return section("wireless", "report.sec.wireless", "report.ws.summary", items, n=len(items))
+
+
+register(Contribution("wireless", 56, "report.sec.wireless", _ws_available, _ws_build))
+
+
 def _executor_configured(core) -> bool:
     return os.environ.get("LANLOOM_FW_EXECUTOR", "").strip().lower() == "external"
 

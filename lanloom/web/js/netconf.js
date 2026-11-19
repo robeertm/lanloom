@@ -28,6 +28,8 @@
   LL.ncValText = function (field, v) {
     const pc = LL.pcValText ? LL.pcValText(field, v) : null;      // switch port values (js/portconf.js)
     if (pc != null) return pc;
+    const ws = LL.wsValText ? LL.wsValText(field, v) : null;      // wireless network and block values (js/wireless.js)
+    if (ws != null) return ws;
     if (field === 'dhcp' && v && typeof v === 'object') return dhcpText(v);
     if ((field === 'src' || field === 'dst') && v && typeof v === 'object' && LL.zfSideText) return LL.zfSideText(v);
     if (field === 'zone' && typeof v === 'string' && v && LL.zfZoneName) return LL.zfZoneName(v);

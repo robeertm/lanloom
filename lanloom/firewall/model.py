@@ -17,7 +17,7 @@ import ipaddress
 import secrets
 import time
 
-from . import neutral, netconf, portconf, steps as stepkinds, zonefw
+from . import neutral, netconf, portconf, steps as stepkinds, wireless, zonefw
 from .canon import digest_hex, fingerprint
 
 from .steps import MAX_OBJECTS  # noqa: E402  (re-exported: model.MAX_OBJECTS)
@@ -552,21 +552,25 @@ def _gate_v2(state, plan, *, target, now, quiet, busy, healthy, caps) -> None:
         if kind.area == "devices" and kind.name in ("move", "client.set"):
             _gate_device(state, obj, st)
         why = lockout_reason(state, st) or zonefw.step_lockout(state, st) or \
-            portconf.step_lockout(state, st, {"devices": [req] if req else []})
+            portconf.step_lockout(state, st, {"devices": [req] if req else []}) or \
+            wireless.step_lockout(state, st, {"devices": [req] if req else []})
         if why:
             if kind.area == "ports":
                 raise Refused(why, **portconf.block_vars(state, st))
+            if st["kind"] in wireless.WIRELESS_KINDS:
+                raise Refused(why, **wireless.block_vars(state, st))
             raise Refused(why, name=(obj or {}).get("name", "") or st["after"].get("name", ""), reason=(obj or {}).get("protected") or "")
         if req and oid == req and "self" not in plan["confirmed"]:
             raise Refused("fw.block.confirm")
-        if (stepkinds.needs_confirmation(st) or zonefw.needs_confirmation(state, st) or portconf.needs_confirmation(state, st)) and \
+        if (stepkinds.needs_confirmation(st) or zonefw.needs_confirmation(state, st) or portconf.needs_confirmation(state, st)
+                or wireless.needs_confirmation(state, st)) and \
                 stepkinds.confirm_token(st) not in plan["confirmed"]:
             raise Refused("fw.block.confirm")
     # rules over the whole plan: rule order, and the approver's device keeps its way to the gateway
     why, vars_ = zonefw.plan_lockout_vars(state, plan["steps"], requester=req)
     if why:
         raise Refused(why, **vars_)
-    why = portconf.plan_lockout(state, plan["steps"])
+    why = portconf.plan_lockout(state, plan["steps"]) or wireless.plan_lockout(state, plan["steps"])
     if why:
         raise Refused(why)
     if quiet and "quiet" not in plan["confirmed"]:

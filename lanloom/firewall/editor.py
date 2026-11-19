@@ -12,7 +12,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import guests, model, netconf, portconf, segplan, zonefw
+from . import guests, model, netconf, portconf, segplan, wireless, zonefw
 from . import steps as stepkinds
 from .adapter import SimulatedController, with_sample_gateway, with_sample_hypervisor
 from .canon import digest
@@ -138,6 +138,7 @@ class Editor:
         gops.update(netconf.clean_ops(st, raw_ops))
         gops.update(zonefw.clean_ops(st, raw_ops))
         gops.update(portconf.clean_ops(st, raw_ops))
+        gops.update(wireless.clean_ops(st, raw_ops))
         n = len(set(clean) | set(ed)) + len(gops)
         if n > model.MAX_OBJECTS:
             raise model.Refused("fw.block.too_many", n=n, max=model.MAX_OBJECTS)
@@ -219,6 +220,10 @@ class Editor:
             out["requester"] = next((d["id"] for d in st.get("devices") or [] if d.get("ip") == client_ip), None)
             if st.get("ports") and any(k.startswith("port.") for k in (self.capabilities().get("write") or {})):
                 out["portconf"] = portconf.info(st, self.port_guard(st, client_ip, out["requester"]))
+            write = self.capabilities().get("write") or {}
+            if any(k.startswith("ssid.") or k == "client.block" for k in write):
+                out["wireless"] = dict(wireless.info(st, self.port_guard(st, client_ip, out["requester"])),
+                                   ssid_write=any(k.startswith("ssid.") for k in write), block_write="client.block" in write)
             if st.get("guests"):
                 crit = self.critical(st)
                 out["guests"] = {"critical": crit, "bridges": {g["id"]: sorted(guests.target_bridges(st, g)) for g in st["guests"]
@@ -263,7 +268,7 @@ class Editor:
         except model.Refused:
             steps = []
         return steps + list(netconf.clean_ops(st, d.get("ops")).values()) + list(zonefw.clean_ops(st, d.get("ops")).values()) + \
-            list(portconf.clean_ops(st, d.get("ops")).values())
+            list(portconf.clean_ops(st, d.get("ops")).values()) + list(wireless.clean_ops(st, d.get("ops")).values())
 
     def set_segplan(self, items: dict) -> dict:
         """Mark target networks (``{device id: {"net": id} | {"label": text} | None}``); Lanloom data, nothing written to
@@ -302,6 +307,7 @@ class Editor:
         nops = netconf.clean_ops(st, d.get("ops"))
         zops = zonefw.clean_ops(st, d.get("ops"))
         pops = portconf.clean_ops(st, d.get("ops"))
+        wops = wireless.clean_ops(st, d.get("ops"))
         parts = []
         if gops:
             parts.append(guests.preview(st, gops, self.critical(st)))
@@ -312,6 +318,9 @@ class Editor:
         if pops:
             parts.append(portconf.preview(st, pops, deps=self.dependencies(st),
                                           guard=self.port_guard(st, client_ip, pv.get("requester"))))
+        if wops:
+            parts.append(wireless.preview(st, wops, deps=self.dependencies(st),
+                                      guard=self.port_guard(st, client_ip, pv.get("requester"))))
         for g in parts:
             pv["steps"] = pv["steps"] + g["steps"]
             pv["changes"] = pv["changes"] + g["changes"]
@@ -453,12 +462,12 @@ class Editor:
         if not job or job.get("status") != "done" or not job.get("inverse") or not job.get("undo_until") or time.time() > job["undo_until"]:
             raise model.Refused("fw.err.undo_gone")
         if any(s.get("kind") not in ("move", "client.set") + guests.GUEST_KINDS + netconf.NET_KINDS + zonefw.ZONE_KINDS + portconf.PORT_KINDS
-               for s in job["inverse"]):
+               + wireless.WIRELESS_KINDS for s in job["inverse"]):
             raise model.Refused("fw.err.undo_gone")      # only kinds this editor drafts
         moves, edits, ops = {}, {}, {}
         for s in job["inverse"]:
             if s["kind"] in guests.GUEST_KINDS or s["kind"] in netconf.NET_KINDS or s["kind"] in zonefw.ZONE_KINDS or \
-                    s["kind"] in portconf.PORT_KINDS:
+                    s["kind"] in portconf.PORT_KINDS or s["kind"] in wireless.WIRELESS_KINDS:
                 ops[guests.op_key(s["kind"], s["object"])] = {"kind": s["kind"], "object": s["object"], "after": s["after"]}
                 continue
             if s["kind"] == "move":
@@ -497,6 +506,14 @@ class Editor:
                 item = {"name": portconf.label(st, s), "kind": s["kind"], "fields": stepkinds.changed_fields(s)}
                 if "poe" in s["after"]:
                     item["on"] = s["after"]["poe"]
+                summary.append(item)
+            elif s["kind"] in wireless.WIRELESS_KINDS:
+                item = {"name": wireless.label(st, s), "kind": s["kind"],
+                        "fields": [] if s["kind"] in ("ssid.create", "ssid.delete") else stepkinds.changed_fields(s)}
+                if s["kind"] == "client.block":
+                    item["on"] = s["after"]["blocked"]
+                elif "enabled" in s["after"]:
+                    item["on"] = s["after"]["enabled"]
                 summary.append(item)
             elif s["kind"] in guests.GUEST_KINDS:
                 _, label = guests._label(st, s)

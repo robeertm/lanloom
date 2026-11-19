@@ -178,7 +178,7 @@ def test_rollback_after_a_partial_write_removes_the_new_network(fake, tmp_path):
     res = runner(w, tmp_path).run(p)
     assert res["status"] == "rolled_back" and res["reason"] == "fw.res.apply_failed"
     assert net_named(fake, "Smart home") is None and not [f for f in fake.classic["portforward"]["data"] if f["name"] == "Cam"]
-    assert json.loads((tmp_path / "unifi-own.json").read_text()) == {"networkconf": [], "portforward": [], "zone": [], "policy": []}
+    assert json.loads((tmp_path / "unifi-own.json").read_text()) == {"networkconf": [], "portforward": [], "zone": [], "policy": [], "wlanconf": []}
 
 
 def test_network_loss_mid_write_rolls_back(fake, tmp_path):

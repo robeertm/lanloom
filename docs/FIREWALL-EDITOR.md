@@ -126,6 +126,41 @@ When the editor's source can change ports (the simulation can; for real writes s
 
 **Nightly report.** A section *Port settings* (only when a connection reads port settings) compares with the previous night, whoever changed a setting (Lanloom or the controller's own pages): see [NIGHTLY-REPORT.md](NIGHTLY-REPORT.md).
 
+### Wireless networks and blocked devices
+
+When the editor's source can change wireless networks (the simulation can; for real writes see the family guide listed in [COMPATIBILITY.md](COMPATIBILITY.md)), **Change** mode adds two cards: **Wireless networks (n)** with **New SSID** and **Change...** per SSID, and **Blocked devices (n)** with **Block a device...**. The device sheet has a block switch. Real writes still go only through the executor, every plan is signed with a passkey, and backup, rollback and watch work as for every other change.
+
+**Plan step kinds.**
+
+- `ssid.create` - a new wireless network. Fields: `name` (up to 32 characters), `network` (a local network id), `bands` (`2.4ghz`, `5ghz`, `6ghz`; at least one), `security` (`open`, `wpa2_personal`, `wpa2_wpa3_personal`, `wpa3_personal`), `hidden`, `enabled`.
+- `ssid.update` - the same fields, only those that change (`enabled: false` switches it off).
+- `ssid.delete` - only an SSID Lanloom created.
+- `client.block` - block or unblock a device: field `blocked` (`true` or `false`). Always confirmed (B\*). There is no step that disconnects a device without blocking it: a disconnected device simply comes back, so it is never offered.
+
+**Passwords.** A password is never a field of a step and never appears in a plan, a preview, the history, a snapshot or a log. For a new protected SSID (or an open one that becomes protected) the executor generates a random password of 24 characters. The user reads it, shows its QR code or sets their own in the controller's own app. An SSID that keeps its security keeps its password.
+
+**Capability keys.** `ssid.create`, `ssid.update.name`, `ssid.update.network`, `ssid.update.bands`, `ssid.update.security`, `ssid.update.hidden`, `ssid.update.enabled`, `ssid.delete` and `client.block` (B\*). The cards offer each field only when the executor's family declares its key. An executor of an earlier release does not, so the controls are not offered until the executor is updated by hand.
+
+**Never written.** Radio settings (channel, channel width, transmit power), enterprise security that signs devices in through a login server (RADIUS), the network or security of an SSID with private pre-shared keys per device, and passwords.
+
+**Lockout rules** - the same rules in the app's preview and again in the executor right before it writes, against its own fresh read. A refusal stops the plan and nothing is sent:
+
+- a change that drops clients (off, delete, rename, another network, a dropped band, another security) is refused while a device Lanloom protects (gateway, servers, hubs, Lanloom's own host), the approver's device, the executor or the controller is connected over that SSID; hiding the name never drops anyone;
+- an SSID carries only a local network, never an internet uplink or a VPN network;
+- a device Lanloom protects, the approver's own device, the executor, the controller and Lanloom's host are never blocked.
+
+**Confirmations (B\*).** Every block and unblock; an open SSID, which is allowed only on a guest network (*anyone nearby can join*); and the management network on an SSID (*whoever joins reaches the admin pages of the network equipment*; never together with open).
+
+**Plan rules.** 6 GHz only with WPA3 personal; names are unique; one change per SSID and per device and plan; at most 10 objects per plan, as before. The preview warns when more than 4 SSIDs share a band (every extra SSID costs airtime on every access point).
+
+**Preview warnings.** How many devices lose the wireless network or have to join again, which devices change network and get new addresses, that devices that know a hidden name still join, that a band is left, that an SSID has no password, that a password is generated, that a device with a private hardware address may come back as a new device after a block, and that an unblocked device may join again.
+
+**Simulation.** The sample network has 6 SSIDs (a guest network, an IoT network and a hidden one among them) and one blocked device (*Visitor phone*) to rehearse with. SSIDs and devices of protected sample devices show the lock.
+
+**Roles and palette.** Drafting needs the **Operator** role, approving an **Admin**; viewers see the cards without the buttons. The command palette has *Change a wireless network* (`#/firewall/wireless`) and *Block a device* (`#/firewall/block`).
+
+**Nightly report.** A section *Wireless networks* (only when a connection reads wireless networks) compares with the previous night, whoever changed a setting: see [NIGHTLY-REPORT.md](NIGHTLY-REPORT.md).
+
 ### Network plan
 
 The **Network plan** card keeps, per device, the network it should end up in - an existing network, or the name of one still to come (*IoT*). It shows the progress (*X of Y moved*), one row per target with its devices (moved ones ticked) and marks each device tile that still has to move (*→ IoT*). *Plan targets* opens a dialog: choose the target, tick the devices, save. When a target network does not exist yet, *Create this network* opens *New network* with the name filled in; once it exists, *Draft N moves* puts the moves that are possible now into the draft (at most one plan's worth, 10 objects). The plan is Lanloom's own note, stored by the devices' opaque ids, never a controller setting; it works with a read-only connection too, needs the **Operator** role to change and is in the audit log. The nightly report has a section **Network plan** with the progress and the devices moved since the last report.

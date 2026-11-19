@@ -29,6 +29,8 @@
     if (zf) return zf;
     const pc = LL.pcSumText ? LL.pcSumText(x) : null;
     if (pc) return pc;
+    const ws = LL.wsSumText ? LL.wsSumText(x) : null;
+    if (ws) return ws;
     if (x.kind === 'guest.power') return x.name + ' · ' + t(x.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
     if (x.kind === 'guest.firewall') return x.name + ' · ' + t(x.on ? 'fw.sum.fw_on' : 'fw.sum.fw_off');
     if (x.kind === 'guest.fw_rule_create') return x.name + ' · ' + t('fw.sum.rule_new');
@@ -111,7 +113,8 @@
       function canNet(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.netconf && Object.keys(w).some(k => /^(network|dhcp|forward)\./.test(k)); }
       function canZone(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.zonefw && Object.keys(w).some(k => /^(zone|policy)\./.test(k) || k === 'network.update.zone'); }
       function canPort(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.portconf && Object.keys(w).some(k => /^port\./.test(k)); }
-      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip') || canGuest(v) || canNet(v) || canZone(v) || canPort(v); }
+      function canWireless(v) { const w = (v.capabilities && v.capabilities.write) || {}; return LL.can('operate') && v.mode !== 'live' && !!v.wireless && Object.keys(w).some(k => /^ssid\./.test(k) || k === 'client.block'); }
+      function canChange(v) { return canMove(v) || canEdit(v, 'name') || canEdit(v, 'fixed_ip') || canGuest(v) || canNet(v) || canZone(v) || canPort(v) || canWireless(v); }
       function hasBoard(v) { return (v.state.zones || []).length > 0 && (v.state.networks || []).length > 0; }
       function netCtx(v) {
         return { change: st.mode === 'change', can: key => LL.can('operate') && hasKey(v, key), ops: v.draft.ops || {}, setOp, dropOp,
@@ -145,6 +148,8 @@
         if (v.mode !== 'live' && v.zonefw && LL.zfCards) kids.push(...LL.zfCards(v, netCtx(v)));
         if (LL.pcRemember) LL.pcRemember(v.state);
         if (v.mode !== 'live' && v.portconf && LL.pcCards) kids.push(...LL.pcCards(v, netCtx(v)));
+        if (LL.wsRemember) LL.wsRemember(v.state);
+        if (v.mode !== 'live' && v.wireless && LL.wsCards) kids.push(...LL.wsCards(v, netCtx(v)));
         if (v.mode !== 'live' && v.state.hosts && v.state.hosts.length) kids.push(...LL.hvEditCards(v.state, guestCtx(v)));
         st.pol.source = v.mode === 'live' ? v.source : null;     // "Explain" (AI) reads the rule from this live source
         st.pol.insight = insight;                                 // rules in plain words and hit chips (js/fwinsight.js)
@@ -325,6 +330,8 @@
           netRow,
           editName ? LL.field(t('fw.dev.name'), nameIn) : null,
           LL.ncUses ? LL.ncUses(v, d) : null,
+          LL.wsDeviceTools && canWireless(v) && !d.protected ? LL.wsDeviceTools(v, Object.assign({}, netCtx(v), {
+            setOp: (...a) => { dlg.close(); return setOp(...a); }, dropOp: k => { dlg.close(); return dropOp(k); } }), d) : null,
           editIp ? h('div', { class: 'fw-dev__fixed' },
             h('label', { class: 'check' }, fixedCb, h('span', {}, t('fw.dev.fixed'))),
             LL.field(t('fw.dev.fixed_ip'), ipIn, t('fw.dev.fixed_hint', { cidr: (s.networks.find(n => n.id === (pick || d.network)) || {}).cidr || '' }))) : null,
@@ -406,6 +413,8 @@
         if (zf) return zf;
         const pc = LL.pcOpLabel ? LL.pcOpLabel(s, o) : null;
         if (pc) return pc;
+        const ws = LL.wsOpLabel ? LL.wsOpLabel(s, o) : null;
+        if (ws) return ws;
         const g = id => (s.guests || []).find(x => x.id === id) || {};
         const a = o.after || {};
         if (o.kind === 'guest.power') return g(o.object).name + ' · ' + t(a.status === 'running' ? 'fw.sum.started' : 'fw.sum.shut_down');
@@ -584,6 +593,14 @@
         if (canPort(st.view)) { st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ } render(); }
         const box = page.querySelector('#fw-ports');
         if (box) box.scrollIntoView({ block: 'start' }); else LL.toast(t('pc.none_here'), 'info');
+      }
+      if ((want === 'wireless' || want === 'block') && st.view) {   // wireless networks and blocked devices (js/wireless.js)
+        if (st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; try { localStorage.setItem('ll-fw-source', 'editor'); } catch (e) { /* ignore */ } await load(); }
+        window.history.replaceState(null, '', LL.base + '#/firewall');
+        if (canWireless(st.view)) { st.mode = 'change'; try { localStorage.setItem('ll-fw-mode', 'change'); } catch (e) { /* ignore */ } render(); }
+        const box = page.querySelector(want === 'wireless' ? '#fw-wireless' : '#fw-blocked');
+        if (box) box.scrollIntoView({ block: 'start' }); else LL.toast(t('ws.none_here'), 'info');
+        if (box && want === 'block' && rest[1] === 'pick' && canWireless(st.view) && LL.wsBlockDialog) LL.wsBlockDialog(st.view, netCtx(st.view));
       }
       if ((want === 'device' || want === 'pick') && st.view && st.view.state) {
         if (st.view.mode === 'live' && st.view.sources.some(o => o.key === 'editor')) { st.source = 'editor'; await load(); }

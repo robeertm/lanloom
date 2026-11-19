@@ -1,6 +1,6 @@
 # UniFi Network (local API): read adapter and client write half
 
-Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - and since 1.37.0 **internal networks**, **fixed addresses** and **port forwards** and then **zones and zone rules**, each after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) and [Changing networks, fixed addresses and port forwards](#changing-networks-fixed-addresses-and-port-forwards-stage-b) below). Zones and rules are described under [Zone firewall](#zone-firewall-stage-b), **switch ports** (name, profile, untagged and tagged networks, power over Ethernet, power cycle) under [Switch ports](#switch-ports-stage-b). Nothing else is ever written.
+Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - and since 1.37.0 **internal networks**, **fixed addresses** and **port forwards** and then **zones and zone rules**, each after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) and [Changing networks, fixed addresses and port forwards](#changing-networks-fixed-addresses-and-port-forwards-stage-b) below). Zones and rules are described under [Zone firewall](#zone-firewall-stage-b), **switch ports** (name, profile, untagged and tagged networks, power over Ethernet, power cycle) under [Switch ports](#switch-ports-stage-b), **wireless networks** (SSIDs) and **blocking devices** under [Wireless networks and blocked devices](#wireless-networks-and-blocked-devices-stage-b). Nothing else is ever written.
 
 What you get:
 
@@ -80,7 +80,7 @@ The write half runs only inside the executor service (its own container, see [FI
 | fixed address | fixed address on (with the address) or off | the address must lie inside the client's network, must not be the network's own address or its gateway, and must not belong to another client; the client picks it up when it renews its address |
 | name | the client's name (alias) | 1 to 64 characters |
 
-Everything else - blocking clients, port settings, wireless networks, firmware, restarts, accounts - is refused by the allow-list below the adapter, whatever a plan says.
+Everything else - firmware, restarts, accounts - is refused by the allow-list below the adapter, whatever a plan says.
 
 ## Changing networks, fixed addresses and port forwards (stage B)
 
@@ -170,6 +170,33 @@ Switch ports are written over the **classic API** with the **same local site-adm
 **What is read.** For every port the profile (id and name), the untagged network, the tagged mode and choice, the power mode (auto, off, passive, pass-through) and draw, the mirror or aggregate mode, the internet ports of gateways and LLDP neighbours; for every profile its networks. This feeds the lockout rules (see [FIREWALL-EDITOR.md](../FIREWALL-EDITOR.md#switch-ports)).
 
 **Tested** against the adapter tests (console and self-hosted layout). The self-hosted test twin (Network application 10.0.162) has no switch hardware, so the test places a switch record into the twin's database and writes its overrides through the real API.
+
+## Wireless networks and blocked devices (stage B)
+
+Wireless networks and blocks are written over the **classic API** with the **same local site-administrator write account** as the other stage-B changes; no further account or option is needed.
+
+**What is written.**
+
+| change | request | fields |
+|---|---|---|
+| new SSID | `POST rest/wlanconf` | name, network, bands, security, hidden, enabled and the fixed defaults of a new SSID (all access points, default user group) |
+| change an SSID | `PUT rest/wlanconf/<id>` | only the changed fields: `name`, `networkconf_id`, `wlan_bands`, `security`, `wpa_mode`, `wpa3_support`, `wpa3_transition`, `hide_ssid`, `enabled` |
+| delete an SSID | `DELETE rest/wlanconf/<id>` | only an SSID this write half created |
+| block or unblock a device | `POST cmd/stamgr` | exactly `cmd` (`block-sta` or `unblock-sta`) and `mac` |
+
+The neutral security values map to the controller's fields: `open` is `security: open`; `wpa2_personal`, `wpa2_wpa3_personal` and `wpa3_personal` are `security: wpapsk` with `wpa3_support` and `wpa3_transition` set accordingly (WPA3 personal: support on, transition off).
+
+**Allow-list.** The allow-list below the adapter refuses every field of `rest/wlanconf` that is not listed above and every `cmd/stamgr` command other than `block-sta` and `unblock-sta`. In particular `kick-sta` is refused: a disconnected device reconnects at once, so it is never a lasting answer and never offered.
+
+**Passwords.** The password field (`x_passphrase`) is written only when an SSID is created protected or an open SSID gets a security. The write half generates 24 random characters and sends them to the controller; they are not part of a plan, a preview, the history, a snapshot or a log, and not part of what the app reads. Read the password, show its QR code or set your own in the controller's own app. An SSID that keeps its security keeps its password.
+
+**What is left alone.** Radio settings (channel, channel width, transmit power), enterprise security that signs devices in through a login server (RADIUS) and the network and security of an SSID with private pre-shared keys per device (the controller lets each key pick a network). The editor says why a field is locked.
+
+**Read back and way back.** After every write the half reads the wireless networks (or the device) back and stops when the values did not take; the executor then rolls back. The way back restores the saved fields of a changed SSID (never its password), deletes an SSID the plan created, creates an own SSID the plan deleted again (with a new random password) and unblocks a device the plan blocked, or blocks one the plan unblocked.
+
+**What is read.** For every SSID the name, network, bands, security (`open`, `wpa2_personal`, `wpa2_wpa3_personal`, `wpa3_personal`, other values as the controller reports them), hidden flag, state and guest flag, and for every device whether it is blocked. This feeds the protection rules (see [FIREWALL-EDITOR.md](../FIREWALL-EDITOR.md#wireless-networks-and-blocked-devices)).
+
+**Tested** against a recorded test fake of the classic API. Real writes follow only after acceptance at a tester.
 
 ## Troubleshooting
 

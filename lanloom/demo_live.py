@@ -146,6 +146,7 @@ def live_sample(now: float = None) -> dict:
         elif not d.get("wired"):
             d["parent"] = "e_ap1" if hash_slot(d["name"]) else "e_ap2"
             d["ssid"] = "Things" if d["network"] == "n_smart" else "Guest" if d["network"] == "n_guest" else "Home"
+            d["blocked"] = d["name"] == "Visitor phone"          # one blocked device for the wireless section
     st["ssids"] = [
         {"id": "s_home", "name": "Home", "network": "n_main", "bands": ["2.4ghz", "5ghz"], "security": "wpa2_wpa3_personal", "hidden": False,
          "enabled": True, "guest": False, "isolation": False},
