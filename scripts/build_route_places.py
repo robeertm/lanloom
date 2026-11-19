@@ -76,7 +76,7 @@ CITIES = [
     ("Montreal", "CA", "YUL", "mtl"), ("Vancouver", "CA", "YVR", "van"), ("Calgary", "CA", "YYC", ""), ("Ottawa", "CA", "YOW", ""),
     ("Winnipeg", "CA", "YWG", ""), ("Edmonton", "CA", "YEG", ""), ("Mexico City", "MX", "MEX", ""), ("Queretaro", "MX", "QRO", ""),
     ("Guadalajara", "MX", "GDL", ""), ("Monterrey", "MX", "MTY", ""), ("Panama City", "PA", "PTY", ""),
-    ("San Juan", "PR", "SJU", ""), ("Kingston", "JM", "KIN", ""), ("San Jose Costa Rica", "CR", "SJO", ""),
+    ("San Juan", "PR", "SJU", ""), ("San Jose Costa Rica", "CR", "SJO", ""),
     ("Santo Domingo", "DO", "SDQ", ""), ("Guatemala City", "GT", "GUA", ""),
     # South America
     ("Sao Paulo", "BR", "GRU", "sao cgh vcp"), ("Rio de Janeiro", "BR", "GIG", "rio"), ("Brasilia", "BR", "BSB", ""),
@@ -91,7 +91,7 @@ CITIES = [
     ("Beijing", "CN", "PEK", "bjs pkx"), ("Guangzhou", "CN", "CAN", ""), ("Shenzhen", "CN", "SZX", ""),
     ("Chengdu", "CN", "CTU", ""), ("Wuhan", "CN", "WUH", ""), ("Macau", "MO", "MFM", ""), ("Mumbai", "IN", "BOM", "bombay"),
     ("Delhi", "IN", "DEL", "newdelhi"), ("Chennai", "IN", "MAA", "madras"), ("Bangalore", "IN", "BLR", "bengaluru"),
-    ("Hyderabad", "IN", "HYD", ""), ("Kolkata", "IN", "CCU", "calcutta"), ("Pune", "IN", "PNQ", ""), ("Ahmedabad", "IN", "AMD", ""),
+    ("Hyderabad", "IN", "HYD", ""), ("Kolkata", "IN", "CCU", "calcutta"), ("Pune", "IN", "PNQ", ""),
     ("Bangkok", "TH", "BKK", "dmk"), ("Jakarta", "ID", "CGK", "jkt"), ("Kuala Lumpur", "MY", "KUL", ""),
     ("Manila", "PH", "MNL", ""), ("Ho Chi Minh City", "VN", "SGN", "saigon hcm"), ("Hanoi", "VN", "HAN", ""),
     ("Phnom Penh", "KH", "PNH", ""), ("Yangon", "MM", "RGN", ""), ("Dhaka", "BD", "DAC", ""), ("Karachi", "PK", "KHI", ""),

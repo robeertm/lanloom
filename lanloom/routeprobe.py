@@ -6,7 +6,7 @@ and no other program is started (Lanloom's product code never starts programs or
 for the measurement only and handed back to nobody.
 
 Methods (the caller picks the first one that is possible, see ``check``):
-  * ``udp``: Paris traceroute over an ordinary UDP socket (the method of the classic Linux traceroute without root): the
+  * ``udp``: Paris traceroute over an ordinary UDP socket (the method of the classic traceroute without root): the
     time-to-live of each probe is set on the socket, and the kernel hands the ICMP "time exceeded" / "port unreachable"
     answers to the socket's error queue (IP_RECVERR / IPV6_RECVERR) together with the address of the router that sent
     them. Source and destination port stay the same for the whole measurement, and the payload is built so that the UDP

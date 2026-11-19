@@ -28,7 +28,6 @@ import json
 import logging
 import math
 import os
-import sys
 import threading
 import time
 from pathlib import Path
@@ -231,7 +230,7 @@ class RouteWatch:
         now = self.clock() if now is None else now
         if self.caps is not None and now - self.caps_t < CHECK_EVERY_S:
             return self.caps
-        if os.name != "posix" or not sys.platform.startswith("linux"):
+        if os.name != "posix":
             self.caps = {"methods": {"udp": False, "tcp": False}, "reasons": {"all": "platform"}}
         else:
             res = self.helper({"mode": "check"}, 20.0)

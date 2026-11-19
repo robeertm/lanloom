@@ -189,7 +189,7 @@ def test_clean_ip(text, out):
 
 
 def test_home_addresses():
-    for ip in ("192.168.1.1", "10.1.2.3", "172.16.0.1", "100.64.0.1", "169.254.1.1", "127.0.0.1", "fe80::1", "fd00::1"):
+    for ip in ("192.168.77.1", "10.99.2.3", "172.16.99.1", "100.64.0.0", "169.254.1.1", "127.0.0.1", "fe80::1", "fd00::1"):
         assert routes.is_home_ip(ip), ip
     for ip in ("192.0.2.1", "198.51.100.1", "203.0.113.1", "2001:db8::1", "garbage", None):
         assert not routes.is_home_ip(ip), ip
