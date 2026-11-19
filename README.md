@@ -108,13 +108,24 @@ All screenshots show the built-in demo network with invented names and addresses
 
 ### The network as a tree
 
-The Network view has two faces: the board and a **tree** that folds, Internet, gateway, switches and access points, devices and guests, with the link (cable and port, wireless band, virtual), the live traffic as a number and the state as a word. It is also the text alternative of the picture. Everything can be done with the keyboard (`?` shows the keys), the spoken status for screen readers is throttled, and an automated check allows no serious accessibility finding before a release ([Accessibility](docs/ACCESSIBILITY.md)).
+The Network view has three faces: the board, a **3D** stack of boards (below) and a **tree** that folds, Internet, gateway, switches and access points, devices and guests, with the link (cable and port, wireless band, virtual), the live traffic as a number and the state as a word. It is also the text alternative of the picture. Everything can be done with the keyboard (`?` shows the keys), the spoken status for screen readers is throttled, and an automated check allows no serious accessibility finding before a release ([Accessibility](docs/ACCESSIBILITY.md)).
 
 <table>
 <tr>
 <td width="60%"><img src="docs/screenshots/network-tree-light.png" width="100%" alt="Network tree with the card of an access point open"><br><sub>The chain as a tree; the chain of the line under the pointer is lit</sub></td>
 <td width="20%"><img src="docs/screenshots/network-tree-phone-dark.png" width="100%" alt="Network tree on a phone"><br><sub>On a phone the lines wrap</sub></td>
 <td width="20%"><img src="docs/screenshots/keyboard-help-light.png" width="100%" alt="Keyboard help"><br><sub>Key <code>?</code></sub></td>
+</tr>
+</table>
+
+### The network in 3D
+
+The same chain as a stack of circuit boards that you can turn, tilt and zoom: Internet on top, then the gateway, switches and access points, devices at the bottom; copper traces with vias between the boards and the live traffic running along them as dots. It needs graphics acceleration; without it the browser gets a note and the flat board ([Network manual](docs/manual/network.md#the-network-in-3d)).
+
+<table>
+<tr>
+<td width="78%"><img src="docs/screenshots/network-3d-light.png" width="100%" alt="The network as a stack of circuit boards in 3D"><br><sub>One board per step of the chain; the element in focus is named in the corner</sub></td>
+<td width="22%"><img src="docs/screenshots/network-3d-phone-dark.png" width="100%" alt="The 3D view on a phone"><br><sub>One finger turns, two zoom</sub></td>
 </tr>
 </table>
 

@@ -8,7 +8,7 @@ keyboard.
 
 ## The tree view
 
-In the *Network* view, the switch **Board | Tree** (left of the area chips) changes the face of the view. The choice is
+In the *Network* view, the switch **Board | Tree | 3D** (left of the area chips) changes the face of the view. The choice is
 kept in the browser; `#/network?v=tree` opens the tree directly.
 
 ![The network as a tree, the card of an access point open](screenshots/network-tree-light.png)
@@ -43,6 +43,7 @@ Everything can be done with the keyboard; press `?` anywhere in the signed-in ap
 | Everywhere | `Tab` / `Shift Tab` move, `Enter` or `Space` press, `Esc` closes the card, dialog or sheet and returns to where you were, `/` or `Ctrl K` search, `L` and `I` the side rails, `?` this help |
 | First stop | *Skip to content* jumps over the navigation |
 | Board | `Tab` goes from tile to tile (the tiles are buttons, named by what they show), `Enter` opens the card; while a tile has the focus, the chain of its partners is lit as it is for the mouse |
+| 3D view | one tab stop: `←` `→` turn, `↑` `↓` tilt (with `Shift`: move), `+` `-` zoom, `0` the whole stack again, `Page Down` `Page Up` walk the chain (the element is read out), `Home` `End` jump to its ends, a letter jumps to the next name, `Enter` or `Space` opens the card |
 | Tree | `↑` `↓` move, `→` opens a branch or goes to its first element, `←` closes it or goes to the element above, `Home` `End` jump to the first or last, `*` opens every branch of the level, a letter jumps to the next name that starts with it, `Enter` or `Space` opens the card |
 
 The tree is a single tab stop: `Tab` enters it once and leaves it once; inside you use the arrows. The focus is always

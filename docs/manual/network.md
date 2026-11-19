@@ -34,7 +34,7 @@ in?".
   interrupted never folds, and a card opened by address or from the search unfolds its network.
 - **Mode switch** *Live | Plan | Firewall | Data paths* at the start of the filter row, and a **legend** that holds the
   line styles and the networks in one strip: a network in the legend filters the board like its chip.
-- **Full screen** (the button before the *Board | Tree* switch) opens the board over the whole window; on a phone it uses
+- **Full screen** (the button after the *Board | Tree | 3D* switch) opens the board over the whole window; on a phone it uses
   the compact layout. *Esc*, the close button and the back gesture close it.
 - **The deciding source.** The card of a device says which source placed it, which others agree and what the rest say
   ("Switch controller says Core switch - Port 10. Manual entry has priority.").
@@ -52,15 +52,44 @@ To change a port (name, profile, networks, power) use the firewall editor: see [
 
 <img src="../screenshots/phone-switch-front.png" width="260" alt="Switch front panel on a phone"> <img src="../screenshots/phone-network-full.png" width="260" alt="The network in full screen on a phone">
 
-### Board or tree
+### Board, tree or 3D
 
-The switch **Board | Tree** above the view changes its face. The **tree** shows the same chain as a list that folds:
+The switch **Board | Tree | 3D** above the view changes its face. The **tree** shows the same chain as a list that folds:
 Internet, gateway, switches and access points, then devices and guests, each line with the link (cable and port,
 wireless band and network name, or virtual), the live traffic as a number and the state as a word. It is also the text
 alternative of the picture for screen readers and can be walked with the arrow keys (`?` lists the keys). Your choice is
 kept in the browser. See [Accessibility](../ACCESSIBILITY.md).
 
 ![The network as a tree](../screenshots/network-tree-light.png)
+
+### The network in 3D
+
+The third face, **3D**, shows the same chain as a stack of circuit boards: the Internet on top, then the gateway, then
+switches and access points, then the devices, one board per step. Every component is a chip on its board with its status
+light, every cable a copper trace with a via down to the board below (wireless links dashed, guests on a host dotted),
+and the live traffic runs along the traces as dots, as on the flat board. Devices that sit in no chain yet get a board
+of their own beside the device board, labelled *Not in the chain yet*.
+
+- **Turn, tilt and zoom:** drag with the mouse or one finger; right drag or *Shift* + drag moves the stack; the wheel or
+  two fingers zoom. The buttons on the right zoom, turn and go back to the whole stack.
+- **Keyboard:** the scene is one tab stop. Arrows turn and tilt (*Shift* + arrows move), `+` and `-` zoom, `0` goes back
+  to the whole stack, `Page Down` / `Page Up` walk the chain element by element (the camera follows, the element is
+  read out and named in the corner), `Home` and `End` jump to its ends, a letter jumps to the next name that starts with
+  it, `Enter` or `Space` opens the card.
+- **Pointer and focus light the chain:** the way of the element up to the Internet and its direct children stay bright,
+  the rest steps back.
+- **Graphics acceleration is required.** The 3D view draws with the graphics card of the device. A browser that only has
+  a software renderer (some small single-board computers, virtual machines, remote desktops) or no WebGL at all gets a
+  short note and the flat board instead, so the processor is never spent on the picture. *Try anyway* stores the choice
+  in this browser; the view then draws fewer frames and dots and says so.
+- **Frame budget:** nothing is drawn while nothing changes; the frame rate follows *Settings › Appearance › Map
+  animation* (*Off* shows no moving dots), steps itself down when frames take too long and rests while the tab is hidden
+  or the view is out of sight. With reduced motion in the system settings the traces only glow.
+- `#/network?v=3d` opens the 3D view directly; the command palette has *Go to 3D view of the network*.
+
+![The network in 3D: Internet, gateway, switches and access points, devices](../screenshots/network-3d-light.png)
+
+<img src="../screenshots/network-3d-dark-card.png" width="62%" alt="3D view in dark theme, zoomed to an access point with its card open"> <img src="../screenshots/network-3d-phone-dark.png" width="22%" alt="3D view on a phone">
 
 ## How to use it
 

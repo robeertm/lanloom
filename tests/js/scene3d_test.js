@@ -36,7 +36,7 @@ out.radioKind = L.links.find(l => l.id === 'p:4').kind;
 const spots = new Set(L.nodes.map(n => n.layer + ':' + n.x.toFixed(3) + ':' + n.z.toFixed(3)));
 out.distinct = spots.size === L.nodes.length;
 // every chip lies on its board
-out.onBoard = L.nodes.every(n => { const l = L.layers.find(x => x.layer === n.layer); return n.x > l.x0 && n.x < l.x1 && n.z > l.z0 && n.z < l.z1 && n.y === l.y; });
+out.onBoard = L.nodes.every(n => { const l = L.layers.find(x => x.layer === n.layer && x.loose === n.loose); return n.x > l.x0 && n.x < l.x1 && n.z > l.z0 && n.z < l.z1 && n.y === l.y; });
 // along(): the ends and the middle of a trace
 out.along0 = S.along(lk, 0); out.along1 = S.along(lk, 1);
 // problems only: the chain above the problem stays, the rest goes
@@ -45,7 +45,7 @@ out.problems = P.nodes.map(n => n.id).sort();
 // renderer names
 out.gpu = ['ANGLE (Apple, Apple M2, OpenGL 4.1)', 'V3D 7.1', 'Google SwiftShader', 'llvmpipe (LLVM 15.0.7, 128 bits)', 'Microsoft Basic Render Driver', 'Mali-G610'].map(S.gpuVerdict);
 // camera: the projected target lands in the middle of the screen; a point behind the eye is not drawn
-const cam = S.fitCamera(L.bounds);
+const cam = S.fitCamera(L.bounds, 16 / 9);
 const m = S.orbit(cam, 16 / 9);
 const c = S.project(m.vp, [cam.tx, cam.ty, cam.tz], 1600, 900);
 out.centre = [Math.round(c.x), Math.round(c.y)];
@@ -65,5 +65,8 @@ const dev = BL.layers.find(l => l.layer === 3);
 out.bigAspect = (dev.x1 - dev.x0) / (dev.z1 - dev.z0);
 out.bigNodes = BL.nodes.length; out.bigLinks = BL.links.length;
 out.bigDistinct = new Set(BL.nodes.map(n => n.layer + ':' + n.x.toFixed(3) + ':' + n.z.toFixed(3))).size === BL.nodes.length;
+out.looseBoards = L.layers.filter(l => l.loose).length;
+const lb = L.layers.find(l => l.loose), db = L.layers.find(l => l.layer === 3 && !l.loose);
+out.apart = lb.x0 >= db.x1 || lb.x1 <= db.x0 || lb.z0 >= db.z1 || lb.z1 <= db.z0;
 out.empty = S.layout({ components: [], traces: [] }, {}).nodes.length;
 process.stdout.write(JSON.stringify(out));

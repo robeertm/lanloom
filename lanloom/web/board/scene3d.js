@@ -74,18 +74,21 @@
     n._shelves = shelves; n._leaves = leaves; n._cols = cols; n._rows = rows; n._bd = bd;
     n._w = Math.max(1, bw, cols);
     n._d = Math.max(1, bd + (leaves.length && shelves.length ? 1 : 0) + rows);
+    if (n._gap) { n._w += 2 * n._gap; n._d += 2 * n._gap; }    // room around a block that gets a board of its own
   }
   function place(n, x0, z0, out) {
-    out.set(n.id, [x0 + n._w / 2, z0 + n._d / 2]);
+    const g = n._gap || 0, W = n._w - 2 * g;
+    x0 += g; z0 += g;
+    out.set(n.id, [x0 + W / 2, z0 + (n._d - 2 * g) / 2]);
     if (!(n.children || []).length) return;
     let z = z0;
     n._shelves.forEach(s => {
-      let x = x0 + (n._w - s.w) / 2;
+      let x = x0 + (W - s.w) / 2;
       s.items.forEach(b => { place(b, x, z + (s.d - b._d) / 2, out); x += b._w + 1; });
       z += s.d + 1;
     });
     if (n._leaves.length) {
-      const lz = z0 + (n._shelves.length ? n._bd + 1 : 0), lx = x0 + (n._w - n._cols) / 2;
+      const lz = z0 + (n._shelves.length ? n._bd + 1 : 0), lx = x0 + (W - n._cols) / 2;
       n._leaves.forEach((c, i) => out.set(c.id, [lx + (i % n._cols) + 0.5, lz + Math.floor(i / n._cols) + 0.5]));
     }
   }
@@ -96,20 +99,23 @@
     const comps = new Map(((view && view.components) || []).map(c => [c.id, c]));
     const nodes = [], byId = new Map();
     // the layer of a component: its kind's layer, never above the one it hangs on (a switch behind a device stays below it)
+    let looseOf = false;
     const walk = (n, parentLayer, parent) => {
       const layer = n.group ? 3 : Math.max(parentLayer, kindLayer(n.kind));
       if (!n.group) {
         const c = comps.get(n.id) || {};
-        const node = { id: n.id, kind: n.kind, title: n.title || '', subtitle: n.subtitle || '', status: n.status, grade: GRADES.includes(n.grade) ? n.grade : 'unknown',
+        const node = { id: n.id, loose: !!looseOf, kind: n.kind, title: n.title || '', subtitle: n.subtitle || '', status: n.status, grade: GRADES.includes(n.grade) ? n.grade : 'unknown',
           metric: c.metric || '', layer, x: 0, y: 0, z: 0, parent: parent || null, link: n.link || null, count: n.count || 0 };
         nodes.push(node); byId.set(n.id, node);
       }
       (n.children || []).forEach(ch => walk(ch, layer, n.group ? null : n.id));
     };
     const tops = b.roots.concat(b.other ? [b.other] : []);
-    tops.forEach(n => walk(n, 0, null));
+    b.roots.forEach(n => walk(n, 0, null));
+    if (b.other) { looseOf = true; walk(b.other, 0, null); looseOf = false; }
     // one pseudo root holds everything, so the whole stack is laid out as one footprint (the loose devices sit at its back edge)
     const top = { id: '__top', children: tops };
+    if (b.other) b.other._gap = 1;
     measure(top);
     const pos = new Map();
     place(top, 0, 0, pos);
@@ -121,10 +127,14 @@
     const gap = Math.max(2.4, Math.min(7, span * 0.26));         // height between two boards grows with the size of the network
     const yOf = new Map(used.map((l, i) => [l, (used.length - 1 - i) * gap]));
     nodes.forEach(n => { n.x -= cx; n.z -= cz; n.y = yOf.get(n.layer); });
-    const layers = used.map(l => {
-      const on = nodes.filter(n => n.layer === l);
-      return { layer: l, y: yOf.get(l), x0: Math.min(...on.map(n => n.x)) - MARGIN, x1: Math.max(...on.map(n => n.x)) + MARGIN,
-        z0: Math.min(...on.map(n => n.z)) - MARGIN, z1: Math.max(...on.map(n => n.z)) + MARGIN };
+    // one board per used layer; the devices that sit in no chain yet get a board of their own next to the device board
+    const boardOf = (l, on, loose) => ({ layer: l, loose, y: yOf.get(l), x0: Math.min(...on.map(n => n.x)) - MARGIN, x1: Math.max(...on.map(n => n.x)) + MARGIN,
+      z0: Math.min(...on.map(n => n.z)) - MARGIN, z1: Math.max(...on.map(n => n.z)) + MARGIN });
+    const layers = [];
+    used.forEach(l => {
+      const on = nodes.filter(n => n.layer === l && !n.loose), off = nodes.filter(n => n.layer === l && n.loose);
+      if (on.length) layers.push(boardOf(l, on, false));
+      if (off.length) layers.push(boardOf(l, off, true));
     });
     // a trace runs from the chip above straight down (the via) to the board of the chip below, then along x and z on that board
     const links = [];
@@ -142,7 +152,7 @@
       links.push({ id: n.link && n.link.id != null ? String(n.link.id) : '', a: p.id, b: n.id, kind, pts, seg, L: seg[seg.length - 1] });
     });
     const order = b.items.filter(n => !n.group).map(n => n.id).filter(id => byId.has(id));
-    const top0 = layers.length ? layers[0].y : 0;
+    const top0 = used.length ? yOf.get(used[0]) : 0;
     return { nodes, links, layers, order, bounds: { span: Math.max(span + 2 * MARGIN, 4), height: top0, x0: x0 - cx, x1: x1 - cx, z0: z0 - cz, z1: z1 - cz } };
   }
 
@@ -189,8 +199,10 @@
     if (ww <= 0.0001) return null;
     return { x: (x / ww * 0.5 + 0.5) * w, y: (1 - (y / ww * 0.5 + 0.5)) * h, w: ww };
   }
-  function fitCamera(bounds) {
-    const dist = Math.max(8, bounds.span * 1.15 + bounds.height * 0.9);
+  function fitCamera(bounds, aspect) {
+    // a tall screen (a phone upright) needs more distance for the same width
+    const narrow = aspect && aspect < 1.25 ? Math.pow(1.25 / aspect, 0.62) : 1;
+    const dist = Math.max(8, (bounds.span * 1.15 + bounds.height * 0.9) * narrow);
     return { yaw: 0.62, pitch: 0.52, dist, tx: 0, ty: bounds.height * 0.42, tz: 0, home: dist };
   }
 
@@ -315,7 +327,6 @@
     const B = { chips: buf(), boards: buf(), grid: buf(), traces: buf(), dots: buf() };
     const N = { chips: 0, boards: 0, grid: 0, traces: 0, dots: 0 };
     let colors = {};
-    let traceData = null;                // Float32Array of the traces (positions + colours), colours rewritten when the glow changes
 
     function readTheme() {
       const cs = root0 => getComputedStyle(root0);
@@ -351,13 +362,15 @@
 
     function buildBoards() {
       const L = st.L, out = [], grid = [];
-      const board = colors.dark ? [colors.board[0] * 1.6 + 0.02, colors.board[1] * 1.6 + 0.04, colors.board[2] * 1.6 + 0.03, 0.82] : mix(colors.board, [0.86, 0.9, 0.87, 1], 0.35);
-      board[3] = colors.dark ? 0.84 : 0.8;
+      // a board: the board colour of the theme with a little of the accent (the green of a circuit board), slightly see-through
+      const board = colors.dark ? mix(colors.board, colors.accent, 0.22) : mix(colors.board, colors.accent, 0.1);
+      board[3] = colors.dark ? 0.88 : 0.92;
+      const looseBoard = mix(board, colors.dark ? [0, 0, 0, 1] : [1, 1, 1, 1], 0.35); looseBoard[3] = board[3] * 0.85;
       const g = colors.grid.slice(); g[3] = Math.min(0.5, g[3] * (colors.dark ? 3.2 : 1.8));
-      const edge = colors.edge.slice(); edge[3] = 0.95;
+      const edge = mix(colors.copper, board, 0.25); edge[3] = 0.95;
       L.layers.forEach(l => {
         const w = l.x1 - l.x0, d = l.z1 - l.z0, y = l.y - 0.09;
-        box(out, (l.x0 + l.x1) / 2, y, (l.z0 + l.z1) / 2, w, 0.08, d, board);
+        box(out, (l.x0 + l.x1) / 2, y, (l.z0 + l.z1) / 2, w, 0.08, d, l.loose ? looseBoard : board);
         // grid lines on the board (every two cells) and its outline
         const step = CELL * 2;
         for (let x = Math.ceil(l.x0 / step) * step; x <= l.x1; x += step) grid.push(x, l.y + 0.002, l.z0, ...g, x, l.y + 0.002, l.z1, ...g);
@@ -379,9 +392,11 @@
         const s = CHIP * (n.layer <= 1 ? 1.25 : n.layer === 2 ? 1.1 : 1), h = chipHeight(n);
         const dim = chain && !chain.has(n.id);
         const bodyC = dim ? mix(body, colors.board, 0.55) : body;
-        box(out, n.x, n.y, n.z, s, h, s, on ? mix(bodyC, colors.accent, 0.35) : bodyC, on ? colors.accent : mix(bodyC, colors.silk, 0.08));
+        // the copper pad the chip is soldered on, then the chip
+        box(out, n.x, n.y + 0.001, n.z, s * 1.32, 0.014, s * 1.32, dim ? mix(colors.copper, colors.board, 0.6) : colors.copper);
+        box(out, n.x, n.y + 0.015, n.z, s, h, s, on ? mix(bodyC, colors.accent, 0.35) : bodyC, on ? colors.accent : mix(bodyC, colors.silk, 0.08));
         // the status light on top (like the light on a tile of the flat board)
-        box(out, n.x + s * 0.27, n.y + h, n.z - s * 0.27, s * 0.22, 0.03, s * 0.22, dim ? mix(led, colors.board, 0.5) : led);
+        box(out, n.x + s * 0.27, n.y + 0.015 + h, n.z - s * 0.27, s * 0.22, 0.03, s * 0.22, dim ? mix(led, colors.board, 0.5) : led);
       });
       gl.bindBuffer(gl.ARRAY_BUFFER, B.chips); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.DYNAMIC_DRAW); N.chips = out.length / 10;
     }
@@ -395,35 +410,56 @@
       st.L.nodes.forEach(c => { if (c.parent === id) s.add(c.id); });
       return s;
     }
+    // traces are copper strips on the boards (flat ribbons) and vias between them (thin columns), so they keep their width at any
+    // zoom (WebGL draws lines one pixel wide); wireless links are dashed, virtual ones dotted, like on the flat board
+    const TRACE_W = { uplink: 0.11, cable: 0.075, lan: 0.075, radio: 0.06, virtual: 0.05 };
+    function ribbon(out, p, q, w, col) {
+      let dx = q[0] - p[0], dz = q[2] - p[2];
+      const len = Math.hypot(dx, dz); if (len < 1e-6) return;
+      dx /= len; dz /= len;
+      const nx = -dz * w / 2, nz = dx * w / 2, ex = dx * w / 2, ez = dz * w / 2, y = p[1];
+      const a = [p[0] - ex + nx, y, p[2] - ez + nz], b = [p[0] - ex - nx, y, p[2] - ez - nz], c = [q[0] + ex - nx, y, q[2] + ez - nz], d = [q[0] + ex + nx, y, q[2] + ez + nz];
+      for (const v of [a, b, c, a, c, d]) out.push(v[0], v[1], v[2], 0, 1, 0, col[0], col[1], col[2], col[3]);
+    }
     function buildTraces() {
       const out = [], chain = chainSet();
       st.L.links.forEach(lk => {
         const base = colors['t_' + lk.kind] || colors.t_cable;
         const lit = st.level.get(lk.id || lk.b) || 0;
         const on = !chain || (chain.has(lk.a) && chain.has(lk.b));
-        let a = on ? 0.62 + 0.38 * lit : 0.16;
-        const c = lk.kind === 'radio' || lk.kind === 'virtual' ? mix(base, colors.board, 0.15) : base;
+        const c = mix(on ? base : mix(base, colors.board, 0.7), [1, 1, 1, 1], on ? lit * 0.35 : 0);
+        c[3] = on ? 0.9 : 0.45;
+        const w = (TRACE_W[lk.kind] || 0.075) * (on && chain ? 1.25 : 1);
+        const dash = lk.kind === 'radio' ? [0.24, 0.14] : lk.kind === 'virtual' ? [0.07, 0.12] : null;
         for (let i = 1; i < lk.pts.length; i++) {
           const p = lk.pts[i - 1], q = lk.pts[i];
-          if (lk.kind === 'radio' || lk.kind === 'virtual') {
-            // wireless and virtual links are dashed, like on the flat board
-            const len = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]), dash = lk.kind === 'radio' ? 0.22 : 0.08, gapL = lk.kind === 'radio' ? 0.16 : 0.18;
-            for (let u = 0; u < len; u += dash + gapL) {
-              const f0 = u / len, f1 = Math.min(1, (u + dash) / len);
-              out.push(p[0] + (q[0] - p[0]) * f0, p[1] + (q[1] - p[1]) * f0, p[2] + (q[2] - p[2]) * f0, c[0], c[1], c[2], a,
-                p[0] + (q[0] - p[0]) * f1, p[1] + (q[1] - p[1]) * f1, p[2] + (q[2] - p[2]) * f1, c[0], c[1], c[2], a);
-            }
-          } else out.push(p[0], p[1], p[2], c[0], c[1], c[2], a, q[0], q[1], q[2], c[0], c[1], c[2], a);
+          if (Math.abs(p[1] - q[1]) > 1e-6) {
+            // the via: a thin column down to the board below, with a small pad where it lands
+            const lo = Math.min(p[1], q[1]), hi = Math.max(p[1], q[1]);
+            box(out, p[0], lo, p[2], w * 0.9, hi - lo, w * 0.9, c);
+            box(out, q[0], q[1] - LIFT + 0.004, q[2], w * 2.4, 0.012, w * 2.4, mix(colors.copper, c, 0.5));
+            continue;
+          }
+          if (!dash) { ribbon(out, p, q, w, c); continue; }
+          const len = Math.hypot(q[0] - p[0], q[2] - p[2]);
+          for (let u = 0; u < len; u += dash[0] + dash[1]) {
+            const f0 = u / len, f1 = Math.min(1, (u + dash[0]) / len);
+            ribbon(out, [p[0] + (q[0] - p[0]) * f0, p[1], p[2] + (q[2] - p[2]) * f0], [p[0] + (q[0] - p[0]) * f1, p[1], p[2] + (q[2] - p[2]) * f1], w, c);
+          }
         }
       });
-      traceData = new Float32Array(out);
-      gl.bindBuffer(gl.ARRAY_BUFFER, B.traces); gl.bufferData(gl.ARRAY_BUFFER, traceData, gl.DYNAMIC_DRAW); N.traces = out.length / 7;
+      gl.bindBuffer(gl.ARRAY_BUFFER, B.traces); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.DYNAMIC_DRAW); N.traces = out.length / 10;
     }
 
     // ---- labels (DOM: crisp text; only placed again when the camera moves)
     const labelEls = new Map();
     function buildLabels() {
       labels.replaceChildren(); labelEls.clear();
+      st.boardLabels = st.L.layers.filter(l => l.loose).map(l => {
+        const e = el('span', 's3d-label s3d-label--board', t('tree.other.title'));
+        labels.appendChild(e);
+        return { e, p: [l.x0 + 0.2, l.y, l.z1] };
+      });
       const many = st.L.nodes.length > LABELS_ALL;
       st.L.nodes.forEach(n => {
         const e = el('span', 's3d-label s3d-label--l' + n.layer, n.title || n.id);
@@ -433,6 +469,11 @@
     }
     function placeLabels(m, w, h) {
       const boxes = [];
+      (st.boardLabels || []).forEach(b => {
+        const p = project(m, b.p, w, h);
+        b.e.hidden = !p;
+        if (p) { b.e.style.transform = 'translate(' + Math.round(p.x) + 'px,' + Math.round(p.y) + 'px) translate(0,4px)'; boxes.push([p.x, p.y, p.x + 160, p.y + 24]); }
+      });
       const want = [...st.L.nodes].sort((a, b) => a.layer - b.layer);
       const pri = new Set([st.focus, st.hover, st.selected].filter(Boolean));
       // the ones in focus first, then layer by layer; a label that would cover one already placed stays hidden
@@ -458,7 +499,8 @@
       const g = gradeOf(n);
       const kind = t('board.kind.' + n.kind) !== 'board.kind.' + n.kind ? t('board.kind.' + n.kind) : '';
       const m = st.metrics[n.id] != null ? st.metrics[n.id] : n.metric;
-      return [n.title || n.id, kind, t('s3d.layer.' + n.layer), m ? localiseMetric(String(m)) : '', (n.status === 'down' ? t('board.status.down') + ' · ' : '') + t('board.grade.' + g)].filter(Boolean).join(', ');
+      const layer = n.loose ? t('tree.other.title') : t('s3d.layer.' + n.layer);
+      return [n.title || n.id, kind, layer !== kind ? layer : '', m ? localiseMetric(String(m)) : '', (n.status === 'down' ? t('board.status.down') + ' · ' : '') + t('board.grade.' + g)].filter(Boolean).join(', ');
     }
     function localiseMetric(s) {
       if (!/\d\.\d/.test(s)) return s;
@@ -479,7 +521,7 @@
       st.nodeById = new Map(L.nodes.map(n => [n.id, n]));
       st.linkIdx = new Map();
       L.links.forEach((lk, i) => { if (lk.id) st.linkIdx.set(lk.id, i); });
-      if (!keepCam || !st.cam) { st.cam = fitCamera(L.bounds); st.aim = null; }
+      if (!keepCam || !st.cam) { st.cam = fitCamera(L.bounds, aspectNow()); st.aim = null; }
       st.dots = st.dots.filter(d => d.li < L.links.length && L.links[d.li] && L.links[d.li].id === d.id);
       buildBoards(); buildChips(); buildTraces(); buildLabels(); renderLayerKey();
       if (st.focus && !st.nodeById.has(st.focus)) st.focus = null;
@@ -487,12 +529,13 @@
       want();
     }
     function renderLayerKey() {
-      layerKey.replaceChildren(...st.L.layers.map(l => {
-        const li = el('li', 's3d-layers__item');
-        li.append(el('span', 's3d-layers__n', String(st.L.layers.indexOf(l) + 1)), el('span', '', t('s3d.layer.' + l.layer)));
+      layerKey.replaceChildren(...st.L.layers.map((l, i) => {
+        const li = el('li', 's3d-layers__item' + (l.loose ? ' is-loose' : ''));
+        li.append(el('span', 's3d-layers__n', l.loose ? '·' : String(i + 1)), el('span', '', t(l.loose ? 'tree.other.title' : 's3d.layer.' + l.layer)));
         return li;
       }));
     }
+    const aspectNow = () => (stage.clientWidth && stage.clientHeight ? stage.clientWidth / stage.clientHeight : 16 / 10);
     const clampCam = () => {
       const c = st.cam;
       c.pitch = Math.max(0.12, Math.min(1.5, c.pitch));
@@ -508,7 +551,7 @@
       c.tx += (Math.cos(c.yaw) * dx - Math.sin(c.yaw) * dz) * s; c.tz += (-Math.sin(c.yaw) * dx - Math.cos(c.yaw) * dz) * s;
       clampCam(); st.aim = null; want();
     }
-    function reset() { const h = fitCamera(st.L.bounds); st.aim = { yaw: h.yaw, pitch: h.pitch, dist: h.dist, tx: h.tx, ty: h.ty, tz: h.tz }; want(); }
+    function reset() { const h = fitCamera(st.L.bounds, aspectNow()); st.aim = { yaw: h.yaw, pitch: h.pitch, dist: h.dist, tx: h.tx, ty: h.ty, tz: h.tz }; want(); }
     function aimAt(id) {
       const n = st.nodeById.get(id); if (!n) return;
       const c = st.cam;
@@ -560,7 +603,10 @@
         draw(now, !!st.need);
         const ms = performance.now() - t0;
         st.stats.drawMs = Math.round(ms * 10) / 10; st.stats.frames++;
-        budget(ms);
+        // a frame costs what the script spends plus what the graphics side needs before the next one can come: judge both
+        const gapNow = st.prevDraw && now - st.prevDraw < 1500 ? now - st.prevDraw : 0;
+        st.prevDraw = now;
+        budget(ms, gapNow);
       }
       st.need = false;
       st.fpsN++;
@@ -569,11 +615,11 @@
       else st.stats.fps = 0;
     }
     let slowRun = 0, fastRun = 0;
-    function budget(ms) {
+    function budget(ms, gapNow) {
       if (!st.fpsCap) return;
       const frame = 1000 / Math.max(1, st.fpsNow), i = STEPS.indexOf(st.fpsNow);
-      if (ms > frame * 0.5) { fastRun = 0; if (++slowRun >= 6) { slowRun = 0; if (i >= 0 && i < STEPS.length - 1) { st.fpsNow = STEPS[i + 1]; st.stats.steps++; } } }
-      else if (ms < frame * 0.2) { slowRun = 0; if (++fastRun >= 90) { fastRun = 0; if (i > 0 && STEPS[i - 1] <= st.fpsCap) st.fpsNow = STEPS[i - 1]; } }
+      if (ms > frame * 0.5 || gapNow > frame * 1.8) { fastRun = 0; if (++slowRun >= 6) { slowRun = 0; if (i >= 0 && i < STEPS.length - 1) { st.fpsNow = STEPS[i + 1]; st.stats.steps++; } } }
+      else if (ms < frame * 0.2 && (!gapNow || gapNow < frame * 1.2)) { slowRun = 0; if (++fastRun >= 90) { fastRun = 0; if (i > 0 && STEPS[i - 1] <= st.fpsCap) st.fpsNow = STEPS[i - 1]; } }
       st.stats.cap = st.fpsNow;
     }
     let lastM = null;
@@ -600,10 +646,10 @@
       };
       // chips (opaque) first, then the traces, then the see-through boards without writing depth, then the dots on top
       if (N.chips) { bindSolid(B.chips); gl.drawArrays(gl.TRIANGLES, 0, N.chips); }
-      if (N.traces) { bindLine(B.traces); gl.drawArrays(gl.LINES, 0, N.traces); }
+      if (N.traces) { bindSolid(B.traces); gl.drawArrays(gl.TRIANGLES, 0, N.traces); }
       gl.depthMask(false);
       if (N.grid) { bindLine(B.grid); gl.drawArrays(gl.LINES, 0, N.grid); }
-      if (N.boards) { bindSolid(B.boards); gl.drawArrays(gl.TRIANGLES, 0, N.boards); }
+      if (N.boards) { bindSolid(B.boards); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.drawArrays(gl.TRIANGLES, 0, N.boards); gl.disable(gl.CULL_FACE); }
       gl.depthMask(true);
       [P.solid, P.line].forEach(p => ['p', 'n', 'c'].forEach(a => { if (p.loc[a] >= 0) gl.disableVertexAttribArray(p.loc[a]); }));
       drawDots(now, m);
@@ -747,7 +793,7 @@
 
     readTheme(); readMotion();
     setLayout(layout(st.view, st.filter()), false);
-    return {
+    const api = {
       update(view) { if (st.dead) return; st.view = view; setLayout(layout(view, st.filter()), true); },
       live(frame) {
         if (st.dead || !frame) return;
@@ -798,6 +844,8 @@
         rootEl.remove();
       }
     };
+    rootEl.__s3d = api;            // for the test bench: frame statistics and camera of the scene on the page
+    return api;
   }
 
   return { layout, along, gpuVerdict, orbit, project, parseColor, dotCount, fitCamera, available, canTry, allowSoft, mount };

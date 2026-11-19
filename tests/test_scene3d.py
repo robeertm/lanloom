@@ -24,6 +24,7 @@ def test_one_layer_per_step_of_the_chain():
     assert r["layers"]["sw2"] == 3                                             # a switch behind a device never climbs above it
     assert r["layerY"] == sorted(r["layerY"], reverse=True)                   # the Internet on top, the devices at the bottom
     assert r["onBoard"] and r["distinct"]                                     # every chip on its board, no two on one spot
+    assert r["looseBoards"] == 1 and r["apart"]                               # devices in no chain: a board of their own, beside the device board
 
 
 def test_traces_drop_through_a_via_to_the_board_below():

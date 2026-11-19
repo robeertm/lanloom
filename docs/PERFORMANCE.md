@@ -121,6 +121,12 @@ report; nothing is changed automatically. Only byte sums per hour are kept, no a
   per second (20 when the browser renders without graphics acceleration), *Smooth* up to 60, *Saver* 15 with fewer
   dots, *Off* shows only the glow of the traces. When drawing takes more than half a frame for two seconds the rate
   steps down (30 → 20 → 15 → 10, then fewer dots) and climbs back after ten seconds with room.
+- **3D view.** The 3D face of the Network view only starts with real graphics acceleration (the browser's own
+  *major performance caveat* flag and the renderer name; software renderers get the flat board and a note). It draws only
+  when something changes (camera, structure, a live frame with dots), follows the same motion setting (*Automatic* 30,
+  *Smooth* 60, *Saver* 15, *Off* no dots), steps down 30 → 20 → 15 → 10 when the script or the graphics side takes too long
+  per frame, and rests while hidden or out of view. With *Try anyway* on a software renderer it starts at 15 frames per
+  second, draws three quarters of the pixels and at most 300 dots.
 - **Nothing drawn that nobody sees.** The animation stops while the tab is hidden and while the board is scrolled or
   hidden out of view; it moves only when a live frame brings measured bytes.
 - **No blur over animated layers.** Translucent panels over the map use a plain background; a blur filter there makes
