@@ -145,7 +145,9 @@
     let r, data = {};
     try {
       r = await fetch(LL.url(path), init);
-      try { data = await r.json(); } catch (e) { if (ctl && ctl.signal.aborted) throw e; /* empty body */ }
+      // an empty body is an answer without data; a body that broke off half way (the page is leaving, the link dropped) is a
+      // failed request - never the empty object, which the views would take for a complete answer (S.outage.items, draft.moves)
+      try { data = await r.json(); } catch (e) { if (!(e instanceof SyntaxError) || (ctl && ctl.signal.aborted)) throw e; }
     } catch (e) {
       if (switching) return never();           // cancelled by the switch: not a failure, nothing is shown
       if (ctl && ctl.signal.aborted) throw timedOut(limit);

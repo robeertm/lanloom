@@ -281,7 +281,7 @@
     if (S.outBusy) return S.outage;
     if (!force && S.outage && Date.now() - S.outT < 4000) { apply(); render(); return S.outage; }
     S.outBusy = true;
-    try { S.outage = await api('/api/failure/outages'); S.outT = Date.now(); }
+    try { const a = await api('/api/failure/outages'); if (a && Array.isArray(a.items) && Array.isArray(a.outages)) { S.outage = a; S.outT = Date.now(); } }
     catch (e) { /* keep the last answer */ }
     S.outBusy = false;
     apply(); render();
