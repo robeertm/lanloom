@@ -16,6 +16,7 @@ The reserve line is a ``wans`` entry with ``role: backup`` (or the one that is n
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import socket
 import threading
 import time
@@ -35,6 +36,7 @@ PROBE_TIMEOUT_S = 3.0
 PROBE_FRESH_S = 90.0                # a probe result older than this does not count as a measurement
 GATEWAY_FRESH_S = 1200.0
 MAX_TARGETS = 4
+MAX_GATEWAY_EVENTS = 200            # per delivery of a gateway adapter
 UNKNOWN_AFTER_S = 300.0            # no axis has a fresh reading for this long: the state is unknown, not the old one
 SETTING = "wan_probe"
 # ready-made target sets an administrator can pick (no fixed host is ever probed before that)
@@ -51,26 +53,37 @@ SLOT_RANK = {"d": 5, "f": 4, "r": 3, "u": 2, "?": 1}
 
 
 def clean_target(text) -> Optional[str]:
-    """``host:port`` (port 1-65535) or a bare host (port 443); None for anything else."""
+    """``host:port`` (port 1-65535) or a bare host (port 443); an IPv6 address is written ``[addr]:port``. None for anything else."""
     s = str(text or "").strip().lower()
-    if not s or len(s) > 253 or any(c.isspace() or ord(c) < 32 for c in s):
+    if not s or len(s) > 253 or any(c.isspace() or ord(c) < 32 for c in s) or "/" in s or "@" in s:
         return None
-    host, _, port = s.rpartition(":") if s.count(":") == 1 else (s, "", "443")
-    host = host or s
-    try:
-        p = int(port or 443)
-    except ValueError:
-        return None
-    if not 1 <= p <= 65535 or not host or "/" in host or "@" in host:
-        return None
-    return "%s:%d" % (host, p)
+    if s.startswith("[") or s.count(":") > 1:                      # IPv6: brackets around the address, the port after them
+        if s.startswith("["):
+            addr, _, rest = s[1:].partition("]")
+            if rest not in ("", ":") and not (rest.startswith(":") and rest[1:].isdigit()):
+                return None
+            port = rest[1:] or "443"
+        else:
+            addr, port = s, "443"
+        try:
+            ipaddress.IPv6Address(addr)
+        except ValueError:
+            return None
+        host = "[%s]" % addr
+    else:
+        host, _, port = s.partition(":")
+        port = port or "443"
+        if not host or not port.isdigit() or not port.isascii():
+            return None
+    p = int(port)
+    return "%s:%d" % (host, p) if 1 <= p <= 65535 else None
 
 
 def clean_name(text) -> Optional[str]:
     s = str(text or "").strip().lower().rstrip(".")
     if not s:
         return ""
-    if len(s) > 253 or not all(c.isalnum() or c in "-." for c in s) or s.startswith(("-", ".")):
+    if len(s) > 253 or not all(c.isalnum() or c in "-." for c in s) or s.startswith(("-", ".")) or ".." in s:
         return None
     return s
 
@@ -81,8 +94,11 @@ def clean_probe(data: dict) -> dict:
     name = clean_name(data.get("dns"))
     if name is None:
         raise ValueError("wan.err.probe_name")
+    raw = data.get("tcp") or []
+    if not isinstance(raw, (list, tuple)):                  # a text is no list of targets (it would be read letter by letter)
+        raise ValueError("wan.err.probe_target")
     targets = []
-    for t in list(data.get("tcp") or [])[:MAX_TARGETS + 1]:
+    for t in list(raw)[:MAX_TARGETS + 1]:
         c = clean_target(t)
         if c is None:
             raise ValueError("wan.err.probe_target")
@@ -153,7 +169,7 @@ class WanWatch:
             for target in cfg["tcp"]:
                 host, _, port = target.rpartition(":")
                 try:
-                    _r, w = await asyncio.wait_for(asyncio.open_connection(host, int(port)), PROBE_TIMEOUT_S)
+                    _r, w = await asyncio.wait_for(asyncio.open_connection(host.strip("[]"), int(port)), PROBE_TIMEOUT_S)
                     w.close()
                     tcp_ok = True
                     break
@@ -290,7 +306,8 @@ class WanWatch:
                 self._log(now, raw, "", self.basis, self.disagree if self.disagree != "none" else "")
         if self.flapping_since is not None and not [t for t in self.changes if now - t <= FLAP_QUIET_S]:
             self.flapping_since = None
-            self._log(now, "steady", "", self.basis, "")
+            # calm again: the log says which way it settled - "down" keeps the outage open in the history, "steady" closes the flapping
+            self._log(now, "down" if self.confirmed == "down" else "steady", "", self.basis, "")
 
     def _failover(self, lines: list, now: float) -> None:
         reserve = [ln for ln in lines if ln["role"] == "backup" and ln["enabled"]]
@@ -333,7 +350,7 @@ class WanWatch:
     def ingest_gateway_events(self, events: list) -> int:
         """Events a gateway adapter delivers (``[{t, kind: up|down|failover|failback, line}]``), added once by (t, kind, line)."""
         n = 0
-        for e in events or []:
+        for e in list(events if isinstance(events, (list, tuple)) else [])[:MAX_GATEWAY_EVENTS]:
             if not isinstance(e, dict) or e.get("kind") not in ("up", "down", "failover", "failback"):
                 continue
             t = num(e.get("t"))

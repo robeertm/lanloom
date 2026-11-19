@@ -57,7 +57,9 @@ def test_every_selectable_family_and_every_builtin_source_has_a_class():
 
 def test_planned_classes_have_a_topic_and_no_connect_button():
     planned = [c for c in catalog.classes() if c["status"] == "planned"]
-    assert {c["id"] for c in planned} >= {"ups", "printer", "camera", "container_host"}
+    assert {c["id"] for c in planned} >= {"printer", "camera", "container_host"}
+    ups = next(c for c in catalog.classes() if c["id"] == "ups")
+    assert ups["status"] == "available" and ups["kind"] == "nut" and "topic" not in ups          # a UPS is read over its monitoring service now
     for c in planned:
         assert c["topic"] in catalog.TOPICS and "kind" not in c and c["source"] == "catalog", c["id"]
     for p in catalog.public():
@@ -99,8 +101,8 @@ def test_catalog_has_no_maker_or_product_names():
     (lambda d: d["classes"][0].update(benefit=101), "benefit/steps"),
     (lambda d: d["classes"][0].update(steps=0), "benefit/steps"),
     (lambda d: d["classes"][0].update(benefit=True), "benefit/steps"),
-    (lambda d: next(c for c in d["classes"] if c["id"] == "ups").pop("topic"), "planned needs a known topic"),
-    (lambda d: next(c for c in d["classes"] if c["id"] == "ups").update(topic="weather"), "planned needs a known topic"),
+    (lambda d: next(c for c in d["classes"] if c["id"] == "printer").pop("topic"), "planned needs a known topic"),
+    (lambda d: next(c for c in d["classes"] if c["id"] == "printer").update(topic="weather"), "planned needs a known topic"),
     (lambda d: next(c for c in d["classes"] if c["id"] == "ups").update(detect=[]), "no signs"),
     (lambda d: next(c for c in d["classes"] if c["id"] == "ups").update(detect=[{"port": 1, "brand": "x"}]), "sign"),
     (lambda d: next(c for c in d["classes"] if c["id"] == "nas").update(kind="toaster"), "available class names a kind"),

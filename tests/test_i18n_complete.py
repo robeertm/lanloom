@@ -216,6 +216,8 @@ def test_every_key_the_code_names_exists():
         "notify.family_phones": "action name in a sample automation of the demo hub (demo_hub.py)",
         "notify.notify": "action name in a sample automation of the demo hub (demo_hub.py)",
         "counters.json": "file name of the executor's signature counters (firewall/runner.py)",
+        "device.mfr": "variable name of a Network UPS Tools server (sources/nut.py), not a text",
+        "device.model": "variable name of a Network UPS Tools server (sources/nut.py), not a text",
     }
     # audit log action names ("auth.login", "users.invite" ...) are identifiers stored in the log; their labels are audit.action.<name>
     from lanloom import access

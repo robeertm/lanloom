@@ -70,6 +70,9 @@
     });
     return out;
   }
+  // one language-neutral text (key + variables with the suffixes above) in the page language, times in the browser's zone with the
+  // day (the control room and other views show the server's texts the same way the reports do)
+  LL.fillText = (key, vars) => t(key, values(vars, { day: 'now' }));
   function line(entry, rep) {
     const main = t(entry.key, values(entry.vars, rep));
     const parts = (entry.parts || []).map(p => line(p, rep));

@@ -218,7 +218,7 @@ a.change__link:hover { background: var(--ll-surface-2); }
 @media (min-width: 1401px) and (max-width: 1640px) {
   .topbar--many .tab__icon { display: inline-flex; }
   .topbar--many .tab__label { display: none; }
-  .topbar--many .tab { padding: 0 12px; }
+  .topbar--many .tab { padding: 0 10px; }       /* twelve tabs (hub, running hosts and the control room) still fit with the site switcher */
 }
 @media (min-width: 1641px) and (max-width: 1700px) {
   .topbar--many .tab { padding: 0 8px; }

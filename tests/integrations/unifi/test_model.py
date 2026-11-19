@@ -2,6 +2,8 @@
 Pure functions, no network."""
 import json
 
+import pytest
+
 from lanloom import topology
 from lanloom.firewall import neutral
 from lanloom.integrations.unifi import model
@@ -284,3 +286,118 @@ def test_resolver_hangs_a_client_under_its_switch_with_source_controller():
         assert sw_link["parent"] == "gw" and sw_link["source"] == "controller"      # the switch sits behind the gateway
     classic_topo = topology.resolve(inventory, {}, {"k": {"integ": 1, "ev": model.topology_event(fx.classic(), 100.0)}}, now=110.0)
     assert classic_topo["links"]["office"]["port"] == "2"
+
+
+# ---------------------------------------------------------------------------------------------------- internet lines (control room)
+MOBILE_NET = "5f0000000000000000000099"
+
+
+def _wan_raw(failover="failover-only", main_prio=1, mobile_prio=2, wan1=None, wan2=None, gateway_type="ugw", uplink=None):
+    raw = fx.classic()
+    nets = raw["networkconf"]["data"]
+    main = next(n for n in nets if n["_id"] == fx.C_NET_WAN)
+    main.update({"wan_load_balance_type": failover, "wan_failover_priority": main_prio, "attr_hidden_id": "WAN"})
+    nets.append({"_id": MOBILE_NET, "name": "Mobile backup", "purpose": "wan", "wan_type": "dhcp", "enabled": True, "wan_load_balance_type": failover,
+                 "wan_failover_priority": mobile_prio, "attr_hidden_id": "WAN2"})
+    gw = next(d for d in raw["device"]["data"] if d["mac"] == fx.MAC_GW)
+    gw["type"] = gateway_type
+    if wan1 is not None:
+        gw["wan1"] = wan1
+    if wan2 is not None:
+        gw["wan2"] = wan2
+    if uplink is not None:
+        gw["uplink"] = uplink
+    return raw
+
+
+def _wans_of(raw):
+    st = model.to_neutral(raw)
+    neutral.validate(st)
+    return {w["name"]: w for w in st["wans"]}
+
+
+def test_wan_states_from_the_gateway_device_record():
+    wans = _wans_of(_wan_raw(wan1={"up": True, "ifname": "eth4", "is_uplink": True, "rx_bytes-r": 125000, "tx_bytes-r": 25000, "latency": 9},
+                             wan2={"up": False, "ifname": "eth5", "is_uplink": False, "rx_bytes-r": 0, "tx_bytes-r": 0}))
+    a, b = wans["WAN 1"], wans["Mobile backup"]
+    assert a["up"] is True and a["active"] is True and a["role"] == "primary" and a["kind"] == "cable"
+    assert a["rx_bps"] == 1_000_000.0 and a["tx_bps"] == 200_000.0 and a["latency_ms"] == 9 and a["failover"] == "failover-only"
+    assert b["up"] is False and b["active"] is False and b["role"] == "backup" and b["kind"] == "cellular" and b["rx_bps"] == 0.0
+    assert "latency_ms" not in b
+
+
+def test_the_carrying_line_comes_from_the_gateway_uplink_when_no_line_says_so():
+    wans = _wans_of(_wan_raw(wan1={"up": False, "ifname": "eth4"}, wan2={"up": True, "ifname": "eth5"}, uplink={"name": "eth5", "type": "wire"}))
+    assert wans["WAN 1"]["active"] is False and wans["Mobile backup"]["active"] is True
+    wans = _wans_of(_wan_raw(wan1={"up": True, "ifname": "eth4"}, wan2={"up": True, "ifname": "eth5"}))
+    assert "active" not in wans["WAN 1"] and "active" not in wans["Mobile backup"]               # nobody tells: nothing is claimed
+    wans = _wans_of(_wan_raw(wan1={"up": True, "ifname": "eth4", "is_uplink": False}, wan2={"up": True, "ifname": "eth5", "is_uplink": True}, uplink={"name": "eth4"}))
+    assert wans["WAN 1"]["active"] is False and wans["Mobile backup"]["active"] is True            # the line's own flag wins over the uplink name
+
+
+def test_roles_follow_the_failover_priority_not_the_order():
+    wans = _wans_of(_wan_raw(main_prio=2, mobile_prio=1, wan1={"up": True}, wan2={"up": True}))
+    assert wans["WAN 1"]["role"] == "backup" and wans["Mobile backup"]["role"] == "primary"
+    wans = _wans_of(_wan_raw(main_prio=None, mobile_prio=None, wan1={"up": True}, wan2={"up": True}))
+    assert wans["WAN 1"]["role"] == "primary" and wans["Mobile backup"]["role"] == "backup"        # no priority: the order decides
+    wans = _wans_of(_wan_raw(failover="weighted", wan1={"up": True}, wan2={"up": True}))
+    assert wans["WAN 1"]["role"] == "primary" and wans["Mobile backup"]["role"] == "primary"       # load balancing has no reserve line
+
+
+def test_a_line_without_its_own_record_keeps_no_state_fields():
+    wans = _wans_of(_wan_raw(wan1={"up": True, "rx_bytes-r": 10, "ifname": "eth4"}))             # no wan2 record
+    b = wans["Mobile backup"]
+    for field in ("up", "active", "rx_bps", "tx_bps", "latency_ms", "kind"):
+        assert field not in b, field
+    assert wans["WAN 1"]["up"] is True
+    plain = model.to_neutral(fx.classic())["wans"][0]                                            # the stock fixture: one line, no record
+    for field in ("up", "active", "rx_bps", "tx_bps", "latency_ms", "kind", "role"):
+        assert field not in plain, field
+    assert plain["name"] == "WAN 1"
+
+
+def test_without_a_gateway_device_there_are_no_state_fields_at_all():
+    raw = _wan_raw(wan1={"up": True})
+    raw["device"]["data"] = [d for d in raw["device"]["data"] if d["type"] != "ugw"]
+    for w in model.to_neutral(raw)["wans"]:
+        assert not ({"up", "active", "rx_bps", "tx_bps", "kind"} & set(w))
+
+
+@pytest.mark.parametrize("gateway_type", ["ugw", "udm", "uxg"])
+def test_every_gateway_kind_is_read(gateway_type):
+    assert _wans_of(_wan_raw(gateway_type=gateway_type, wan1={"up": True}))["WAN 1"]["up"] is True
+
+
+def test_a_switch_or_access_point_is_not_the_gateway():
+    raw = _wan_raw(gateway_type="usw", wan1={"up": True})
+    assert "up" not in _wans_of(raw)["WAN 1"]
+
+
+def test_wan_record_values_that_make_no_sense_are_dropped():
+    wans = _wans_of(_wan_raw(wan1={"up": "yes", "is_uplink": "true", "rx_bytes-r": "fast", "tx_bytes-r": -5, "latency": float("inf"), "ifname": "x" * 80},
+                             wan2={"up": 1, "rx_bytes-r": "nan", "tx_bytes-r": "1e30", "latency": -1}))
+    for w in wans.values():
+        for field in ("up", "active", "rx_bps", "tx_bps", "latency_ms"):
+            assert field not in w, (w["name"], field)
+    assert wans["WAN 1"]["kind"] == "cable"                                                      # the record exists, the kind follows the name
+
+
+def test_wan_record_that_is_no_object_is_ignored():
+    wans = _wans_of(_wan_raw(wan1="up", wan2=["x"]))
+    assert "up" not in wans["WAN 1"] and "up" not in wans["Mobile backup"]
+
+
+def test_the_mobile_kind_is_recognised_by_name_or_type():
+    raw = _wan_raw(wan1={"up": True}, wan2={"up": True, "type": "lte"})
+    next(n for n in raw["networkconf"]["data"] if n["_id"] == MOBILE_NET)["name"] = "Second line"
+    assert _wans_of(raw)["Second line"]["kind"] == "cellular"
+    raw = _wan_raw(wan1={"up": True}, wan2={"up": True})
+    next(n for n in raw["networkconf"]["data"] if n["_id"] == MOBILE_NET)["name"] = "Second line"
+    assert _wans_of(raw)["Second line"]["kind"] == "cable"
+
+
+def test_wan_states_do_not_leak_hardware_addresses_or_change_the_ids():
+    before = {w["name"]: w["id"] for w in model.to_neutral(_wan_raw())["wans"]}
+    after = {w["name"]: w["id"] for w in model.to_neutral(_wan_raw(wan1={"up": True, "ifname": "eth4", "mac": fx.MAC_GW}, wan2={"up": True}))["wans"]}
+    assert before == after
+    assert fx.MAC_GW not in json.dumps(model.to_neutral(_wan_raw(wan1={"up": True, "mac": fx.MAC_GW}))["wans"])

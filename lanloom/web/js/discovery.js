@@ -11,7 +11,7 @@
   const CLASS_CHIP = { passive: 'chip--warn', industrial: 'chip--warn', printer: 'chip--accent' };
   const MARKS = ['printer', 'industrial', 'passive', 'none'];
   const STATUS_CHIP = { available: 'chip--ok', planned: 'chip--muted' };
-  const ICONS = { hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch', hypervisor: 'server', nas: 'nas', printer: 'printer', camera: 'camera', dns_filter: 'service' };
+  const ICONS = { hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch', hypervisor: 'server', ups: 'server', nas: 'nas', printer: 'printer', camera: 'camera', dns_filter: 'service' };
 
   const zoneTitle = z => (z.name && z.vlan ? t('zone.net_named_vlan', { name: z.name, vlan: z.vlan, cidr: z.cidr })
     : z.name ? t('zone.net_named', { name: z.name, cidr: z.cidr }) : z.vlan ? t('zone.net_vlan', { vlan: z.vlan, cidr: z.cidr }) : z.cidr);

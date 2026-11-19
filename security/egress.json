@@ -22,6 +22,16 @@
    "purpose": "executor: asks the system which own address reaches the controller (a datagram socket is connected, nothing is sent), for the same lockout check"
   },
   {
+   "site": "lanloom/controlroom/wan.py::WanWatch.probe_once::dns",
+   "category": "own-internet-check",
+   "purpose": "optional internet check: one name lookup of the name an administrator picked; off until targets are set"
+  },
+  {
+   "site": "lanloom/controlroom/wan.py::WanWatch.probe_once::socket",
+   "category": "own-internet-check",
+   "purpose": "optional internet check: a TCP connection to the targets an administrator picked, closed at once; off until targets are set"
+  },
+  {
    "site": "lanloom/core.py::Core._presence_round.probe::socket",
    "category": "lan-scan",
    "purpose": "presence check: one TCP connect to an already known device in the local network"
@@ -165,6 +175,11 @@
    "site": "lanloom/sources/hostnet.py::NetlinkReader.__init__::socket",
    "category": "local-host",
    "purpose": "reads TCP byte counters of the host (netlink, nothing leaves the host)"
+  },
+  {
+   "site": "lanloom/sources/nut.py::Nut._open::socket",
+   "category": "configured-source",
+   "purpose": "read-only battery backup connection (NUT protocol, list and variable commands only) to the address an administrator entered"
   },
   {
    "site": "lanloom/sources/mqtt.py::Mqtt._connect::socket",

@@ -31,7 +31,7 @@ BANDS = {   # name -> (duplex, MHz, role)
     "B40": ("TDD", 2300, "capacity"), "B41": ("TDD", 2500, "capacity"), "N1": ("FDD", 2100, "capacity"), "N3": ("FDD", 1800, "capacity"),
     "N28": ("FDD", 700, "coverage"), "N78": ("TDD", 3500, "capacity"), "N77": ("TDD", 3700, "capacity"),
 }
-BAND_RX = re.compile(r"\b(?:band\s*)?([bn])\s?(\d{1,3})\b", re.I)
+BAND_RX = re.compile(r"\b(?:(band)\s*|([bn])\s?)(\d{1,3})\b", re.I)          # "B20", "n78", "n 78", "band 3" (LTE)
 TECH_WORDS = (("5g sa", "5G SA"), ("nr sa", "5G SA"), ("5g nsa", "5G NSA"), ("nr nsa", "5G NSA"), ("nsa", "5G NSA"), ("5g", "5G"), ("nr", "5G"),
               ("lte", "LTE"), ("4g", "LTE"), ("umts", "3G"), ("wcdma", "3G"), ("hspa", "3G"), ("3g", "3G"), ("edge", "2G"), ("gsm", "2G"), ("2g", "2G"))
 DATA_WARN = 80.0
@@ -66,13 +66,14 @@ def quality(sig: dict) -> dict:
 
 def parse_bands(value) -> list:
     out, seen = [], set()
-    for kind, n in BAND_RX.findall(str(value or "")):
-        name = "%s%s" % (kind.upper(), int(n))
+    for word, kind, n in BAND_RX.findall(str(value or "")):
+        kind = "B" if word else kind.upper()
+        name = "%s%s" % (kind, int(n))
         if name in seen:
             continue
         seen.add(name)
         duplex, mhz, role = BANDS.get(name, (None, None, None))
-        out.append({"band": name if kind.upper() == "B" else name.lower(), "kind": "LTE" if kind.upper() == "B" else "NR", "duplex": duplex, "mhz": mhz, "role": role})
+        out.append({"band": name if kind == "B" else name.lower(), "kind": "LTE" if kind == "B" else "NR", "duplex": duplex, "mhz": mhz, "role": role})
     return out[:8]
 
 
@@ -122,6 +123,14 @@ def _measure_of(ent: dict) -> Optional[str]:
     return None
 
 
+def _is_mobile(vals: dict) -> bool:
+    """RSRP or RSRQ are mobile-only figures; SINR (also SNR of a DSL line) and RSSI (every Wi-Fi sensor has one) count only
+    together with something that is mobile too - operator, network type, band, cell or data volume."""
+    if "rsrp" in vals or "rsrq" in vals:
+        return True
+    return ("sinr" in vals or "rssi" in vals) and any(k in vals for k in ("tech", "bands", "carrier", "cell_id", "tac", "data_used", "data_limit"))
+
+
 def from_hub(core, now: float) -> list:
     by: dict = {}
     for ent in hubfacts.entities(core):
@@ -149,7 +158,7 @@ def from_hub(core, now: float) -> list:
     out = []
     for (integ, dev), g in by.items():
         vals = g["vals"]
-        if not any(k in vals for k in ("rsrp", "rsrq", "sinr", "rssi")):
+        if not _is_mobile(vals):
             continue                                                  # a router without any signal figure is no mobile router
         try:
             net = core.hub_merge()["by_hub"].get("%s:%s" % (integ, dev))

@@ -37,7 +37,7 @@ BUILTIN_SIGNS = {
     "mqtt": ({"port": 1883}, {"port": 8883}, {"mdns": "_mqtt._tcp"}),
 }
 # guide per kind of source: the text keys live under setup.guide.<guide>.* (steps 1..n)
-GUIDE_STEPS = {"hub": 4, "mqtt": 4, "snmp": 4, "controller": 4, "hv": 4, "family": 4, "dns": 4, "apikey": 4, "ubus": 4}
+GUIDE_STEPS = {"hub": 4, "mqtt": 4, "snmp": 4, "nut": 4, "controller": 4, "hv": 4, "family": 4, "dns": 4, "apikey": 4, "ubus": 4}
 
 # result key of a connection test -> what the person should look at
 _REJECTED = ("auth_failed", "forbidden", "key_refused", "token_refused", "subscribe_denied")
@@ -253,6 +253,8 @@ def _prefill(kind: str, fam, dev: dict, port) -> dict:
         return {"host": ip, "port": 8883 if port == 8883 else 1883, "tls": port == 8883}
     if kind == "snmp":
         return {"host": ip}
+    if kind == "nut":
+        return {"host": ip, "port": port or 3493}
     if kind == "hub":
         return {"url": "http://%s:%d" % (ip, port or 8123)}
     if fam is not None and fam.prefill_scheme == "http" and any(f.get("k") == "url" for f in fam.form):

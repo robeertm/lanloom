@@ -3,7 +3,7 @@
 Only these commands are ever sent (``_ALLOWED``): ``LIST UPS``, ``LIST VAR <ups>``, ``VERSION`` and ``LOGOUT``. There is
 no ``USERNAME``/``PASSWORD``/``LOGIN`` and no ``INSTCMD``/``SET``, so a connection can neither switch an outlet nor start
 a battery test; the protocol of an anonymous client cannot write anything anyway, and this client makes sure of it
-for itself. Replies are read line by line with hard limits (line length, number of variables, total time).
+for itself. Replies are read line by line with hard limits (line length, number of variables, time per line and per session).
 
 Every ``poll_s`` seconds the source emits one ``{"type": "nut", ...}`` event with a neutral reading per UPS (see
 ``lanloom/controlroom/ups.py`` for the neutral form and the meaning of the status words).
@@ -24,6 +24,7 @@ MAX_LINE = 1024
 MAX_VARS = 400
 MAX_UPS = 16
 READ_TIMEOUT_S = 6.0
+SESSION_TIMEOUT_S = 45.0        # a whole session (connect, every list) never lasts longer, however slowly a server drips its lines
 _ALLOWED = re.compile(rb"\A(?:LIST UPS|LIST VAR [A-Za-z0-9_.@-]{1,64}|VERSION|LOGOUT)\n\Z")
 _NAME = re.compile(r"\A[A-Za-z0-9_.@-]{1,64}\Z")
 _VAR = re.compile(r'\AVAR ([A-Za-z0-9_.@-]+) ([A-Za-z0-9_.-]+) "(.*)"\Z')
@@ -86,7 +87,10 @@ class _Conn:
         await self.w.drain()
         lines = []
         while True:
-            raw = await asyncio.wait_for(self.r.readline(), READ_TIMEOUT_S)
+            try:
+                raw = await asyncio.wait_for(self.r.readline(), READ_TIMEOUT_S)
+            except (ValueError, asyncio.LimitOverrunError):          # the stream's own limit: a line without an end
+                raise SourceError("source.nut.protocol", "line too long")
             if not raw:
                 raise SourceError("source.nut.closed", "connection closed")
             if len(raw) > MAX_LINE:
@@ -169,7 +173,7 @@ class Nut:
             try:
                 good = None
                 while True:
-                    await emit_event(emit, await self.read_all())
+                    await emit_event(emit, await asyncio.wait_for(self.read_all(), SESSION_TIMEOUT_S))
                     await status.set(emit, True, "source.nut.ok")
                     good = good or asyncio.get_running_loop().time()
                     if asyncio.get_running_loop().time() - good >= 30:

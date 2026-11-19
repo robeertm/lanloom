@@ -43,6 +43,8 @@ CATEGORIES = {
     "configured-channel": "a delivery channel an administrator or user set up (report, notifications, heartbeat)",
     "configured-ai": "an AI service an administrator set up and switched on",
     "executor-link": "between the app and its own executor container",
+    "own-internet-check": "name lookup and TCP connection to targets an administrator picked for the internet check; off until "
+                          "targets are set; never an address of the project",
     "own-connection-check": "TLS handshake to the addresses of the connections set up (certificate expiry)",
     "listener": "a socket that only receives (no outbound connection)",
     "addon-system": "the API of the add-on system inside the add-on network (add-on mode only, after an administrator "

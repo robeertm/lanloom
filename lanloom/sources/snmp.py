@@ -876,8 +876,9 @@ UPS_BATTERY_STATUS = {1: "unknown", 2: "normal", 3: "low", 4: "depleted"}
 def parse_ups_mib(rows) -> dict:
     """Neutral reading of a UPS from the walk below upsMIB.upsObjects ({} when the agent offers none).
 
-    Status words are the ones the UPS-MIB uses (output source, battery status); ``runtime_s`` comes from
-    upsEstimatedMinutesRemaining and is only trusted on battery, ``charge`` from upsEstimatedChargeRemaining."""
+    Status words are the NUT ones, derived from the UPS-MIB (output source, battery status); ``runtime_s`` comes from
+    upsEstimatedMinutesRemaining (the estimate "if the power failed now", also on mains), ``charge`` from
+    upsEstimatedChargeRemaining; values outside their range (a negative estimate, a charge above 100) are dropped."""
     cols = {}
     for oid, value in rows:
         rest = oid[len(OID_UPS) + 1:] if oid.startswith(OID_UPS + ".") else ""
@@ -898,10 +899,15 @@ def parse_ups_mib(rows) -> dict:
     out_src = UPS_OUTPUT_SOURCE.get(cols.get("4.1.0"), "")
     batt = UPS_BATTERY_STATUS.get(cols.get("2.1.0"), "")
     minutes = num("2.3.0")
+    if minutes is not None and minutes < 0:
+        minutes = None
+    charge = num("2.4.0")
+    if charge is not None and not 0 <= charge <= 100:
+        charge = None
     return {"name": clip(cols.get("1.5.0") or cols.get("1.2.0") or "ups", 64), "description": clip(cols.get("1.2.0"), 80) or "",
             "status": ("OB" if out_src == "battery" else "OL" if out_src in ("normal", "bypass", "booster", "reducer") else "") +
                       (" LB" if batt in ("low", "depleted") else ""),
-            "charge": num("2.4.0"), "charge_low": None, "runtime_s": minutes * 60 if minutes is not None else None, "runtime_low_s": None,
+            "charge": charge, "charge_low": None, "runtime_s": minutes * 60 if minutes is not None else None, "runtime_low_s": None,
             "load": first("4.4.1.5."), "input_v": first("3.3.1.3."), "output_v": first("4.4.1.2."), "battery_v": num("2.5.0", 0.1),
             "temp": num("2.7.0"), "power_w": first("4.4.1.4."), "test": "", "model": clip(cols.get("1.2.0"), 60) or ""}
 

@@ -10,7 +10,7 @@ The checks read the source code (AST), so a new write path fails here even befor
 import ast
 from pathlib import Path
 
-from lanloom.sources import controller, hostnet, hub, mqtt, snmp
+from lanloom.sources import controller, hostnet, hub, mqtt, nut, snmp
 
 SRC = Path(__file__).resolve().parent.parent / "lanloom" / "sources"
 RAW_SEND = {"write", "send", "sendto", "sendall", "sendmsg", "send_text", "send_bytes", "writelines",
@@ -28,6 +28,8 @@ SEND_SITES = {
     ("controller.py", "Controller._send", "request"),  # checks ALLOWED_POST / ALLOWED_GET / login body keys
     ("snmp.py", "SnmpClient._send", "send"),         # messages around build_pdu, which allows read PDUs only
     ("hostnet.py", "NetlinkReader.dump", "send"),    # sock_diag dump request
+    ("nut.py", "_Conn.ask", "write"),                # only after the allow-list regex matched the whole line
+    ("nut.py", "_Conn.close", "write"),              # LOGOUT, nothing else
 }
 
 
@@ -176,3 +178,23 @@ def test_checker_notices_a_new_write_path():
     bad = ast.parse("class Hub:\n    def turn_on(self, ws):\n        ws.send_text('{}')\n")
     sites = {("hub.py", w, callee(c)) for w, c in calls(bad) if callee(c) in RAW_SEND}
     assert sites and not sites <= SEND_SITES
+
+
+def test_nut_sends_only_the_read_commands():
+    """The allow-list holds the four read commands; the only two writes are the checked line and LOGOUT; every ask names a list."""
+    import re
+    assert nut._ALLOWED.match(b"LIST UPS\n") and nut._ALLOWED.match(b"LIST VAR office\n") and nut._ALLOWED.match(b"VERSION\n") and nut._ALLOWED.match(b"LOGOUT\n")
+    words = set(re.findall(rb"[A-Z]{3,}", nut._ALLOWED.pattern))
+    assert words == {b"LIST", b"UPS", b"VAR", b"VERSION", b"LOGOUT"}
+    for where, call in calls(tree("nut.py")):
+        name = callee(call)
+        if name == "write":
+            arg = call.args[0]
+            assert (where == "_Conn.ask" and isinstance(arg, ast.Name) and arg.id == "data") or \
+                (where == "_Conn.close" and isinstance(arg, ast.Constant) and arg.value == b"LOGOUT\n"), (where, ast.unparse(arg))
+        if name == "ask":
+            first = ast.unparse(call.args[0])
+            assert first in ("'LIST UPS'", "'LIST VAR ' + name"), (where, first)
+    consts = {n.value for n in ast.walk(tree("nut.py")) if isinstance(n, ast.Constant) and isinstance(n.value, (str, bytes))}
+    for word in ("USERNAME", "PASSWORD", "LOGIN", "INSTCMD", "SET ", "FSD", "STARTTLS", "MASTER", "PRIMARY"):
+        assert not any(isinstance(c, str) and c.startswith(word) or isinstance(c, bytes) and c.startswith(word.encode()) for c in consts), word

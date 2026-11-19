@@ -122,7 +122,7 @@ def test_the_link_checker_catches_what_it_should(tmp_path):
 # ---------------------------------------------------------------------------------------------------------------- manual
 VIEW_PAGES = {"overview": "overview.md", "map": "map.md", "network": "network.md", "paths": "data-paths.md",
               "devices": "devices.md", "firewall": "firewall.md", "reports": "nightly-reports.md", "automations": "automations.md",
-              "running": "running.md", "settings": "settings.md", "sites": "sites.md", "incidents": "incidents.md"}
+              "running": "running.md", "settings": "settings.md", "sites": "sites.md", "incidents": "incidents.md", "controlroom": "controlroom.md"}
 EXTRA_PAGES = ("inventory.md", "export.md", "ai.md", "views.md", "README.md")
 SECTIONS = ["Purpose", "What you see", "How to use it", "Limits", "Privacy", "See also"]
 
@@ -187,7 +187,7 @@ def test_every_reason_family_is_explained():
     assert "read the status of a source" in text
     for key in REASON_KEYS:
         family = key.split(".")[1]
-        assert family in ("hostnet", "hub", "mqtt", "snmp", "controller"), key
+        assert family in ("hostnet", "hub", "mqtt", "snmp", "controller", "nut"), key
 
 
 def test_compatibility_matrix_and_disclaimer():

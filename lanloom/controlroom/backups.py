@@ -30,6 +30,8 @@ KEEP_DAYS = 400
 DEFAULT_EXPECT_S = 7 * 86400.0
 LATE_FACTOR = 1.5
 RESTORE_OLD_DAYS = 180
+RUN_SILENT_S = 3600.0              # a script that reported progress and then fell silent for this long (and longer than the learned
+                                   # duration) is no longer "running" - otherwise a crashed script would hide a failure for ever
 SOURCE_STALE_S = STALE_S
 NAME_WORDS = ("backup", "snapshot", "dump", "restic", "borg", "duplic", "rsync", "offsite")
 MAX_CHAINS = 300
@@ -50,9 +52,9 @@ def expect_from_schedule(text) -> float:
     s = str(text or "").strip().lower()
     if not s:
         return DEFAULT_EXPECT_S
-    if re.fullmatch(r"\d{1,2}:\d{2}", s) or s in ("daily", "*-*-* 02:00", "*:0/0"):
+    if re.fullmatch(r"(\*-\*-\* )?\d{1,2}:\d{2}(:\d{2})?", s) or s in ("daily", "*:0/0"):
         return 86400.0
-    if "hour" in s or re.fullmatch(r"(\*|\d{1,2}):?\d{0,2}/?\d*", s) and "/" in s:
+    if "hour" in s or "/" in s and not any(d in s for d in _DAYS):         # "*:0/15", "*/6:00": several times a day
         return 3600.0 * 3
     if ".." in s and any(d in s for d in _DAYS):
         return 3 * 86400.0                     # weekdays only: the weekend gap is normal
@@ -94,6 +96,14 @@ def parse_time(value) -> Optional[float]:
     return d.timestamp()
 
 
+def _free_pct(store) -> Optional[float]:
+    """Free share of a backup storage in percent (None when the storage or its size is not known)."""
+    total = num((store or {}).get("total"))
+    if not total or total <= 0:
+        return None
+    return round(max(0.0, min(100.0, 100.0 * (1 - (num(store.get("used")) or 0.0) / total))), 1)
+
+
 class BackupWatch:
     def __init__(self, core, clock=time.time):
         self.core = core
@@ -132,7 +142,7 @@ class BackupWatch:
             return False
         for t in ("backup_chains", "backup_runs", "backup_learn"):
             self.store.execute("DELETE FROM %s WHERE %s=?" % (t, "id" if t == "backup_chains" else "chain"), (chain_id,))
-        self.store.execute("DELETE FROM backup_checks WHERE chain=?", (chain_id,))
+        self.store.execute("DELETE FROM backup_checks WHERE chain IN (?, ?)", (chain_id, "manual:" + chain_id))      # keyed by the id of the list
         self.live.pop(chain_id, None)
         return True
 
@@ -161,8 +171,8 @@ class BackupWatch:
 
     def set_restore_checked(self, chain_id: str, t: Optional[float] = None, now: Optional[float] = None) -> None:
         now = self.clock() if now is None else now
-        t = now if t is None else float(t)
-        if t > now + 60 or t < now - 20 * 365 * 86400:
+        t = now if t is None else num(t)
+        if t is None or t > now + 60 or t < now - 20 * 365 * 86400:
             raise ValueError("chain.err.date")
         self.store.execute("INSERT INTO backup_checks(chain, t) VALUES (?,?) ON CONFLICT(chain) DO UPDATE SET t=excluded.t", (chain_id, t))
 
@@ -180,6 +190,15 @@ class BackupWatch:
 
     def learned(self, cid: str) -> dict:
         return self.store.one("SELECT bps, dur_s, size, n FROM backup_learn WHERE chain=?", (cid,)) or {"bps": None, "dur_s": None, "size": None, "n": 0}
+
+    def _expire_silent(self, now: float) -> None:
+        """Forget runs a script announced and never finished (a crashed script reports nothing more)."""
+        for cid, lv in list(self.live.items()):
+            if lv.get("reported") is None:
+                continue
+            limit = max(RUN_SILENT_S, 1.5 * (self.learned(cid)["dur_s"] or 0.0))
+            if now - lv["reported"] > limit:
+                self.live.pop(cid, None)
 
     def _progress(self, cid: str, now: float) -> dict:
         lv = self.live.get(cid) or {}
@@ -219,8 +238,14 @@ class BackupWatch:
             if not guests:
                 continue
             jobs = [j for j in st.get("backup_jobs") or [] if j.get("enabled", True)]
-            stores = {s["id"]: s for s in st.get("storage") or []}
+            stores = {}
+            for sto in st.get("storage") or []:                # a job names its storage by name, the list also has opaque ids
+                for k in (sto.get("name"), sto.get("id")):
+                    if k:
+                        stores.setdefault(k, sto)
             for g in guests:
+                if g.get("template"):
+                    continue                                       # a template is not a thing to back up
                 b = g.get("backup") or {}
                 job = next((j for j in jobs if g["id"] in (j.get("guests") or []) or (j.get("selection") == "all" and g["id"] not in (j.get("excluded") or []))), None)
                 expect = expect_from_schedule(job.get("schedule")) if job else DEFAULT_EXPECT_S
@@ -229,14 +254,15 @@ class BackupWatch:
                 out.append({"id": "hv:%s:%s" % (e["key"].split(":")[-1], g["id"]), "name": g.get("name") or "?", "kind": "hypervisor",
                             "source": "%s %s" % ("VM" if g.get("kind") == "vm" else "CT", g.get("vmid") or ""), "target": (job or {}).get("storage") or "",
                             "last_ok": last_ok, "fail": fail, "running": running, "expect_s": expect, "source_age": float(e.get("age_s") or 0),
-                            "ever": bool(job) or last_ok is not None, "next_t": num((job or {}).get("next_t")), "origin": e.get("name") or "",
-                            "target_free": (lambda s: None if not s else num(s.get("total")) and round(100.0 * (1 - (num(s.get("used")) or 0) / num(s.get("total"))), 1))(stores.get((job or {}).get("storage")))})
+                            "ever": bool(job) or last_ok is not None or (isinstance(g.get("backup"), dict) and g.get("status") == "running"),    # a running guest outside every job: "none", not "unknown"
+                            "next_t": num((job or {}).get("next_t")), "origin": e.get("name") or "",
+                            "target_free": _free_pct(stores.get((job or {}).get("storage")))})
         return out
 
     def _from_hub(self, now: float) -> list:
         by: dict = {}
         for ent in hubfacts.entities(self.core):
-            if "backup" not in ent["text"]:
+            if "backup" not in ent["text"] or ent["state"] in (None, "unavailable"):      # an entity that tells nothing is no reading
                 continue
             g = by.setdefault(ent["integ"], {"t": 0.0})
             text = ent["text"]
@@ -304,6 +330,7 @@ class BackupWatch:
     def chains(self, now: Optional[float] = None) -> list:
         now = self.clock() if now is None else now
         with self._lock:
+            self._expire_silent(now)
             raw = self._from_manual(now) + self._from_hypervisor(now) + self._from_hub(now) + self._from_agents(now)
             checks = {r["chain"]: r["t"] for r in self.store.query("SELECT chain, t FROM backup_checks")}
             out = []
@@ -317,12 +344,12 @@ class BackupWatch:
                     running = c["running"]
                     live_key = c["key"]
                 status, level = judge(c["last_ok"], c["fail"], running, c["expect_s"], c["source_age"], now, c["ever"])
-                if c["kind"] == "manual" and not c["ever"]:
+                if c["kind"] == "manual" and not c["ever"] and status != "running":
                     status, level = "unknown", "unknown"
                 if c.get("blocked") and status == "ok":
                     status, level = "late", "warn"
                 age = None if c["last_ok"] is None else max(0.0, now - c["last_ok"])
-                rc = checks.get(cid if c["kind"] != "manual" else cid)
+                rc = checks.get(cid)
                 out.append({"id": cid, "name": c["name"], "kind": c["kind"], "source": c["source"], "target": c["target"], "status": status, "level": level,
                             "last_ok_t": c["last_ok"], "last_fail_t": c["fail"], "age_s": None if age is None else round(age), "expect_s": c["expect_s"],
                             "next_t": c.get("next_t"), "progress": self._progress(live_key, now) if status == "running" else None,

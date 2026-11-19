@@ -11,6 +11,7 @@ Family by stage by checked firmware. **Read** is stage A (Lanloom only reads); *
 | This host | yes | none | Linux kernels with socket diagnostics | automatic tests; a desktop container runtime lacks the interface and reports it |
 | Host agent and container source | yes | none | amd64 and arm64 (the same image as Lanloom); a host kernel with socket diagnostics over netlink; optional: the service manager over the system message bus, a container runtime API, an overlay VPN's status interface (see below) | automatic tests with stand-ins for the kernel files, the bus and the runtime |
 | SNMP v2c / v3 | yes | none (Get, GetNext, GetBulk only) | protocol level: v2c, v3 with MD5, SHA, SHA-256 and AES-128; not tied to a firmware | automatic protocol tests with stand-ins |
+| Network UPS Tools server (TCP 3493) | yes | none (only `LIST UPS`, `LIST VAR`, `VERSION`, `LOGOUT`; no login, no commands) | servers speaking the protocol; any UPS the server offers | protocol tests with a stand-in server |
 | MQTT 3.1.1 broker | yes | none (cannot publish) | brokers speaking MQTT 3.1.1 | protocol tests with a stand-in broker |
 | Switch controller (local JSON API) | yes | none | console and classic API layouts | automatic adapter tests with stand-ins |
 | Home-automation hub (WebSocket API) | yes | none (cannot call services) | releases with the documented WebSocket API | protocol tests with a stand-in hub |
@@ -37,7 +38,7 @@ These work with any device that speaks the protocol; they only read.
 | This host (kernel socket diagnostics) | own TCP flows, interface counters | never |
 | Host agent (optional, other hosts) | TCP conversations with bytes, listening services, load, memory, disks, failed services and timers, containers, overlay VPN peers; never contents, environment variables or command lines ([details](HOST-AGENT.md)) | never |
 | Container source | the container list of a host through the runtime API, `GET` only | never |
-| SNMP v2c / v3 | interface counters, LLDP neighbours, switch address table, host values (HOST-RESOURCES-MIB; load and temperature from the UCD and LM-SENSORS tables where served) | never (Get, GetNext, GetBulk only) |
+| SNMP v2c / v3 | interface counters, LLDP neighbours, switch address table, host values (HOST-RESOURCES-MIB with every fixed disk as a volume; load and temperature from the UCD and LM-SENSORS tables where served), battery backup values (UPS-MIB, RFC 1628) | never (Get, GetNext, GetBulk only) |
 | Switch controller (local JSON API, view-only account) | which client sits on which switch port or access point | never |
 | MQTT broker | message and byte counts per topic group | never (cannot publish) |
 | Home-automation hub (WebSocket API) | rooms, devices, entities, state changes, automation runs; admin mode: entities used by automations and scripts, related items, last runs ([details](HUB-BRIDGE.md)) | never (cannot call services, never renders templates) |

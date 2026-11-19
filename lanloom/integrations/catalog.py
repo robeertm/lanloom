@@ -7,8 +7,8 @@
 ``family``   - a device-family adapter of the registry; its signs are the manifest's ``detect`` list and whether it can
                also configure (an executor half) comes from its capabilities;
 ``catalog``  - a class with its own signs in the JSON: it is either ``available`` through one of the kinds above (a
-               storage device or a mobile router is read over SNMP) or ``planned`` (a UPS over a UPS-monitoring
-               service, a printer, a camera, a container host): shown with a read-only account guide and
+               storage device or a mobile router is read over SNMP, a UPS over the UPS-monitoring protocol) or
+               ``planned`` (a printer, a camera, a container host): shown with a read-only account guide and
                the topic it belongs to, without a button that would do nothing.
 
 Everything is derived from stored scan data - nothing is sent to a device to build a suggestion.

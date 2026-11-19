@@ -971,10 +971,10 @@ def _wan_states(raw, out: dict, order: list) -> None:
             w["up"] = rec["up"]
         for src, dst in (("rx_bytes-r", "rx_bps"), ("tx_bytes-r", "tx_bps")):
             v = num(rec.get(src))
-            if v is not None:
+            if v is not None and 0 <= v < 1e15:                 # no negative or endless rates (also "nan" and "inf" text)
                 w[dst] = v * 8.0
         lat = num(rec.get("latency"))
-        if lat is not None:
+        if lat is not None and 0 <= lat < 1e9:
             w["latency_ms"] = lat
         ifname = text(rec.get("ifname") or rec.get("name"), 16)
         if isinstance(rec.get("is_uplink"), bool):

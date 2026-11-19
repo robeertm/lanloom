@@ -69,6 +69,7 @@ class ControlRoom:
         core = self.core
         lines, ages = [], []
         eq_found = False
+        ids_done = False
         seen = set()
         for e in self._live(now):
             st = e.get("state") or {}
@@ -92,7 +93,8 @@ class ControlRoom:
                 if num(stats.get("uptime_s")) is not None:
                     lines.append(item("cr.gw.uptime", "ok", up_dur=int(stats["uptime_s"])))
             ids = st.get("ids")
-            if isinstance(ids, dict) and ids.get("enabled") is not None:
+            if isinstance(ids, dict) and ids.get("enabled") is not None and not ids_done:         # two connections to one gateway: one set of lines
+                ids_done = True
                 if not ids["enabled"]:
                     lines.append(item("cr.gw.ids_off", "warn"))
                 elif num(ids.get("blocked_24h")) is not None:
@@ -211,8 +213,6 @@ class ControlRoom:
                 lines.append(item("cr.hub.waiting", "unknown"))
                 continue
             lines.append(item("cr.hub.connected", "ok" if (age or 0) <= 900 else "unknown", n=len(snap.get("entities") or [])))
-        for k in ("automation_failed",):
-            pass
         return self._block("hub", lines, min(ages) if ages else None, "#/sensors")
 
     def _dns(self, now: float) -> Optional[dict]:

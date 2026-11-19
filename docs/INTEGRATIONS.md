@@ -41,6 +41,10 @@ A router state (`controller.class: "router"`) builds its zones from the firewall
 
 A hypervisor state adds `hosts`, `guests`, `guest_nics`, `guest_rules`, `fw_rules`, `fw_options`, `bridges`, `sdn_zones`, `sdn_vnets`, `storage`, `backup_jobs` and `findings` to the neutral model (see `lanloom/firewall/neutral.py`); the component card of a node and of a guest shows them.
 
+## Internet lines, mobile routers and gateway events
+
+A gateway family fills the control room through four optional neutral lists (see `lanloom/firewall/neutral.py`): `wans` (per line: `up`, `active`, `role` primary or backup, `kind` cable or cellular, rates, latency), `cellular` (signal figures in dBm/dB, `tech`, `bands`, `carrier`, `data_used`, `data_limit`; `cell_id`, `tac` and `location` are administrator data), `wan_events` (the gateway's own up/down/failover stream, `[{t, kind, line}]`) and `ids` (`{enabled, blocked_24h}`). Leave out what the product does not tell: the control room then measures or says *unknown* instead of believing a default. See [CONTROL-ROOM.md](CONTROL-ROOM.md).
+
 ## Night report contributions
 
 A family may contribute a section to the night report: `report="lanloom.integrations.<family>.report:<function>"` in its manifest, collected by `integrations.night_sections()`. The function is pure - `function(previous_state, state, now, name)` - and returns `{"family", "title", "summary", "params", "look", "items": [{"level": "alert"|"warn"|"info", "key", "params"}]}` (texts are i18n keys with parameters, no internal ids), or `None` when the family's read half has delivered no state. No source, no section.

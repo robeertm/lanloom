@@ -367,6 +367,41 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
     async def ingest_list(limit: int = 50):
         return {"reports": state.ingest.list(limit)}
 
+    CHAIN = s_obj({"id": s_str("short name for declared chains (the run route takes it); other chains have a prefixed id"), "name": s_str(), "kind": s_str(enum=("hypervisor", "hub", "agent", "manual")),
+                   "status": s_str("ok, late, failed, running, none or unknown (unknown is never shown as ok)", ("ok", "late", "failed", "running", "none", "unknown")),
+                   "level": s_str(enum=("ok", "warn", "danger", "unknown")), "last_ok_t": s_num(TS, nullable=True),
+                   "expect_s": s_num("expected seconds between two backups"), "restore_checked_t": s_num("a person noted a restore check (" + TS + ")", nullable=True),
+                   "progress": s_num("percent while running, when known", nullable=True)}, required=("id", "name", "kind", "status", "level"), extra=True)
+
+    @api.op("GET", BASE + "/backups", tag="backups", summary="Backup chains with their state (control room)",
+            response=s_obj({"summary": s_map(s_int()), "chains": s_arr(CHAIN)}),
+            example={"summary": {"ok": 1}, "chains": [{"id": "offsite", "name": "Off-site copy", "kind": "manual", "status": "ok", "level": "ok",
+                                                      "last_ok_t": 1795032261.2, "expect_s": 86400.0, "restore_checked_t": None, "progress": None}]})
+    async def backups_list():
+        v = await asyncio.to_thread(state.core.controlroom.backups.view)
+        rows = [dict({k: c.get(k) for k in ("id", "name", "kind", "status", "level", "last_ok_t", "expect_s", "restore_checked_t")},
+                     progress=(c.get("progress") or {}).get("pct")) for c in v["chains"]]
+        for r in rows:
+            if r["kind"] == "manual":
+                r["id"] = r["id"].split(":", 1)[1]            # the short name the run route takes
+        return {"summary": v["summary"], "chains": rows}
+
+    @api.op("POST", BASE + "/backups/{chain_id}/run", tag="backups", summary="A backup script reports that a declared chain just finished",
+            description="Needs a token with the scope operate or admin. The chain has to be declared first (control room > Backups). With size and "
+                        "duration Lanloom learns the throughput and can show progress for the next run.",
+            params=(P("chain_id", "path", s_str(), True, "short name of the declared chain"),),
+            body=s_obj({"ok": s_bool("true when the run succeeded"), "size": s_num("bytes copied", nullable=True), "duration_s": s_num("seconds it took", nullable=True)},
+                       required=("ok",)),
+            response=s_obj({"ok": s_bool()}), example={"ok": True})
+    async def backups_run(request: Request, chain_id: str):
+        data, _size, problem = await read_limited(request, 4096)
+        if problem:
+            return problem
+        request.state.audit = {"target": chain_id[:48], "detail": {"ok": bool(data.get("ok"))}}
+        if not state.core.controlroom.backups.report_run(chain_id[:48], bool(data.get("ok")), data.get("size"), data.get("duration_s")):
+            return err("api.err.not_found", 404)
+        return {"ok": True}
+
     INGEST_BODY = s_obj({"source": s_str("short name of the sender, e.g. nightly-backup (max 60)"), "title": s_str("headline (max 120)"),
                          "level": s_str("default info", ingest_mod.LEVELS), "summary": s_str("one line (max 500)"),
                          "items": s_arr(s_obj({"text": s_str("max 300"), "level": s_str(enum=ingest_mod.LEVELS)}, required=("text",)),

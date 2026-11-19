@@ -153,8 +153,9 @@ the model:
 Lanloom does not phone home. The only outbound connection of its own is the optional update check against the public
 release feed. Everything else connects only when someone sets it up: integrations to the addresses an administrator
 entered, delivery channels, web push to a browser's push service, the heartbeat, the MQTT output (only Lanloom's own
-topics, counts only), a cloud AI service, and one TLS handshake per morning to the connections set up (certificate
-expiry). As an add-on, Lanloom asks the add-on system's API for its MQTT broker only after an administrator picks it,
+topics, counts only), a cloud AI service, the optional internet check of the control room (a name lookup and a TCP
+connection to targets an administrator picks; off until targets are set, never an address of the project), and one TLS
+handshake per morning to the connections set up (certificate expiry). As an add-on, Lanloom asks the add-on system's API for its MQTT broker only after an administrator picks it,
 and it never asks the release feed.
 
 This is a checked rule, not a promise: `scripts/egress_check.py` reads the shipped code (without running it) and lists

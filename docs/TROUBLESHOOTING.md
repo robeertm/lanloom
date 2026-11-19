@@ -4,7 +4,7 @@ Start here when something does not work. The page is ordered the way problems us
 
 - [Read the status of a source](#read-the-status-of-a-source)
 - [The diagnostic export](#the-diagnostic-export)
-- [This host](#this-host) · [SNMP](#snmp) · [MQTT broker](#mqtt-broker) · [Switch controller](#switch-controller) · [Home-automation hub](#home-automation-hub)
+- [This host](#this-host) · [SNMP](#snmp) · [Battery backup (NUT)](#battery-backup-nut) · [MQTT broker](#mqtt-broker) · [Switch controller](#switch-controller) · [Home-automation hub](#home-automation-hub)
 - [Device-family adapters](#device-family-adapters) · [DNS filter](#dns-filter) · [AI services](#ai-services) · [Host agent and container source](#host-agent-and-container-source)
 - [Data paths and NetFlow](#data-paths-and-netflow)
 - [Scanning and devices](#scanning-and-devices)
@@ -88,6 +88,19 @@ Reads the system group and the interface counters of a router or switch every te
 | Unexpected answer | the address is not an SNMP agent, or the version does not match |
 | The internet line shows no rates | Lanloom takes the router's counters from the SNMP connection of the gateway; connect the router itself, not only a switch behind it |
 | Nothing at all, although the agent answers | Lanloom does not try the default community `public` during a scan unless you tick the option in the scan dialog; enter your community in the connection |
+
+## Battery backup (NUT)
+
+Reads the variables of every battery backup (UPS) a Network UPS Tools server offers, every 15 seconds. Read-only: the only commands in the code are the list of UPS names, the list of variables of one UPS, the version and the logout. There is no login, no switching of outlets and no battery test.
+
+| Reason | Cause and fix |
+|---|---|
+| Address or port invalid | enter the host name or address of the NUT server and its port (default 3493); a UPS name, if you set one, may only contain letters, digits and `_ . @ -` |
+| No answer (timeout) or not reachable | the server is off, or `LISTEN` in its `upsd.conf` only covers the loopback address; allow the address of the Lanloom host and let TCP port 3493 pass the firewall |
+| The server refused the request | its access list (`upsd.users`, `ACL` in older versions) does not let this host read; reading needs no user |
+| Unexpected answer | the address is not a NUT server, a line was too long, or the server offered more variables than Lanloom reads |
+| The server offers no UPS | the driver of the UPS is not running; `upsc -l` on the server lists what it offers |
+| The card says *unknown* although the connection is fine | the UPS reported no status word, or its last reading is older than 15 minutes |
 
 ## MQTT broker
 

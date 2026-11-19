@@ -288,6 +288,8 @@
       { k: 'user', when: { version: '3' } }, { k: 'auth_proto', type: 'select', options: ['sha', 'sha256', 'md5'], when: { version: '3' } },
       { k: 'auth_key', secret: true, type: 'password', when: { version: '3' } }, { k: 'priv_proto', type: 'select', options: ['aes'], when: { version: '3' } },
       { k: 'priv_key', secret: true, type: 'password', when: { version: '3' } }, { k: 'uplink', ph: 'wan' }],
+    nut: [
+      { k: 'host', ph: '192.168.1.20', req: true }, { k: 'port', type: 'number', ph: '3493' }, { k: 'ups' }],
     controller: [
       { k: 'url', type: 'url', ph: 'https://192.168.1.2:8443', req: true },
       { k: 'username', req: true }, { k: 'password', secret: true, type: 'password', req: true },
@@ -305,7 +307,8 @@
   const family = kind => (FORMS[kind] ? null : LL.families.find(f => f.family === kind) || null);
   const famTitle = fam => { if (fam.sample) return t(fam.sample === 'hypervisor' ? 'integ.family.sample_hv' : 'integ.family.sample'); const k = 'integrations.family.' + fam.family; return t(k) === k ? fam.label : t(k); };
   LL.integTitle = kind => { const fam = family(kind); return fam ? famTitle(fam) : t('integ.' + kind + '.title'); };
-  LL.integKinds = () => ['hub', 'mqtt', 'snmp', 'controller'].concat(LL.families.map(f => f.family));
+  LL.builtinKinds = ['hub', 'mqtt', 'snmp', 'controller', 'nut'];       // the kinds of source Lanloom has always had, each with a form of its own
+  LL.integKinds = () => LL.builtinKinds.concat(LL.families.map(f => f.family));
 
   LL.integrationCard = function (kind, existing, onChange, opts) {
     const inputs = {};
@@ -390,7 +393,7 @@
       body.hidden = !body.hidden; toggle.setAttribute('aria-expanded', String(!body.hidden)); toggle.textContent = body.hidden ? t('integ.edit') : t('integ.close');
     } }, existing ? t('integ.edit') : t('integ.close'));
     return h('article', { class: 'integ card card--flat' },
-      h('header', { class: 'integ__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch' }[kind] || 'router'),
+      h('header', { class: 'integ__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch', nut: 'server' }[kind] || 'router'),
         h('div', { class: 'integ__titles' }, h('h3', {}, existing ? existing.name : LL.integTitle(kind)),
           h('p', { class: 'muted' }, fam ? (famKind === 'hv' ? t('integ.family.desc.hv') : t('integ.family.desc')) : t('integ.' + kind + '.desc')),
           fam && fam.docs ? h('p', { class: 'integ__fine muted' }, t('integ.family.notice')) : null),
@@ -416,7 +419,7 @@
       btn.textContent = body.hidden ? (sg.configured ? t('setup.suggest.again') : t('integ.setup')) : t('integ.close');
     } }, sg.configured ? t('setup.suggest.again') : t('integ.setup'));
     return h('article', { class: 'setup-suggest card card--flat' + (sg.configured ? ' is-configured' : '') },
-      h('header', { class: 'setup-suggest__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch', family: 'switch', hv: 'server', dns: 'service' }[sg.guide] || sg.device_kind || 'unknown'),
+      h('header', { class: 'setup-suggest__head' }, LL.kindIcon({ hub: 'hub', mqtt: 'broker', snmp: 'router', controller: 'switch', nut: 'server', family: 'switch', hv: 'server', dns: 'service' }[sg.guide] || sg.device_kind || 'unknown'),
         h('div', { class: 'setup-suggest__titles' }, h('h3', {}, t(titleKey) === titleKey ? LL.integTitle(sg.kind) : t(titleKey)),
           h('p', { class: 'muted' }, h('span', {}, sg.title), ' · ', h('span', { class: 'mono' }, sg.ip)), reasons),
         sg.configured ? h('span', { class: 'chip chip--ok' }, t('setup.suggest.connected')) : LL.certaintyChip(sg.certainty), btn),

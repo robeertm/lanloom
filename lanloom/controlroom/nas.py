@@ -25,6 +25,12 @@ MAX_ITEMS = 12
 VITAL_LEVELS = {"temp": (70.0, 85.0), "mem": (85.0, 95.0), "cpu": (85.0, 95.0)}
 
 
+def _skipped(name) -> bool:
+    """A system mount (the mount itself or anything below it; ``/run`` is not ``/runner-data``)."""
+    n = str(name or "")
+    return any(n == m or n.startswith(m + "/") for m in SKIP_MOUNTS)
+
+
 def is_nas(dev: dict) -> bool:
     return (dev.get("user_kind") or dev.get("kind")) == "nas"
 
@@ -53,12 +59,12 @@ def volumes(core, dev_id: str, now: float, readings_ip: str) -> list:
         for h in detail.get("hosts") or []:
             for d in (h.get("system") or {}).get("disks") or []:
                 m = str(d.get("mount") or "")
-                if m and not m.startswith(SKIP_MOUNTS) and d.get("total"):
+                if m and not _skipped(m) and d.get("total"):
                     add(_vol(m, (num(d.get("total")) or 0) - (num(d.get("free")) or 0), d.get("total"), "agent"))
     for ev in list((getattr(core, "snmp", None) or {}).values()):
         if core.ip_to_device.get(ev.get("host") or "") == dev_id:
             for v in (ev.get("hr") or {}).get("volumes") or []:
-                if not str(v.get("name") or "").startswith(SKIP_MOUNTS):
+                if not _skipped(v.get("name")):
                     add(_vol(v["name"], v.get("used"), v.get("total"), "snmp"))
     try:
         entries = core.live_configs()
@@ -121,7 +127,7 @@ def vitals(readings: dict) -> dict:
                 best = (v, r["t"], src)
         if best:
             warn, bad = VITAL_LEVELS[metric]
-            out[metric] = {"value": round(best[0], 1), "source": best[2], "level": "danger" if best[0] > bad else "warn" if best[0] >= warn else "ok"}
+            out[metric] = {"value": round(best[0], 1), "source": best[2], "level": "danger" if best[0] >= bad else "warn" if best[0] >= warn else "ok"}
     return out
 
 

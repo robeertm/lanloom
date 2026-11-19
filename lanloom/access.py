@@ -344,6 +344,8 @@ RULES = {
     ("GET", "/api/v1/reports/{day}"): R(V),
     ("GET", "/api/v1/events"): R(V),
     ("GET", "/api/v1/ingest"): R(V),
+    ("GET", "/api/v1/backups"): R(V),
+    ("POST", "/api/v1/backups/{chain_id}/run"): R(O, "chain.report"),
     ("POST", "/api/v1/ingest"): R(O, "api.ingest"),                       # also a token with the scope "ingest"
 
     # ---------------------------------------------------------------- live feed (WebSocket)

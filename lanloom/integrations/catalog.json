@@ -7,7 +7,7 @@
   {"id": "snmp", "source": "builtin", "kind": "snmp", "mode": "read", "benefit": 100, "status": "available", "steps": 4},
   {"id": "controller", "source": "family", "guide": "family", "mode": "auto", "benefit": 95, "status": "available", "steps": 4},
   {"id": "hypervisor", "source": "family", "guide": "hv", "mode": "auto", "benefit": 85, "status": "available", "steps": 4},
-  {"id": "ups", "source": "catalog", "status": "planned", "topic": "power", "mode": "read", "benefit": 60, "steps": 4,
+  {"id": "ups", "source": "catalog", "status": "available", "kind": "nut", "mode": "read", "benefit": 60, "steps": 4,
    "detect": [{"port": 3493}, {"mdns": "_nut._tcp"}], "device_kinds": []},
   {"id": "printer", "source": "catalog", "status": "planned", "topic": "printing", "mode": "read", "benefit": 30, "steps": 4,
    "detect": [{"mdns": "_ipp._tcp"}, {"mdns": "_ipps._tcp"}, {"mdns": "_printer._tcp"}, {"port": 631}], "device_kinds": ["printer"]},

@@ -195,6 +195,24 @@ produce (see [Webhooks](#webhooks)).
 {"events": [{"id": "device.new", "group": "devices", "available": true}]}
 ```
 
+### Backups
+
+`GET /api/v1/backups` - the backup chains of the control room with their state. A status is `ok` only when a success is known
+and recent; a chain nobody reports on is `unknown`, never `ok`.
+
+```json
+{"summary": {"ok": 1}, "chains": [{"id": "offsite", "name": "Off-site copy", "kind": "manual", "status": "ok", "level": "ok",
+                                   "last_ok_t": 1795032261.2, "expect_s": 86400.0, "restore_checked_t": null, "progress": null}]}
+```
+
+`POST /api/v1/backups/{chain_id}/run` - a backup script reports that a chain declared in the control room just finished
+(`{"ok": true, "size": 4294967296, "duration_s": 900}`; size and duration are optional and teach Lanloom the throughput). Needs a
+token of scope `operate` or `admin`.
+
+```json
+{"ok": true}
+```
+
 ### Ingest
 
 `GET /api/v1/ingest` - external reports delivered recently, newest first. Parameter `limit` (default 50, at most 200).
