@@ -81,7 +81,7 @@ def test_the_setup_assistant_recognises_the_family_by_its_gentle_signs():
 
 def test_the_guide_has_all_its_texts_in_every_language():
     base = Path(__file__).resolve().parents[3] / "lanloom" / "i18n"
-    for lang in ("en", "de"):
+    for lang in ("en", "de", "fr", "es", "nl", "it"):
         d = json.loads((base / ("%s.json" % lang)).read_text(encoding="utf-8"))
         for n in range(1, 5):
             assert d["setup.guide.tr064.%d" % n].strip()
