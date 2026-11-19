@@ -4672,7 +4672,7 @@
  "settings.pathsdetail.checked": "Last check",
  "settings.pathsdetail.clear": "Delete files and stored figures",
  "settings.pathsdetail.clear_confirm": "Delete the city files and every stored city and operator figure, and switch the option off? The country figures stay.",
- "settings.pathsdetail.consent": "Switching this on makes Lanloom fetch exactly two files from the public source download.db-ip.com: the city list and the operator list (together about 90 MB the first time, condensed to a file of a few tens of MB on this machine). It checks at most once a day and loads a new file once a month. Nothing is sent but the request for the file: no address, no name, nothing about this installation. Stored are only country, city, operator, device and bytes per hour and day, never an address.",
+ "settings.pathsdetail.consent": "Switching this on makes Lanloom fetch exactly two files from the public source download.db-ip.com: the city list and the operator list (together about 90 MB to download, condensed to a file of about 90 MB on this machine; about 200 MB of free space are needed while it is built). It checks at most once a day and loads a new file once a month. Nothing is sent but the request for the file: no address, no name, nothing about this installation. Stored are only country, city, operator, device and bytes per hour and day, never an address.",
  "settings.pathsdetail.counts": "{cities} cities, {operators} operators, {size}",
  "settings.pathsdetail.enable": "Show cities and network operators in the country detail",
  "settings.pathsdetail.error": "Last problem",

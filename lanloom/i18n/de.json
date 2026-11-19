@@ -4672,7 +4672,7 @@
  "settings.pathsdetail.checked": "Letzte Prüfung",
  "settings.pathsdetail.clear": "Dateien und gespeicherte Zahlen löschen",
  "settings.pathsdetail.clear_confirm": "Die Städtedateien und alle gespeicherten Städte- und Betreiberzahlen löschen und die Option ausschalten? Die Länderzahlen bleiben.",
- "settings.pathsdetail.consent": "Mit dem Einschalten holt Lanloom genau zwei Dateien von der öffentlichen Quelle download.db-ip.com: die Städteliste und die Betreiberliste (beim ersten Mal zusammen etwa 90 MB, auf diesem Rechner zu einer Datei von einigen zehn MB verdichtet). Es prüft höchstens einmal am Tag und lädt einmal im Monat eine neue Datei. Gesendet wird nur die Anfrage nach der Datei: keine Adresse, kein Name, nichts über diese Installation. Gespeichert werden nur Land, Stadt, Betreiber, Gerät und Bytes je Stunde und Tag, nie eine Adresse.",
+ "settings.pathsdetail.consent": "Mit dem Einschalten holt Lanloom genau zwei Dateien von der öffentlichen Quelle download.db-ip.com: die Städteliste und die Betreiberliste (zusammen etwa 90 MB zum Herunterladen, auf diesem Rechner zu einer Datei von etwa 90 MB verdichtet; beim Bau werden etwa 200 MB freier Platz gebraucht). Es prüft höchstens einmal am Tag und lädt einmal im Monat eine neue Datei. Gesendet wird nur die Anfrage nach der Datei: keine Adresse, kein Name, nichts über diese Installation. Gespeichert werden nur Land, Stadt, Betreiber, Gerät und Bytes je Stunde und Tag, nie eine Adresse.",
  "settings.pathsdetail.counts": "{cities} Städte, {operators} Betreiber, {size}",
  "settings.pathsdetail.enable": "Städte und Netzbetreiber im Länder-Detail zeigen",
  "settings.pathsdetail.error": "Letztes Problem",
