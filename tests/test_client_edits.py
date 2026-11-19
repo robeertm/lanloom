@@ -304,7 +304,7 @@ def test_changes_section_lists_results(monkeypatch):
     assert rb["point"] and rb["vars"]["reason_key"] == "fw.res.rolled_back_device"
 
 
-@pytest.mark.parametrize("lang", ["en", "de"])
+@pytest.mark.parametrize("lang", ["en", "de", "fr", "es", "nl", "it"])
 def test_changes_section_renders_in_every_language(monkeypatch, lang):
     from datetime import timezone
     from lanloom.nightly.render import Renderer, strings

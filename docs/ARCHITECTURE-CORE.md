@@ -30,7 +30,7 @@ Lanloom is the public, generic product. Its author also maintains a private *dow
 3. **How the downstream layer talks to the core.** Only through interfaces:
    - **Host object.** Tiles, traces, obstacles, scale, events and per-end facts (port, uplink port, own port, radio band/SSID, service port, protocol). The core never reads host globals.
    - **Options** per view, e.g. the bundling port key. `null` means never bundle at that end.
-   - **i18n callback** `t(key, params)`. The core ships English and German keys.
+   - **i18n callback** `t(key, params)`. The core ships English, German, French, Spanish, Dutch and Italian keys.
    - **Theme.** CSS custom properties `--ll-*`, each with a fallback to Lanloom's own tokens.
 
    Data catalogs, private views, private probe kinds, bridges and access control stay in the downstream layer and its own server. The core is the engine, not the server.

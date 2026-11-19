@@ -119,7 +119,7 @@ as CSV*, *Download inventory as JSON* and *Open Export and import*. The commands
 
 ## Limits
 
-- The PDF carries Western European text (English and German); a character outside it becomes `?` in the PDF. SVG and
+- The PDF carries Western European text (English, German, French, Spanish, Dutch and Italian); a character outside it becomes `?` in the PDF. SVG and
   draw.io carry every language.
 - The layout is a fixed grid, not the live board: pads of one zone sit in columns, a network with several hundred devices
   makes a long plan (the PDF cuts it into pages).

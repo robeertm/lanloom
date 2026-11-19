@@ -15,13 +15,14 @@ Contributions are welcome **as issues**:
 
 Every text the app shows lives in `lanloom/i18n/` (one file per language for the app and one for the map, for example `en.json` and `board.en.json`). English is the source. To suggest a language or a correction, **open an issue**:
 
-- Say which language and, for a correction, which text in the app is wrong, with the better wording. For a new language, a complete translation can be attached as text (the English files show every key); the maintainer adds it with its own checks.
+- The app speaks English, German, French, Spanish, Dutch and Italian. **For a correction** of one of them, open an issue that names the language, the screen and the text that is wrong, with the wording you would use (the key is not needed; a screenshot or the exact old text is enough). Corrections come in as issues, so every wording is read once more against the other languages before it goes in.
+- **For a new language**, a complete translation can be attached as text (the English files show every key); the maintainer adds it with its own checks. Each added language raises the work of every later change by one language, so a request needs a person who can read the result for mistakes.
 - Keep the placeholders as they are (`{age}`, `{n}` and so on) and keep plural forms complete: a text such as `{n, plural, one {# device} other {# devices}}` needs every form the language uses.
 - Names of products and standard terms stay as they are.
 
 Pull requests with translations are read like any other pull request and are not merged (see below); the text is taken over from the issue.
 
-The checks that every release has to pass: all languages have the same keys and the same placeholders, plural forms are complete, no key is unused or missing, and visible text in the web files only comes from the translation files, never from the code. Numbers, dates and times are written through the browser's `Intl` for the chosen language.
+The checks that every release has to pass: all languages have the same keys and the same placeholders, plural forms are complete, no text is left in English by accident (a text that is the same on purpose is listed with its reason), nothing is cut off or sticks out of the page at phone and desktop width in any language, no key is unused or missing, and visible text in the web files only comes from the translation files, never from the code. Numbers, dates and times are written through the browser's `Intl` for the chosen language.
 
 ## Pull requests
 

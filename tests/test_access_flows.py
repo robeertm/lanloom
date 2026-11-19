@@ -433,6 +433,10 @@ def test_roles_take_effect_immediately_and_viewer_language_is_personal(c):
     assert c.put("/api/account/prefs", json={"language": "de"}, headers=HDR).json()["prefs"] == {"language": "de"}
     assert c.get("/api/state").json()["language"] == "de"
     assert st.store.get_setting("language", None) != "de"
+    for lang in ("fr", "es", "nl", "it"):                       # O6: every delivered language can be chosen, an unknown one cannot
+        assert c.put("/api/account/prefs", json={"language": lang}, headers=HDR).json()["prefs"] == {"language": lang}
+        assert c.get("/api/state").json()["language"] == lang
+    assert c.put("/api/account/prefs", json={"language": "xx"}, headers=HDR).json()["prefs"] == {"language": "it"}
     st.accounts.set_role(uid, "operator")
     assert c.get("/api/integrations").status_code == 200
 

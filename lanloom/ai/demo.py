@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+from .manager import LANG_NAMES
+
 I18N = Path(__file__).resolve().parent.parent / "i18n"
 
 
@@ -16,7 +18,7 @@ def _text(lang: str, key: str) -> str:
 
 def answer(system: str, user: str) -> str:
     m = re.search(r"Answer in (\w+)", system)
-    lang = "de" if m and m.group(1) == "German" else "en"
+    lang = next((code for code, name in LANG_NAMES.items() if m and m.group(1) == name), "en")
     if "OK and nothing else" in user:
         return "OK"
     if "Answer the user's question" in system:

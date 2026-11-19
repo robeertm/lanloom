@@ -2,7 +2,7 @@
 
 No dependency is added to the image for this: the file is PDF 1.4 with the two standard fonts Helvetica and
 Helvetica-Bold (they are part of every PDF reader, so nothing is embedded), text as real text (searchable, copyable),
-shapes as paths. Texts are written in the Western European 8-bit code page cp1252 (English and German are covered; a character outside it
+shapes as paths. Texts are written in the Western European 8-bit code page cp1252 (English, German, French, Spanish, Dutch and Italian are covered; a character outside it
 becomes ``?``).
 
 Coordinates of the drawing calls are *top-down* like on a screen, in the units of the current view (``view(ox, oy, scale)``

@@ -490,6 +490,21 @@ def test_short_text_is_three_lines_and_a_link():
     assert len(de["text"].split("\n")) == 3
 
 
+def test_short_text_in_french_spanish_dutch_and_italian():
+    """O6: the delivered report reads in every language: title with the date as the language writes it, plural head, three lines."""
+    want = {"fr": ("22/11/2026", "2 points"), "es": ("22/11/2026", "2"), "nl": ("22-11-2026", "2"), "it": ("22/11/2026", "2")}
+    for lang in ("fr", "es", "nl", "it"):
+        msg = render.short_text(sample_report(), lang, Z, "")
+        assert render.fmt_date("2026-11-22", lang) == want[lang][0], lang
+        assert msg["title"].endswith(render.fmt_date("2026-11-16", lang)) and "{" not in msg["text"] and "#" not in msg["text"], lang
+        assert len(msg["text"].split("\n")) == 3, lang
+        assert "Down" not in msg["text"] and "New device" not in msg["text"], "%s: English text left in the report" % lang
+        wd = render.fmt_time(at(2026, 11, 15, 23, 30), Z, "2026-11-16", lang)
+        assert wd.endswith("23:30") and wd.split()[0] in render.WEEKDAYS[lang], (lang, wd)
+        assert render.WEEKDAYS[lang] and len(render.WEEKDAYS[lang]) == 7 and len(render.MONTHS.get(lang, ())) in (0, 12)
+    assert render.fmt_date("2026-11-22", "en") == "22 Nov 2026" and render.fmt_date("2026-11-22", "de") == "22.11.2026"
+
+
 class _Hook(BaseHTTPRequestHandler):
     got = []
     code = 200

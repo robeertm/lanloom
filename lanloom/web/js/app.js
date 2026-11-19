@@ -195,7 +195,7 @@
   };
   // The languages of the app: code and the name in that language (a reader finds theirs in any language). Keep in step with
   // lanloom/i18n/<code>.json (tests/test_i18n_complete.py checks it).
-  LL.LANGUAGES = [['en', 'English'], ['de', 'Deutsch']];
+  LL.LANGUAGES = [['en', 'English'], ['de', 'Deutsch'], ['fr', 'Français'], ['es', 'Español'], ['nl', 'Nederlands'], ['it', 'Italiano']];
   LL.langOptions = () => LL.LANGUAGES.map(([code, name]) => h('option', { value: code }, name));
   const knownLang = code => (LL.LANGUAGES.some(l => l[0] === code) ? code : null);
   async function loadLang(lang) {
@@ -267,7 +267,7 @@
 
   // ------------------------------------------------------------------ formatting
   // BCP 47 tag of the page language: numbers, dates and times follow it (24-hour clock, decimal comma, ...)
-  const LOCALES = { en: 'en-GB', de: 'de-DE' };   // regional variant per language (24-hour clock, day.month order, ...)
+  const LOCALES = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', nl: 'nl-NL', it: 'it-IT' };   // regional variant per language (24-hour clock, day.month order, ...)
   LL.locale = () => LOCALES[LL.lang] || LL.lang;
   // a number the way the language writes it; digits fixes the fraction digits, otherwise up to two
   LL.fmtNum = (n, digits) => LL.Text.num(LL.locale(), n, digits);

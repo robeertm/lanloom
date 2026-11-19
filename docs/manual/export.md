@@ -43,7 +43,7 @@ On a phone the options and buttons stack and the download goes to the phone's do
 
 ## Limits
 
-- The PDF carries English and German text; any other character becomes `?` there. SVG and draw.io carry every language.
+- The PDF carries English, German, French, Spanish, Dutch and Italian text; any other character becomes `?` there. SVG and draw.io carry every language.
 - The plan is a fixed grid of the state at the moment of the download, not the live board.
 - A redacted JSON cannot be imported; a redacted CSV matches nothing.
 - At most 5000 rows and 2 MB per import; a wrong row is skipped, the rest is applied.

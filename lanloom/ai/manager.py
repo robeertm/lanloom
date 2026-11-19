@@ -40,7 +40,7 @@ FUNCTIONS = ("explain_device", "explain_finding", "explain_rule", "ask", "report
 SUBJECTS = {"device": "explain_device", "finding": "explain_finding", "rule": "explain_rule"}
 # what the page may offer (key in /api/state "ai") -> function
 FEATURES = {"ask": "ask", "report": "report_plain", "identify": "identify", "firewall": "suggest_firewall"}
-LANG_NAMES = {"en": "English", "de": "German"}
+LANG_NAMES = {"en": "English", "de": "German", "fr": "French", "es": "Spanish", "nl": "Dutch", "it": "Italian"}
 DEFAULTS = {
     "local": {"enabled": False, "kind": "ollama", "url": "", "model": "", "origin": ""},
     "public": {"enabled": False, "kind": "openai", "url": "", "model": ""},

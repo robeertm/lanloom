@@ -70,7 +70,7 @@ and nothing is switched.
    `1`-`4` the speed · `W` 24 hours / 7 days · `R` from the start of the range · `Esc` back to live. A click or drag on the
    time line moves the cursor; a double click on an incident band opens its file.
 3. The command palette (`Ctrl K` / `⌘ K`) understands *Rewind the last 24 hours*, *Rewind the last 7 days* and a time:
-   type `rewind to 14:30`, `rewind to yesterday 9:15`, `rewind to mon 8:00` or `rewind to 3 h` (German words work as well).
+   type `rewind to 14:30`, `rewind to yesterday 9:15`, `rewind to mon 8:00` or `rewind to 3 h` (German words work as well; in French, Spanish, Dutch and Italian the English words are the ones to type).
 4. Open *Incidents* from the palette, the start page or a nightly report. Filter by range (24 hours to 90 days) and kind;
    a day of the calendar shows only that day.
 5. In a file, *Play in rewind* opens the map a quarter of an hour before the incident; *Failure chain* shows what hangs on

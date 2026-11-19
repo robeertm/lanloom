@@ -29,7 +29,7 @@ from typing import Optional
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
-from . import access, totp
+from . import access, textfmt, totp
 from .store import Store
 
 SESSION_COOKIE = "ll_session"
@@ -317,7 +317,7 @@ class Accounts:
 
     def set_prefs(self, user_id: int, patch: dict) -> dict:
         data = self.prefs(user_id)
-        if "language" in patch and patch["language"] in (None, "en", "de"):
+        if "language" in patch and (patch["language"] is None or patch["language"] in textfmt.languages()):
             data["language"] = patch["language"]
         seen = patch.get("whatsnew_seen")
         if isinstance(seen, str) and re.fullmatch(r"\d{1,6}\.\d{1,6}\.\d{1,6}", seen):

@@ -9,6 +9,6 @@ const texts = JSON.parse(process.argv[2]);          // [[text, vars, lang], ...]
 const out = { fill: texts.map(([s, v, lang]) => T.fill(s, v, lang)) };
 const nums = JSON.parse(process.argv[3]);           // [[lang, n, digits|null], ...]
 out.num = nums.map(([lang, n, d]) => T.num(lang, n, d));
-out.cat = ['en', 'de'].map(l => [0, 1, 2, 5, 21].map(n => T.category(l, n)));
+out.cat = ['en', 'de', 'fr', 'es', 'nl', 'it'].map(l => [0, 1, 2, 5, 21, 1000000].map(n => T.category(l, n)));
 out.fallback = EM._internals.fill ? [1, 2, 7].map(n => EM._internals.fill('{n, plural, one {# tile} other {# tiles}} → {name}', { n, name: 'X' })) : null;
 process.stdout.write(JSON.stringify(out));

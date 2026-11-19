@@ -14,11 +14,29 @@ def _one_other(n: int) -> str:
     return "one" if n == 1 else "other"
 
 
-PLURAL_RULES = {"en": _one_other, "de": _one_other}
+def _fr(n) -> str:
+    """French: 0 and 1 (and fractions below 2) are singular; exact millions are "many" (a text without "many" uses "other")."""
+    if int(n) in (0, 1):
+        return "one"
+    return "many" if n == int(n) and n % 1000000 == 0 else "other"
+
+
+def _one_many(n) -> str:
+    """Spanish and Italian: 1 is singular; exact millions are "many" (a text without "many" uses "other")."""
+    if n == 1:
+        return "one"
+    return "many" if n == int(n) and n != 0 and n % 1000000 == 0 else "other"
+
+
+PLURAL_RULES = {"en": _one_other, "de": _one_other, "fr": _fr, "es": _one_many, "nl": _one_other, "it": _one_many}
 # categories every translation of a plural text has to carry, per language (CLDR)
-PLURAL_CATEGORIES = {"en": ("one", "other"), "de": ("one", "other")}
+# ("many" is optional in fr, es and it: it only names exact millions and falls back to "other")
+PLURAL_CATEGORIES = {"en": ("one", "other"), "de": ("one", "other"), "fr": ("one", "other"), "es": ("one", "other"),
+                     "nl": ("one", "other"), "it": ("one", "other")}
+# languages that write a four-digit whole number without the grouping separator (1234, but 12.345): CLDR "minimum grouping digits" 2
+MIN_GROUPING = {"es": 2, "it": 2}
 # decimal separator and grouping separator per language
-SEPARATORS = {"en": (".", ","), "de": (",", ".")}
+SEPARATORS = {"en": (".", ","), "de": (",", "."), "fr": (",", "\u202f"), "es": (",", "."), "nl": (",", "."), "it": (",", ".")}
 
 _HEAD = re.compile(r"\{(\w+),\s*plural,\s*")
 _CASE = re.compile(r"(=\d+|[a-z]+)\s*\{")
@@ -47,6 +65,8 @@ def num(lang: str, n, digits=None) -> str:
     sign = "-" if whole.startswith("-") else ""
     whole = whole.lstrip("-")
     groups = []
+    if len(whole) == 4 and MIN_GROUPING.get(lang, 1) > 1:
+        return sign + whole + (dec + frac if frac else "")
     while len(whole) > 3:
         groups.insert(0, whole[-3:])
         whole = whole[:-3]

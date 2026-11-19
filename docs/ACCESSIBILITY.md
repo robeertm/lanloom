@@ -83,4 +83,4 @@ machine cannot, please open an issue and name the screen reader and browser you 
 - The board (the picture) is not itself navigable by arrow keys; use `Tab` between tiles or the tree view.
 - Charts drawn on a canvas (traffic, availability, the world map) have their numbers in a table or a list next to them but
   cannot be explored point by point with the keyboard.
-- Translations: the app is available in English and German; the help texts of the integrations are English.
+- Translations: the app is available in English, German, French, Spanish, Dutch and Italian (the language is set on the page element, so screen readers pick the right voice); the help texts of the integrations are English.

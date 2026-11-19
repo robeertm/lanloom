@@ -43,7 +43,14 @@ Administrators additionally:
   encrypted and never shown again. *Test connection* checks before you save.
 - **Set up again** - starts the setup assistant over, or the demo.
 - **Appearance** - speed unit (bytes or bits) next to language and theme, and the switch *Take the background noise out of
-  exact port counters* (off by default; see [Network](network.md)).
+  exact port counters* (off by default; see [Network](network.md)). The language list offers English, Deutsch, Français,
+  Español, Nederlands and Italiano; until you choose, the browser's language decides, and the choice is stored with your
+  account. Every text, number, date and time follows it, also in the nightly report you receive. Wrong or clumsy wording
+  in a language: open an issue (see [Contributing](../../CONTRIBUTING.md#translations)).
+
+  ![Start page in French](../screenshots/language-fr-overview-light.png)
+
+  ![Settings on a phone in Italian](../screenshots/language-it-settings-phone-dark.png)
 - **Data paths**, **Cities and network operators** and **NetFlow / IPFIX from your router** - home country, own networks
   and tunnels, networks without internet, the optional city data (off by default, fetches two public files; check now,
   delete) and the NetFlow receiver (see [Data paths](data-paths.md)).

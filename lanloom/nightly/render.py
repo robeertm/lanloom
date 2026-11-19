@@ -7,8 +7,17 @@ from ..textfmt import fill, languages, num
 
 I18N = Path(__file__).resolve().parent.parent / "i18n"
 SUFFIXES = ("_at", "_dur", "_bytes", "_cc", "_key")
-WEEKDAYS = {"en": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"), "de": ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")}
+WEEKDAYS = {"en": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"), "de": ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"),
+            "fr": ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."), "es": ("lun", "mar", "mié", "jue", "vie", "sáb", "dom"),
+            "nl": ("ma", "di", "wo", "do", "vr", "za", "zo"), "it": ("lun", "mar", "mer", "gio", "ven", "sab", "dom")}
 MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+# short month names for the languages that write "14 nov 2026" style dates (German writes 14.11.2026, French/Spanish/Italian 14/11/2026, Dutch 14-11-2026)
+MONTHS = {"en": MONTHS_EN,
+          "fr": ("janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."),
+          "es": ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"),
+          "nl": ("jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"),
+          "it": ("gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic")}
+DATE_SEPARATOR = {"de": ".", "fr": "/", "es": "/", "it": "/", "nl": "-"}
 _cache: dict = {}
 
 
@@ -44,7 +53,8 @@ def fmt_dur(s, tr) -> str:
 
 def fmt_date(day: str, lang: str) -> str:
     d = date.fromisoformat(day)
-    return "%02d.%02d.%d" % (d.day, d.month, d.year) if lang == "de" else "%d %s %d" % (d.day, MONTHS_EN[d.month - 1], d.year)
+    sep = DATE_SEPARATOR.get(lang)
+    return ("%02d%s%02d%s%d" % (d.day, sep, d.month, sep, d.year)) if sep else "%d %s %d" % (d.day, MONTHS["en"][d.month - 1], d.year)
 
 
 def fmt_time(t: float, tz, day: str, lang: str) -> str:
@@ -53,7 +63,7 @@ def fmt_time(t: float, tz, day: str, lang: str) -> str:
     if dt.date().isoformat() == day:
         return hm
     wd = WEEKDAYS[lang][dt.weekday()]
-    return ("%s %02d.%02d. " % (wd, dt.day, dt.month) if lang == "de" else "%s %d %s " % (wd, dt.day, MONTHS_EN[dt.month - 1])) + hm
+    return ("%s %02d.%02d. " % (wd, dt.day, dt.month) if lang == "de" else "%s %d %s " % (wd, dt.day, MONTHS.get(lang, MONTHS_EN)[dt.month - 1])) + hm
 
 
 class Renderer:

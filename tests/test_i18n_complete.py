@@ -121,19 +121,66 @@ def test_plural_forms_complete_and_rendering():
                     assert "{" not in out and "}" not in out and "#" not in out, "%s %s with %d: %r" % (lang, k, n, out)
 
 
+# Per language (O6): keys whose text equals the English original on purpose in that language only: key pattern -> reason.
+# Short, so a translation that was simply left in English cannot hide here: every entry names why the words are the same.
+_NAMES = "a name, a number, an address or a symbol line without a word of its own"
+SAME_IN_LANGUAGE = {
+    "fr": {
+        r"agents\.snippet\.run": "a shell command",
+        r"auto\.dur\.min|notify\.shared\.hold_n|storage\.keep\.minutes": "minute/minutes is written the same way in French",
+        r"backup\.files\.version": "Version is the same French word",
+        r"devices\.filter\.net_vlan|devices\.tag\.wireless|ws\.chip\.rename|inc\.ch\.version": _NAMES,
+        r"fw\.plain\.(apps|ports)|fw\.pol\.ports|tree\.port|hv\.meta\.cluster|hv\.trunk|nc\.net\.zone|wizard\.networks\.iface|zf\.chip\.net_zone|zf\.chip\.zone_rename|users\.sites\.n|pf\.clients|endmarks\.sources|inc\.cal\.maint": "the French word is written like the English one (port, zone, cluster, trunk, interface, site, client, source ...)",
+        r"hv\.col\.path|users\.sessions|zf\.rule\.active|fail\.why\.radio|inc\.heal\.maintenance": "short phrase that reads the same in French",
+        r"nc\.proto\.both|portmarks\.mesh\.subghz": "protocol / radio technology name",
+    },
+    "es": {
+        r"agents\.snippet\.run": "a shell command",
+        r"ai\.status\.local|svc\.state\.error": "Local / Error is the same Spanish word",
+        r"api\.report\.ingest|devices\.filter\.net_vlan|devices\.tag\.wireless|ws\.chip\.rename|inc\.ch\.(version|firmware)|inc\.before\.firmware": _NAMES,
+        r"detail\.snmp": "device class with a protocol name in brackets",
+        r"fw\.sec\.wpa2?_?(wpa3_)?personal|fw\.sec\.wpa3_personal": "standard protocol label; personal is the same Spanish word",
+        r"nc\.proto\.both|portmarks\.mesh\.subghz": "protocol / radio technology name",
+        r"users\.tfa\.passkeys": "the loan word passkey is used the same way in every passkey text",
+    },
+    "nl": {
+        r"a11y\.key\.shift_tab": "names of two keys",
+        r"agents\.snippet\.run": "a shell command",
+        r"account\.title|api\.report\.ingest|devices\.filter\.net_vlan|devices\.tag\.wireless|ws\.chip\.rename|inc\.ch\.(version|firmware)|inc\.before\.firmware|zf\.chip\.(net_zone|zone_rename)": _NAMES,
+        r"auto\.ex\.c\.(open|state|states)|notify\.msg\.(dev_offline|incident)|ov\.note\.dev_offline\.sub_unknown": "the Dutch sentence is built like the English one (is open, is offline, incident)",
+        r"auto\.runs\.hour_tip|fw\.pol\.match\.app|pf\.clients|running\.lead|endmarks\.peers|users\.tfa\.passkeys": "the Dutch loan word is the same as the English one (run, app, client, host, container, peer, passkey)",
+        r"detail\.snmp|hv\.meta\.cluster|hv\.scope\.node|hv\.trunk|nc\.net\.zone|pf\.duplex\.half|pf\.f\.poe|radio\.anchors\.thread|radio\.role\.border_router": "technical term that Dutch writes like the English one",
+        r"nc\.proto\.both|portmarks\.mesh\.subghz": "protocol / radio technology name",
+    },
+    "it": {
+        r"agents\.snippet\.run": "a shell command",
+        r"account\.title|api\.report\.ingest|devices\.filter\.net_vlan|devices\.tag\.wireless|ws\.chip\.rename": _NAMES,
+        r"detail\.snmp": "device class with a protocol name in brackets",
+        r"portmarks\.mesh\.subghz": "radio technology name",
+    },
+}
+
+
 def test_text_equal_to_english_is_listed():
     en = both("en")
-    same = set()
+    same_by_lang = {}
     for lang in languages():
         if lang == "en":
             continue
         for k, v in both(lang).items():
             if v == en[k] and len(re.findall(r"[^\W\d_]{3,}", v)) >= 2:
-                same.add(k)       # two or more real words and identical: untranslated, or a name that needs a reason
-    listed = {k for k in same if any(re.fullmatch(pat, k) for pat in SAME_AS_ENGLISH)}
-    assert not same - listed, "text equal to the English original (translate it or list its key pattern in SAME_AS_ENGLISH with a reason): %s" % sorted(same - listed)[:20]
+                same_by_lang.setdefault(lang, set()).add(k)       # two or more real words and identical: untranslated, or a name that needs a reason
+    same = set().union(*same_by_lang.values()) if same_by_lang else set()
+    for lang, keys in same_by_lang.items():
+        own = SAME_IN_LANGUAGE.get(lang, {})
+        unlisted = {k for k in keys if not any(re.fullmatch(p, k) for p in SAME_AS_ENGLISH) and not any(re.fullmatch(p, k) for p in own)}
+        assert not unlisted, "%s: text equal to the English original (translate it or list its key pattern in SAME_AS_ENGLISH / SAME_IN_LANGUAGE with a reason): %s" % (lang, sorted(unlisted)[:20])
     stale = [pat for pat in SAME_AS_ENGLISH if not any(re.fullmatch(pat, k) for k in same)]
     assert not stale, "stale entries in SAME_AS_ENGLISH: %s" % stale
+    for lang, table in SAME_IN_LANGUAGE.items():
+        stale = [pat for pat in table if not any(re.fullmatch(pat, k) for k in same_by_lang.get(lang, ()))]
+        assert not stale, "stale entries in SAME_IN_LANGUAGE[%s]: %s" % (lang, stale)
+        assert lang in languages(), lang
 
 
 # ------------------------------------------------------------------ keys in use
