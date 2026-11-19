@@ -258,6 +258,9 @@ def _prefill(kind: str, fam, dev: dict, port) -> dict:
     if fam is not None and fam.prefill_scheme == "http" and any(f.get("k") == "url" for f in fam.form):
         # a DNS filter's web page usually runs without TLS, on port 80 or on its own port
         return {"url": "http://%s" % ip if port in (None, 80) else "http://%s:%d" % (ip, port)}
+    if fam is not None and port == 80 and any(f.get("k") == "url" for f in fam.form):
+        # the device was recognised by its plain web page (a router's web interface without TLS)
+        return {"url": "http://%s" % ip}
     if fam is not None and any(f.get("k") == "url" for f in fam.form):
         # family APIs use TLS; devices on a home network usually have a self-signed certificate
         return {"url": "https://%s" % ip if port in (None, 443) else "https://%s:%d" % (ip, port), "allow_self_signed": True}

@@ -438,6 +438,119 @@ def gateway_capabilities(family: str) -> dict:
             "lockout": ["mgmt_network", "gateway_uplink", "self_path", "admin_interface"]}
 
 
+# ---------------------------------------------------------------------------- sample router (ubus API)
+def _uci_values(sections: list) -> dict:
+    """A list of (section name or None, type, options) as a ``uci get`` reply's values (unnamed sections get a name
+    the way the router hands them out)."""
+    out = {}
+    for i, (name, kind, opts) in enumerate(sections):
+        sec = {".type": kind, ".anonymous": name is None, ".name": name or "cfg%02x%04x" % (i + 1, (i * 7919) % 65536),
+               ".index": i}
+        sec.update(opts)
+        out[sec[".name"]] = sec
+    return out
+
+
+def _rt_raw(changed: bool) -> dict:
+    """Collected replies of a sample router with a ubus API as its family's read half hands them to the translation
+    module: a lab router 192.168.90.1 with a home network, a network for smart devices, a guest network and the
+    internet side (the demo house network). ``changed`` is what "happened tonight" in the demo report: a rule from the
+    internet side arrived, a rule was switched off and the guest wireless network was switched on."""
+    network = [("loopback", "interface", {"device": "lo", "proto": "static", "ipaddr": "127.0.0.1"}),
+               (None, "device", {"name": "br-lan", "type": "bridge", "ports": ["lan1", "lan2", "lan3"]}),
+               ("lan", "interface", {"device": "br-lan", "proto": "static", "ipaddr": ["192.168.90.1/24"]}),
+               ("smart", "interface", {"device": "br-lan.91", "proto": "static", "ipaddr": ["192.168.91.1/24"]}),
+               ("guest", "interface", {"device": "br-guest", "proto": "static", "ipaddr": ["192.168.92.1/24"]}),
+               ("wan", "interface", {"device": "wan", "proto": "dhcp"})]
+
+    def rule(name, src, dest=None, *, target="ACCEPT", proto=None, port=None, enabled=None, section=None, **extra):
+        o = {"name": name, "src": src, "target": target}
+        if dest:
+            o["dest"] = dest
+        if proto:
+            o["proto"] = proto
+        if port:
+            o["dest_port"] = port
+        if enabled is not None:
+            o["enabled"] = enabled
+        o.update(extra)
+        return (section, "rule", o)
+
+    firewall = [(None, "defaults", {"input": "REJECT", "output": "ACCEPT", "forward": "REJECT"}),
+                (None, "zone", {"name": "lan", "network": ["lan"], "input": "ACCEPT", "output": "ACCEPT", "forward": "ACCEPT"}),
+                (None, "zone", {"name": "smart", "network": ["smart"], "input": "REJECT", "output": "ACCEPT", "forward": "REJECT"}),
+                (None, "zone", {"name": "guest", "network": ["guest"], "input": "REJECT", "output": "ACCEPT", "forward": "REJECT"}),
+                (None, "zone", {"name": "wan", "network": ["wan"], "input": "REJECT", "output": "ACCEPT", "forward": "REJECT",
+                                "masq": "1"}),
+                (None, "forwarding", {"src": "lan", "dest": "wan"}),
+                (None, "forwarding", {"src": "smart", "dest": "wan"}),
+                (None, "forwarding", {"src": "guest", "dest": "wan"}),
+                rule("Renew the internet address", "wan", proto="udp", port="68", family="ipv4"),
+                rule("Answer ping from outside", "wan", proto="icmp", icmp_type="echo-request", family="ipv4"),
+                rule("Smart devices: name service", "smart", port="53"),
+                rule("Smart devices: address service", "smart", proto="udp", port="67"),
+                rule("Smart devices to the broker", "smart", "lan", proto="tcp", port="8883", dest_ip="192.168.90.13"),
+                rule("Guests may not reach home", "guest", "lan", target="REJECT", proto="all"),
+                rule("Guests: name service", "guest", port="53"),
+                rule("Home to smart devices", "lan", "smart", proto="all", enabled="0" if changed else None),
+                rule("[lanloom] Smart devices may not reach guests", "smart", "guest", target="DROP", proto="all",
+                     section="lanloom_0d0e0m0o0r01")]
+    if changed:
+        firewall.append(rule("Remote access test", "wan", proto="tcp", port="22"))
+    firewall.append((None, "redirect", {"name": "Lab camera", "target": "DNAT", "src": "wan", "src_dport": "8554",
+                                        "dest": "lan", "dest_ip": "192.168.90.30", "dest_port": "554", "proto": "tcp"}))
+    dhcp = [("lan", "dhcp", {"interface": "lan", "start": "100", "limit": "150"}),
+            ("smart", "dhcp", {"interface": "smart", "start": "20", "limit": "100"}),
+            ("guest", "dhcp", {"interface": "guest", "start": "10", "limit": "200"}),
+            (None, "host", {"name": "lab-printer", "mac": "02:4c:4c:00:90:40", "ip": "192.168.90.40"})]
+    wireless = [("radio0", "wifi-device", {"band": "2g", "channel": "6"}),
+                ("radio1", "wifi-device", {"band": "5g", "channel": "36"}),
+                ("home2", "wifi-iface", {"device": "radio0", "network": "lan", "mode": "ap", "ssid": "Lab", "encryption": "psk2"}),
+                ("home5", "wifi-iface", {"device": "radio1", "network": "lan", "mode": "ap", "ssid": "Lab", "encryption": "sae-mixed"}),
+                ("smart", "wifi-iface", {"device": "radio0", "network": "smart", "mode": "ap", "ssid": "Lab things",
+                                         "encryption": "psk2", "hidden": "1"}),
+                ("guest", "wifi-iface", {"device": "radio0", "network": "guest", "mode": "ap", "ssid": "Lab guests",
+                                         "encryption": "none", "isolate": "1", "disabled": "0" if changed else "1"})]
+    dump = {"interface": [{"interface": "lan", "up": True, "l3_device": "br-lan", "ipv4-address": [{"address": "192.168.90.1", "mask": 24}]},
+                          {"interface": "smart", "up": True, "l3_device": "br-lan.91", "ipv4-address": [{"address": "192.168.91.1", "mask": 24}]},
+                          {"interface": "guest", "up": True, "l3_device": "br-guest", "ipv4-address": [{"address": "192.168.92.1", "mask": 24}]},
+                          {"interface": "wan", "up": True, "l3_device": "wan", "ipv4-address": [{"address": "192.168.50.90", "mask": 24}]}]}
+    wifi = {"phy0-ap0": {"info": {"ssid": "Lab", "frequency": 2437, "mode": "Master"},
+                         "assoc": [{"mac": "02:4c:4c:00:90:51", "signal": -48}]},
+            "phy1-ap0": {"info": {"ssid": "Lab", "frequency": 5180, "mode": "Master"},
+                         "assoc": [{"mac": "02:4c:4c:00:90:52", "signal": -55}, {"mac": "02:4c:4c:00:90:53", "signal": -61}]},
+            "phy0-ap1": {"info": {"ssid": "Lab things", "frequency": 2437, "mode": "Master"},
+                         "assoc": [{"mac": "02:4c:4c:00:91:61", "signal": -67}]}}
+    if changed:
+        wifi["phy0-ap2"] = {"info": {"ssid": "Lab guests", "frequency": 2437, "mode": "Master"}, "assoc": []}
+    leases = {"dhcp_leases": [{"hostname": "lab-tablet", "ipaddr": "192.168.90.151", "macaddr": "02:4c:4c:00:90:51"},
+                              {"hostname": "lab-laptop", "ipaddr": "192.168.90.152", "macaddr": "02:4c:4c:00:90:52"},
+                              {"hostname": "test-phone", "ipaddr": "192.168.90.153", "macaddr": "02:4c:4c:00:90:53"},
+                              {"hostname": "lab-sensor", "ipaddr": "192.168.91.61", "macaddr": "02:4c:4c:00:91:61"}]}
+    return {"version": "demo", "board": {"hostname": "lab-router", "model": "Sample router", "release": {"version": "demo"}},
+            "network": _uci_values(network), "firewall": _uci_values(firewall), "dhcp": _uci_values(dhcp),
+            "wireless": _uci_values(wireless), "ifaces": dump, "devices": {"br-lan": {"macaddr": "02:4c:4c:00:90:01"}},
+            "hints": {"02:4c:4c:00:90:40": {"name": "lab-printer", "ipaddrs": ["192.168.90.40"]}}, "leases": leases, "wifi": wifi}
+
+
+def router_sample(family: str, changed: bool = False) -> dict:
+    """Neutral state of the sample router, made by the family's own translation module."""
+    from . import integrations
+    st = integrations.load_model(family).to_neutral(_rt_raw(changed))
+    st["controller"]["label"] = "Sample router"
+    st["controller"]["version"] = "demo"
+    neutral.validate(st)
+    return st
+
+
+def router_capabilities(family: str) -> dict:
+    return {"family": family, "api": {"kind": "official-local", "version": "demo"},
+            "read": ["inventory", "clients", "networks", "zones", "policies", "ssids", "wans", "dhcp_reservations",
+                     "port_forwards", "firewall"],
+            "write": {}, "rollback": {"device_native": False, "object_snapshot": True},
+            "limits": {"objects_per_plan": 10}, "lockout": ["mgmt_network", "gateway_uplink", "self_path", "admin_interface"]}
+
+
 # ---------------------------------------------------------------------------- sample access-point controller
 def _ctl_raw(changed: bool = False) -> dict:
     """Collected replies of a sample access-point controller as its family's read half hands them to the translation
