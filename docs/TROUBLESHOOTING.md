@@ -149,6 +149,7 @@ The adapters of device families (controller, hypervisor, firewall; the list is i
 |---|---|
 | API key was rejected / API token was rejected | the key or token is wrong, deleted or expired; create a new one and enter it anew (secrets are never shown again) |
 | Account was rejected | user name or password wrong, or the account is not a local one |
+| The controller does not know this controller ID | the ID entered next to the application is wrong; clear the field so the controller's own announcement is used |
 | Sign-in paused for a while after repeated attempts | Lanloom stops trying for about 15 minutes after repeated refusals so it cannot lock the account; check the secret first, then wait |
 | This account can change settings | Lanloom refuses an account that is able to write where it can check it; use a view-only role or a token with only read rights |
 | Access denied for this account | the role lacks the right to read; set every area to read-only, not to none |

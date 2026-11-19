@@ -348,6 +348,97 @@ def firewall_capabilities(family: str) -> dict:
             "lockout": ["mgmt_network", "gateway_uplink", "self_path", "admin_interface"]}
 
 
+# ---------------------------------------------------------------------------- sample access-point controller
+def _ctl_raw(changed: bool = False) -> dict:
+    """Collected replies of a sample access-point controller as its family's read half hands them to the translation
+    module, built from the demo network (gateway 192.168.50.1, a switch and two access points, three networks, three
+    wireless networks, three access rules). ``changed`` is what "happened tonight" in the demo report: one access point
+    went offline, got a new firmware, and a rule arrived."""
+    def mac(n):
+        return "02-4C-4C-00-00-%02X" % n
+
+    gw, sw, ap1, ap2 = mac(0xA1), mac(0xA2), mac(0xA3), mac(0xA4)
+
+    def dev(m, name, kind, ip, up="", port="", status=1, fw="2.1.0", model="Sample"):
+        return {"mac": m, "name": name, "type": kind, "ip": ip, "status": status, "model": model, "modelName": model,
+                "firmwareVersion": fw, "uptime": "12day(s) 4h 3m 2s", "cpuUtil": 5, "memUtil": 38, "uplinkDeviceMac": up,
+                "uplinkDevicePort": port}
+
+    devices = [dev(gw, "Sample gateway", "gateway", "192.168.50.1", model="GW-1"),
+               dev(sw, "Sample switch", "switch", "192.168.50.2", gw, "5", model="SW-8P"),
+               dev(ap1, "Sample AP upstairs", "ap", "192.168.50.3", sw, "2", model="AP-2", fw="2.4.1" if changed else "2.4.0"),
+               dev(ap2, "Sample AP garden", "ap", "192.168.50.4", sw, "3", model="AP-2", status=0 if changed else 1)]
+
+    def cl(n, name, ip, wired, parent, **kw):
+        base = {"mac": mac(n), "name": name, "ip": ip, "active": True, "wireless": not wired, "connectType": 2 if wired else 1,
+                "guest": False, "blocked": False}
+        base.update({"switchMac": parent, "connectDevType": "switch"} if wired else {"apMac": parent, "connectDevType": "ap"})
+        base.update(kw)
+        return base
+
+    clients = [cl(0x10, "Media server", "192.168.50.20", True, sw, port=4, networkName="Home",
+                  ipSetting={"useFixedAddr": True}),
+               cl(0x11, "Office printer", "192.168.50.31", True, sw, port=6, networkName="Home"),
+               cl(0x12, "Garden camera", "192.168.30.40", True, sw, port=7, networkName="Smart"),
+               cl(0x13, "Kitchen tablet", "192.168.50.52", False, ap1, ssid="Home", radioId=1),
+               cl(0x14, "Living room speaker", "192.168.30.43", False, ap1, ssid="Smart", radioId=0),
+               cl(0x15, "Visitor phone", "192.168.70.12", False, ap1, ssid="Visitors", radioId=1, connectType=0, guest=True)]
+    if not changed:
+        clients.append(cl(0x16, "Patio sensor", "192.168.30.44", False, ap2, ssid="Smart", radioId=0))
+    nets = [{"id": "n-home", "name": "Home", "purpose": 1, "vlanType": 0, "vlan": 1, "gatewaySubnet": "192.168.50.1/24", "primary": True,
+             "dhcpSettingsVO": {"enable": True, "hostIP": "192.168.50.1", "dhcpPoolMask": 24, "ipaddrStart": "192.168.50.100",
+                                "ipaddrEnd": "192.168.50.199"}},
+            {"id": "n-smart", "name": "Smart", "purpose": 0, "vlan": 30, "dhcpSettingsVO": {"enable": True, "hostIP": "192.168.30.1",
+             "dhcpPoolMask": 24, "ipaddrStart": "192.168.30.50", "ipaddrEnd": "192.168.30.150"}},
+            {"id": "n-visit", "name": "Visitors", "purpose": 0, "vlan": 70, "dhcpSettingsVO": {"enable": True, "hostIP": "192.168.70.1",
+             "dhcpPoolMask": 24, "ipaddrStart": "192.168.70.50", "ipaddrEnd": "192.168.70.150"}}]
+    profiles = [{"id": "pf-all", "name": "All", "nativeNetworkId": "n-home"}, {"id": "pf-smart", "name": "Smart ports", "nativeNetworkId": "n-smart"}]
+    ssids = [{"id": "w-home", "name": "Home", "band": 3, "broadcast": True, "security": 3, "vlanEnable": False, "wlan": "Default"},
+             {"id": "w-smart", "name": "Smart", "band": 1, "broadcast": True, "security": 3, "vlanEnable": True, "vlanId": 30, "wlan": "Default"},
+             {"id": "w-visit", "name": "Visitors", "band": 3, "broadcast": True, "security": 0, "guestNetEnable": True,
+              "vlanEnable": True, "vlanId": 70, "wlan": "Default"}]
+    acl_gw = [{"id": "g1", "index": 1, "description": "Smart devices stay out of Home", "policy": 0, "status": True, "sourceType": 0,
+               "sourceIds": ["n-smart"], "destinationType": 0, "destinationIds": ["n-home"], "protocols": [256]},
+              {"id": "g2", "index": 2, "description": "Visitors stay out of Home", "policy": 0, "status": True, "sourceType": 0,
+               "sourceIds": ["n-visit"], "destinationType": 0, "destinationIds": ["n-home"], "protocols": [256]},
+              {"id": "g3", "index": 3, "description": "Old test rule", "policy": 1, "status": False, "sourceType": 0,
+               "sourceIds": ["n-home"], "destinationType": 0, "destinationIds": ["n-smart"], "protocols": [256]}]
+    if changed:
+        acl_gw.append({"id": "g4", "index": 4, "description": "Visitors may use the printer", "policy": 1, "status": True, "sourceType": 0,
+                       "sourceIds": ["n-visit"], "destinationType": 1, "destinationIds": ["ipg-printer"], "protocols": [256]})
+    ports = [{"port": i, "name": "Port %d" % i, "status": 1, "profileId": "pf-smart" if i == 7 else "pf-all",
+              "profileName": "Smart ports" if i == 7 else "All", "poeMode": 1 if i in (2, 3, 7) else 0} for i in range(1, 9)]
+    linked = {2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 2}
+    stat = [{"port": i, "name": "Port %d" % i, "type": 1, "disable": False,
+             "portStatus": {"linkStatus": 1 if i in linked and not (changed and i == 3) else 0, "linkSpeed": linked.get(i, 0), "poe": i in (2, 3, 7)},
+             **({"downlink": {"mac": ap1, "name": "Sample AP upstairs", "type": "ap"}} if i == 2 else {}),
+             **({"downlink": {"mac": ap2, "name": "Sample AP garden", "type": "ap"}} if i == 3 else {})} for i in range(1, 9)]
+    return {"info": {"controllerVer": "5.15.0"}, "site": {"siteId": "demo", "name": "Default"},
+            "devices": devices, "clients": clients, "networks": nets, "profiles": profiles, "ssids": ssids,
+            "acl_gateway": acl_gw, "acl_switch": [], "acl_eap": [],
+            "wans": [{"name": "WAN1", "port": 1, "mode": 0, "proto": "pppoe", "internetState": 1, "status": 1, "latency": 14, "loss": 0.0,
+                      "gateway": gw}],
+            "switch_info": {sw: {"portList": ports}},
+            "switch_stat": {sw: {"ports": stat, "supportPoe": True, "uplink": {"mac": gw, "port": 5}}}}
+
+
+def controller_sample(family: str, changed: bool = False) -> dict:
+    """Neutral state of the sample access-point controller, made by the family's own translation module."""
+    from . import integrations
+    st = integrations.load_model(family).to_neutral(_ctl_raw(changed))
+    st["controller"]["label"] = "Sample wireless controller"
+    st["controller"]["site"] = None
+    neutral.validate(st)
+    return st
+
+
+def controller_capabilities(family: str) -> dict:
+    return {"family": family, "api": {"kind": "official-local", "version": "demo"},
+            "read": ["inventory", "clients", "topology", "networks", "acl", "ports", "port_profiles", "ssids", "wans", "dhcp_reservations", "stats"],
+            "write": {}, "rollback": {"device_native": False, "object_snapshot": True}, "limits": {"objects_per_plan": 10},
+            "lockout": ["mgmt_network", "gateway_uplink", "self_path", "uplink_ports"]}
+
+
 def seed_history(core, key: str, now: float = None) -> None:
     """Gives the demo the history a running installation would have: three hours of hit counters (blocked today, hits of
     the last hour) and a few link drops and error episodes on two sample ports."""

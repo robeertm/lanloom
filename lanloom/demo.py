@@ -519,6 +519,11 @@ class Demo:
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
                                (fw, "Sample firewall", _json.dumps({"url": "https://192.168.50.1:4444", "username": "map-reader"}),
                                 time.time()))
+        apc = _demo_apc()
+        if apc:                           # an access-point controller family reading devices, ports, wireless networks and rules (read only)
+            core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
+                               (apc, "Sample wireless controller", _json.dumps({"url": "https://192.168.50.16:8043", "site": "Default"}),
+                                time.time()))
         dns = _demo_family("dns")
         if dns:                            # a DNS filter family reading totals of queries and blocked queries (read only)
             from .demo_dns import FILTER_URL
@@ -690,6 +695,12 @@ class Demo:
             from .demo_live import firewall_capabilities, firewall_sample
             fw_before, fw_now = firewall_sample(fw), firewall_sample(fw, extra_rule=True)
             fw_states = [fw_before, fw_before, fw_now]
+        apc = _demo_apc()
+        apc_states = []
+        if apc and apc in ids:               # the access-point controller: an access point went offline, a rule arrived
+            from .demo_live import controller_capabilities, controller_sample
+            w_before, w_now = controller_sample(apc), controller_sample(apc, changed=True)
+            apc_states = [w_before, w_before, w_now]
         self.seed_storage(core, planned)
         dns = _demo_family("dns")
         if dns and dns in ids:                 # the DNS filter: 35 days of sums per hour and its first reading
@@ -705,6 +716,8 @@ class Demo:
                 core.live_cfg[ids[hv]] = {"state": hv_states[i], "caps": hypervisor_capabilities(hv), "family": hv, "t": time.time()}
             if fw_states:
                 core.live_cfg[ids[fw]] = {"state": fw_states[i], "caps": firewall_capabilities(fw), "family": fw, "t": time.time()}
+            if apc_states:
+                core.live_cfg[ids[apc]] = {"state": apc_states[i], "caps": controller_capabilities(apc), "family": apc, "t": time.time()}
             since = prev["until"] if prev else planned[0] - 86400
             report = rep.assemble(since, planned[i] + 2, prev, day.isoformat(), self.report_certs())
             report["created"] = planned[i] + 2
@@ -722,6 +735,7 @@ class Demo:
         core.live_cfg.pop(ids.get(fam), None)
         core.live_cfg.pop(ids.get(hv), None)
         core.live_cfg.pop(ids.get(fw), None)
+        core.live_cfg.pop(ids.get(apc), None)
         for day in days[:2]:
             core.store.execute("UPDATE reports SET read=? WHERE day=?", (now, day.isoformat()))
         first = rep.get(days[0].isoformat())
@@ -802,6 +816,12 @@ class Demo:
                     core.on_event("int:%d" % ids[fw], ids[fw], {"type": "config", "source": "family", "family": fw, "t": now,
                                                                "state": firewall_sample(fw, extra_rule=True),
                                                                "capabilities": firewall_capabilities(fw)})
+                apc = _demo_apc()
+                if apc and apc in ids:
+                    from .demo_live import controller_capabilities, controller_sample
+                    core.on_event("int:%d" % ids[apc], ids[apc], {"type": "config", "source": "family", "family": apc, "t": now,
+                                                                   "state": controller_sample(apc, changed=True),
+                                                                   "capabilities": controller_capabilities(apc)})
                 dns = _demo_family("dns")
                 if dns and dns in ids:
                     from .demo_dns import reading as dns_reading
@@ -904,7 +924,8 @@ def _demo_family(area: str = "ssids", without: str = None):
     speak the query reply format the sample firewall is written in."""
     from . import integrations
     fams = [m.family for m in integrations.BUILTIN if m.selectable and m.read and area in (m.capabilities.get("read") or [])
-            and not (without and without in (m.capabilities.get("read") or []))]
+            and not (without and without in (m.capabilities.get("read") or []))
+            and (area != "ssids" or "zones" in (m.capabilities.get("read") or []))]     # the sample controller has a zone firewall
     if area == "port_forwards":
         fams = [f for f in fams if hasattr(integrations.load_model(f), "parse_reply")]
     return fams[0] if fams else None
@@ -912,6 +933,11 @@ def _demo_family(area: str = "ssids", without: str = None):
 
 def _demo_firewall():
     return _demo_family("port_forwards", without="ssids")
+
+
+def _demo_apc():
+    """The access-point controller family (reads rules and wireless networks but has no zone firewall): "Sample wireless controller"."""
+    return _demo_family("acl", without="zones")
 
 
 
