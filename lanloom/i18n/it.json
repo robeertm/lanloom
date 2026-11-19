@@ -4463,7 +4463,7 @@
  "role.name.operator": "Operatore",
  "role.name.viewer": "Visualizzatore",
  "role.self": "questo host",
- "routes.title": "Percorsi verso questa destinazione",
+ "routes.title": "Percorsi verso il paese",
  "routes.title_all": "Percorsi di rete",
  "routes.sub": "da quali reti e luoghi passano i dati",
  "routes.count": "{n, plural, one {# percorso misurato} other {# percorsi misurati}}",
