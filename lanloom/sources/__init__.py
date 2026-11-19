@@ -5,7 +5,8 @@
 * ``Mqtt(host, ...)`` - MQTT broker, subscribe-only, message/byte counts per topic root (never payloads);
 * ``Snmp(host, ...)`` - router/switch over SNMP v2c/v3 (Get/GetNext/GetBulk only), every 10 seconds;
 * ``Controller(url, username, password, ...)`` - switch / access point controller (local JSON API,
-  view-only account): which client sits on which port or access point, every 60 seconds.
+  view-only account): which client sits on which port or access point, every 60 seconds;
+* ``Nut(host, ...)`` - UPS over the Network UPS Tools protocol (``LIST UPS`` / ``LIST VAR`` only), every 15 seconds.
 
 Each source: ``async run(emit)`` (loops until cancelled, reconnects with backoff 1 s -> 60 s, emits status events)
 and ``async test() -> (ok, reason_key, details)``. See ``_common`` for the shared contract.
@@ -15,9 +16,10 @@ from .controller import Controller
 from .hostnet import HostNet
 from .hub import Hub
 from .mqtt import Mqtt
+from .nut import Nut
 from .snmp import Snmp
 
-SOURCES = {"host": HostNet, "hub": Hub, "mqtt": Mqtt, "snmp": Snmp, "controller": Controller}
+SOURCES = {"host": HostNet, "hub": Hub, "mqtt": Mqtt, "snmp": Snmp, "controller": Controller, "nut": Nut}
 
 # Reason keys a source can emit (for the i18n files).
 REASON_KEYS = (
@@ -36,6 +38,8 @@ REASON_KEYS = (
     "source.controller.forbidden", "source.controller.protocol", "source.controller.timeout",
     "source.controller.refused", "source.controller.unreachable", "source.controller.tls",
     "source.controller.error",
+    "source.nut.ok", "source.nut.config", "source.nut.protocol", "source.nut.closed", "source.nut.refused",
+    "source.nut.no_ups", "source.nut.timeout", "source.nut.unreachable", "source.nut.error",
 )
 
-__all__ = ["Backoff", "SourceError", "HostNet", "Hub", "Mqtt", "Snmp", "Controller", "SOURCES", "REASON_KEYS"]
+__all__ = ["Backoff", "SourceError", "HostNet", "Hub", "Mqtt", "Snmp", "Controller", "Nut", "SOURCES", "REASON_KEYS"]

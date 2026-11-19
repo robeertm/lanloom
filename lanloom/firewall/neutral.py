@@ -34,6 +34,13 @@ executor that has not been updated yet keep working) and adds optional lists::
     v2  findings      [{id, kind, level (alert|warn|info), subject, params}]   plain checks of the adapter
     v2  dhcp_reservations [{id, client, ip, name?, network?}]   (fixed addresses handed out by the gateway)
     v2  port_forwards [{id, name, proto, wan_port, dst_ip, dst_port, enabled, own?}]
+    v2  wans          [{id, name, kind (cable|cellular), role (primary|backup), enabled, up, active, rx_bps, tx_bps, latency_ms,
+                        failover?, type?}]   internet lines of a gateway: ``up`` is what the gateway reports (Lanloom also measures),
+                        ``active`` says which line carries traffic, ``role: backup`` is the reserve line
+    v2  cellular      [{id, line, name, tech, bands (text or list), carrier, rsrp, rsrq, sinr, rssi, data_used, data_limit, period_end_t,
+                        active, cell_id?, tac?, location?}]   mobile-router figures (dBm/dB, bytes); cell_id, tac and location are admin data
+    v2  wan_events    [{t, kind (up|down|failover|failback), line}]   the gateway's own event stream, where it has one
+    v2  ids           {enabled, blocked_24h?}   intrusion detection of the gateway, where it tells
     v2  raw           [{id, area, title, editable: false}]  vendor objects that do not map; shown, never written
 
 Rules for every list: ``id`` is an opaque, stable text (a hash, never a hardware address); ``own: true`` marks an
@@ -46,7 +53,7 @@ from . import steps
 
 V2_LISTS = ("equipment", "ports", "port_profiles", "policies", "ssids", "guests", "guest_nics", "guest_rules", "bridges",
             "dhcp_reservations", "port_forwards", "raw", "hosts", "sdn_zones", "sdn_vnets", "fw_rules", "fw_options",
-            "storage", "backup_jobs", "findings")
+            "storage", "backup_jobs", "findings", "wans", "cellular")
 V1_LISTS = ("zones", "networks", "devices")
 ALL_LISTS = V1_LISTS + V2_LISTS
 MAC_LIKE = re.compile(r"\A[0-9a-fA-F]{2}([:-]?)[0-9a-fA-F]{2}(?:\1[0-9a-fA-F]{2}){4}\Z")

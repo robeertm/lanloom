@@ -553,7 +553,8 @@ class Demo:
                                 ("mqtt", "Message broker", {"host": "192.168.50.13", "port": 1883, "tls": False}),
                                 ("snmp", "Router counters", {"host": "192.168.50.1", "version": "2c"}),
                                 ("controller", "Network controller", {"url": "https://192.168.50.11:8443", "username": "map-viewer",
-                                                                      "site": "default"})):
+                                                                      "site": "default"}),
+                                ("nut", "Battery backup", {"host": "192.168.50.10", "port": 3493})):
             core.store.execute("INSERT INTO integrations(kind, name, config, enabled, created) VALUES(?,?,?,1,?)",
                                (kind, name, _json.dumps(cfg), time.time()))
         fam = _demo_family()
@@ -847,8 +848,12 @@ class Demo:
                     demo_agents.seed(core, now)           # sample host agents and a container source (E4)
                     from . import demo_hosthealth
                     demo_hosthealth.seed(core, now)       # seven days of host samples with an early warning (W1)
+                    from . import demo_controlroom
+                    demo_controlroom.seed(core, now)      # internet history, UPS night, backup chains (S9-S12)
                 self._agents_t = now
                 demo_agents.tick(core, now, el, rng)
+                from . import demo_controlroom
+                demo_controlroom.tick(core, now, el)
             ids = {row["kind"]: row["id"] for row in core.store.query("SELECT id, kind FROM integrations")}
             for key in ["host"] + ["int:%d" % i for i in ids.values()]:
                 core.source_status[key] = {"ok": True, "key": "source.ok", "t": now}

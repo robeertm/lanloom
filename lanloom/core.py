@@ -55,6 +55,7 @@ INTEGRATION_FIELDS = {
     "mqtt": (("host", "port", "username", "tls", "allow_self_signed"), ("password",)),
     "snmp": (("host", "version", "user", "auth_proto", "priv_proto", "uplink"), ("community", "auth_key", "priv_key")),
     "controller": (("url", "username", "site", "style", "allow_self_signed"), ("password",)),
+    "nut": (("host", "port", "ups"), ()),
 }
 
 
@@ -174,6 +175,8 @@ class Core:
         self.agents = AgentHub(self)                    # host agents and container sources (E4)
         from .hosthealth import HostHealth
         self.hosthealth = HostHealth(self)              # host gauges, samples and early warnings (W1)
+        from .controlroom.room import ControlRoom
+        self.controlroom = ControlRoom(self)            # control room: internet watch, UPS, storage box, backup chains (S9-S12)
         self.reports.journal.listeners.append(self.notify.on_journal)
         self.reports.on_certs = self.notify.on_certs
         from .failure import Failure
@@ -372,6 +375,7 @@ class Core:
         self._tasks.append(asyncio.create_task(self._tick_loop()))
         self._tasks.append(asyncio.create_task(self.agents.loop()))
         self._tasks.append(asyncio.create_task(self.hosthealth.loop()))
+        self._tasks.append(asyncio.create_task(self.controlroom.loop()))
         self._tasks.append(asyncio.create_task(self.reports.loop()))
         self._tasks.append(asyncio.create_task(self.notify.loop()))
 
@@ -1117,7 +1121,7 @@ class Core:
             if not str(cfg.get("username") or "").strip():
                 raise ValueError("integration.err.username")
             cfg["username"] = str(cfg["username"]).strip()[:64]
-        if kind in ("mqtt", "snmp"):
+        if kind in ("mqtt", "snmp", "nut"):
             host = str(cfg.get("host") or "").strip()
             if not host or len(host) > 253 or any(c.isspace() for c in host):
                 raise ValueError("integration.err.host")
@@ -1130,6 +1134,18 @@ class Core:
             cfg["tls"] = bool(cfg.get("tls"))
         if kind == "snmp":
             cfg["version"] = "3" if str(cfg.get("version") or "2c") == "3" else "2c"
+        if kind == "nut":
+            try:
+                cfg["port"] = int(cfg.get("port") or 3493)
+            except (TypeError, ValueError):
+                raise ValueError("integration.err.port")
+            if not 1 <= cfg["port"] <= 65535:
+                raise ValueError("integration.err.port")
+            cfg["ups"] = str(cfg.get("ups") or "").strip()
+            if cfg["ups"] and not re.fullmatch(r"[A-Za-z0-9_.@-]{1,64}", cfg["ups"]):
+                raise ValueError("integration.err.value")
+            if not cfg["ups"]:
+                cfg.pop("ups", None)
         for k in ("allow_self_signed", "tls", "admin_mode") + tuple(hub_privacy.GROUP_FIELDS):
             if k in cfg:
                 cfg[k] = cfg[k] is True
@@ -1148,6 +1164,8 @@ class Core:
             return sources.Snmp(cfg["host"], version=cfg.get("version", "2c"), community=sec.get("community"),
                                 user=cfg.get("user"), auth_key=sec.get("auth_key"), priv_key=sec.get("priv_key"),
                                 auth_proto=cfg.get("auth_proto") or "sha", priv_proto=cfg.get("priv_proto") or "aes")
+        if kind == "nut":
+            return sources.Nut(cfg["host"], port=cfg.get("port", 3493), ups=cfg.get("ups") or "")
         if kind == "controller":
             return sources.Controller(cfg["url"], cfg.get("username") or "", sec.get("password") or "", site=cfg.get("site") or "default",
                                       style=cfg.get("style") if cfg.get("style") in ("console", "classic") else "auto",
@@ -1266,6 +1284,7 @@ class Core:
             self.vault.delete_prefix("int:%d:" % integ_id)
         for d in (self.hub, self.mqtt, self.snmp, self.topic_order, self.dns):
             d.pop(integ_id, None)
+        self.controlroom.forget_integration(integ_id)
         self.dns_log.forget(integ_id)
         self.topo_obs.pop("int:%d" % integ_id, None)
         self.live_cfg.pop(integ_id, None)
@@ -1601,6 +1620,10 @@ class Core:
         elif etype == "snmp":
             cad.tick(now)
             self._book_snmp(integ_id, ev, now)
+            self.controlroom.feed(integ_id, etype, ev, now)
+        elif etype == "nut":
+            cad.tick(now)
+            self.controlroom.feed(integ_id, etype, ev, now)
         elif etype == "config":
             cad.tick(now)
             self._book_config(integ_id, ev, now)
@@ -1663,6 +1686,11 @@ class Core:
         if st.get("hosts") is not None:
             st = dict(st, findings=list(st.get("findings") or []) + self._vlan_chain(integ_id, ev.get("family"), st))
         self.live_cfg[integ_id] = {"state": st, "caps": caps, "family": ev.get("family"), "t": now}
+        try:
+            if st.get("wan_events"):
+                self.controlroom.wan.ingest_gateway_events(st["wan_events"])
+        except Exception:
+            log.exception("booking gateway events failed")
         try:
             self.hitlog.feed("int:%d" % integ_id, st.get("policies"), now)
             if st.get("ports") and now - self._ports_light.get(integ_id, 0) > 180:       # no light poll carries ports: use the full one

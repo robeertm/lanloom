@@ -427,6 +427,9 @@ def gateway_sample(family: str, changed: bool = False) -> dict:
     st = integrations.load_model(family).to_neutral(_gw_raw(changed))
     st["controller"]["label"] = "Sample gateway firewall"
     st["controller"]["version"] = "demo"
+    from . import demo_controlroom
+    import time as _time
+    demo_controlroom.extend_gateway(st, _time.time())
     neutral.validate(st)
     return st
 

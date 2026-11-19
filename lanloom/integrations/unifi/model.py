@@ -932,15 +932,65 @@ def _forwards(raw) -> list:
 
 def _wans(raw, ids) -> list:
     out = {}
+    order = []
     for n in items(raw, "networkconf"):
         if str(n.get("purpose") or "") == "wan":
-            out[ids.net_id(n.get("_id"))] = {"id": ids.net_id(n.get("_id")), "name": text(n.get("name")) or "?",
-                                             "type": text(n.get("wan_type"), 16), "failover": text(n.get("wan_load_balance_type"), 24),
-                                             "enabled": n.get("enabled") is not False}
+            wid = ids.net_id(n.get("_id"))
+            out[wid] = {"id": wid, "name": text(n.get("name")) or "?", "type": text(n.get("wan_type"), 16),
+                        "failover": text(n.get("wan_load_balance_type"), 24), "enabled": n.get("enabled") is not False,
+                        "_slot": str(n.get("attr_hidden_id") or "").upper(), "_prio": num(n.get("wan_failover_priority"))}
+            order.append(wid)
     for w in items(raw, "o_wans"):
         wid = oid("n", w.get("id"))
         out.setdefault(wid, {"id": wid, "name": text(w.get("name")) or "?", "type": None, "failover": None, "enabled": True})
+    _wan_states(raw, out, order)
+    for w in out.values():
+        w.pop("_slot", None)
+        w.pop("_prio", None)
     return list(out.values())
+
+
+_WAN_SLOT = {"WAN": "wan1", "WAN2": "wan2", "WAN3": "wan3"}
+
+
+def _wan_states(raw, out: dict, order: list) -> None:
+    """Link state, rates and the carrying line of each internet line from the gateway's own device record (read only).
+    What the gateway does not tell stays absent (the control room then measures instead of believing)."""
+    gw = next((d for d in items(raw, "device") if _kind_classic(d) == "router"), None)
+    if gw is None:
+        return
+    uplink = gw.get("uplink") if isinstance(gw.get("uplink"), dict) else {}
+    carrying = text(uplink.get("name") or uplink.get("ifname") or gw.get("uplink_ifname"), 16)
+    for i, wid in enumerate(order):
+        w = out[wid]
+        key = _WAN_SLOT.get(w.get("_slot") or "") or "wan%d" % (i + 1)
+        rec = gw.get(key) if isinstance(gw.get(key), dict) else None
+        if rec is None:
+            continue
+        if isinstance(rec.get("up"), bool):
+            w["up"] = rec["up"]
+        for src, dst in (("rx_bytes-r", "rx_bps"), ("tx_bytes-r", "tx_bps")):
+            v = num(rec.get(src))
+            if v is not None:
+                w[dst] = v * 8.0
+        lat = num(rec.get("latency"))
+        if lat is not None:
+            w["latency_ms"] = lat
+        ifname = text(rec.get("ifname") or rec.get("name"), 16)
+        if isinstance(rec.get("is_uplink"), bool):
+            w["active"] = rec["is_uplink"]
+        elif carrying and ifname:
+            w["active"] = (ifname == carrying)
+        low = (w.get("name") or "").lower() + " " + str(rec.get("type") or "").lower()
+        w["kind"] = "cellular" if any(x in low for x in ("lte", "5g", "4g", "cellular", "mobile")) else "cable"
+    if len(order) > 1:
+        if out[order[0]].get("failover") == "failover-only":
+            ranked = sorted(order, key=lambda wid: (out[wid].get("_prio") if out[wid].get("_prio") is not None else 99, order.index(wid)))
+            for j, wid in enumerate(ranked):
+                out[wid]["role"] = "primary" if j == 0 else "backup"
+        else:
+            for wid in order:
+                out[wid]["role"] = "primary"
 
 
 def _vpn(raw, ids) -> list:

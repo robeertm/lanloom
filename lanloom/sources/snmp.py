@@ -803,6 +803,7 @@ def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd
     units, size, used = col.get(OID_HR_STORAGE_UNITS, {}), col.get(OID_HR_STORAGE_SIZE, {}), col.get(OID_HR_STORAGE_USED, {})
     out = {"cpu": None, "cores": None, "load": None, "mem": None, "swap": None, "disk": None, "disk_mount": None, "temp": None}
     disk = None
+    volumes = []
     for i, typ in list(types.items())[:MAX_HR_ROWS]:
         sz, us, u = size.get(i), used.get(i), units.get(i)
         if not isinstance(u, int) or u <= 0:
@@ -818,8 +819,12 @@ def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd
         elif typ == HR_FIXED_DISK and not any(name.startswith(m) for m in _SKIP_MOUNTS) and sz * u >= 256 << 20:
             if disk is None or share > disk[0]:
                 disk = (share, name)
+            if len(volumes) < 24:
+                volumes.append({"name": name, "used": us * u, "total": sz * u, "pct": share})
     if disk:
         out["disk"], out["disk_mount"] = disk
+    if volumes:
+        out["volumes"] = volumes                       # every fixed disk (the NAS card lists them); absent when there is none
     loads = [v for _o, v in proc_rows if isinstance(v, int) and 0 <= v <= 100]
     if loads:
         out["cpu"], out["cores"] = round(sum(loads) / len(loads), 1), len(loads)
@@ -859,6 +864,50 @@ def read_host_resources(client: SnmpClient) -> dict:
     temp = _walk_or_empty(client, OID_LM_TEMP, limit=64)
     out = parse_host_resources(storage, proc, la, ucd, temp)
     return out if any(v is not None for v in out.values()) else {}
+
+
+# ================================================================== UPS-MIB (RFC 1628)
+OID_UPS = "1.3.6.1.2.1.33.1"
+MAX_UPS_ROWS = 120
+UPS_OUTPUT_SOURCE = {1: "other", 2: "none", 3: "normal", 4: "bypass", 5: "battery", 6: "booster", 7: "reducer"}
+UPS_BATTERY_STATUS = {1: "unknown", 2: "normal", 3: "low", 4: "depleted"}
+
+
+def parse_ups_mib(rows) -> dict:
+    """Neutral reading of a UPS from the walk below upsMIB.upsObjects ({} when the agent offers none).
+
+    Status words are the ones the UPS-MIB uses (output source, battery status); ``runtime_s`` comes from
+    upsEstimatedMinutesRemaining and is only trusted on battery, ``charge`` from upsEstimatedChargeRemaining."""
+    cols = {}
+    for oid, value in rows:
+        rest = oid[len(OID_UPS) + 1:] if oid.startswith(OID_UPS + ".") else ""
+        if rest:
+            cols.setdefault(rest, value)
+    if not cols:
+        return {}
+
+    def num(key, scale=1.0):
+        v = cols.get(key)
+        return round(v * scale, 2) if isinstance(v, int) and not isinstance(v, bool) else None
+
+    def first(prefix):
+        for k in sorted(cols):
+            if k.startswith(prefix):
+                return num(k)
+        return None
+    out_src = UPS_OUTPUT_SOURCE.get(cols.get("4.1.0"), "")
+    batt = UPS_BATTERY_STATUS.get(cols.get("2.1.0"), "")
+    minutes = num("2.3.0")
+    return {"name": clip(cols.get("1.5.0") or cols.get("1.2.0") or "ups", 64), "description": clip(cols.get("1.2.0"), 80) or "",
+            "status": ("OB" if out_src == "battery" else "OL" if out_src in ("normal", "bypass", "booster", "reducer") else "") +
+                      (" LB" if batt in ("low", "depleted") else ""),
+            "charge": num("2.4.0"), "charge_low": None, "runtime_s": minutes * 60 if minutes is not None else None, "runtime_low_s": None,
+            "load": first("4.4.1.5."), "input_v": first("3.3.1.3."), "output_v": first("4.4.1.2."), "battery_v": num("2.5.0", 0.1),
+            "temp": num("2.7.0"), "power_w": first("4.4.1.4."), "test": "", "model": clip(cols.get("1.2.0"), 60) or ""}
+
+
+def read_ups_mib(client: SnmpClient) -> dict:
+    return parse_ups_mib(_walk_or_empty(client, OID_UPS, limit=MAX_UPS_ROWS))
 
 
 # ================================================================== topology (LLDP + forwarding table)
@@ -1122,6 +1171,7 @@ class Snmp:
         self._sys_name = None
         self.host_resources = True
         self._hr_due = 0.0
+        self._ups_due = 0.0
 
     def __repr__(self):
         return "Snmp(host=%r, version=%r)" % (self.host, self._client.version)
@@ -1158,6 +1208,18 @@ class Snmp:
             if not hr:
                 self._hr_due = mono + HR_EVERY_S * 30          # no host tables: ask again in half an hour
             frame["hr"] = hr
+        if self.host_resources and mono >= self._ups_due:
+            self._ups_due = mono + HR_EVERY_S
+            try:
+                ups = read_ups_mib(client)
+            except SnmpError as exc:
+                if exc.key in _TIMEOUT_KEYS:
+                    raise
+                ups = {}
+            if not ups:
+                self._ups_due = mono + HR_EVERY_S * 30
+            else:
+                frame["ups"] = ups
         return frame
 
     def poll_topology(self, client: SnmpClient) -> dict:
