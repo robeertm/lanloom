@@ -1,19 +1,7 @@
-/* Lanloom — front view of a switch, router or access point (js/portfront.js). Colours only from tokens.css; the plate is a
-   dark faceplate in the light theme and a raised dark panel in the dark theme. */
+/* Lanloom — front view of a switch, router or access point (js/portfront.js). Colours only from tokens.css; the plate
+   follows the mode like every other surface (a light plate in the light theme, a raised dark panel in the dark theme:
+   the palette check allows no dark island on a light page). The tokens carry the mode, so one mapping serves both. */
 .pf {
-  --pf-plate: var(--ll-pcb-silk);
-  --pf-plate-line: var(--ll-text-2);
-  --pf-pad: var(--ll-text);
-  --pf-pad-down: var(--ll-pcb-silk);
-  --pf-pad-sel: var(--ll-pcb-silk-2);
-  --pf-line: var(--ll-text-3);
-  --pf-ink: var(--ll-pcb-tile);
-  --pf-ink-dim: var(--ll-border-strong);
-  --pf-ok: var(--ll-ok);
-  --pf-accent: var(--ll-accent-soft);
-  display: flex; flex-direction: column; gap: 10px; min-width: 0;
-}
-[data-theme="dark"] .pf {
   --pf-plate: var(--ll-surface-3);
   --pf-plate-line: var(--ll-border-strong);
   --pf-pad: var(--ll-pcb-tile);
@@ -22,20 +10,9 @@
   --pf-line: var(--ll-border-strong);
   --pf-ink: var(--ll-text);
   --pf-ink-dim: var(--ll-text-3);
+  --pf-ok: var(--ll-ok);
   --pf-accent: var(--ll-pcb-icon);
-}
-@media (prefers-color-scheme: dark) {
-  [data-theme="auto"] .pf {
-    --pf-plate: var(--ll-surface-3);
-    --pf-plate-line: var(--ll-border-strong);
-    --pf-pad: var(--ll-pcb-tile);
-    --pf-pad-down: var(--ll-surface-2);
-    --pf-pad-sel: var(--ll-surface);
-    --pf-line: var(--ll-border-strong);
-    --pf-ink: var(--ll-text);
-    --pf-ink-dim: var(--ll-text-3);
-    --pf-accent: var(--ll-pcb-icon);
-  }
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
 }
 
 .pf-head { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }

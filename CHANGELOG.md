@@ -55,6 +55,11 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 - A device that a switch controller still lists but reports as disconnected (or whose heartbeat is missing) no longer counts as a sign of life, so a dead access point shows as down instead of online.
 
+### Fixed
+- Firewall editor: an answer of the tab could show a finished change next to the state from before it, when the change ended while the page was asking (seen under load as a new port forward or guest setting missing after *done*). The job list is now read before the state, so *done* always comes with what the change wrote.
+- The front panel of a switch, router or access point follows the light theme (a light plate instead of a dark one on a light page; the dark theme is unchanged), and redrawing it when the page is resized no longer makes the browser report a resize loop. The light screenshots of the front panel and the switch port editor were taken again.
+- Long section titles of the nightly report (a source name such as a wireless controller's) wrap on a phone instead of running out of the screen.
+
 ## [1.47.0] – 2026-11-19
 
 1.44.0, 1.44.1, 1.45.0, 1.46.0 and 1.46.1 below were not released on their own; they are part of this release.

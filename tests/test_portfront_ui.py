@@ -76,6 +76,11 @@ def test_accessible_and_themed():
     local = set(re.findall(r"(--pf-[\w-]+)\s*:", css))
     used = set(re.findall(r"var\((--[\w-]*\w)", css))
     assert used <= tokens | local | {"--pf-cols"}, used - tokens - local      # --pf-cols is set per band by the script
-    assert '[data-theme="dark"] .pf' in css and '[data-theme="auto"] .pf' in css
+    # the plate follows the mode like every other surface (no dark island on a light page, see the palette check of the
+    # gate): surface and border tokens that carry the theme, never a token that stays dark in the light theme
+    mapping = dict(re.findall(r"(--pf-[\w-]+):\s*var\((--[\w-]+)\)", css))
+    assert mapping["--pf-plate"].startswith("--ll-surface") and mapping["--pf-plate-line"] == "--ll-border-strong"
+    assert not any("pcb-silk" in v for v in mapping.values())
+    assert len(re.findall(r"--pf-plate\s*:", css)) == 1                   # one mapping for every mode
     # the health mark is a symbol, not only a colour
     assert ".pf-health" in css and "levelMark(lv)" in pf

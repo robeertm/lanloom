@@ -325,6 +325,26 @@ def test_port_forward_needs_its_confirmation_through_the_api(c):
     assert any(f["name"] == "Web" and f["own"] for f in v["state"]["port_forwards"])
 
 
+def test_the_view_never_pairs_a_finished_job_with_the_state_before_it(c, monkeypatch):
+    # a run that ends while the tab's data is put together: read state first and jobs second, the answer said "done"
+    # next to the state before the run (seen under load: the new port forward missing after "done")
+    ed = c.ll.firewall
+    ed.store.set_setting("fw_jobs", [{"plan": "p_race", "user": "admin", "t": 0, "status": "running", "stage": "watch",
+                                      "summary": [], "undo_of": None, "inverse": None, "undo_until": None, "target": "simulation"}])
+    read_state = ed.state
+
+    def state_then_the_run_ends():
+        st = read_state()
+        ed.on_progress({"plan": "p_race", "stage": "done", "status": "done", "t": 0, "reason": "fw.res.done"})
+        return st
+    monkeypatch.setattr(ed, "state", state_then_the_run_ends)
+    v = c.get("/api/firewall?source=editor").json()
+    assert v["running"] and v["running"]["plan"] == "p_race"      # still running in this answer: the next poll has both
+    monkeypatch.setattr(ed, "state", read_state)
+    v = c.get("/api/firewall?source=editor").json()
+    assert not v["running"] and v["history"][0]["status"] == "done"
+
+
 def test_release_of_a_fixed_address_warns_about_what_uses_it(c):
     c.put("/api/firewall/draft", json={"ops": [{"kind": "dhcp.release", "object": "r_d19"}]}, headers=HDR)
     pv = c.post("/api/firewall/preview", json={}, headers=HDR).json()

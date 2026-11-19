@@ -244,13 +244,20 @@
       drawPlate(0);
       root.append(plateBox, info);
       if (typeof ResizeObserver !== 'undefined') {
-        let last = 0;
+        let last = 0, frame = 0;
+        // the plate is drawn anew in the next frame, not inside the observer: redrawing there changes the size of what is
+        // observed and the browser reports "ResizeObserver loop completed with undelivered notifications" as a page error
         const ro = new ResizeObserver(() => {
           if (!root.isConnected) { ro.disconnect(); return; }
-          const w = Math.round(root.clientWidth);
-          if (!w || w === last) return;
-          last = w;
-          if (colsFor(w, ports.some(p => p.sfp)) !== cols || sfpBeside(w) === stacked) drawPlate(w);
+          if (frame) return;
+          frame = requestAnimationFrame(() => {
+            frame = 0;
+            if (!root.isConnected) { ro.disconnect(); return; }
+            const w = Math.round(root.clientWidth);
+            if (!w || w === last) return;
+            last = w;
+            if (colsFor(w, ports.some(p => p.sfp)) !== cols || sfpBeside(w) === stacked) drawPlate(w);
+          });
         });
         ro.observe(root);
       }

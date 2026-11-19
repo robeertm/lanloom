@@ -191,10 +191,14 @@ class Editor:
                     "capabilities": capmod.public(dict(entry["caps"], write={})),     # a live source is shown, never written
                     "live": {"name": entry["name"], "family": entry.get("family"), "age_s": entry.get("age_s"),
                              "version": (st.get("controller") or {}).get("version"), "apis": (st.get("controller") or {}).get("apis")}}
+        # the job list is read before the state: a run reports "done" only after its last write, so a reader that sees a
+        # finished job also sees what it wrote (read the other way round, a run ending in between gave the old state
+        # next to "done")
+        running, history = self.running(), self.history()
         st = self.state()
         out = {"mode": self.mode, "source": "editor", "sources": sources, "state": None, "targets": {}, "draft": self.draft(user),
                "quiet": self.is_quiet(), "quiet_hours": self.quiet_hours, "executor": self.executor_status(),
-               "running": self.running(), "history": self.history(), "requester": None, "max_objects": model.MAX_OBJECTS,
+               "running": running, "history": history, "requester": None, "max_objects": model.MAX_OBJECTS,
                "capabilities": self.public_capabilities()}
         if st is not None:
             out["state"] = st

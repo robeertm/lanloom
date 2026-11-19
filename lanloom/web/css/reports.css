@@ -44,7 +44,8 @@
   background: var(--ll-surface-2); color: var(--ll-text-3); }
 .rp-sec[data-level="warn"] .rp-sec__icon { background: var(--ll-warn-soft); color: var(--ll-warn-text); }
 .rp-sec[data-level="danger"] .rp-sec__icon { background: var(--ll-danger-soft); color: var(--ll-danger-text); }
-.rp-sec__title { font-size: var(--ll-fs-md); white-space: nowrap; }
+/* a long source name ("Network controller · Sample wireless controller") wraps instead of running out of a phone screen */
+.rp-sec__title { font-size: var(--ll-fs-md); min-width: 0; overflow-wrap: anywhere; }
 .rp-sec__name { font-weight: var(--ll-fw-medium); color: var(--ll-text-3); }
 .rp-sec__sum { color: var(--ll-text-2); font-size: var(--ll-fs-sm); min-width: 0; overflow-wrap: anywhere; }
 
@@ -119,7 +120,7 @@
   .rp-date { font-size: var(--ll-fs-lg); }
   .rp-sec__head { grid-template-columns: auto minmax(0, 1fr); }
   .rp-sec__name { font-weight: var(--ll-fw-medium); color: var(--ll-text-3); }
-.rp-sec__sum { grid-column: 2; }
+  .rp-sec__sum { grid-column: 2; }
   .rp-items { padding-left: 0; }
   .rp-more { padding-left: 0; }
   .rp-headline { padding: 12px; }
