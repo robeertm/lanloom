@@ -55,18 +55,22 @@ _VERSION_KEYS = ("version", "ver", "fw", "fwversion", "sw", "swversion", "firmwa
 NON_WEB_NAMES = frozenset({"ssh", "ssh-alt", "telnet", "ftp", "ftps", "ftp-alt", "smb", "dns", "mqtt", "mqtts", "rsync", "remote-desktop", "vnc",
                            "printer-raw", "rtsp", "smtp", "smtps", "imap", "imaps", "pop3", "pop3s", "ldap", "ldaps", "db", "kv-store", "nfs",
                            "iscsi", "snmp", "ntp", "upnp", "sip", "sips", "amqp"})
-_NOT_PRODUCTS = {"upnp", "linux", "windows", "unix", "http", "rtsp", "sip", "darwin", "freebsd"}
+_NOT_PRODUCTS = {"upnp", "http", "rtsp", "sip"}
 
 
 # ---------------------------------------------------------------------- what a device offers
-def parse_product(text) -> tuple:
-    """(product, version) from a ``Server`` header or a UPnP SERVER line, or (None, None). Only what the device says."""
+def parse_product(text, last: bool = False) -> tuple:
+    """(product, version) from a ``Server`` header or a UPnP SERVER line, or (None, None). Only what the device says.
+    A UPnP line reads "<system>/<version> UPnP/1.0 <product>/<version>": there the **last** product token is meant (``last``)."""
+    found = []
     for token in re.split(r"[;,]|\s{2,}", str(text or "")):
         for part in token.split(" ") if "/" in token else [token]:
             m = _SERVER_RX.match(part.strip("() "))
             if m and m.group(1).lower() not in _NOT_PRODUCTS:
-                return m.group(1), m.group(2)
-    return None, None
+                found.append((m.group(1), m.group(2)))
+    if not found:
+        return None, None
+    return found[-1] if last else found[0]
 
 
 def _txt_version(txt) -> Optional[str]:
@@ -152,7 +156,7 @@ def extract(data: dict, listen=()) -> list:
     for s in data.get("ssdp") or []:
         if not isinstance(s, dict):
             continue
-        product, version = parse_product(s.get("server"))
+        product, version = parse_product(s.get("server"), last=True)
         if not version:
             continue
         for row in by_port.values():
