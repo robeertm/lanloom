@@ -87,7 +87,7 @@ def test_devices_filter_and_settings_wiring():
     assert "keep(d) && keepNet(d)" in views
     assert "port_noise: noise.checked" in views and "s.port_noise" in views and "'settings.port_noise.hint'" in views
     # full screen of the map: only in board mode, moves the host
-    assert "LL.hostFullScreen" in views and "mode === 'board' && fullScreen ? fullButton()" in views
+    assert "LL.hostFullScreen" in views and "face !== 'tree' && fullScreen ? fullButton()" in views
 
 
 def test_texts_of_the_switch_are_keys():

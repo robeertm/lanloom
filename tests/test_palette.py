@@ -306,7 +306,7 @@ def test_commands_and_actions_name_texts_that_exist():
 def test_actions_are_registered_only_for_what_exists():
     src = js("palette.js")
     for route in re.findall(r"LL\.go\('#/([a-z]+)", src):
-        assert route in ("map", "devices", "settings"), route                          # only views that exist today
+        assert route in ("map", "network", "devices", "settings"), route               # only views that exist today (network: its 3D face, O7)
     reg = js("app.js")
     assert "LL.registerAction" in reg and "LL.registerCommand" in reg
     # the asked-for actions (outage chain, dependencies, maintenance, history, availability) are added by the features that bring those views

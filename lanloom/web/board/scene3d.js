@@ -5,7 +5,7 @@
 
    It is the third face of the Network view, next to the board and the tree. It needs real graphics acceleration: a browser that
    only has a software renderer (or no WebGL at all) gets a short note and the flat board instead, so a small host never burns its
-   processor on a picture (the Firefox lesson of the frame budget, B4). "Try anyway" stores ll-3d-soft=1 in this browser.
+   processor on a picture (the lesson of the frame budget: a browser without acceleration draws every pixel on the processor). "Try anyway" stores ll-3d-soft=1 in this browser.
 
    Pure part (no DOM, tested under Node):
      layout(view, { zone, only }) → { nodes, links, layers, bounds, order }
@@ -49,7 +49,7 @@
 
   // ---------------------------------------------------------------- pure part
   function gpuVerdict(name) {
-    return !/swiftshader|llvmpipe|softpipe|software|basic render|microsoft basic/i.test(String(name || ''));
+    return !/swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(name || ''));
   }
 
   const kindLayer = k => (KIND_LAYER[k] != null ? KIND_LAYER[k] : 3);
@@ -206,7 +206,7 @@
     return { yaw: 0.62, pitch: 0.52, dist, tx: 0, ty: bounds.height * 0.42, tz: 0, home: dist };
   }
 
-  // "#0C8574", "#abc", "rgba(38, 72, 56, .14)" → [r, g, b, a] in 0..1
+  // a hex colour with 3 or 6 digits or an rgb or rgba value (as the design tokens hold them) → [r, g, b, a] in 0..1
   function parseColor(s, dflt) {
     s = String(s || '').trim();
     let m = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);

@@ -43,7 +43,7 @@ out.along0 = S.along(lk, 0); out.along1 = S.along(lk, 1);
 const P = S.layout(view, { only: 'problems' });
 out.problems = P.nodes.map(n => n.id).sort();
 // renderer names
-out.gpu = ['ANGLE (Apple, Apple M2, OpenGL 4.1)', 'V3D 7.1', 'Google SwiftShader', 'llvmpipe (LLVM 15.0.7, 128 bits)', 'Microsoft Basic Render Driver', 'Mali-G610'].map(S.gpuVerdict);
+out.gpu = ['ANGLE (Vendor, Integrated GPU, OpenGL 4.1)', 'V3D 7.1', 'SwiftShader Device (Subzero)', 'llvmpipe (LLVM 15.0.7, 128 bits)', 'Basic Render Driver', 'Mali-G610'].map(S.gpuVerdict);
 // camera: the projected target lands in the middle of the screen; a point behind the eye is not drawn
 const cam = S.fitCamera(L.bounds, 16 / 9);
 const m = S.orbit(cam, 16 / 9);
