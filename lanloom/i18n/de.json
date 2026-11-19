@@ -2752,7 +2752,7 @@
  "integration.err.username": "Bitte den Benutzernamen des Kontos mit Leserechten eingeben.",
  "integration.err.value": "Eine Einstellung ist zu lang oder enthält ungültige Zeichen.",
  "integrations.family.adguard": "AdGuard Home (lokale API)",
- "integrations.family.omada": "Omada Network (Controller-API)",
+ "integrations.family.omada": "Omada Network (lokale API)",
  "integrations.family.pihole": "Pi-hole (lokale API)",
  "integrations.family.proxmox": "Proxmox VE (local API)",
  "integrations.family.sophos": "Sophos Firewall (lokale API)",

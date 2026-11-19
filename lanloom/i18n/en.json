@@ -2752,7 +2752,7 @@
  "integration.err.username": "Please enter the user name of the view-only account.",
  "integration.err.value": "A setting is too long or contains invalid characters.",
  "integrations.family.adguard": "AdGuard Home (local API)",
- "integrations.family.omada": "Omada Network (controller API)",
+ "integrations.family.omada": "Omada Network (local API)",
  "integrations.family.pihole": "Pi-hole (local API)",
  "integrations.family.proxmox": "Proxmox VE (local API)",
  "integrations.family.sophos": "Sophos Firewall (local API)",

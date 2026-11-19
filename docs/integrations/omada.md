@@ -1,4 +1,4 @@
-# Omada Network (controller API): read adapter
+# Omada Network (local API): read adapter
 
 Lanloom reads an Omada controller (a software controller or a hardware controller) over its **Open API** with an **application made only for Lanloom, whose role only views**. Nothing is ever changed on the controller from Lanloom in this release: the adapter can send exactly one `POST` (the exchange of the application's client ID and secret for an access token) and `GET` requests on the paths listed below. A request outside that list is refused before it leaves Lanloom - no change, no restart, no firmware action, no block or disconnect of a client.
 
@@ -25,7 +25,7 @@ You need an Open API application with a role that only views, and its three valu
 3. Copy the **Client ID** and the **Client Secret** (the eye icon shows the secret), and note the **Omada ID** shown with the application.
 4. Make sure the computer Lanloom runs on can reach the controller's web port (`8043` on a software controller; hardware controllers use `443`).
 
-Then in Lanloom: **Settings → Connections → + Omada Network (controller API)**.
+Then in Lanloom: **Settings → Connections → + Omada Network (local API)**.
 
 The Open API does not tell Lanloom the role of an application, so Lanloom cannot check it the way it does for families whose API reports it - the role in step 2 is what keeps the application read only on the controller. Lanloom's own side cannot send a change in any case.
 

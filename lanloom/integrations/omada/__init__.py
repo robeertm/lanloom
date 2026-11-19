@@ -41,7 +41,7 @@ FORM = (
 
 MANIFEST = IntegrationManifest(
     family="omada",
-    label="Omada Network (controller API)",
+    label="Omada Network (local API)",
     capabilities=CAPABILITIES,
     read="lanloom.integrations.omada.read:OmadaReader",
     docs="docs/integrations/omada.md",
