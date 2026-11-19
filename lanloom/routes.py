@@ -1,7 +1,7 @@
 """Network routes for the data paths view (DW2): which networks and places the data passes on the way to a destination.
 
 This module is pure functions only: no network access, no files, standard library only. The measurement itself runs in a
-separate low-priority helper process (``routeprobe.py``); ``routewatch.py`` schedules it and stores the condensed result.
+low-priority worker thread (``routeprobe.py``); ``routewatch.py`` schedules it and stores the condensed result.
 Here the output of the probes is read and condensed into a chain of sections.
 
 One hop list for every parser:
@@ -177,7 +177,8 @@ def _json_objects(text):
 
 
 def read_scamper(text):
-    """``scamper -O json -c "trace -P udp-paris ..."`` -> hop list (gaps without an answer have ip=None). Only the first
+    """Recorded Paris traceroute output in the JSON form of the common measurement tools (``"type": "trace"`` objects; for
+    imported or recorded measurements - Lanloom itself never starts a program) -> hop list (gaps without an answer have ip=None). Only the first
     trace object counts."""
     try:
         for o in _json_objects(text):
@@ -253,7 +254,7 @@ def read_traceroute(text):
 
 
 def read_probe(text):
-    """Output of the own helper (``routeprobe.py``): one JSON object {"hops": [{"ttl", "ip", "rtt", "name"}], ...}."""
+    """Output of the own probe (``routeprobe.py``): one JSON object {"hops": [{"ttl", "ip", "rtt", "name"}], ...}."""
     try:
         for o in _json_objects(text):
             hops = o.get("hops")

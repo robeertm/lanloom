@@ -3,14 +3,12 @@ and TCP tracers with a fake socket and a fake clock, reverse DNS with a deadline
 loop of the helper process.
 
 Nothing here sends a packet: every socket is a fake handed in through ``sock_factory``, ``socket.socket`` and the system
-resolver are blocked for the whole module, and no subprocess may start."""
+resolver are blocked for the whole module."""
 import errno
-import io
 import json
 import select
 import socket
 import struct
-import subprocess
 import threading
 import time
 
@@ -27,12 +25,8 @@ def nothing_real(monkeypatch):
     def no_socket(*a, **k):
         raise AssertionError("a real socket was opened")
 
-    def no_run(*a, **k):
-        raise AssertionError("a real process was started")
     monkeypatch.setattr(socket, "socket", no_socket)
     monkeypatch.setattr(socket, "gethostbyaddr", no_socket)
-    monkeypatch.setattr(subprocess, "run", no_run)
-    monkeypatch.setattr(subprocess, "Popen", no_run)
 
 
 # ---------------------------------------------------------------------------------------------------------- payload
@@ -497,46 +491,28 @@ class OkSock:
         self.closed = True
 
 
-def test_check_without_privileges_and_without_scamper(monkeypatch):
-    monkeypatch.setattr(rp, "scamper_path", lambda: None)
-
+def test_check_without_privileges(monkeypatch):
     def denied(fam, kind):
         raise PermissionError(errno.EPERM, "no")
     res = rp.check(sock_factory=denied)
-    assert res["methods"] == {"udp": False, "tcp": False, "scamper": False}
+    assert res["methods"] == {"udp": False, "tcp": False}
     assert res["reasons"]["udp"] == "socket:EPERM" and res["reasons"]["tcp"] == "socket:EPERM"
-    assert res["reasons"]["scamper"] == "not_installed" and res["scamper"] is None
+    assert "scamper" not in res
     json.dumps(res)
 
 
 def test_check_everything_possible_and_the_socket_is_closed(monkeypatch):
     made = []
-    monkeypatch.setattr(rp, "scamper_path", lambda: "/nonexistent/scamper")
-    monkeypatch.setattr(rp, "scamper_version", lambda p: "scamper 20230000")
-    monkeypatch.setattr(rp, "scamper_usable", lambda p: True)
 
     def ok(fam, kind):
         made.append(OkSock())
         return made[-1]
     res = rp.check(sock_factory=ok)
-    assert res["methods"] == {"udp": True, "tcp": True, "scamper": True} and res["reasons"] == {} and res["scamper"] == "scamper 20230000"
+    assert res == {"methods": {"udp": True, "tcp": True}, "reasons": {}}
     assert len(made) == 2 and all(m.closed for m in made)
 
 
-def test_check_scamper_present_but_not_allowed_raw_sockets(monkeypatch):
-    monkeypatch.setattr(rp, "scamper_path", lambda: "/nonexistent/scamper")
-    monkeypatch.setattr(rp, "scamper_version", lambda p: None)
-    res = rp.check(sock_factory=lambda f, k: OkSock())
-    assert res["methods"]["scamper"] is False and res["reasons"]["scamper"] == "no_raw" and res["methods"]["udp"]
-    monkeypatch.setattr(rp, "scamper_version", lambda p: "scamper 1")
-    monkeypatch.setattr(rp, "scamper_usable", lambda p: False)
-    res = rp.check(sock_factory=lambda f, k: OkSock())
-    assert res["methods"]["scamper"] is False and res["scamper"] == "scamper 1"
-
-
 def test_check_odd_socket_failures_never_raise(monkeypatch):
-    monkeypatch.setattr(rp, "scamper_path", lambda: None)
-
     class NoOpt(OkSock):
         def setsockopt(self, *a):
             raise OSError(errno.ENOPROTOOPT, "no")
@@ -554,48 +530,25 @@ def test_check_odd_socket_failures_never_raise(monkeypatch):
 def test_measure_rejects_a_target_that_is_not_an_address(target, monkeypatch):
     monkeypatch.setattr(rp, "trace_udp", lambda *a, **k: pytest.fail("measured a bad target"))
     monkeypatch.setattr(rp, "trace_tcp", lambda *a, **k: pytest.fail("measured a bad target"))
-    for method in ("udp", "tcp", "scamper"):
+    for method in ("udp", "tcp", "scamper", "icmp"):
         assert rp.measure({"method": method, "target": target}) == {"error": "target", "hops": [], "probes": 0}
 
 
-def test_measure_unknown_method_and_scamper_missing(monkeypatch):
-    assert rp.measure({"method": "icmp", "target": DEST}) == {"error": "method", "hops": [], "probes": 0}
+def test_measure_unknown_method_opens_no_socket(monkeypatch):
+    monkeypatch.setattr(rp, "open_socket", lambda *a, **k: pytest.fail("a socket was opened"))
+    for method in ("scamper", "icmp", "", None, 5):
+        assert rp.measure({"method": method, "target": DEST}) == {"error": "method", "hops": [], "probes": 0}
     assert rp.measure({"target": DEST})["error"] == "method"
-    monkeypatch.setattr(rp, "scamper_path", lambda: None)
-    assert rp.measure({"method": "scamper", "target": DEST}) == {"method": "scamper", "error": "not_installed", "probes": 0}
 
 
-def test_measure_scamper_hands_back_the_raw_output(monkeypatch):
-    monkeypatch.setattr(rp, "scamper_path", lambda: "/nonexistent/scamper")
-    seen = {}
-
-    def fake(path, target, max_hops, wait, gap, budget_s):
-        seen.update(target=target, max_hops=max_hops, wait=wait, gap=gap, budget=budget_s)
-        return '{"type":"trace"}', None
-    monkeypatch.setattr(rp, "run_scamper", fake)
-    res = rp.measure({"method": "scamper", "target": DEST, "max_hops": 20, "wait": 1.0, "gap": 3, "budget": 20})
-    assert res == {"method": "scamper", "raw": '{"type":"trace"}', "error": None, "probes": 20}
-    assert seen["target"] == DEST and seen["max_hops"] == 20 and seen["gap"] == 3 and seen["budget"] == 19
-    monkeypatch.setattr(rp, "run_scamper", lambda *a: (None, "timeout"))
-    assert rp.measure({"method": "scamper", "target": DEST}) == {"method": "scamper", "raw": None, "error": "timeout", "probes": 0}
+@pytest.mark.parametrize("key,value", [("max_hops", "abc"), ("wait", "x"), ("gap", [1]), ("budget", "soon")])
+def test_measure_bad_numbers_are_a_request_error(monkeypatch, key, value):
+    monkeypatch.setattr(rp, "open_socket", lambda *a, **k: pytest.fail("a socket was opened"))
+    assert rp.measure({"method": "udp", "target": DEST, key: value}) == {"error": "request", "hops": [], "probes": 0}
 
 
-def test_run_scamper_reads_only_json_traces(monkeypatch):
-    class R:
-        def __init__(self, out):
-            self.stdout, self.stderr, self.returncode = out, b"", 0
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: R(b'{"type":"trace","hops":[]}\n'))
-    out, err = rp.run_scamper("/nonexistent/scamper", DEST, 5, 1, 2, 10)
-    assert err is None and '"type":"trace"' in out
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: R(b"permission denied\n"))
-    assert rp.run_scamper("/nonexistent/scamper", DEST, 5, 1, 2, 10) == (None, "no_raw")
-
-    def timeout(*a, **k):
-        raise subprocess.TimeoutExpired("scamper", 1)
-    monkeypatch.setattr(subprocess, "run", timeout)
-    assert rp.run_scamper("/nonexistent/scamper", DEST, 5, 1, 2, 10) == (None, "timeout")
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
-    assert rp.run_scamper("/nonexistent/scamper", DEST, 5, 1, 2, 10) == (None, "start")
+def test_no_scamper_left_in_the_probe():
+    assert not any("scamper" in n for n in dir(rp)) and not hasattr(rp, "main")
 
 
 def test_measure_udp_clamps_the_numbers_and_looks_up_names_for_public_routers_only(monkeypatch):
@@ -648,36 +601,3 @@ def test_measure_end_to_end_with_a_fake_path(monkeypatch, clock):
     assert res["error"] is None and res["probes"] == 4
     hops = routes.read_probe(json.dumps({"hops": res["hops"]}))
     assert [h["ip"] for h in hops] == ["192.168.1.1", None, A3, DEST] and hops[-1]["reached"]
-
-
-# ---------------------------------------------------------------------------------------------------------- main
-def run_main(monkeypatch, stdin_text):
-    nice = []
-    monkeypatch.setattr(rp.os, "nice", lambda n: nice.append(n) or 0)
-    monkeypatch.setattr(rp.sys, "stdin", io.StringIO(stdin_text))
-    out = io.StringIO()
-    monkeypatch.setattr(rp.sys, "stdout", out)
-    rp.main()
-    assert nice == [19]                                                                      # the lowest priority first
-    return json.loads(out.getvalue())
-
-
-def test_main_reads_one_request_and_writes_one_answer(monkeypatch):
-    monkeypatch.setattr(rp, "check", lambda: {"methods": {"udp": True}, "reasons": {}, "scamper": None})
-    assert run_main(monkeypatch, '{"mode":"check"}')["methods"] == {"udp": True}
-    assert run_main(monkeypatch, json.dumps({"mode": "measure", "target": "example.net", "method": "udp"})) == {"error": "target", "hops": [], "probes": 0}
-    monkeypatch.setattr(rp, "trace_udp", lambda *a, **k: ([{"ttl": 1, "ip": A1, "rtt": 1.0}], 1))
-    res = run_main(monkeypatch, json.dumps({"mode": "measure", "target": DEST, "method": "udp"}))
-    assert res["hops"][0]["ip"] == A1 and res["error"] is None
-
-
-@pytest.mark.parametrize("text", ["", "not json", "[1, 2]", '"check"', "null", '{"mode":"bogus"}', "{}", '{"mode": 5}', "\x00\xff"])
-def test_main_bad_requests_get_a_mode_error(monkeypatch, text):
-    monkeypatch.setattr(rp, "check", lambda: pytest.fail("checked on a bad request"))
-    assert run_main(monkeypatch, text) == {"error": "mode"}
-
-
-def test_main_reads_at_most_4096_bytes(monkeypatch):
-    big = '{"mode":"check","pad":"' + "x" * 10000 + '"}'
-    monkeypatch.setattr(rp, "check", lambda: pytest.fail("a cut request is no request"))
-    assert run_main(monkeypatch, big) == {"error": "mode"}

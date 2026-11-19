@@ -1,44 +1,35 @@
-"""Route probe helper (DW2): measures the hops towards one destination. Runs as its own short-lived process.
+"""Route probe (DW2): measures the hops towards one destination, with ordinary sockets and no privileges.
 
-Started by ``routewatch.py`` as ``<python> -I <this file>`` with lowest CPU priority (nice 19), an empty environment and a
-hard time limit; it reads one JSON request from stdin and writes one JSON answer to stdout. It imports nothing but the
-standard library, gets no access to the database, the settings or any secret, and never writes a file. The destination
-address arrives on stdin only (never on a command line, where other users of the host could read it) and is gone when
-the process ends.
+``routewatch.py`` runs it in a worker thread of its own with the lowest CPU priority (the kernel keeps a nice value per
+thread) and hard time budgets; nothing here touches the database, the settings or a secret, nothing is written to a file,
+and no other program is started (Lanloom's product code never starts programs or a shell). The destination address is used
+for the measurement only and handed back to nobody.
 
 Methods (the caller picks the first one that is possible, see ``check``):
-  * ``scamper``: Paris traceroute (UDP, the same flow identifier for every probe of a measurement) by the external
-    ``scamper`` program, only if it is installed and may open raw sockets (raw sockets need the NET_RAW capability, see
-    docs/INSTALL.md). Its output is parsed by ``routes.read_scamper`` in the caller.
-  * ``udp``: Paris traceroute over an ordinary UDP socket, no privileges at all (the method of the classic Linux
-    traceroute without root): the time-to-live of each probe is set on the socket, and the kernel hands the ICMP "time
-    exceeded" / "port unreachable" answers to the socket's error queue (IP_RECVERR / IPV6_RECVERR) together with the
-    address of the router that sent them. Source and destination port stay the same for the whole measurement, and the
-    payload is built so that the UDP checksum stays the same too (the probe number and its ones' complement), so load
-    balancers keep every probe on one path.
+  * ``udp``: Paris traceroute over an ordinary UDP socket (the method of the classic Linux traceroute without root): the
+    time-to-live of each probe is set on the socket, and the kernel hands the ICMP "time exceeded" / "port unreachable"
+    answers to the socket's error queue (IP_RECVERR / IPV6_RECVERR) together with the address of the router that sent
+    them. Source and destination port stay the same for the whole measurement, and the payload is built so that the UDP
+    checksum stays the same too (the probe number and its ones' complement), so load balancers keep every probe on one
+    path.
   * ``tcp``: the same over TCP: a connection attempt (SYN) with a small time-to-live to an open port (443 by default), one
     attempt per hop from the same source port where the system allows it; a SYN that reaches the destination is answered
     and closed at once.
-Per hop one probe, at most ``max_hops`` hops, stop after ``gap`` silent hops in a row or at the destination, and never
-longer than ``budget`` seconds. Reverse DNS names of the routers (for places and exchange points in the names) are looked
-up at the end with a short overall deadline and only returned to the caller, which never stores them.
+Raw sockets (and with them the NET_RAW capability) are not needed. Per hop one probe, at most ``max_hops`` hops, stop after
+``gap`` silent hops in a row or at the destination, and never longer than ``budget`` seconds. Reverse DNS names of the
+routers (for places and exchange points in the names) are looked up at the end with a short overall deadline and only
+returned to the caller, which never stores them.
 
-Request:  {"mode": "check"} | {"mode": "measure", "method": "udp"|"tcp"|"scamper", "target": "<address>", "port": 443,
+Request:  {"mode": "check"} | {"mode": "measure", "method": "udp"|"tcp", "target": "<address>", "port": 443,
            "max_hops": 30, "wait": 1.0, "gap": 4, "budget": 25, "names": true}
-Answer:   check   -> {"methods": {"scamper": bool, "udp": bool, "tcp": bool}, "reasons": {...}, "scamper": "<version>"|null}
+Answer:   check   -> {"methods": {"udp": bool, "tcp": bool}, "reasons": {...}}
           measure -> {"method": ..., "hops": [{"ttl", "ip", "rtt", "name", "reached"?}], "probes": n, "error": null|"<code>"}
-                     (scamper: {"method": "scamper", "raw": "<its JSON output>", "probes": n, "error": ...})
 """
 import errno
 import ipaddress
-import json
-import os
 import select
-import shutil
 import socket
 import struct
-import subprocess
-import sys
 import threading
 import time
 
@@ -51,7 +42,6 @@ ORIGIN_ICMP, ORIGIN_ICMP6 = 2, 3
 BASE_PORT = 33434                 # destination port of the UDP probes (the usual traceroute port), constant per measurement
 PAYLOAD = b"lanloom route probe"  # the rest of every UDP probe (the length stays the same)
 MAX_HOPS = 32
-SCAMPER_MAX_OUT = 256 * 1024
 NAMES_DEADLINE = 3.0
 
 
@@ -340,41 +330,6 @@ def _private(ip):
     return a.is_private or a.is_loopback or a.is_link_local
 
 
-# ---------------------------------------------------------------------------------------------------------- scamper
-def scamper_path():
-    return shutil.which("scamper", path="/usr/local/bin:/usr/bin:/bin")
-
-
-def scamper_version(path):
-    try:
-        r = subprocess.run([path, "-v"], capture_output=True, timeout=5, env={}, check=False)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    text = (r.stdout or r.stderr or b"").decode("ascii", "replace").strip()
-    return text[:60] if r.returncode == 0 and text else None
-
-
-def run_scamper(path, target, max_hops, wait, gap, budget_s):
-    command = "trace -P udp-paris -q 1 -w %d -m %d -g %d" % (max(1, int(round(wait))), max_hops, gap)
-    try:
-        r = subprocess.run(["scamper", "-O", "json", "-c", command, "-f", "-"], executable=path, input=(target + "\n").encode(),
-                           capture_output=True, timeout=max(2.0, budget_s), env={}, check=False)
-    except subprocess.TimeoutExpired:
-        return None, "timeout"
-    except OSError:
-        return None, "start"
-    out = (r.stdout or b"")[:SCAMPER_MAX_OUT].decode("utf-8", "replace")
-    if '"type":"trace"' not in out.replace(" ", ""):
-        return None, "no_raw"
-    return out, None
-
-
-def scamper_usable(path):
-    """True if scamper runs and may open raw sockets: a trace to the loopback address (no packet leaves this machine)."""
-    out, err = run_scamper(path, "127.0.0.1", 1, 1, 1, 6)
-    return out is not None and err is None
-
-
 # ---------------------------------------------------------------------------------------------------------- check / measure
 def check(sock_factory=None):
     methods, reasons = {}, {}
@@ -390,18 +345,7 @@ def check(sock_factory=None):
         except (OSError, AttributeError) as exc:
             methods[name] = False
             reasons[name] = "socket:%s" % (errno.errorcode.get(getattr(exc, "errno", 0) or 0, "unknown"),)
-    path = scamper_path()
-    version = None
-    if not path:
-        methods["scamper"] = False
-        reasons["scamper"] = "not_installed"
-    else:
-        version = scamper_version(path)
-        ok = bool(version) and scamper_usable(path)
-        methods["scamper"] = ok
-        if not ok:
-            reasons["scamper"] = "no_raw"
-    return {"methods": methods, "reasons": reasons, "scamper": version}
+    return {"methods": methods, "reasons": reasons}
 
 
 def measure(req):
@@ -419,12 +363,6 @@ def measure(req):
     except (TypeError, ValueError):
         return {"error": "request", "hops": [], "probes": 0}
     budget = Budget(budget_s)
-    if method == "scamper":
-        path = scamper_path()
-        if not path:
-            return {"method": "scamper", "error": "not_installed", "probes": 0}
-        raw, err = run_scamper(path, target, max_hops, wait, gap, budget_s - 1)
-        return {"method": "scamper", "raw": raw, "error": err, "probes": max_hops if raw else 0}
     try:
         if method == "tcp":
             port = int(req.get("port") or 443)
@@ -442,28 +380,3 @@ def measure(req):
             if h.get("ip") in names:
                 h["name"] = names[h["ip"]]
     return {"method": method, "hops": hops, "probes": probes, "error": None}
-
-
-def main():
-    try:
-        os.nice(19)
-    except (OSError, AttributeError):
-        pass
-    try:
-        req = json.loads(sys.stdin.read(4096) or "{}")
-    except ValueError:
-        req = {}
-    if not isinstance(req, dict):
-        req = {}
-    if req.get("mode") == "check":
-        out = check()
-    elif req.get("mode") == "measure":
-        out = measure(req)
-    else:
-        out = {"error": "mode"}
-    sys.stdout.write(json.dumps(out, separators=(",", ":")))
-    sys.stdout.flush()
-
-
-if __name__ == "__main__":
-    main()

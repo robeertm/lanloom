@@ -58,7 +58,7 @@ class FakeHelper:
 
     def __init__(self):
         self.calls = []
-        self.caps = {"methods": {"scamper": False, "udp": True, "tcp": True}, "reasons": {}, "scamper": None}
+        self.caps = {"methods": {"udp": True, "tcp": True}, "reasons": {}}
         self.by_method = {}                 # method -> response dict or callable(request) -> dict
         self.on_measure = None              # callable(request), e.g. to move the clock
 
@@ -128,12 +128,12 @@ def all_tables_text(store):
 # ---------------------------------------------------------------------------------------------------------- option off
 def test_option_off_means_no_packet_no_helper_no_memory(env, monkeypatch):
     import socket
-    import subprocess
+    from lanloom import routeprobe
 
     def boom(*a, **k):
         raise AssertionError("something real happened with the option off")
-    monkeypatch.setattr(subprocess, "run", boom)
-    monkeypatch.setattr(subprocess, "Popen", boom)
+    monkeypatch.setattr(routeprobe, "measure", boom)
+    monkeypatch.setattr(routeprobe, "check", boom)
     monkeypatch.setattr(socket, "socket", boom)
     monkeypatch.setattr(socket, "gethostbyaddr", boom)
     rw, core = env.rw, env.core
@@ -269,14 +269,14 @@ def test_a_second_run_never_overlaps(env):
 
 
 # ---------------------------------------------------------------------------------------------------------- methods
-def test_fallback_scamper_missing_udp_used(env):
+def test_udp_first_then_tcp(env):
     switch(env, paths_routes_targets=1)
     feed(env)
-    env.helper.caps["methods"] = {"scamper": False, "udp": True, "tcp": True}
     assert env.rw.methods() == ["udp", "tcp"]
     env.rw.run_once()
     assert [m["method"] for m in env.helper.measures()] == ["udp"]
     assert env.store.one("SELECT method FROM paths_route")["method"] == "udp"
+    assert "scamper" not in env.rw.status() and "scamper_reason" not in env.rw.status()
 
 
 def test_fallback_udp_without_a_public_hop_tries_tcp(env):
@@ -289,41 +289,19 @@ def test_fallback_udp_without_a_public_hop_tries_tcp(env):
     assert env.rw.state["probes"] == 3 + 5
 
 
-def test_scamper_first_with_its_raw_output_and_a_failure_falls_back(env):
-    switch(env, paths_routes_targets=1)
-    feed(env)
-    env.helper.caps = {"methods": {"scamper": True, "udp": True, "tcp": True}, "reasons": {}, "scamper": "scamper 1.0"}
-    raw = "\n".join(['{"type":"cycle-start"}', json.dumps({"type": "trace", "dst": "192.0.2.9", "stop_reason": "COMPLETED", "hops": [
-        {"addr": "192.168.1.1", "probe_ttl": 1, "rtt": 0.4}, {"addr": "198.51.100.1", "probe_ttl": 2, "rtt": 5.0},
-        {"addr": "198.51.100.50", "probe_ttl": 3, "rtt": 30.0, "name": "core1.newyork.example.invalid"},
-        {"addr": "192.0.2.9", "probe_ttl": 4, "rtt": 31.0, "icmp_type": 3}]}), '{"type":"cycle-stop"}'])
-    env.helper.by_method["scamper"] = {"method": "scamper", "raw": raw, "probes": 30, "error": None}
-    env.rw.run_once()
-    assert [m["method"] for m in env.helper.measures()] == ["scamper"]
-    row = env.rw.rows()[0]
-    assert row["method"] == "scamper" and row["reached"] is True and [s["kind"] for s in row["sections"]][0] == "home"
-    assert env.rw.status()["scamper"] == "scamper 1.0"
-    # scamper fails: the next method answers
-    env.clock.t += DAY
-    env.helper.by_method["scamper"] = {"method": "scamper", "raw": None, "error": "no_raw", "probes": 0}
-    env.rw.run_once()
-    assert [m["method"] for m in env.helper.measures()][1:] == ["scamper", "udp"]
-    assert env.rw.state["method"] == "udp" and env.rw.state["last_error"] == "no_raw"
-
-
 def test_nothing_possible_here(env):
     switch(env)
     feed(env)
-    env.helper.caps = {"methods": {"scamper": False, "udp": False, "tcp": False},
-                       "reasons": {"udp": "socket:EPERM", "tcp": "socket:EPERM", "scamper": "not_installed"}, "scamper": None}
+    env.helper.caps = {"methods": {"udp": False, "tcp": False},
+                       "reasons": {"udp": "socket:EPERM", "tcp": "socket:EPERM"}}
     assert env.rw.run_once() == {"ran": False, "reason": "impossible"}
     assert env.helper.measures() == []
     st = env.rw.status()
     assert st["enabled"] is True and st["possible"] is False and st["reason"] == "socket:EPERM"
-    assert st["methods"] == {"scamper": False, "udp": False, "tcp": False} and st["scamper_reason"] == "not_installed"
+    assert st["methods"] == {"udp": False, "tcp": False}
     assert env.rw.rows() == [] and env.store.one("SELECT COUNT(*) AS n FROM paths_route")["n"] == 0
     # without any reason named, the status still says something
-    env.helper.caps = {"methods": {}, "reasons": {}, "scamper": None}
+    env.helper.caps = {"methods": {}, "reasons": {}}
     env.rw.caps_t = 0.0
     env.rw.caps = None
     assert env.rw.status()["reason"] == "sockets"
@@ -332,10 +310,10 @@ def test_nothing_possible_here(env):
 def test_a_helper_that_fails_or_talks_nonsense_never_breaks_the_run(env):
     switch(env, paths_routes_targets=2)
     feed(env)
-    env.helper.caps = {"methods": "nonsense", "reasons": ["x"], "scamper": 5}
+    env.helper.caps = {"methods": "nonsense", "reasons": ["x"]}
     assert env.rw.run_once() == {"ran": False, "reason": "impossible"}
     env.rw.caps = None
-    env.helper.caps = {"methods": {"udp": True}, "reasons": {}, "scamper": None}
+    env.helper.caps = {"methods": {"udp": True}, "reasons": {}}
     env.helper.by_method["udp"] = {"error": "timeout"}
     res = env.rw.run_once()
     assert res["ran"] is True and res["measured"] == 0 and env.rw.state["last_error"] == "timeout"
@@ -791,3 +769,47 @@ def test_api_settings_validation_and_persistence(api):
     r = api.put("/api/settings", json={"paths_routes": False}, headers=HDR)
     assert r.status_code == 200 and api.get("/api/paths/routes").json()["status"]["enabled"] is False
     assert api.get("/api/paths/routes").json()["routes"] == []
+
+
+# ---------------------------------------------------------------------------------------------------------- run_helper
+def test_run_helper_gives_up_on_a_slow_probe_promptly(monkeypatch):
+    from lanloom import routeprobe
+    monkeypatch.setattr(routeprobe, "measure", lambda req: time.sleep(2.5) or {"error": None})
+    monkeypatch.setattr(routewatch.os, "setpriority", lambda *a: None)
+    t0 = time.monotonic()
+    assert routewatch.run_helper({"mode": "measure", "target": "192.0.2.9"}, 0.3) == {"error": "timeout"}
+    assert time.monotonic() - t0 < 1.3
+
+
+def test_run_helper_answers_and_lowers_the_priority_of_the_worker_thread_only(monkeypatch):
+    import threading
+    from lanloom import routeprobe
+    calls = []
+    monkeypatch.setattr(routewatch.os, "setpriority", lambda *a: calls.append(a))
+    monkeypatch.setattr(routeprobe, "measure", lambda req: {"method": "udp", "hops": [], "probes": 0, "error": None, "echo": req["target"]})
+    monkeypatch.setattr(routeprobe, "check", lambda: {"methods": {"udp": True, "tcp": False}, "reasons": {}})
+    res = routewatch.run_helper({"mode": "measure", "target": "192.0.2.9"}, 5)
+    assert res["echo"] == "192.0.2.9" and res["error"] is None
+    assert len(calls) == 1 and calls[0][0] == routewatch.os.PRIO_PROCESS and calls[0][2] == 19
+    assert calls[0][1] != threading.get_native_id()
+    assert routewatch.run_helper({"mode": "check"}, 5)["methods"] == {"udp": True, "tcp": False}
+
+
+def test_run_helper_a_probe_that_raises_is_a_probe_error(monkeypatch):
+    from lanloom import routeprobe
+
+    def boom(req):
+        raise RuntimeError("odd")
+    monkeypatch.setattr(routeprobe, "measure", boom)
+    monkeypatch.setattr(routewatch.os, "setpriority", lambda *a: None)
+    assert routewatch.run_helper({"mode": "measure"}, 5) == {"error": "probe"}
+
+
+def test_probe_and_watch_start_no_program():
+    import re
+    from pathlib import Path
+    for name in ("routeprobe.py", "routewatch.py"):
+        src = (Path(routewatch.__file__).parent / name).read_text()
+        assert not re.search(r"^\s*(import|from)\s+(subprocess|multiprocessing|pty)\b", src, re.M), name
+        for bad in ("os.system", "os.popen", "os.exec", "posix_spawn"):
+            assert bad not in src, (name, bad)

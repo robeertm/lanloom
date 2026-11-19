@@ -1,7 +1,7 @@
 """Network routes (DW2): which networks and places the data passes towards the most important destinations. An option,
 switched off by default (*Settings > General > Network routes*).
 
-With the option off nothing happens at all: no destination is remembered, no helper is started, not one packet is sent.
+With the option off nothing happens at all: no destination is remembered, no probe runs, not one packet is sent.
 
 With it on:
   * Destinations: while the data paths book a flow, the destination is remembered in memory only, by country, operator
@@ -9,11 +9,12 @@ With it on:
     The address is used only for the next measurement and is never written anywhere; a restart forgets it.
   * Schedule: the ``targets`` groups with the most bytes (5 by default, at most 20), each at most every ``interval_h``
     hours (6 by default, at least 1). A run never starts while the machine is busy (load above 85 % of the processor
-    cores, or a scan running) and stops at a hard time budget; the probes run in a separate helper process with the
-    lowest CPU priority (``routeprobe.py``), one probe per hop, one destination after the other.
-  * Methods, best first: ``scamper`` (Paris traceroute with raw sockets, only where it is installed and allowed), ``udp``
-    (Paris traceroute over an ordinary UDP socket, no privileges), ``tcp`` (connection attempts to port 443). Without any
-    of them the option says "not possible here" with the reason and the rest of the app is untouched.
+    cores, or a scan running) and stops at a hard time budget; the probes run in a worker thread of their own with the
+    lowest CPU priority (``routeprobe.py``; the kernel keeps a nice value per thread, no program is started), one probe
+    per hop, one destination after the other.
+  * Methods, best first: ``udp`` (Paris traceroute over an ordinary UDP socket, no privileges), ``tcp`` (connection
+    attempts to port 443, no privileges). Without either the option says "not possible here" with the reason and the rest
+    of the app is untouched.
   * Reading: ``routes.build_chain`` - per hop network and operator (from the data paths' city and operator data, if that
     option is on), places from router names (airport and city codes, ``lanloom/data/route-places.json``), exchange points
     (router names, optionally PeeringDB, ``ixp.py``), every place checked against the round-trip time.
@@ -27,14 +28,13 @@ import json
 import logging
 import math
 import os
-import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import routes
+from . import routeprobe, routes
 from .ixp import Exchanges
 
 log = logging.getLogger("lanloom")
@@ -45,15 +45,14 @@ KEEP_DAYS = 30
 TICK_S = 60.0
 RUN_BUDGET_S = 150.0             # one run (all due destinations) never takes longer
 TARGET_BUDGET_S = 30.0           # one destination
-HELPER_GRACE_S = 5.0             # the helper is killed this long after its own budget
+HELPER_GRACE_S = 5.0             # the probe thread is given up this long after its own budget (it ends by its budget)
 PAUSE_S = 2.0                    # between two destinations of a run
 LOAD_LIMIT = 0.85                # share of the processor cores; above it no run starts
 CHECK_EVERY_S = 6 * 3600         # how often the possible methods are checked again
 MAX_CANDIDATES = 3000
 TAU_S = 86400.0                  # bytes of a destination group decay with this time constant
 MAX_HOPS, WAIT_S, GAP = 30, 1.0, 4
-METHOD_ORDER = ("scamper", "udp", "tcp")
-PROBE_FILE = Path(__file__).with_name("routeprobe.py")
+METHOD_ORDER = ("udp", "tcp")
 PLACES_FILE = Path(__file__).parent / "data" / "route-places.json"
 ANYCAST = "~anycast"
 
@@ -91,19 +90,25 @@ def load_places(path: Path = PLACES_FILE) -> dict:
 
 
 def run_helper(request: dict, timeout: float) -> dict:
-    """Start the probe helper (own process, lowest priority, empty environment), hand it the request on stdin."""
-    try:
-        r = subprocess.run([sys.executable, "-I", str(PROBE_FILE)], input=json.dumps(request).encode(), capture_output=True,
-                           timeout=timeout, env={}, close_fds=True, check=False)
-    except subprocess.TimeoutExpired:
+    """Run the probe in a worker thread of its own with the lowest CPU priority (nice 19 for this thread only) and wait at
+    most ``timeout`` seconds; the probe keeps its own, shorter budget, so a thread that is given up ends by itself."""
+    out: dict = {}
+
+    def work():
+        try:
+            os.setpriority(os.PRIO_PROCESS, threading.get_native_id(), 19)
+        except (OSError, AttributeError):
+            pass
+        try:
+            out.update(routeprobe.check() if request.get("mode") == "check" else routeprobe.measure(request))
+        except Exception:                  # the probe must never take the app down
+            out["error"] = "probe"
+    t = threading.Thread(target=work, name="lanloom-route-probe", daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
         return {"error": "timeout"}
-    except OSError:
-        return {"error": "start"}
-    try:
-        out = json.loads((r.stdout or b"")[:600_000].decode("utf-8", "replace") or "{}")
-    except ValueError:
-        return {"error": "output"}
-    return out if isinstance(out, dict) else {"error": "output"}
+    return dict(out)
 
 
 class RouteWatch:
@@ -227,13 +232,12 @@ class RouteWatch:
         if self.caps is not None and now - self.caps_t < CHECK_EVERY_S:
             return self.caps
         if os.name != "posix" or not sys.platform.startswith("linux"):
-            self.caps = {"methods": {"scamper": False, "udp": False, "tcp": False}, "reasons": {"all": "platform"}, "scamper": None}
+            self.caps = {"methods": {"udp": False, "tcp": False}, "reasons": {"all": "platform"}}
         else:
             res = self.helper({"mode": "check"}, 20.0)
             methods = res.get("methods") if isinstance(res.get("methods"), dict) else {}
             self.caps = {"methods": {m: methods.get(m) is True for m in METHOD_ORDER},
-                         "reasons": {k: str(v)[:40] for k, v in (res.get("reasons") or {}).items() if isinstance(k, str)} if isinstance(res.get("reasons"), dict) else {},
-                         "scamper": (str(res.get("scamper"))[:60] if res.get("scamper") else None)}
+                         "reasons": {k: str(v)[:40] for k, v in (res.get("reasons") or {}).items() if isinstance(k, str)} if isinstance(res.get("reasons"), dict) else {}}
             if res.get("error"):
                 self.caps["reasons"]["all"] = str(res["error"])[:40]
         self.caps_t = now
@@ -300,10 +304,10 @@ class RouteWatch:
                    "budget": budget, "names": True, "port": 443}
             res = self.helper(req, budget + HELPER_GRACE_S)
             probes += int(res.get("probes") or 0) if isinstance(res.get("probes"), (int, float)) else 0
-            if res.get("error") and not res.get("raw") and not res.get("hops"):
+            if res.get("error") and not res.get("hops"):
                 self.state["last_error"] = str(res["error"])[:40]
                 continue
-            hops = routes.read_scamper(res.get("raw") or "") if m == "scamper" else routes.read_probe(json.dumps({"hops": res.get("hops") or []}))
+            hops = routes.read_probe(json.dumps({"hops": res.get("hops") or []}))
             if any(h.get("ip") and not routes.is_home_ip(h["ip"]) for h in hops):
                 used = m
                 break
@@ -476,18 +480,17 @@ class RouteWatch:
                "skipped": self.state["skipped"], "probes_last_run": self.state["probes"], "method": self.state["method"],
                "exchanges": self.exchanges.info(), "stored": (self.store.one("SELECT COUNT(*) AS n FROM paths_route") or {"n": 0})["n"]}
         if self.demo:
-            out.update(possible=True, methods={"scamper": False, "udp": True, "tcp": True}, reason=None, demo=True, method="udp")
+            out.update(possible=True, methods={"udp": True, "tcp": True}, reason=None, demo=True, method="udp")
             return out
         if self.remote:
             out.update(possible=False, methods={}, reason="remote")
             return out
         if not st["enabled"]:
-            out.update(possible=None, methods={}, reason=None)       # off: nothing is checked (no helper is started)
+            out.update(possible=None, methods={}, reason=None)       # off: nothing is checked (no probe runs)
             return out
         caps = self.capabilities()
         ok = [m for m in METHOD_ORDER if caps["methods"].get(m)]
-        out.update(possible=bool(ok), methods=caps["methods"], reason=None if ok else (caps["reasons"].get("all") or caps["reasons"].get("udp") or "sockets"),
-                   scamper=caps.get("scamper"), scamper_reason=caps["reasons"].get("scamper"))
+        out.update(possible=bool(ok), methods=caps["methods"], reason=None if ok else (caps["reasons"].get("all") or caps["reasons"].get("udp") or "sockets"))
         if out["method"] is None and ok:
             out["method"] = ok[0]
         return out

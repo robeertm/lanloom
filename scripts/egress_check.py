@@ -37,7 +37,7 @@ CATEGORIES = {
                          "exchange point lists for the network routes: one check a day, a new copy a month)",
     "route-probe": "probe packets of the optional network routes measurement (Settings > General > Network routes, off by "
                    "default): one probe per hop towards the most important destinations of the data paths, rarely, number "
-                   "and interval set by an administrator, from a low-priority helper process; plus reverse DNS of the routers "
+                   "and interval set by an administrator, from a low-priority worker thread; plus reverse DNS of the routers "
                    "through the system resolver",
     "update-signature": "image registry of the project: signature of an update candidate, asked by the updater only "
                         "during an update or rollback an administrator started",

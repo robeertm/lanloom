@@ -197,7 +197,7 @@
       const ex = st.exchanges || {};
       status.replaceChildren(LL.facts([
         [t('settings.routes.state'), h('span', { class: st.enabled && st.possible === false ? 'nf-bad' : st.enabled ? 'nf-ok' : '' }, state)],
-        st.enabled && st.possible ? [t('settings.routes.methods'), ['scamper', 'udp', 'tcp'].map(m => t('routes.method.' + m) + ': ' + t(st.methods && st.methods[m] ? 'settings.routes.yes' : 'settings.routes.no')).join(' · ')] : null,
+        st.enabled && st.possible ? [t('settings.routes.methods'), ['udp', 'tcp'].map(m => t('routes.method.' + m) + ': ' + t(st.methods && st.methods[m] ? 'settings.routes.yes' : 'settings.routes.no')).join(' · ')] : null,
         st.last_run ? [t('settings.routes.last_run'), new Date(st.last_run * 1000).toLocaleString(LL.lang) + ' · ' + t('settings.routes.probes', { n: st.probes_last_run || 0 })] : null,
         st.skipped ? [t('settings.routes.skipped'), t('settings.routes.skipped.' + (st.skipped === 'scan' ? 'scan' : 'load'))] : null,
         st.enabled ? [t('settings.routes.stored'), String(st.stored || 0)] : null,

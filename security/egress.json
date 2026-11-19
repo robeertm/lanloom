@@ -274,17 +274,12 @@
   {
    "site": "lanloom/routeprobe.py::open_socket::socket",
    "category": "route-probe",
-   "purpose": "network routes (off by default): UDP or TCP probe sockets of the low-priority helper process; one probe per hop towards one of the most important destinations of the data paths, at most 32 per destination and measurement, each destination at most every hour (6 hours by default)"
+   "purpose": "network routes (off by default): ordinary UDP or TCP probe sockets of a low-priority worker thread (no raw sockets); one probe per hop towards one of the most important destinations of the data paths, at most 32 per destination and measurement, each destination at most every hour (6 hours by default)"
   },
   {
    "site": "lanloom/routeprobe.py::reverse_name::dns",
    "category": "route-probe",
    "purpose": "network routes (off by default): reverse DNS of the answering routers through the system resolver (places and exchange points in router names); the names are never stored"
-  },
-  {
-   "site": "lanloom/routeprobe.py::run_scamper::net-tool",
-   "category": "route-probe",
-   "purpose": "network routes (off by default): the external Paris traceroute program, only where it is installed and may open raw sockets; same probes and limits as the built-in methods"
   }
  ],
  "hosts": [
