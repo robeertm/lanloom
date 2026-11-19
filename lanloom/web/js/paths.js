@@ -69,6 +69,11 @@
     try { localStorage.setItem('lanloom-paths-window', w); } catch (e) { /* ignore */ }
     load();
   }
+  /* A country opens its detail sheet (paths_country.js); without that file the click selects as before. */
+  function openCountry(cc) {
+    if (LL.pathsCountry) LL.pathsCountry.open(cc, S.window);
+    else select({ type: 'country', id: cc });
+  }
   function select(sel) {
     if (sel && S.sel && sel.type === S.sel.type && sel.id === S.sel.id) sel = null;
     S.sel = sel;
@@ -158,7 +163,7 @@
       [shapes, small, arcG, homeG, labelG]);
     svg.addEventListener('click', ev => {
       const el = ev.target.closest('[data-cc]');
-      if (el && (by.has(el.dataset.cc))) select({ type: 'country', id: el.dataset.cc });
+      if (el && (by.has(el.dataset.cc))) openCountry(el.dataset.cc);
     });
     svg._pw = { labelG, labelItems, homeLabel, hp };
     return { svg, arcs };
@@ -481,7 +486,7 @@
     return h('section', { class: 'card pw-card' }, h('header', { class: 'pw-card__head' }, h('h2', {}, title)),
       rows.length ? h('ul', { class: 'pw-list' }, rows.slice(0, 40).map(r => h('li', {}, h('button', { type: 'button',
         class: 'pw-row' + (selCC === r.cc ? ' is-selected' : ''), disabled: r.cc.startsWith('~') && r.cc !== '~anycast' ? true : null,
-        title: r.cc === '~anycast' ? t('paths.anycast.hint') : null, onclick: () => select({ type: 'country', id: r.cc }) },
+        title: r.cc === '~anycast' ? t('paths.anycast.hint') : null, onclick: () => (r.cc === '~anycast' ? select({ type: 'country', id: r.cc }) : openCountry(r.cc)) },
       h('span', { class: 'pw-row__cc mono' }, r.cc.startsWith('~') ? '–' : r.cc),
       h('span', { class: 'pw-row__name' }, countryName(r.cc)),
       h('span', { class: 'pw-row__meta muted' }, r.devices != null ? t('paths.n_devices', { n: r.devices }) : ''),
@@ -640,13 +645,16 @@
   }
 
   // ------------------------------------------------------------------ view
-  async function pathsView(app) {
+  async function pathsView(app, rest) {
     const fr = LL.frame(app, 'paths');
     const page = S.el = h('div', { class: 'page page--wide pw-page' });
     fr.main.append(page);
     S.d = null; S.sel = null; S.zv = { page: null, full: null };
     render();
     await load();
+    // deep link #/paths/<ISO>: the country sheet opens on this very history entry
+    const want = rest && rest[0] && /^[A-Za-z]{2}$/.test(rest[0]) ? rest[0].toUpperCase() : null;
+    if (want && LL.pathsCountry) LL.pathsCountry.open(want, S.window, true);
     const onKey = ev => { if (ev.key === 'Escape' && S.sel && !S.full) select(null); };
     document.addEventListener('keydown', onKey);
     clearInterval(S.timer);
@@ -672,6 +680,7 @@
       teardownFull();
       stopAllDots();
       unzoom('page');
+      if (LL.pathsCountry) LL.pathsCountry.close();
       S.el = null;
     } };
   }

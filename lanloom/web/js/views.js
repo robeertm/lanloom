@@ -1095,6 +1095,7 @@
       paletteField(), h('div', { class: 'grid-2' }, LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint')), motionField()),
       h('div', { class: 'stack-sm' }, h('label', { class: 'check' }, noise, h('span', {}, t('settings.port_noise'))), h('p', { class: 'field__hint' }, t('settings.port_noise.hint')))]));
     if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
+    if (LL.pathsDetailSettingsCard) page.append(LL.pathsDetailSettingsCard(s));
     if (LL.netflowSettingsCard) page.append(LL.netflowSettingsCard(s));
     const mqttCard = LL.mqttOutCard ? LL.mqttOutCard() : null;
     if (mqttCard) page.append(mqttCard);

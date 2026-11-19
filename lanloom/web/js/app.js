@@ -308,6 +308,7 @@
 
   let routeSeq = 0;
   async function route() {
+    if (LL.holdRoute && LL.holdRoute()) return;     // a sheet closed itself with the back step: nothing below changes
     const seq = ++routeSeq;
     const app = document.getElementById('app');
     // #/<view>/<part>...?<query>: the query carries view state (map area filter, device list filter ...)

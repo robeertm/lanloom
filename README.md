@@ -239,6 +239,15 @@ The Network view has two faces: the board and a **tree** that folds, Internet, g
 
 ![Data paths: world map with arcs from the home country, key figures and the period switch](docs/screenshots/paths-light.png)
 
+Country detail: click a country for the map zoomed on it, bubbles that add up to the figure at the top (traffic without a known city as a dashed, approximate bubble), history, cities, network operators, devices and destinations; cities and operators are an option that is off by default.
+
+<table>
+<tr>
+<td width="66%"><img src="docs/screenshots/paths-country-light.png" width="100%" alt="Country detail: map with bubbles, key figures, history, cities and network operators"><br><sub>Country detail (sample network)</sub></td>
+<td width="33%" align="center"><img src="docs/screenshots/phone-paths-country.png" width="100%" alt="Phone: country detail"><br><sub>On a phone it fills the screen</sub></td>
+</tr>
+</table>
+
 Who talks to whom: dashed lines between devices that talk to each other, and the card of a device with *Where does it talk to?*
 
 <table>

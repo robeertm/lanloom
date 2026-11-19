@@ -20,6 +20,9 @@ WEB = os.path.join(ROOT, "lanloom", "web")
 
 # (file name, literal text) -> reason. Every entry has to be needed; a stale entry fails the test.
 ALLOWED = {
+    ("paths_country.js", "DB-IP"): "the name of the data source in its attribution link (CC BY 4.0 requires it as given); a proper name",
+    ("paths_country.js", "IP Geolocation by "): "the attribution line the licence of the data source asks for, in its own words",
+    ("paths_country.js", "CC BY 4.0"): "the name of the licence; a proper name",
     ("index.html", "Lanloom"): "the product name in <title>; a proper name is not translated",
     ("index.html", "Lanloom needs JavaScript."): "<noscript> shows exactly when no script runs, so it cannot be translated by one; the page title and the text are English by necessity",
     ("app.js", "Lanloom"): "the product name; a proper name is not translated",
@@ -269,6 +272,7 @@ const d = /Some Words/.test(s) ? 1 : 2;
 # `.toFixed(` writes a decimal point; for text a person reads use LL.fmtNum (Intl). Remaining uses are SVG / CSS geometry (always a point).
 TOFIXED_GEOMETRY = {
     "paths.js": (21, "SVG path and style values of the world map arcs, zoom viewBox, label transforms and radii"),
+    "paths_country.js": (14, "SVG viewBox, bubble radii, label positions and bar heights of the country map and history"),
     "hypervisor.js": (2, "SVG path of the sparkline"),
     "endmarks.js": (8, "CSS transform and SVG line coordinates"),
     "textfmt.js": (1, "fallback of the number formatter when Intl is missing"),

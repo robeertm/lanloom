@@ -44,8 +44,9 @@ Administrators additionally:
 - **Set up again** - starts the setup assistant over, or the demo.
 - **Appearance** - speed unit (bytes or bits) next to language and theme, and the switch *Take the background noise out of
   exact port counters* (off by default; see [Network](network.md)).
-- **Data paths** and **NetFlow / IPFIX from your router** - home country, own networks and tunnels, networks without
-  internet, and the NetFlow receiver (see [Data paths](data-paths.md)).
+- **Data paths**, **Cities and network operators** and **NetFlow / IPFIX from your router** - home country, own networks
+  and tunnels, networks without internet, the optional city data (off by default, fetches two public files; check now,
+  delete) and the NetFlow receiver (see [Data paths](data-paths.md)).
 - **MQTT output** - optional, off by default: a few of Lanloom's figures (devices online, new devices, internet line, open
   issues, health, vulnerability hints, nightly report) as sensors of your home-automation hub through MQTT discovery, with
   the broker, the topics, the sensors and their current value and the state of the connection. Only counts, a level, a

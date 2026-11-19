@@ -18,14 +18,35 @@ unusually much.
 - **Period:** 24 hours (hourly sums), 7 days or 30 days (daily sums).
 - **Key figures:** data exchanged with the internet, number of countries, share outside the EU, number of devices,
   number of hints.
-- **Lists** of countries and devices. Click a country to see which devices talk to it; click a device to see its
-  countries.
+- **Lists** of countries and devices. Click a country (on the map or in the list) to open its country detail, see
+  below; click a device to see its countries.
 - **Hints**, calm and never changing anything: *New country* (first time in 30 days, at least 1 MB in 24 hours),
   *Unusually much* (at least three times the typical day and at least 200 MB in 24 hours), *Network without internet*
   (a device in a network you listed as having none exchanged data with the internet).
 - **Footer** naming the source of the numbers.
 
 ![Countries and devices](../screenshots/paths-lists-light.png)
+
+## Country detail
+
+Click a country and a large sheet opens: the country zoomed on a finer map, **bubbles** for the places the devices talk
+to, key figures (received, sent, share, devices, operators, cities), the history, the **cities**, the **network
+operators**, the **devices** and the **destinations** (operator and city). Esc, the × button, a click beside the sheet and
+the back gesture close it; on a phone it fills the screen. The address is `#/paths/<country code>`, so you can bookmark it.
+
+![Country detail, light theme](../screenshots/paths-country-light.png)
+
+- **The bubbles always add up** to the figure at the top: traffic without a known city is drawn as a dashed bubble
+  (*approximate position*), at the largest known city of the same operator in that country or in the middle of the country.
+- Sizes use the unit that fits (B to TB) in the number format of your language. The mouse wheel or two fingers zoom up to
+  64 times; places for orientation appear with every zoom step.
+- **Cities and network operators are an option, off by default** (*Settings > General*, administrators). Switching it on
+  makes Lanloom fetch exactly two public files (about 90 MB the first time; at most one check a day, a new file once a
+  month) and keep a compact file of a few tens of MB. Without it the sheet shows everything about the country and says
+  that cities are off. *Check now* asks at once, *Delete files and stored figures* removes everything and switches it off.
+  The cities are approximate: the source assigns whole networks to one place, often the seat of a data centre.
+
+![Country detail on a phone](../screenshots/phone-paths-country.png)
 
 ## How to use it
 
@@ -71,10 +92,11 @@ unusually much.
 - **Read:** the TCP connections of the host (kernel socket diagnostics) and, if you switch it on, NetFlow / IPFIX
   records from the exporters you allow. Nothing is looked up online and Lanloom never contacts the destinations.
 - **Stored:** only country, device id and bytes per hour (49 hours) and per day (31 days), plus the first and last day a
-  device talked to a country, and for a conversation between two devices the two ids and the bytes per direction. No peer addresses, ports, host names or visited sites are kept; NetFlow records are read in
+  device talked to a country, and for a conversation between two devices the two ids and the bytes per direction. With the option for cities and network operators also the city (of the peer, approximate) and the operator. No peer addresses, ports, host names or visited sites are kept; NetFlow records are read in
   memory and dropped. Retention is adjustable under *Settings > Storage*.
-- **Sent:** nothing. The country data and the base map ship with the image.
-- **Roles:** every role looks. Admins set up NetFlow, own networks and the networks without internet.
+- **Sent:** nothing, unless an administrator switches on cities and network operators: then the request for two public files from *download.db-ip.com* (no address, no name, nothing about the installation).
+  The country data, the base maps and the places ship with the image.
+- **Roles:** every role looks. Admins set up NetFlow, own networks, the networks without internet and the city data.
 
 ## See also
 
