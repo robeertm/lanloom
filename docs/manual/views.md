@@ -84,6 +84,7 @@ filter you had before.
 | `L` | show or hide *Right now* |
 | `I` | show or hide *About this view* |
 | `/`, `Ctrl K`, `⌘ K` | search and commands |
+| `R` | on the Map and Network views: open the [rewind](incidents.md) (then `Space`, `←` `→`, `1`-`4`, `W`, `R`, `Esc`) |
 | `?` | the keyboard help (every key, also for the tree view of the Network view) |
 | `Esc` | close a card, a dialog or a rail that lies over the page; the focus returns to where you came from |
 

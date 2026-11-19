@@ -60,6 +60,8 @@
     });
     return t(key, out);
   }
+  // the certainty matters where parts were bundled or the root is only probable; one device on its own is just itself
+  const showCert = i => i.kind !== 'maintenance' && (i.root.observed === false || (i.counts && i.counts.members > 0));
   function kindChip(k) { return h('span', { class: 'chip chip--' + (CHIP[k] || 'muted') + ' inc-kind' }, t('inc.kind.' + k)); }
   function lineOf(i) {
     const bits = [when(i.start), i.open ? t('inc.open_for', { dur: dur(i.dur) }) : t('inc.lasted', { dur: dur(i.dur) })];
@@ -70,7 +72,7 @@
   function rewindRange(i) { return Date.now() / 1000 - i.start > 23 * 3600 ? '7d' : '24h'; }
   function playButton(i, small) {
     if (Date.now() / 1000 - i.start > 7 * 86400 - 600) return null;              // the rewind reaches back 7 days
-    return h('button', { class: 'btn btn--' + (small ? 'ghost ' : '') + 'sm inc-play', type: 'button', onclick: () => LL.rewind && LL.rewind.open(rewindAt(i), rewindRange(i)) }, t('inc.btn.play'));
+    return h('button', { class: 'btn btn--sm ' + (small ? 'btn--ghost ' : '') + 'inc-play', type: 'button', onclick: () => LL.rewind && LL.rewind.open(rewindAt(i), rewindRange(i)) }, t('inc.btn.play'));
   }
   function chainButton(i) {
     if (!LL.failure || i.root.id === 'lanloom' || (i.chain_ok === false)) return null;
@@ -86,7 +88,7 @@
           h('span', { class: 'inc-row__title' }, title(i)),
           h('span', { class: 'inc-row__sub muted' }, lineOf(i))),
         h('span', { class: 'inc-row__chips' }, i.open ? h('span', { class: 'chip chip--danger' }, t('inc.open')) : null, kindChip(i.kind),
-          i.kind !== 'maintenance' ? certChip(i.root.cert, i.root.observed === false) : null)));
+          showCert(i) ? certChip(i.root.cert, i.root.observed === false) : null)));
   }
 
   // ------------------------------------------------------------------ calendar (90 days) and heatmap (7 days x 24 hours)
@@ -308,14 +310,14 @@
       h('p', { class: 'inc-back' }, h('a', { href: '#/incidents' }, '← ' + t('inc.page.title'))),
       h('header', { class: 'inc-file__head inc-file__head--' + i.kind },
         h('div', { class: 'inc-file__titles' },
-          h('div', { class: 'inc-file__chips' }, i.open ? h('span', { class: 'chip chip--danger' }, t('inc.open')) : null, kindChip(i.kind), i.kind !== 'maintenance' ? certChip(i.root.cert, guess) : null),
+          h('div', { class: 'inc-file__chips' }, i.open ? h('span', { class: 'chip chip--danger' }, t('inc.open')) : null, kindChip(i.kind), showCert(i) ? certChip(i.root.cert, guess) : null),
           h('h1', {}, title(i)),
           h('p', { class: 'muted' }, lineOf(i) + (heal ? ' · ' + heal : ''))),
         h('div', { class: 'btn-row inc-file__btns' }, playButton(i), chainButton(i))),
       h('div', { class: 'inc-file__grid' },
         section('inc.file.root',
           h('p', { class: 'inc-root' }, rootLink ? h('a', { href: rootLink, class: 'inc-root__name' }, rootName(i.root)) : h('b', { class: 'inc-root__name' }, rootName(i.root)), ' ',
-            i.kind !== 'maintenance' ? certChip(i.root.cert, guess) : null),
+            showCert(i) ? certChip(i.root.cert, guess) : null),
           h('p', { class: 'muted' }, guess ? t('inc.file.root_guess', { n: i.counts.members, why: whyText(i.root.why) })
             : i.why_kind === 'update' ? whyText(i.root.why)
             : i.why_kind === 'window' ? t('inc.file.root_window', { name: (i.window || {}).name || '' })
@@ -326,7 +328,7 @@
         section('inc.file.before', h('p', { class: 'muted inc-sec__lead' }, t('inc.file.before_lead')), beforeList(i.before || [])),
         section('inc.file.timeline', h('ul', { class: 'inc-evs inc-tl' }, (i.timeline || []).map(e => h('li', { class: 'inc-ev inc-ev--' + (e.level || 'info') },
           h('span', { class: 'inc-ev__time' }, when(e.t, { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })), h('span', { class: 'inc-ev__dot', 'aria-hidden': 'true' }),
-          h('span', { class: 'inc-ev__text' }, fill(e.key, e.vars), e.cert === 'likely' ? h('span', { class: 'muted' }, ' · ' + t('inc.cert.likely')) : null))))),
+          h('span', { class: 'inc-ev__text' }, fill(e.key, e.vars), e.cert === 'likely' ? h('span', { class: 'muted' }, ' · ' + t('inc.cert.likely')) : e.cert === 'mixed' ? h('span', { class: 'muted' }, ' · ' + t('inc.cert.mixed')) : null))))),
         i.strip && i.strip.slots ? section('inc.file.measure', h('p', { class: 'muted inc-sec__lead' }, t('inc.file.measure_lead', { share: i.strip.share == null ? '—' : LL.fmtNum(i.strip.share * 100, 1) + ' %' })), strip(i.strip),
           h('div', { class: 'inc-legend muted' }, ['up', 'partial', 'down', 'unknown'].map(k => h('span', { class: 'inc-legend__key inc-legend__key--' + k }, t('avail.slot.' + k))))) : null,
         i.members && i.members.length ? section('inc.file.members', h('p', { class: 'muted inc-sec__lead' }, t('inc.file.members_lead', { n: i.counts.members, sure: i.counts.sure, likely: i.counts.likely })),
@@ -356,7 +358,7 @@
         ' ', certChip(d.member ? d.member.cert : i.root.cert, i.root.observed === false)));
       if (i.counts.members && d.is_root) kids.push(h('p', { class: 'muted' }, t('inc.what.took', { n: i.counts.members })));
       kids.push(h('p', { class: 'muted inc-what__before' }, (d.before || []).length ? t('inc.what.before', { n: d.before.length, first: fill(d.before[0].key, d.before[0].vars) }) : t('inc.what.before_none')));
-      kids.push(h('div', { class: 'btn-row btn-row--wrap' }, h('a', { class: 'btn btn--sm', href: '#/incidents/' + enc(i.id) }, t('inc.btn.file')), playButton(i, true), chainButton(i)));
+      kids.push(h('div', { class: 'btn-row btn-row--wrap' }, h('a', { class: 'btn btn--ghost btn--sm', href: '#/incidents/' + enc(i.id) }, t('inc.btn.file')), playButton(i, true), chainButton(i)));
       box.replaceChildren(...kids);
       sec.hidden = false;
     }).catch(() => sec.remove());

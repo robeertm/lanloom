@@ -6221,5 +6221,13 @@
  "inc.report.maintenance": "Wartung bei {name} ab {from} ({dur}, {why}).",
  "inc.report.update": "Lanloom hat sich um {from} von {was} auf {to} aktualisiert ({dur}).",
  "rw.live.title": "Zurück zum Live-Bild (Esc)",
- "audit.action.incident.mark": "Vorfall markiert (Wartung oder Notiz)"
+ "audit.action.incident.mark": "Vorfall markiert (Wartung oder Notiz)",
+ "inc.cert.mixed": "teils vermutlich",
+ "about.incidents.title": "Vorfälle",
+ "about.incidents.text": "Störungen, zu Vorfällen gebündelt: was gemeinsam ausfiel, welches Teil die anderen vermutlich mitriss, wie lange es dauerte und was sich davor änderte.\n\nDer Kalender zeigt die letzten 90 Tage, die Heatmap die Stunden der letzten Woche. Ereignisse listet alles, was das Journal notierte; Zeitleiste & Datenstand bewahrt Firmware-Sprünge, eigene Updates, neue Geräte und lange Ausfälle länger als ein Jahr auf.",
+ "about.incidents.tips": "Im Rückblick abspielen zeigt den Moment auf der Karte; R öffnet den Rückblick auf jeder Karte, die Leertaste spielt ab, Esc führt zurück zum Live-Bild.\nSicher heißt: die Teile hängen in der Ausfall-Kette an der Wurzel; vermutlich heißt: die Wurzel selbst wurde nicht als ausgefallen gesehen.\nLanlooms eigene Updates und Wartungsfenster zählen als Wartung, nie als Störung.",
+ "inc.tl.members_down": "{n} Teile antworten nicht mehr: {names}",
+ "inc.tl.members_back": "{n} Teile antworten wieder: {names}",
+ "inc.tl.members_down_more": "{n} Teile antworten nicht mehr: {names} {more, plural, one {und # weiteres} other {und # weitere}}",
+ "inc.tl.members_back_more": "{n} Teile antworten wieder: {names} {more, plural, one {und # weiteres} other {und # weitere}}"
 }

@@ -41,6 +41,14 @@ def test_unknown_slots_are_never_down():
     assert incidents.runs_of(cells) == []
 
 
+def test_a_run_followed_only_by_slots_without_a_look_is_not_over():
+    cells = bytearray([av.pack(5, 0), av.pack(0, 5), av.pack(0, 5), 0, 0])
+    ep = incidents.episodes("dev:x", cells, 100, (100 + 9) * SLOT)[0]
+    assert ep["open"] and ep["to"] is None                   # nobody looked since: it is not known to be back
+    cells += bytearray([av.pack(5, 0)])
+    assert not incidents.episodes("dev:x", cells, 100, (100 + 9) * SLOT)[0]["open"]
+
+
 def test_kinds():
     assert incidents.kind_of(1, 300, False, False) == "blip"
     assert incidents.kind_of(1, 300, True, False) == "outage"          # an open one is never a blip yet
@@ -174,7 +182,9 @@ def test_switch_outage_bundles_its_parts_and_the_file_tells_the_story(core):
     assert i["start"] == NOW - 3 * 3600 + 30                  # the journal's exact time refines the slot edge
     f = core.incidents.get(i["id"])
     keys = [e["key"] for e in f["timeline"]]
-    assert keys[0] == "inc.tl.root_down" and "inc.tl.root_back" in keys and keys.count("inc.tl.member_down") == 5
+    assert keys == ["inc.tl.root_down", "inc.tl.members_down_more", "inc.tl.members_back_more", "inc.tl.root_back"]
+    together = f["timeline"][1]["vars"]
+    assert together["n"] == 5 and together["more"] == 1 and together["names"].count(",") == 3     # one line for the parts that went together
     assert f["heal"]["key"] == "inc.heal.self"
     assert [b["key"] for b in f["before"]] == ["inc.before.dev_new"]
     assert f["strip"]["subject"] == "dev:sw" and 0 < f["strip"]["share"] < 1

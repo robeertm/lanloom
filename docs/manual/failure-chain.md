@@ -1,6 +1,6 @@
 # Failure chain and outages
 
-[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · [Network](network.md) · [Devices](devices.md) · [Automations](automations.md) · Failure chain · [Nightly report](nightly-reports.md) · [Settings](settings.md)
+[Manual](README.md) · [Overview](overview.md) · [Map](map.md) · [Network](network.md) · [Devices](devices.md) · [Automations](automations.md) · Failure chain · [Rewind and incidents](incidents.md) · [Nightly report](nightly-reports.md) · [Settings](settings.md)
 
 ## Purpose
 

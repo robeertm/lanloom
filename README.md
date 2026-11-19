@@ -547,6 +547,34 @@ Settings > Appearance > Colour theme switches the accent palette of the whole ap
 </tr>
 </table>
 
+### Rewind and incident files
+
+![The rewind of the last 24 hours: the time line with its incidents above the board, the garden access point down at that moment](docs/screenshots/rewind-24h-light.png)
+
+Press **Rewind** above the map (or `R`) and the last 24 hours play back on the board: the dots carry the traffic of that
+minute, the tiles show what was down; `Space` pauses, `1`-`4` set 60x to 3600x, `W` switches to 7 days, `Esc` goes back
+to live, and the palette understands *rewind to 14:30*. Faults are bundled into **incident files**: devices that went down
+together are listed under the part they hang on in the failure chain (sure or probably), with the kind (outage, flapping,
+blip, maintenance - Lanloom's own updates and maintenance windows never count as faults), what changed before, the
+timeline, the measurements and how it healed. A 90-day calendar, a 7-day heatmap by hour, the event chronicle and a
+*Timeline & data state* (firmware jumps, own updates, new devices, long outages) answer "when does this happen?". The
+nightly report has a section *Incidents of the night*. See the [manual page](docs/manual/incidents.md).
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/incidents-light.png" width="100%" alt="The incidents page with the 90-day calendar, the heatmap of the last week and the list"><br><sub>Incidents: calendar, heatmap by hour, the list</sub></td>
+<td width="50%"><img src="docs/screenshots/incident-file-light.png" width="100%" alt="The file of an outage of the core switch with root, firmware jump before, timeline and measurements"><br><sub>An incident file: root, what changed before, timeline</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/rewind-7d-light.png" width="100%" alt="The rewind of 7 days at the outage of the core switch three days ago"><br><sub>Seven days back: the core switch and what went with it</sub></td>
+<td width="50%"><img src="docs/screenshots/incidents-chronicle-light.png" width="100%" alt="Timeline and data state with firmware jumps, own updates and new devices"><br><sub>Timeline &amp; data state, collected once a day</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/rewind-phone-dark.png" width="300" alt="The rewind on a phone"><br><sub>The rewind on the phone</sub></td>
+<td width="50%"><img src="docs/screenshots/incident-file-phone-dark.png" width="300" alt="An incident file on a phone"><br><sub>An incident file on the phone</sub></td>
+</tr>
+</table>
+
 ### Services, web interfaces and certificates
 
 ![Links: every web interface with the state of its probe and the certificate clock](docs/screenshots/links-light.png)

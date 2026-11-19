@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS incident (id TEXT PRIMARY KEY, start REAL NOT NULL, "
     data TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS incident_start ON incident(start);
 """
+_DOWN = bytes(1 if b & 15 else 0 for b in range(256))   # slot byte -> 1 when a look failed
 CHANGE_KINDS = ("dev_new", "dev_gone", "fw_change", "app_start", "src_fail", "wan_switch")
 
 
@@ -99,7 +100,8 @@ def episodes(subject: str, cells, start_slot: int, now: float) -> list:
     now_slot = int(now // SLOT)
     out = []
     for a, b, n in runs_of(cells):
-        is_open = start_slot + b >= now_slot
+        # still going: the run reaches now, or no look found the subject up after it (slots without a look are not "back")
+        is_open = start_slot + b >= now_slot or not any(c >> 4 for c in cells[b:])
         out.append({"subject": subject, "from": float((start_slot + a) * SLOT), "to": None if is_open else float((start_slot + b) * SLOT),
                     "open": is_open, "runs": n})
     return out
@@ -304,11 +306,12 @@ class Incidents:
         names = self._names()
         start_slot, cur = int(since // SLOT), int(now // SLOT)
         eps = []
-        for subject in avail.subjects():
+        for subject, cells in avail.cells_all(start_slot, cur).items():
             info = names.get(subject)
             if info is None or info.get("hidden") or info.get("self"):
                 continue
-            cells = avail.cells(subject, start_slot, cur)
+            if not any(cells.translate(_DOWN)):
+                continue
             for ep in episodes(subject, cells, start_slot, now):
                 ep["node"] = self.node_of(subject)
                 eps.append(ep)
@@ -549,7 +552,7 @@ class Incidents:
         if inc.get("window"):
             out.append({"t": inc["start"], "key": "inc.tl.window", "vars": {"name": inc["window"]["name"]}, "level": "info"})
         out.sort(key=lambda e: (e["t"] or 0))
-        return out[:80]
+        return _group_members(out)[:80]
 
     def _strip(self, inc: dict, now: float) -> dict:
         """Slots of the root (or the first member) from two hours before to two hours after the incident."""
@@ -762,6 +765,38 @@ class Incidents:
         else:
             self.collect(now, force=True)
         return {"id": iid, "mark": marks.get(iid)}
+
+
+def _group_members(rows: list, gap: float = 120.0) -> list:
+    """Members that went down (or came back) within two minutes of each other become one line with their names."""
+    out = []
+    for e in rows:
+        k = e["key"]
+        if k in ("inc.tl.member_down", "inc.tl.member_back") and out and out[-1].get("_k") == k and e["t"] - out[-1]["_t0"] <= gap:
+            last = out[-1]
+            last["_names"].append(e["vars"]["name"])
+            if e.get("cert") == "likely":
+                last["_likely"] += 1
+            continue
+        if k in ("inc.tl.member_down", "inc.tl.member_back"):
+            out.append(dict(e, _k=k, _t0=e["t"], _names=[e["vars"]["name"]], _likely=1 if e.get("cert") == "likely" else 0))
+        else:
+            out.append(e)
+    for e in out:
+        if "_k" not in e:
+            continue
+        names = e.pop("_names")
+        k, likely = e.pop("_k"), e.pop("_likely")
+        e.pop("_t0", None)
+        if len(names) > 1:
+            shown = names[:4]
+            more = len(names) - len(shown)
+            e["key"] = ("inc.tl.members_down" if k.endswith("down") else "inc.tl.members_back") + ("_more" if more else "")
+            e["vars"] = {"n": len(names), "names": ", ".join(shown), "more": more}
+            e.pop("cert", None)
+            if likely:
+                e["cert"] = "likely" if likely == len(names) else "mixed"
+    return out
 
 
 def _short(i: dict) -> dict:

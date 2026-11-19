@@ -6,17 +6,17 @@
 .inc-head h1 { margin: 0; }
 .inc-lead { margin: 4px 0 0; max-width: 70ch; }
 
-.inc-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.inc-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: stretch; }
 .inc-card { padding: 14px 16px; min-width: 0; }
 .inc-card__title { margin: 0; font-size: var(--ll-fs-md); font-weight: var(--ll-fw-semibold); }
 .inc-card__sub { margin: 2px 0 12px; font-size: var(--ll-fs-sm); }
 
 /* calendar: weeks as columns, Monday on top */
 .inc-cal { display: flex; flex-direction: column; gap: 4px; }
-.inc-cal__months { display: grid; gap: 3px; font-size: var(--ll-fs-xs); color: var(--ll-text-3); height: 16px; }
+.inc-cal__months { display: grid; gap: 4px; font-size: var(--ll-fs-xs); color: var(--ll-text-3); height: 16px; }
 .inc-cal__month { white-space: nowrap; }
-.inc-cal__grid { display: grid; grid-template-rows: repeat(7, auto); grid-auto-flow: column; gap: 3px; }
-.inc-cal__cell { display: block; aspect-ratio: 1; min-width: 8px; border-radius: 3px; border: 0; padding: 0; background: var(--ll-surface-3); cursor: pointer; }
+.inc-cal__grid { display: grid; grid-template-rows: repeat(7, 18px); grid-auto-flow: column; gap: 4px; }
+.inc-cal__cell { display: block; width: 18px; height: 18px; border-radius: 4px; border: 0; padding: 0; background: var(--ll-surface-3); cursor: pointer; }
 .inc-cal__cell.is-pad { background: transparent; cursor: default; }
 .inc-cal__cell.lv1 { background: color-mix(in srgb, var(--ll-danger) 28%, var(--ll-surface-3)); }
 .inc-cal__cell.lv2 { background: color-mix(in srgb, var(--ll-danger) 50%, var(--ll-surface-3)); }
@@ -29,11 +29,11 @@
 .inc-scale .inc-cal__cell.is-maint { margin-left: 10px; }
 
 /* heatmap: days as rows, 24 hours as columns */
-.inc-heat { display: flex; flex-direction: column; gap: 3px; }
-.inc-heat__row { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); gap: 3px; align-items: center; }
+.inc-heat { display: flex; flex-direction: column; gap: 4px; }
+.inc-heat__row { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); gap: 4px; align-items: center; }
 .inc-heat__day, .inc-heat__hour { font-size: var(--ll-fs-xs); color: var(--ll-text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .inc-heat__hour { text-align: left; }
-.inc-heat__cell { display: block; height: 18px; border-radius: 3px; background: var(--ll-surface-3); }
+.inc-heat__cell { display: block; height: 18px; border-radius: 4px; background: var(--ll-surface-3); }
 .inc-heat__cell.has-ev { background: color-mix(in srgb, var(--ll-accent) 22%, var(--ll-surface-3)); }
 .inc-heat__cell.lv1 { background: color-mix(in srgb, var(--ll-warn) 45%, var(--ll-surface-3)); }
 .inc-heat__cell.lv2 { background: var(--ll-warn); }
@@ -130,6 +130,8 @@
   .inc-top, .inc-file__grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
+  .inc-cal__grid { grid-template-rows: repeat(7, 14px); gap: 3px; }
+  .inc-cal__cell { width: 14px; height: 14px; }
   .inc-page, .inc-file { padding: 16px 12px 40px; }
   .inc-row__link { flex-wrap: wrap; }
   .inc-row__chips { max-width: none; justify-content: flex-start; width: 100%; padding-left: 16px; }

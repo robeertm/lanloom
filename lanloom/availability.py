@@ -204,6 +204,29 @@ class Availability:
                 out[lo - from_slot:hi - from_slot + 1] = cells[lo - base:hi - base + 1]
         return out
 
+    def cells_all(self, from_slot: int, to_slot: int) -> dict:
+        """{subject: slots from_slot..to_slot} for every subject with data in that range, read in one query (readers of all
+        subjects at once: incidents, rewind)."""
+        n = to_slot - from_slot + 1
+        out: dict = {}
+        d0, d1 = from_slot // PER_DAY, to_slot // PER_DAY
+
+        def place(subject, day, cells):
+            buf = out.get(subject)
+            if buf is None:
+                buf = out[subject] = bytearray(max(0, n))
+            base = day * PER_DAY
+            lo, hi = max(from_slot, base), min(to_slot, base + PER_DAY - 1)
+            buf[lo - from_slot:hi - from_slot + 1] = cells[lo - base:hi - base + 1]
+        with self._lock:
+            mem = {k: v for k, v in self.cur.items() if d0 <= k[1] <= d1}
+            for r in self.store.query("SELECT subject, day, slots FROM avail_day WHERE day >= ? AND day <= ?", (d0, d1)):
+                if (r["subject"], r["day"]) not in mem:
+                    place(r["subject"], r["day"], _unpack(r["slots"]))
+            for (subject, day), cells in mem.items():
+                place(subject, day, cells)
+        return out
+
     def subjects(self) -> list:
         with self._lock:
             mem = {k[0] for k in self.cur}

@@ -17,6 +17,7 @@ guides in [docs/](../)). The *About this view* rail of the app (key `I`) links t
 | Data paths | [data-paths.md](data-paths.md) | Which countries your devices exchange data with, on a world map. |
 | Nightly report | [nightly-reports.md](nightly-reports.md) | A short report of every night with points to tick off. |
 | Failure chain | [failure-chain.md](failure-chain.md) | What fails if a part fails, what it depends on, simulated maintenance, and the outage automatic with dashed affected parts. |
+| Rewind and incidents | [incidents.md](incidents.md) | The last 24 hours or 7 days played back on the map; faults bundled into incident files with root, kind, what changed before; 90-day calendar and timeline & data state. |
 | Automations | [automations.md](automations.md) | What the hub does on its own, in plain words, with findings, a dependency board and a day plan. |
 | Running | [running.md](running.md) | What runs on the other hosts: containers, services, timers, failed units, with an optional host agent. |
 | Sites | [sites.md](sites.md) | Several places in one Lanloom: switcher, all sites at a glance, who sees which site, reports per site or combined. |

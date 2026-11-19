@@ -231,6 +231,31 @@ def measure(n: int, runs: int = 5, data_dir: Path = None) -> dict:
     res["inventory_ms"] = timed(lambda: dumps(c.inventory.list({"sort": "room"})), runs)        # inventory list (L1), computed per request
     # failure chain (S5): the graph built from scratch, the chain of the gateway (the largest) and the outage automatic
     res["failure_ms"] = timed(lambda: (c.failure.invalidate(), dumps(c.failure.chain(router or ids[0], "down")), dumps(c.failure.outages())), runs)
+    # rewind and incidents (S7S8): a whole day of minutes on every flow trace and of 5-minute slots on every device (one in ten
+    # had a short outage behind the router), then the rewind of 24 hours from scratch and the incidents computed again
+    from lanloom import availability as av_mod, rewind as rewind_mod, trafficlog as tl_mod
+    day0, minute0 = int(now // 86400), int(now // 60)
+    rows = []
+    for k, dev in enumerate(ids):
+        d = tl_mod._Day(day0)
+        for m in range(0, 1440, 3):
+            d.rx[m], d.tx[m] = 60_000 + (m * 37 + k) % 9000, 9_000 + (m * 11 + k) % 700
+        rows.append((core_mod.flow_trace(self_id, dev), day0, tl_mod._pack(d)))
+        rows.append((core_mod.flow_trace(self_id, dev), day0 - 1, tl_mod._pack(d)))
+        cells = bytearray([av_mod.pack(5, 0)] * av_mod.PER_DAY)
+        if k % 10 == 0:
+            for i in range(100, 103):
+                cells[i] = av_mod.pack(0, 5)
+        for day in (day0 - 1, day0):
+            store.execute("INSERT OR REPLACE INTO avail_day(subject, day, slots) VALUES(?,?,?)", ("dev:" + dev, day, __import__("zlib").compress(bytes(cells))))
+    with store.transaction() as tx:
+        tx._db.executemany("INSERT OR REPLACE INTO traffic_min(trace, day, data) VALUES(?,?,?)", rows)
+    c.traffic_log.cur.clear() if hasattr(c.traffic_log, "cur") else None
+    c.availability.version += 1
+    # the first rewind encodes every finished day once; later ones (another minute, the other board) only the running day
+    res["rewind_cold_ms"] = timed(lambda: (rewind_mod._cache.clear(), rewind_mod._days.clear(), rewind_mod._running.clear(), dumps(rewind_mod.build(c, "24h", "network", now))), 1)
+    res["rewind_ms"] = timed(lambda: (rewind_mod._cache.clear(), dumps(rewind_mod.build(c, "24h", "network", now))), max(2, runs // 2))
+    res["incidents_ms"] = timed(lambda: (c.incidents.collect(now, force=True), dumps(c.incidents.list(7, now=now))), max(2, runs // 2))
     res["map_kb"] = round(len(dumps(mapmodel.build(c, "overview"))) / 1024, 1)
     res["ring_samples"] = c.ring.samples()
     res["heap_mb"] = round((tracemalloc.get_traced_memory()[0] - base_heap) / 1e6, 1)
@@ -251,7 +276,7 @@ def measure(n: int, runs: int = 5, data_dir: Path = None) -> dict:
 
 
 COLS = ("devices", "start_ms", "tick_ms", "cpu_live_pct", "map_overview_ms", "map_network_ms", "devices_ms", "devices_cold_ms", "component_first_ms", "component_ms",
-        "paths_24h_ms", "paths_30d_ms", "storage_ms", "search_ms", "overview_ms", "inventory_ms", "failure_ms", "automations_ms", "map_kb", "heap_mb", "rss_mb", "db_mb")
+        "paths_24h_ms", "paths_30d_ms", "storage_ms", "search_ms", "overview_ms", "inventory_ms", "failure_ms", "automations_ms", "rewind_cold_ms", "rewind_ms", "incidents_ms", "map_kb", "heap_mb", "rss_mb", "db_mb")
 
 
 def main(argv=None) -> int:

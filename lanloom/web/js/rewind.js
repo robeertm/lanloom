@@ -21,7 +21,7 @@
   const { h, t, api } = LL;
   const R = LL.rewind = {};
   const ALPHA = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_';
-  const LUT = Array.from({ length: 64 }, (_, i) => (i ? Math.pow(2, (i - 1) / 2) : 0));
+  const LUT = Array.from({ length: 64 }, (_, i) => (i ? Math.pow(2, (i - 0.5) / 2) : 0));      // the middle of each level band (lanloom/rewind.py)
   const SPEEDS = [60, 300, 900, 3600];
   const RANGES = ['24h', '7d'];
   const KIND_TOKEN = { outage: '--ll-danger', flapping: '--ll-warn', blip: '--ll-warn', maintenance: '--ll-text-3' };
@@ -68,8 +68,12 @@
       if (b) dots.push([id, 1, Math.max(1, Math.min(6, Math.round(b / q)))]);
     }
     const incidents = (d.marks || []).filter(m => m.start <= ts && (m.end == null || m.end >= ts));
+    // the tiles' live figures belong to now: in the past they stay empty (the dots carry the traffic of that moment)
+    const metrics = {};
+    const v = S.map && S.map.view && S.map.view();
+    if (v) v.components.forEach(c => { metrics[c.id] = null; });
     return { at: ts, index: i, slot: si, status, fallback: gapCh === '.' ? 'unknown' : 'up', gap: gapCh === '.', down, rates, dots, incidents,
-      frame: { t: ts, q: d.q, dots, rates, rewind: true } };
+      frame: { t: ts, q: d.q, dots, rates, metrics, rewind: true } };
   }
 
   async function load(range) {
@@ -100,11 +104,13 @@
     S.playing = !at;
     S.last = 0;
     push(true); render(); loop();
+    const act = document.activeElement;
+    if (act && act.classList && act.classList.contains('mf-chip--rewind') && bar) { const pb = bar.querySelector('.rw-play'); if (pb) pb.focus({ preventScroll: true }); }
     LL.announce && LL.announce(t('rw.opened', { time: stamp(S.at, true) }), { now: true });
   };
   R.close = function () {
     if (!S.open) return;
-    S.open = false; S.playing = false; cancelAnimationFrame(S.raf); S.raf = 0;
+    S.open = false; S.playing = false; clearInterval(S.raf); S.raf = 0;
     S.targets.forEach(x => { try { x.leave && x.leave(); } catch (e) { /* a target must not stop the others */ } });
     render();
     LL.announce && LL.announce(t('rw.closed'), { now: true });
@@ -121,21 +127,22 @@
     S.targets.forEach(x => { try { x.apply(st); } catch (e) { /* a target must not stop the others */ } });
     if (force || !S.playing) S.pushed = performance.now();
   }
+  // a steady 10 Hz clock (not animation frames: those rest in background tabs and power-saving browsers, the time would stand still)
   function loop() {
-    cancelAnimationFrame(S.raf);
-    const step = now => {
-      if (!S.open) return;
+    clearInterval(S.raf);
+    S.last = 0;
+    S.raf = setInterval(() => {
+      if (!S.open) { clearInterval(S.raf); S.raf = 0; return; }
+      const now = performance.now();
       if (S.playing && S.d) {
-        const dt = S.last ? Math.min(0.25, (now - S.last) / 1000) : 0;
+        const dt = S.last ? Math.min(0.5, (now - S.last) / 1000) : 0;
         S.at += dt * S.speed;
         if (S.at >= S.d.now) { S.at = S.d.now; S.playing = false; renderHead(); }
         drawCursor();
         if (now - S.pushed >= 1000 || !S.playing) { S.pushed = now; push(); renderNow(); renderTime(); }
       }
       S.last = now;
-      S.raf = requestAnimationFrame(step);
-    };
-    S.raf = requestAnimationFrame(step);
+    }, 100);
   }
   function seek(ts, play) {
     if (!S.d) return;
@@ -185,7 +192,7 @@
     if (LL.query) { LL.query.delete('rw'); LL.query.delete('rwr'); }
     if (want) setTimeout(() => R.open(want.at, want.range || undefined), 0);
     else if (S.open) { S.open = false; S.d = null; }
-    return () => { off(); if (S.map === m) { S.map = null; if (S.open) { S.open = false; S.playing = false; cancelAnimationFrame(S.raf); } } };
+    return () => { off(); if (S.map === m) { S.map = null; if (S.open) { S.open = false; S.playing = false; clearInterval(S.raf); } } };
   };
   R.chip = function () {
     return h('button', { class: 'mf-chip mf-chip--rewind' + (S.open ? ' is-on' : ''), type: 'button', 'aria-pressed': S.open ? 'true' : 'false',
@@ -233,7 +240,7 @@
     bar.replaceChildren(...kids);
     if (fresh) { hst.append(bar); }
     renderHead(); renderTime(); renderNow();
-    if (S.d) { wireCanvas(); requestAnimationFrame(() => { drawLine(); drawTicks(); }); }
+    if (S.d) { wireCanvas(); setTimeout(() => { drawLine(); drawTicks(); }, 0); }
   }
   function renderHead() {
     if (!els.head) return;
@@ -250,9 +257,11 @@
     const listBtn = phone() ? null : h('button', { class: 'btn btn--ghost btn--sm rw-listbtn', type: 'button', 'aria-expanded': S.list ? 'true' : 'false',
       onclick: () => { S.list = !S.list; bar.classList.toggle('is-list', S.list); renderHead(); renderNow(); } }, t(S.list ? 'rw.list.hide' : 'rw.list.show'));
     const close = h('button', { class: 'btn btn--sm rw-live', type: 'button', title: t('rw.live.title'), onclick: () => R.close() }, h('span', { class: 'rw-live__dot', 'aria-hidden': 'true' }), t('rw.live'));
+    const hadPlay = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('rw-play');
     els.head.replaceChildren(
       h('div', { class: 'rw-bar__title' }, h('span', { class: 'rw-bar__icon', 'aria-hidden': 'true' }), h('h2', {}, t('rw.title.' + S.range))),
       h('div', { class: 'rw-bar__tools' }, h('div', { class: 'rw-transport' }, back, play, fwd), speeds, ranges, listBtn, close));
+    if (hadPlay) play.focus({ preventScroll: true });
   }
   function renderTime() {
     if (!els.time || !S.d) return;
@@ -305,12 +314,16 @@
     }
     // activity (all traces together; the levels are logarithmic already)
     const n = d.tot.length;
+    let lo = 63, hi = 0;
+    for (let i = 0; i < n; i++) if (d.tot[i]) { lo = Math.min(lo, d.tot[i]); hi = Math.max(hi, d.tot[i]); }
+    lo = Math.max(0, lo - 2);
+    const yOf = lv => hh - (lv ? (lv - lo) / Math.max(1, hi - lo) : 0) * (hh - 16);       // the curve uses the height between the quietest and the busiest step
     g.beginPath(); g.moveTo(0, hh);
-    for (let i = 0; i < n; i++) g.lineTo((i + 0.5) / n * w, hh - (d.tot[i] / 63) * (hh - 14));
+    for (let i = 0; i < n; i++) g.lineTo((i + 0.5) / n * w, yOf(d.tot[i]));
     g.lineTo(w, hh); g.closePath();
     g.fillStyle = css('--ll-accent-soft') || 'rgba(0,0,0,.08)'; g.fill();
     g.strokeStyle = css('--ll-accent'); g.lineWidth = 1.2; g.beginPath();
-    for (let i = 0; i < n; i++) { const xx = (i + 0.5) / n * w, yy = hh - (d.tot[i] / 63) * (hh - 14); if (i) g.lineTo(xx, yy); else g.moveTo(xx, yy); }
+    for (let i = 0; i < n; i++) { const xx = (i + 0.5) / n * w, yy = yOf(d.tot[i]); if (i) g.lineTo(xx, yy); else g.moveTo(xx, yy); }
     g.stroke();
     // incidents: bands on top, a soft tint down the line
     (d.marks || []).forEach(m => {
@@ -382,7 +395,11 @@
       return;
     }
     let done = true;
-    if (ev.key === ' ' || ev.key === 'Spacebar') { if (ev.target && ev.target.tagName === 'BUTTON' && !bar.contains(ev.target)) return; togglePlay(); }
+    if (ev.key === ' ' || ev.key === 'Spacebar') {
+      const el = ev.target;                            // a focused control keeps its own Space (the play button toggles by itself)
+      if (el && /^(BUTTON|A|CANVAS)$/.test(el.tagName) && !el.classList.contains('mf-chip--rewind') && el !== canvas) return;
+      togglePlay();
+    }
     else if (ev.key === 'ArrowLeft') stepBy(-1, ev.shiftKey);
     else if (ev.key === 'ArrowRight') stepBy(1, ev.shiftKey);
     else if (/^[1-4]$/.test(ev.key)) setSpeed(SPEEDS[Number(ev.key) - 1]);
@@ -439,5 +456,5 @@
       parsedLabel: arg => t('rw.cmd.to', { time: new Date(arg.at * 1000).toLocaleString(loc(), { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) }),
       run: arg => R.open(arg && arg.at ? arg.at : null) });
   }
-  window.addEventListener('hashchange', () => { if (S.open && !/^#\/(map|network)\b/.test(location.hash)) { S.open = false; S.playing = false; cancelAnimationFrame(S.raf); } });
+  window.addEventListener('hashchange', () => { if (S.open && !/^#\/(map|network)\b/.test(location.hash)) { S.open = false; S.playing = false; clearInterval(S.raf); } });
 })();

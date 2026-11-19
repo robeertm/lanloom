@@ -17,7 +17,8 @@
 .rw-ico--play { width: 0; height: 0; border-left: 10px solid currentColor; border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
 .rw-ico--pause { border-left: 3px solid currentColor; border-right: 3px solid currentColor; width: 4px; }
 .rw-seg .seg__btn { min-height: 28px; padding: 0 10px; font-variant-numeric: tabular-nums; }
-.rw-live { gap: 6px; white-space: nowrap; }
+.rw-live { gap: 6px; white-space: nowrap; background: var(--ll-surface); color: var(--ll-text); border: 1px solid var(--ll-border); }
+.rw-live:hover { background: var(--ll-surface-2); }
 .rw-live__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ll-ok); box-shadow: 0 0 0 3px var(--ll-ok-soft); }
 .rw-msg { margin: 0; font-size: var(--ll-fs-sm); }
 
@@ -48,6 +49,7 @@
 .ll-board.is-rewind { box-shadow: inset 0 0 0 2px var(--ll-text-3); }
 .ll-tile[data-status="partial"] .ll-led { background: var(--ll-warn); box-shadow: 0 0 0 2px var(--ll-pcb-led-ring), 0 0 var(--ll-pcb-led-glow) var(--ll-warn); }
 .ll-tile[data-status="partial"] { border-color: var(--ll-warn); }
+.fc-slot.has-rw .fc-outage { display: none; }             /* the outage note speaks of now: it rests while the past is shown */
 .mf-chip--rewind.is-on { background: var(--ll-text); color: var(--ll-surface); border-color: var(--ll-text); }
 
 @media (max-width: 760px) {

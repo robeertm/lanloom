@@ -6221,5 +6221,13 @@
  "inc.report.maintenance": "Maintenance at {name} from {from} ({dur}, {why}).",
  "inc.report.update": "Lanloom updated itself from {was} to {to} at {from} ({dur}).",
  "rw.live.title": "Back to live (Esc)",
- "audit.action.incident.mark": "Incident marked (maintenance or note)"
+ "audit.action.incident.mark": "Incident marked (maintenance or note)",
+ "inc.cert.mixed": "some probably",
+ "about.incidents.title": "Incidents",
+ "about.incidents.text": "Faults bundled into incidents: what went down together, which part probably took the others with it, how long it lasted and what changed before.\n\nThe calendar shows the last 90 days, the heatmap the hours of the last week. Events list everything the journal noted; Timeline & data state keeps firmware jumps, own updates, new devices and long outages for more than a year.",
+ "about.incidents.tips": "Play in rewind shows the moment on the map; R opens the rewind on any map, Space plays, Esc goes back to live.\nSure means the parts hang on the root in the failure chain; probably means the root was not seen down itself.\nLanloom's own updates and maintenance windows count as maintenance, never as a fault.",
+ "inc.tl.members_down": "{n} parts stopped answering: {names}",
+ "inc.tl.members_back": "{n} parts answer again: {names}",
+ "inc.tl.members_down_more": "{n} parts stopped answering: {names} and {more} more",
+ "inc.tl.members_back_more": "{n} parts answer again: {names} and {more} more"
 }

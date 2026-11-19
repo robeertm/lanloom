@@ -5,6 +5,9 @@ It answers "was it there last night?", "how often does the camera drop out?" and
 last week?" without any extra setup. Everything is kept in Lanloom's own database and read from there; nothing is sent
 anywhere.
 
+The same slots feed the [rewind and the incident files](manual/incidents.md): played back on the map, and bundled into
+incidents with a probable root.
+
 ## Availability in 5-minute slots
 
 Once a minute Lanloom's watcher looks at every device (does it answer?) and every connection to a hub, broker,

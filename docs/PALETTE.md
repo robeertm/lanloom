@@ -59,6 +59,12 @@ An action exists only when something registered it, so an action for a view Lanl
 part: the box shows what the choice is for as a chip ("Failure chain of") and lists only devices, automations and entities;
 `Enter` on a hit opens its [failure chain](manual/failure-chain.md).
 
+**Commands that understand a time.** *Rewind to …* reads what you type after `rewind to` (or `zurückspulen auf`): a time
+(`14:30`, `2:30 pm`), a day and a time (`yesterday 9:15`, `mon 8:00`) or a span back (`3 h`, `90 min`); the row shows the
+time it understood and `Enter` opens the [rewind](manual/incidents.md) there. *Rewind the last 24 hours* and *Rewind the
+last 7 days* start from the beginning; *Open Incidents*, *Show timeline & data state* and *Show the event chronicle* open
+the [incidents](manual/incidents.md) page; *What happened?* on a device hit opens its card.
+
 ![The actions of a device hit](screenshots/palette-actions-light.png)
 
 ## Keyboard, screen reader, phone
