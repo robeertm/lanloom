@@ -8,6 +8,8 @@
    Typos are forgiven, the last choices come first on an empty box ("Recent", kept in this browser only).
    A hit has actions (Open, Copy ...): → or the "⋯" button shows them. An action exists only when something registered it
    with LL.registerAction (js/app.js), so a view that is not there yet never offers one.
+   A command with parse(query) -> argument (and parsedLabel(argument)) understands the typed text and is offered first with what it
+   understood ("Rewind to 14:30", js/rewind.js); run(argument) gets it.
    Two-step commands ("Show failure chain …"): open(prefill, {pick: {label, kinds, run}}) asks for a part first - the box shows the
    label as a chip, lists only hits of the given groups and runs run(hit) with the chosen one.
    Keyboard: ↑ ↓ Home End move, Enter chooses, → actions, Esc back/close. Screen readers get a combobox with a listbox
@@ -237,7 +239,12 @@
       } else {
         const v = server.value;
         const local = F.rank(commandItems(), v ? '' : q, SHOW_TYPED.cmd).map(r => r.item);
-        add('cmd', t('cmdk.group.cmd'), v ? [] : local);
+        // commands that understand the typed text ("Rewind to 14:30") come first, with what they understood
+        const parsed = v ? [] : commandItems().filter(c => c.cmd.parse).map(c => {
+          const arg = c.cmd.parse(q);
+          return arg ? Object.assign({}, c, { arg, title: c.cmd.parsedLabel ? c.cmd.parsedLabel(arg) : c.title }) : null;
+        }).filter(Boolean);
+        add('cmd', t('cmdk.group.cmd'), v ? [] : parsed.concat(local.filter(x => !parsed.some(p => p.cmd.id === x.cmd.id))));
         const cmp = v ? ((input.value.match(VALUE_RX) || [''])[0]).replace(/\s+/g, ' ') : '';
         GROUP_ORDER.slice(1).forEach(g => add(g, t('cmdk.group.' + g), (server.groups[g] || []).slice(0, SHOW_TYPED[g]).map(hit => ({ kind: 'hit', hit })), v && g === 'entities' ? cmp : null));
       }
@@ -313,6 +320,7 @@
     // ---- choose
     function choose(i) {
       const r = rows[i]; if (!r || r.head) return;
+      if (r.kind === 'cmd' && r.arg) { close(true); r.cmd.run(r.arg); return; }
       if (r.kind === 'cmd') { remember({ k: 'cmd', id: r.cmd.id }); close(true); r.cmd.run(); return; }
       if (pick) { close(true); pick.run(r.hit); return; }
       const acts = actionsOf(r.hit);

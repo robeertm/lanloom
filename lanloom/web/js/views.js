@@ -276,6 +276,7 @@
           LL.netModes ? LL.netModes('live') : null, LL.netModes ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
           treeOk ? viewSwitch() : null, mode === 'board' && fullScreen ? fullButton() : null, treeOk || (mode === 'board' && fullScreen) ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
           mode !== 'board' ? null : talkChip,        // the lines in the air belong to the board; the tree has the chain
+          mode === 'board' && LL.rewind ? LL.rewind.chip() : null,
           mode === 'board' && talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
           mode === 'board' && LL.foldHosts.length ? chip(t('mapfilter.containers'), LL.allUnfolded(), () => LL.setAllUnfolded(!LL.allUnfolded()), ' mf-chip--containers') : null,
           h('span', { class: 'mf-sep', 'aria-hidden': 'true' }),
@@ -301,6 +302,9 @@
       let board = mountViewer();
       if (LL.a11y) LL.a11y.setNames(localise(data).components);
       const fcDetach = LL.failure ? LL.failure.attach({ kind, slot: () => fcSlot, board: () => board, view: () => feed(data) }) : null;
+      // rewind (js/rewind.js): while it plays, the live frames rest and the board shows the moment under the cursor
+      const rwDetach = LL.rewind ? LL.rewind.attach({ kind, slot: () => fcSlot, board: () => board, view: () => feed(data),
+        onLeave: () => { refresh(); if (LL.failure) LL.failure.refresh(); drawFilter(); } }) : null;
       // Esc closes the open card (not while a dialog, the palette or a text field has the keyboard)
       const onEsc = ev => {
         if (ev.key === 'Escape' && panel.hidden && LL.failure && LL.failure.active() && !document.querySelector('.modal, .cmdk')) { LL.failure.close(); return; }
@@ -359,7 +363,7 @@
         if (stale) { stale = false; refresh(); }
       }
       const unsub = liveSubscribe(f => {
-        if (document.hidden) { if (f.structure !== structure || (mapver != null && f.mapver !== mapver)) stale = true; mapver = f.mapver; return; }
+        if (document.hidden || (LL.rewind && LL.rewind.active())) { if (f.structure !== structure || (mapver != null && f.mapver !== mapver)) stale = true; mapver = f.mapver; return; }
         board.live(f);
         if (LL.failure) LL.failure.onFrame(f);
         if (talkOn && f.pathsver != null && f.pathsver !== talkVer) loadTalk();
@@ -369,7 +373,7 @@
       });
       const onVis = () => { if (!document.hidden && stale) { stale = false; refresh(); } };
       document.addEventListener('visibilitychange', onVis);
-      return { destroy: () => { unsub(); if (fcDetach) fcDetach(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; if (fullScreen) fullScreen.destroy(); board.destroy(); fr.destroy(); } };
+      return { destroy: () => { unsub(); if (fcDetach) fcDetach(); if (rwDetach) rwDetach(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; if (fullScreen) fullScreen.destroy(); board.destroy(); fr.destroy(); } };
     };
   }
 
@@ -455,6 +459,7 @@
     const links = LL.connectionsSection ? LL.connectionsSection(d, id) : section(t('detail.links'), h('ul', { class: 'link-list' }, d.traces.length ? d.traces.map(tr => h('li', {},
       h('span', { class: 'trace-sw trace-sw--' + tr.kind }), t('board.trace.' + tr.kind), h('span', { class: 'muted' }, ' · ' + (tr.measured ? t('detail.measured') : t('detail.unmeasured'))))) : [h('li', { class: 'muted' }, t('detail.no_links'))]));
     sections.push(links);
+    if (LL.whatHappenedSection && (d.device || id === 'internet')) sections.push(LL.whatHappenedSection(id));   // "What happened?" (js/incidents.js)
     if (LL.failureSection) sections.push(LL.failureSection(id));          // dependencies, failure chain, manual entries (js/failure.js)
     if (d.device && LL.maintenanceSection) sections.push(LL.maintenanceSection(id));
     if (LL.failure) {                                                       // "probably affected: X is down" (outage automatic)

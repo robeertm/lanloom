@@ -311,11 +311,21 @@ class Overview:
             "notes": notes,
             "waiting": waiting,
             "forecasts": forecasts[:MAX_LIST * 2],
+            "incidents": self._incidents(now),
             "new": [trim(d) for d in new[:MAX_LIST]],
             "unsure": [trim(d) for d in unsure[:MAX_LIST]],
             "source_list": sources,
             "empty": not devs,
         }
+
+    def _incidents(self, now: float):
+        inc = getattr(self.core, "incidents", None)
+        if inc is None or not self.core.availability.has_data():
+            return None
+        try:
+            return inc.overview(now)
+        except Exception:
+            return None
 
     # ------------------------------------------------------------------ right now (live rail)
     def right_now(self, now: float = None) -> dict:

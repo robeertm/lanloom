@@ -20,7 +20,20 @@ OUTAGES = [
     (50, 6, 330),
     (15, 290, 40),
     (40, 560, 55), (21, 220, 25),
+    # incident files (S8): the core switch took eleven parts with it three days ago (a firmware jump the evening before);
+    # the same switch inside its maintenance window this morning; the kitchen speaker flapped; two devices behind the
+    # upstairs access point dropped together (the access point itself kept answering: it is the probable root); the garden
+    # access point is down right now and its wireless clients went with it (they found another access point later)
+    (2, 74, 12), (3, 74, 12), (12, 74, 12), (10, 74, 14), (30, 74, 12), (40, 74, 16), (15, 74, 12), (31, 74, 13), (32, 74, 12),
+    (60, 74, 12), (63, 74, 12), (61, 74, 12),
+    (2, 8.5, 6), (3, 8.5, 6), (30, 8.5, 6),
+    (31, 30.0, 5), (31, 29.84, 5), (31, 29.68, 5),
+    (60, 46, 20), (61, 46, 20),
+    (4, 1.0, 70), (51, 1.0, 25), (64, 1.0, 25), (65, 1.0, 25),
 ]
+FIRMWARE = [(2, 75, "4.2.1", "4.2.2"), (1, 400, "7.57", "7.58"), (3, 900, "6.6.55", "6.6.77"), (4, 900, "6.6.55", "6.6.77"),
+            (10, 1300, "7.2.1", "7.2.2"), (2, 1700, "4.1.9", "4.2.1")]      # (device number, hours ago, from, to)
+OLD_DAYS = (36, 90)              # incident rows older than the slots (the calendar shows 90 days)
 LATE = {65: 12, 66: 20}          # device number -> days after the start of the history it first answered
 GAP = (264, 130)                 # Lanloom itself did not run: hours ago, minutes
 SOURCES = {"mqtt": [(50, 15)], "hub": [(22, 7)], "controller": [(500, 9)]}      # connection kind -> (hours ago, minutes)
@@ -37,6 +50,8 @@ def seed(core, now: float = None) -> None:
         return
     seed_availability(core, now)
     seed_traffic(core, now)
+    seed_incidents(core, now)
+    seed_chronicle(core, now)
     core.availability.version += 1                 # the rows were written directly: readers must not keep an older answer
     core.availability._cache.clear()
 
@@ -44,7 +59,7 @@ def seed(core, now: float = None) -> None:
 def seed_availability(core, now: float) -> None:
     cur = int(now // availability.SLOT_S)
     start = cur - core.availability.keep_days * availability.PER_DAY + 1
-    ids = {"dev:d-" + _hmac(n).replace(":", ""): n for n in (10, 11, 12, 13, 14, 15, 20, 21, 22, 23, 30, 31, 32, 40, 50, 51, 60, 61, 62, 63, 64, 65, 66, 1, 2, 3)}
+    ids = {"dev:d-" + _hmac(n).replace(":", ""): n for n in (10, 11, 12, 13, 14, 15, 20, 21, 22, 23, 30, 31, 32, 40, 50, 51, 60, 61, 62, 63, 64, 65, 66, 1, 2, 3, 4)}
     present = {"dev:" + d["id"] for d in core.store.devices(include_hidden=False) if not d["data"].get("is_self")}
     bad: dict = {}
     for n, ago, mins in OUTAGES:
@@ -119,3 +134,58 @@ def seed_traffic(core, now: float) -> None:
             rows.append((trace, day, trafficlog._pack(d)))
     with core.store.transaction() as tx:
         tx._db.executemany("INSERT INTO traffic_min(trace, day, data) VALUES(?,?,?)", rows)
+
+
+def _title(core, n: int) -> tuple:
+    d = core.store.device("d-" + _hmac(n).replace(":", ""))
+    return (d["id"], d.get("title") or d["ip"], d.get("kind") or "unknown") if d else (None, "", "unknown")
+
+
+def seed_incidents(core, now: float) -> None:
+    """Incident rows from 36 to 90 days ago (older than the slots): a few faults a week, the weekly backup window."""
+    from . import incidents
+    rng = random.Random(29)
+    pick = [(23, "blip"), (51, "outage"), (50, "outage"), (40, "blip"), (21, "outage"), (31, "flapping"), (1, "blip"), (15, "outage")]
+    rows = []
+    for day in range(OLD_DAYS[0], OLD_DAYS[1] + 1):
+        base = now - day * 86400
+        for _ in range(rng.choice((0, 0, 0, 1, 1, 2, 3))):
+            n, kind = rng.choice(pick)
+            did, title, dkind = _title(core, n)
+            if did is None:
+                continue
+            start = float(int((base + rng.uniform(0, 86000)) // availability.SLOT_S) * availability.SLOT_S)
+            dur = {"blip": 300, "flapping": 1500, "outage": rng.choice((900, 1800, 3600, 7200))}[kind]
+            rows.append(_row(incidents, did, title, dkind, start, dur, kind))
+        if time.localtime(base).tm_wday == 6:            # the weekly backup window of the sample notifications
+            did, title, dkind = _title(core, 10)
+            if did:
+                lt = time.localtime(base)
+                start = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 2, 20, 0, 0, 0, -1))
+                row = _row(incidents, did, title, dkind, start, 1200, "maintenance")
+                row[5]["why_kind"], row[5]["window"] = "window", {"id": "w-demo-weekly", "name": "Weekly backups"}
+                rows.append(row)
+    import json as _json
+    with core.store.transaction() as tx:
+        tx._db.executemany('INSERT OR REPLACE INTO incident(id, start, "end", kind, root, data) VALUES(?,?,?,?,?,?)',
+                           [(r[0], r[1], r[2], r[3], r[4], _json.dumps(r[5], separators=(",", ":"))) for r in rows])
+
+
+def _row(incidents, did, title, dkind, start, dur, kind) -> list:
+    iid = incidents.incident_id(did, start)
+    inc = {"id": iid, "start": start, "end": start + dur, "open": False, "dur": dur, "kind": kind, "runs": 3 if kind == "flapping" else 1,
+           "root": {"id": did, "kind": dkind, "title": title, "ip": "", "subject": "dev:" + did, "cert": "sure", "observed": True, "why": None,
+                    "tiles": [did], "from": start, "to": start + dur},
+           "members": [], "counts": {"members": 0, "sure": 0, "likely": 0}}
+    return [iid, start, start + dur, kind, did, inc]
+
+
+def seed_chronicle(core, now: float) -> None:
+    """Firmware jumps of the infrastructure over the last weeks (the chronicle remembers them; "What happened?" finds the
+    switch's jump the evening before its outage)."""
+    rows = []
+    for n, ago, old, new in FIRMWARE:
+        did, title, dkind = _title(core, n)
+        if did:
+            rows.append((now - ago * 3600, "firmware", did, {"title": title, "from": old, "to": new, "kind": dkind}))
+    core.chronicle._add(rows)

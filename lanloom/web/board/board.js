@@ -440,6 +440,8 @@
         if (e.kind !== kind) { e.icon.innerHTML = Icons.svg(kind, 18); e.kind = kind; }
         e.el.dataset.id = c.id; e.el.dataset.kind = kind;
         e.el.dataset.status = STATUSES.includes(c.status) ? c.status : 'unknown';
+        e.liveStatus = e.el.dataset.status;
+        if (this.rwSpec) this.rwTile(c.id, e);
         const grade = GRADES.includes(c.grade) ? c.grade : 'unknown';
         e.el.dataset.grade = grade; counts[grade]++;
         this.gradeOf.set(c.id, grade);
@@ -884,6 +886,19 @@
       this.outageSpec = spec && spec.tiles && Object.keys(spec.tiles).length ? { tiles: spec.tiles } : null;
       if (!this.dead) this.applyHighlight();
     }
+    // rewind (js/rewind.js): the statuses of a past moment replace the live ones on the tiles that have a live status
+    // ({status: {id: 'up'|'down'|'partial'|'unknown'}, fallback: 'up'|'unknown'}); null gives the live statuses back
+    setRewind(spec) {
+      this.rwSpec = spec && typeof spec === 'object' ? { status: spec.status || {}, fallback: spec.fallback || 'up' } : null;
+      if (this.root) this.root.classList.toggle('is-rewind', !!this.rwSpec);
+      this.tiles.forEach((e, id) => this.rwTile(id, e));
+    }
+    rwTile(id, e) {
+      const live = e.liveStatus || e.el.dataset.status;
+      if (!this.rwSpec || !e.data || e.data.quiet_more || (live !== 'up' && live !== 'down')) { if (e.el.dataset.status !== live) e.el.dataset.status = live; return; }
+      const st = this.rwSpec.status[id] || this.rwSpec.fallback;
+      if (e.el.dataset.status !== st) e.el.dataset.status = st;
+    }
     setNeeds(extra) {
       this.needExtra = (Array.isArray(extra) ? extra : []).filter(p => Array.isArray(p) && p[0] != null && p[1] != null).map(p => [String(p[0]), String(p[1])]);
       if (this.hoverId && !this.dead) this.applyHighlight();
@@ -1117,6 +1132,7 @@
       setZoneFilter: (active, zones) => b.setZoneFilter(active, zones),
       setChain: spec => b.setChain(spec),
       setOutage: spec => b.setOutage(spec),
+      setRewind: spec => b.setRewind(spec),
       setNeeds: extra => b.setNeeds(extra),
       needsOf: id => { const n = b.needsOf(String(id)); return { tiles: [...n.tiles], traces: [...n.traces] }; },
       destroy: () => b.destroy(),

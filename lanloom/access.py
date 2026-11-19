@@ -184,6 +184,16 @@ RULES = {
     ("GET", "/api/failure/deps/{node:path}"): R(V),
     ("PUT", "/api/failure/deps/{node:path}"): R(O, "failure.dependency"),
     ("GET", "/api/failure/{node:path}"): R(V),
+    ("GET", "/api/rewind"): R(V),
+    ("GET", "/api/incidents"): R(V),
+    ("GET", "/api/incidents/calendar"): R(V),
+    ("GET", "/api/incidents/heatmap"): R(V),
+    ("GET", "/api/incidents/events"): R(V),
+    ("GET", "/api/incidents/night"): R(V),
+    ("GET", "/api/incidents/chronicle"): R(V),
+    ("GET", "/api/incidents/what/{node:path}"): R(V),
+    ("GET", "/api/incidents/{iid}"): R(V),
+    ("PUT", "/api/incidents/{iid}"): R(O, "incident.mark"),
 
     # ---------------------------------------------------------------- integrations (credentials: admin)
     ("GET", "/api/integrations"): R(O),

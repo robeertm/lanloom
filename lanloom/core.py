@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import re
+import threading
 import time
 from typing import Optional
 from urllib.parse import urlparse
@@ -175,6 +176,11 @@ class Core:
         self.reports.on_certs = self.notify.on_certs
         from .failure import Failure
         self.failure = Failure(self)                    # failure chain, manual dependencies, outage automatic (S5)
+        from .incidents import Incidents
+        self.incidents = Incidents(self)                # incident files: episodes bundled over the failure graph (S8)
+        from .chronicle import Chronicle
+        self.chronicle = Chronicle(self)                # timeline & data state, collected once a day (S8)
+        self.reports.report_listeners.append(self._after_report_chronicle)
         from .storage import Storage
         self.storage = Storage(self)                    # retention, nightly clean-up, sizes per area
         self.counters = counters_mod.CounterCheck(self)  # hourly reconciliation of meters that see the same bytes
@@ -189,6 +195,15 @@ class Core:
         from .vulns import Vulns
         self.vulns = Vulns(self)                        # vulnerability hints from the offline feed
         self._refresh_index()
+
+    def _after_report_chronicle(self, report) -> None:
+        """After every nightly report: incidents and the chronicle are collected in the background (never in the loop)."""
+        def run():
+            try:
+                self.chronicle.collect()
+            except Exception:
+                log.exception("chronicle collection failed")
+        threading.Thread(target=run, name="chronicle", daemon=True).start()
 
     # ------------------------------------------------------------------ settings
     def _setting_store(self, key: str) -> Store:

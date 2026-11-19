@@ -134,6 +134,7 @@ class App:
         from . import backup_report as _backup_report  # noqa: F401 - registers the nightly report section
         from . import availability_report as _availability_report  # noqa: F401 - registers the availability section
         from . import failure_report as _failure_report  # noqa: F401 - registers the failure chain section
+        from . import incidents_report as _incidents_report  # noqa: F401 - registers the incidents section
         from . import services_report as _services_report  # noqa: F401 - registers the services section
         from . import storage_report as _storage_report  # noqa: F401 - registers the storage + counter check sections
         from . import inventory_report as _inventory_report  # noqa: F401 - registers the inventory section
@@ -570,6 +571,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     web_history.register(app, web_history.Ctx(state=state, err=err))
     from . import web_failure
     web_failure.register(app, web_failure.Ctx(state=state, body=body, err=err, note=note))
+    from . import web_incidents
+    web_incidents.register(app, web_incidents.Ctx(state=state, body=body, err=err, note=note))
     from . import web_services
     web_services.register(app, web_services.Ctx(state=state, body=body, err=err, note=note))
     from . import web_inventory
