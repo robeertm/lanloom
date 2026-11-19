@@ -351,11 +351,12 @@ def plan_pages(pdf: pdfmini.Pdf, scene: dict, look: str, size: str, tr: Callable
         cap = avail_h / s
         starts = _breaks(scene, cap)
     pal = PALETTES.get(look, PALETTES["light"])
-    for i, top in enumerate(starts):
+    ends = starts[1:] + [scene["h"]]
+    for i, (top, end) in enumerate(zip(starts, ends)):
         pg = pdf.page(pw, ph)
         if look != "print":
             pg.rect(0, 0, pw, ph, fill=pal["bg"])
-        pg.clip(m, m, avail_w, avail_h)
+        pg.clip(m, m, avail_w, min(avail_h, (end - top) * s + 2))      # only what belongs to this page: the next row starts on the next one
         pg.view(m, m - top * s, s)
         draw_scene(pg, scene, look, tr, header=(i == 0))
         pg.restore()

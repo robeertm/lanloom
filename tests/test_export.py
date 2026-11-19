@@ -344,3 +344,23 @@ def test_the_sample_network_may_export_but_not_import(app_client):
     assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
     assert r.headers["content-disposition"].startswith('attachment; filename="lanloom-plan-network-')
     assert r.headers["cache-control"] == "no-store"
+
+
+# ------------------------------------------------------------------ wiring
+def test_wiring_page_assets_and_palette():
+    root = Path(__file__).resolve().parent.parent
+    web = root / "lanloom" / "web"
+    html = (web / "index.html").read_text(encoding="utf-8")
+    assert html.index("js/inventory.js") < html.index("js/export.js") < html.index("js/palette.js")
+    assert "css/export.css" in html
+    main = (root / "lanloom" / "main.py").read_text(encoding="utf-8")
+    assert '"js/export.js", "css/export.css"' in main
+    js = (web / "js" / "export.js").read_text(encoding="utf-8")
+    for what in ("plan.pdf", "plan.svg", "plan.drawio", "list.csv", "list.json"):
+        assert "'%s'" % what in js
+    for cmd_id in ("export-pdf", "export-svg", "export-drawio", "export-csv", "export-json", "go.export"):
+        assert "'%s'" % cmd_id in js
+    assert "LL.view('export'" in js and "href: '#/export'" in (web / "js" / "inventory.js").read_text(encoding="utf-8")
+    texts = load_i18n("en")
+    for key in ("export.title", "cmdk.export.pdf", "audit.action.export.download", "audit.action.export.import", "export.plan.legend.cable"):
+        assert key in texts and key in load_i18n("de")

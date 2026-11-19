@@ -38,6 +38,7 @@ of the page (`#/inventory`, with filters such as `#/inventory?state=missing`).
   are never removed this way.
 - **Thresholds** (admins, folded away): days until missing, until probably gone, until provisional entries disappear,
   and the warning times for warranty and end of updates.
+- **Export** (button at the top) opens [Export and import](export.md): the inventory as CSV or JSON and the network plan as a document.
 - Search (`Ctrl K`): *Open Inventory*, *Show devices that need attention*, *Show missing devices*, *Show warranties that
   end soon*, *Show devices whose updates end*.
 
@@ -66,6 +67,7 @@ of the page (`#/inventory`, with filters such as `#/inventory?state=missing`).
 ## See also
 
 - [INVENTORY.md](../INVENTORY.md) - states, reasons, warranty and end-of-updates table, roles, API
+- [export.md](export.md) - the inventory as CSV or JSON, the network plan as PDF, SVG or draw.io, import of own fields
 - [DISCOVERY.md](../DISCOVERY.md) - what is found
 - [NIGHTLY-REPORT.md](../NIGHTLY-REPORT.md) - the *Inventory* section
 - [BACKUP.md](../BACKUP.md) - the own fields are part of every backup

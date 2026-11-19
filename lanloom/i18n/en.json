@@ -5490,7 +5490,7 @@
  "export.col.via": "Connected via",
  "export.col.warranty": "Warranty until",
  "export.done": "Downloaded {name}",
- "export.drawio.hint": "Opens in draw.io (diagrams.net): boxes, zones and lines can be edited.",
+ "export.drawio.hint": "Opens in draw.io: boxes, zones and lines can be edited.",
  "export.err.empty": "The file is empty.",
  "export.err.format": "This does not look like a Lanloom export (a column or field named id, mac or ip is needed).",
  "export.err.json": "The file is not valid JSON.",
@@ -5543,7 +5543,7 @@
  "export.size.A4": "A4",
  "export.svg.hint": "A vector graphic; the texts stay text.",
  "export.title": "Export and import",
- "export.view.network": "Networks (every device in its network)",
- "export.view.overview": "Overview (by kind of device)",
+ "export.view.network": "By network",
+ "export.view.overview": "Overview (by kind)",
  "export.working": "Preparing the file …"
 }

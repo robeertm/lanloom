@@ -1,5 +1,7 @@
 # Inventory and life cycle
 
+The whole inventory can be exported (CSV, JSON) and the own fields read back in: see [EXPORT.md](EXPORT.md).
+
 Lanloom finds your devices on its own. The inventory adds what only a person knows - what a device is for, where it
 stands, when it was bought, how long it is covered - and follows each device over its whole life: seen, missing,
 probably gone, decommissioned. It is part of the device list: the *Devices | Inventory* switch at the top of the page.
