@@ -238,7 +238,9 @@ class Overview:
             if not infra:
                 continue
             since = d["down_since"]
-            out.append({"id": "dev:" + d["id"], "level": "danger" if d["is_gateway"] else "warn", "key": "ov.note.dev_offline", "sub": "ov.note.dev_offline.sub", "human": True,
+            out.append({"id": "dev:" + d["id"], "level": "danger" if d["is_gateway"] else "warn", "key": "ov.note.dev_offline", "human": True,
+                        # without a known start (a controller reports the device as disconnected) the line says no time
+                        "sub": "ov.note.dev_offline.sub" if since else "ov.note.dev_offline.sub_unknown",
                         "vars": {"name": d["title"] or d["ip"], "kind_key": "kind." + d["kind"], "age_dur": round(now - since) if since else None},
                         "link": "#/devices/" + d["id"]})
         for s in sources:

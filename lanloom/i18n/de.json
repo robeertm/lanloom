@@ -3717,6 +3717,7 @@
  "ov.new.none": "Seit gestern keine neuen Geräte.",
  "ov.note.dev_offline": "{name} antwortet nicht",
  "ov.note.dev_offline.sub": "{kind} · seit {age} offline",
+ "ov.note.dev_offline.sub_unknown": "{kind} · ist offline",
  "ov.note.mqtt_out_failed": "MQTT-Ausgabe nicht verbunden",
  "ov.note.mqtt_out_failed.sub": "{reason} - seit {age}",
  "ov.note.new_unknown": "{n, plural, one {Ein neues Gerät, das Lanloom nicht einordnen kann} other {# neue Geräte, die Lanloom nicht einordnen kann}}",

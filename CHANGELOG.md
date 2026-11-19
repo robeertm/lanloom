@@ -17,6 +17,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Firewall editor: an answer of the tab could show a finished change next to the state from before it, when the change ended while the page was asking (seen under load as a new port forward or guest setting missing after *done*). The job list is now read before the state, so *done* always comes with what the change wrote.
 - The front panel of a switch, router or access point follows the light theme (a light plate instead of a dark one on a light page; the dark theme is unchanged), and redrawing it when the page is resized no longer makes the browser report a resize loop. The light screenshots of the front panel and the switch port editor were taken again.
 - Long section titles of the nightly report (a source name such as a wireless controller's) wrap on a phone instead of running out of the screen.
+- Overview: a device that a controller reports as disconnected before Lanloom saw it go read *offline for {age}*; without a known start the line now just says *offline*.
 
 ## [1.49.0] – 2026-11-19
 

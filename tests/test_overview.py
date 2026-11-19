@@ -131,3 +131,21 @@ def test_registered_notes_are_merged_and_sorted():
         assert notes[0]["id"] == "incident:1" and calls
     finally:
         overview.NOTES.remove(extra)
+
+
+def test_an_offline_device_without_a_known_start_has_no_time_in_its_line():
+    # a controller can report a device as disconnected before Lanloom saw it go: no start, so no "{age}" left in the text
+    now = time.time()
+    dev = {"id": "d1", "title": "Access point garden", "ip": "192.168.50.4", "kind": "ap", "hidden": False, "status": "down",
+           "was_up": True, "is_gateway": False}
+    ov = overview.Overview(SimpleNamespace())
+    unknown = ov.notes(now, devs=[dict(dev, down_since=None)], sources=[], wan={"state": "up"}, report={}, new=[])
+    known = ov.notes(now, devs=[dict(dev, down_since=now - 600)], sources=[], wan={"state": "up"}, report={}, new=[])
+    note = next(n for n in unknown if n["id"] == "dev:d1")
+    assert note["sub"] == "ov.note.dev_offline.sub_unknown" and note["vars"]["age_dur"] is None
+    note = next(n for n in known if n["id"] == "dev:d1")
+    assert note["sub"] == "ov.note.dev_offline.sub" and note["vars"]["age_dur"] == 600
+    import json
+    for lang in ("en", "de"):
+        texts = json.loads((Path(overview.__file__).parent / "i18n" / ("%s.json" % lang)).read_text(encoding="utf-8"))
+        assert "{age}" not in texts["ov.note.dev_offline.sub_unknown"] and "{kind}" in texts["ov.note.dev_offline.sub_unknown"]
