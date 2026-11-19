@@ -506,6 +506,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     web_services.register(app, web_services.Ctx(state=state, body=body, err=err, note=note))
     from . import web_inventory
     web_inventory.register(app, web_inventory.Ctx(state=state, body=body, err=err, note=note))
+    from . import web_export
+    web_export.register(app, web_export.Ctx(state=state, body=body, err=err, note=note, load_i18n=load_i18n))
     from . import web_vulns
     web_vulns.register(app, web_vulns.Ctx(state=state, body=body, err=err, note=note))
     from . import web_notify
@@ -1620,7 +1622,7 @@ def selftest() -> int:
                 problems.append("i18n placeholders differ (%s)" % lang)
         if not whatsnew.entries():
             problems.append("CHANGELOG.md missing or unreadable (What's new?)")
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/fwinsight.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "css/fwinsight.css", "js/portfront.js", "css/portfront.css", "js/netmodes.js", "css/netmodes.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/history.js", "css/history.css", "js/services.js", "css/services.css", "board/tree.js", "css/tree.css", "js/a11y.js", "css/a11y.css", "js/automations.js", "css/automations.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/fwinsight.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "css/fwinsight.css", "js/portfront.js", "css/portfront.css", "js/netmodes.js", "css/netmodes.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/export.js", "css/export.css", "js/history.js", "css/history.css", "js/services.js", "css/services.css", "board/tree.js", "css/tree.css", "js/a11y.js", "css/a11y.css", "js/automations.js", "css/automations.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

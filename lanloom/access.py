@@ -145,6 +145,8 @@ RULES = {
     ("POST", "/api/inventory/bulk"): R(O, "inventory.bulk"),
     ("GET", "/api/inventory/settings"): R(V),
     ("PUT", "/api/inventory/settings"): R(A, "inventory.settings"),
+    ("POST", "/api/export"): R(V, "export.download"),
+    ("POST", "/api/export/import"): R(O, "export.import"),
     ("GET", "/api/vulns"): R(V),
     ("GET", "/api/vulns/feed"): R(V),
     ("GET", "/api/devices/{device_id}/vulns"): R(V),

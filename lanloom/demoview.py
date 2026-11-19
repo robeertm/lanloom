@@ -24,7 +24,7 @@ log = logging.getLogger("lanloom.demoview")
 COOKIE = "ll_demo"
 ACTIVE = contextvars.ContextVar("lanloom_demo_view", default=False)
 IDLE_S = 900
-WRITABLE = {"/api/setup/demo", "/api/logout"}   # the only state-changing calls a demo view may make
+WRITABLE = {"/api/setup/demo", "/api/logout", "/api/export"}   # (the export only reads)   # the only state-changing calls a demo view may make
 
 
 def _demo_cfg(cfg):

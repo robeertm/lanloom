@@ -92,7 +92,8 @@
     const settingsHost = h('div', { class: 'inv-settingshost' });
     const panel = h('aside', { class: 'detail inv-sheet', hidden: true, tabindex: '-1', 'aria-label': t('inventory.sheet.label') });
     const page = h('div', { class: 'page page--wide inv-page' },
-      h('div', { class: 'page__head inv-head' }, h('h1', {}, t('inventory.title')), count, LL.inventorySwitch('inventory')),
+      h('div', { class: 'page__head inv-head' }, h('h1', {}, t('inventory.title')), count, LL.inventorySwitch('inventory'),
+        h('a', { class: 'btn btn--ghost btn--sm inv-export', href: '#/export' }, t('export.nav'))),
       h('p', { class: 'muted inv-lead' }, t('inventory.lead')), notes, chipBar,
       h('div', { class: 'inv-filters' }, q, stateSel, roomSel, ownerSel, kindSel, h('span', { class: 'inv-sortbox' }, sortSel, dirBtn), selectBtn, clearBtn),
       listHost, bulkHost, settingsHost);

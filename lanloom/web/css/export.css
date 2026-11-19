@@ -1,0 +1,21 @@
+/* Lanloom — Export and import page. Design tokens only, so light and dark follow tokens.css. */
+.ex-page { display: flex; flex-direction: column; gap: var(--ll-space-4); min-width: 0; max-width: 980px; }
+.ex-lead { margin: -8px 0 0; max-width: 70ch; }
+.ex-card { min-width: 0; }
+.ex-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--ll-space-3); margin: 6px 0 4px; }
+.ex-opts .select { width: 100%; }
+.ex-redact { margin-top: 6px; }
+.ex-acts { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.ex-act { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.ex-act .btn { min-width: 190px; justify-content: center; }
+.ex-act__hint { font-size: var(--ll-fs-sm); flex: 1 1 240px; }
+.ex-act__hint:empty { display: none; }
+.ex-importrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+.ex-file { flex: 1 1 260px; min-width: 0; max-width: 100%; font: inherit; color: var(--ll-text-2); }
+.ex-report { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.ex-report:empty { display: none; }
+.ex-report h3 { margin: 8px 0 0; font-size: var(--ll-fs-sm); }
+.ex-ok { color: var(--ll-ok-text, var(--ll-text)); font-weight: var(--ll-fw-semibold); }
+.ex-errors { margin: 0; padding-left: 20px; color: var(--ll-danger-text); font-size: var(--ll-fs-sm); }
+.ex-back { margin-left: auto; }
+@media (max-width: 560px) { .ex-act .btn { width: 100%; } }

@@ -3,6 +3,7 @@
 .inv-page { min-width: 0; }
 .inv-head { flex-wrap: wrap; row-gap: 8px; }
 .inv-switch { margin-left: auto; }
+.inv-export { text-decoration: none; }
 .inv-switch .seg__btn { display: inline-flex; align-items: center; text-decoration: none; white-space: nowrap; }
 .inv-switch .seg__btn:hover:not(.is-active) { color: var(--ll-text); }
 .inv-lead { margin: -8px 0 0; }
