@@ -25,6 +25,15 @@ GROWTH = {"tick_ms": 8, "map_overview_ms": 8, "map_network_ms": 8, "devices_ms":
 HEAP_MB = {250: 15, 1000: 45}
 
 
+@pytest.fixture(scope="module", autouse=True)
+def report_progress(test_progress):
+    """Every finished measurement counts as progress for the hang guard: measuring both sizes (and once more on a busy machine)
+    takes minutes in one test, which is work, not a hang. A measurement that really gets stuck still ends the run."""
+    bench.ON_PROGRESS = test_progress
+    yield
+    bench.ON_PROGRESS = None
+
+
 @pytest.fixture(scope="module")
 def results():
     bench.BEST = True                      # fastest of several runs: a busy machine slows single runs, not all of them

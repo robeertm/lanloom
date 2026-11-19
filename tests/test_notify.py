@@ -254,6 +254,29 @@ def test_no_all_clear_for_an_outage_nobody_was_told(tmp_path):
     assert fake.sent == []
 
 
+def test_a_lasting_condition_nobody_is_told_about_is_one_history_row(tmp_path):
+    """A source that reports a lasting condition at every reading (switch ports, every few seconds): one history row while
+    it lasts, also when the rule is "nightly report" and nobody is told right away; resolved once it clears, without an
+    all-clear message (nobody heard of it). Before, every reading wrote a row and the history filled with one port."""
+    from lanloom import portnotify  # noqa: F401  (registers port_unstable)
+    c, n, clock, fake = make(tmp_path, at(2026, 11, 17, 12))
+    uid = add_user(c, "ann")                               # default: nightly
+    first = n.emit("port_unstable", "port:p12", {"name": "Switch · Port 12", "n": 3})
+    for _ in range(20):
+        clock.t += 10
+        assert n.emit("port_unstable", "port:p12", {"name": "Switch · Port 12", "n": 4}) is None
+    rows = c.store.query("SELECT id FROM notify_log WHERE event='port_unstable'")
+    assert [r["id"] for r in rows] == [first]
+    assert status(c, first, uid) == "nightly"
+    clock.t += 60
+    n.emit("port_unstable", "port:p12", resolve=True)
+    n.drain()
+    assert fake.sent == []
+    assert json.loads(c.store.one("SELECT data FROM notify_log WHERE id=?", (first,))["data"]).get("resolved") == clock.t
+    again = n.emit("port_unstable", "port:p12", {"name": "Switch · Port 12", "n": 3})      # red again later: a new occurrence
+    assert again and again != first
+
+
 # ---------------------------------------------------------------- planned maintenance
 def test_maintenance_window_suppresses_and_marks(tmp_path):
     c, n, clock, fake = make(tmp_path, at(2026, 11, 17, 12))

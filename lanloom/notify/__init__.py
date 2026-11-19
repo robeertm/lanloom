@@ -465,7 +465,10 @@ class Notifier:
         if not changes:
             changes = {"*": "nightly"}
         self._outcome(occ, changes)
-        if e.recovery and told:
+        if e.recovery:
+            # the condition is open until its all-clear, also when nobody was told right away (nightly report, cool-down,
+            # quiet hours): a source that reports a lasting condition at every reading (switch ports) must not write a new
+            # history row each time. The all-clear goes only to those who were told.
             st["open"][key] = {"occ": occ, "t": t, "told": told}
 
     def _room(self, st: dict, uid: int, t: float, u: dict) -> bool:

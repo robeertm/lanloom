@@ -149,19 +149,12 @@ def _route(traces: list, pad_of: dict) -> list:
         kind = str(t.get("kind") or "lan")
         A, B = (a, b)
         ab, bb = A["block"], B["block"]
-        if ab is bb and abs(A["y"] - B["y"]) < 1:                 # same row of one zone: a straight line through the gap
-            lo, hi = (A, B) if A["x"] < B["x"] else (B, A)
+        if ab is bb and abs(A["y"] - B["y"]) < 1 and abs(abs(A["x"] - B["x"]) - (PAD_W + GAP_X)) < 1:
+            lo, hi = (A, B) if A["x"] < B["x"] else (B, A)        # neighbours in one row: a straight line through the gap between them
             pts = [(lo["x"] + lo["w"], lo["y"] + lo["h"] / 2), (hi["x"], hi["y"] + hi["h"] / 2)]
-        elif ab is bb:                                            # same zone, other row: through the gap to the right of A
-            rx = A["x"] + A["w"] + GAP_X / 2
-            if B["x"] > A["x"] + 1:
-                pts = [(A["x"] + A["w"], A["y"] + A["h"] / 2), (rx, A["y"] + A["h"] / 2), (rx, B["y"] + B["h"] / 2), (B["x"], B["y"] + B["h"] / 2)]
-            elif B["x"] < A["x"] - 1:
-                lx = A["x"] - GAP_X / 2
-                pts = [(A["x"], A["y"] + A["h"] / 2), (lx, A["y"] + A["h"] / 2), (lx, B["y"] + B["h"] / 2), (B["x"] + B["w"], B["y"] + B["h"] / 2)]
-            else:
-                pts = [(A["x"] + A["w"], A["y"] + A["h"] / 2), (rx, A["y"] + A["h"] / 2), (rx, B["y"] + B["h"] / 2), (B["x"] + B["w"], B["y"] + B["h"] / 2)]
-        else:                                                     # other zone: out of A to the right, along the channel above B's zone, in at B's left
+        elif ab is bb:
+            pts = _route_in_zone(A, B)
+        else:                                                    # other zone: out of A to the right, along the channel above B's zone, in at B's left
             key = id(bb)
             lane = lanes[key] = lanes.get(key, -1) + 1
             ch = bb["y"] - 9 - (lane % 7) * 4.0
@@ -171,6 +164,28 @@ def _route(traces: list, pad_of: dict) -> list:
             pts = [(A["x"] + A["w"], ay), (rx, ay), (rx, ch), (lx, ch), (lx, by_), (B["x"], by_)]
         out.append({"id": t["id"], "a": A["id"], "b": B["id"], "kind": kind, "pts": pts, "solid": kind in SOLID, "thick": kind in THICK})
     return out
+
+
+def _route_in_zone(A: dict, B: dict) -> list:
+    """Two pads of one zone that are not neighbours in a row: out of A into the column gap beside it, along the row gap next to B's row,
+    down or up the column gap beside B and in at its side. Pads of a zone sit on one grid, so the column and row gaps (and the zone padding
+    around the outer pads) hold no pad - the line never crosses one, also when other pads stand between A and B in the same row."""
+    ay, by_ = A["y"] + A["h"] / 2, B["y"] + B["h"] / 2
+    if B["x"] < A["x"] - 1:                                       # B further left: leave A on the left, enter B on its right
+        ax, rx = A["x"], A["x"] - GAP_X / 2
+        bx, lx = B["x"] + B["w"], B["x"] + B["w"] + GAP_X / 2
+    elif B["x"] > A["x"] + 1:                                     # B further right: leave A on the right, enter B on its left
+        ax, rx = A["x"] + A["w"], A["x"] + A["w"] + GAP_X / 2
+        bx, lx = B["x"], B["x"] - GAP_X / 2
+    else:                                                         # same column: both on the right side
+        ax, rx = A["x"] + A["w"], A["x"] + A["w"] + GAP_X / 2
+        bx, lx = B["x"] + B["w"], rx
+    if B["y"] > A["y"] + 1:                                       # B in a lower row: the row gap just above B's row
+        cy = B["y"] - GAP_Y / 2
+    else:                                                         # B in a higher or the same row: the row gap (or zone padding) below B's row
+        cy = B["y"] + B["h"] + GAP_Y / 2
+    pts = [(ax, ay), (rx, ay), (rx, cy), (lx, cy), (lx, by_), (bx, by_)]
+    return [p for i, p in enumerate(pts) if i == 0 or p != pts[i - 1]]
 
 
 # ---------------------------------------------------------------------------------------------------- SVG

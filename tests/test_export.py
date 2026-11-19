@@ -219,13 +219,37 @@ def test_layout_puts_pads_in_zones_and_lines_in_the_gaps(app_client):
         for i, a in enumerate(pads):                                      # pads do not overlap
             for b in pads[i + 1:]:
                 assert a["x"] + a["w"] <= b["x"] or b["x"] + b["w"] <= a["x"] or a["y"] + a["h"] <= b["y"] or b["y"] + b["h"] <= a["y"]
-        for e in sc["edges"]:                                             # a line runs straight along x or y and crosses no pad
-            for (x1, y1), (x2, y2) in zip(e["pts"], e["pts"][1:]):
-                assert x1 == x2 or y1 == y2
-                lo_x, hi_x, lo_y, hi_y = min(x1, x2), max(x1, x2), min(y1, y2), max(y1, y2)
-                for p in pads:
-                    inside = lo_x < p["x"] + p["w"] - 1 and hi_x > p["x"] + 1 and lo_y < p["y"] + p["h"] - 1 and hi_y > p["y"] + 1
-                    assert not inside, "line %s crosses pad %s" % (e["id"], p["id"])
+        assert_lines_cross_no_pad(sc)
+
+
+def assert_lines_cross_no_pad(sc):
+    """A line runs straight along x or y and crosses no pad."""
+    for e in sc["edges"]:
+        for (x1, y1), (x2, y2) in zip(e["pts"], e["pts"][1:]):
+            assert x1 == x2 or y1 == y2
+            lo_x, hi_x, lo_y, hi_y = min(x1, x2), max(x1, x2), min(y1, y2), max(y1, y2)
+            for p in sc["pads"]:
+                inside = lo_x < p["x"] + p["w"] - 1 and hi_x > p["x"] + 1 and lo_y < p["y"] + p["h"] - 1 and hi_y > p["y"] + 1
+                assert not inside, "line %s crosses pad %s" % (e["id"], p["id"])
+
+
+@pytest.mark.parametrize("n,span", [(3, "full"), (9, "full"), (12, ""), (19, "")])
+def test_lines_inside_one_zone_go_around_the_pads_between(n, span):
+    """Every pair of pads of one zone gets a line (neighbours, pads with others between them in one row, other rows and columns, both
+    directions): none crosses a pad. The sample network only sometimes puts a switch and two access points into one row (it depends on
+    when the cabling data arrives), so the layout test above alone did not catch a straight line across the middle pad."""
+    comps = [{"id": "c%02d" % i, "zone": "z", "kind": "switch" if i == 0 else "ap", "title": "Pad %02d" % i} for i in range(n)]
+    comps.append({"id": "far", "zone": "y", "kind": "nas", "title": "Other zone"})
+    ids = [c["id"] for c in comps[:n]]
+    traces = [{"id": "t:%s:%s" % (a, b), "a": a, "b": b, "kind": "cable"} for a in ids for b in ids if a != b]
+    traces += [{"id": "t:%s:far" % a, "a": a, "b": "far", "kind": "wifi"} for a in ids]
+    model = {"zones": [{"id": "z", "title": "Zone", "order": 1, "span": span}, {"id": "y", "title": "Other", "order": 2}], "components": comps,
+             "traces": traces}
+    sc = export_plan.build_scene(model, lambda key, v=None: key)
+    assert len(sc["edges"]) == len(traces)
+    cols = {p["x"] for p in sc["pads"] if p["zone"] == "z"}
+    assert len(cols) >= 3                                                 # there really are pads between others in a row
+    assert_lines_cross_no_pad(sc)
 
 
 def test_svg_is_vector_with_texts_as_text(app_client):

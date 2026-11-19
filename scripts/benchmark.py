@@ -47,6 +47,7 @@ from lanloom.store import Store  # noqa: E402
 
 SIZES = (50, 250, 1000)
 BEST = False          # True: the fastest run instead of the median (the budget test: robust against a busy machine)
+ON_PROGRESS = None    # called after each timed run; the budget test hands in the hang guard's progress report (tests/conftest.py)
 COUNTRIES = ("DE", "NL", "US", "IE", "FR", "SE", "~own")
 
 
@@ -124,6 +125,8 @@ def timed(fn, runs: int) -> float:
         t0 = time.perf_counter()
         fn()
         out.append((time.perf_counter() - t0) * 1000)
+        if ON_PROGRESS:
+            ON_PROGRESS()
     return round(min(out) if BEST else statistics.median(out), 2)
 
 
