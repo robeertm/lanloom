@@ -341,10 +341,12 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
             params=(P("day", "path", s_str(), True, "YYYY-MM-DD"), P("lang", "query", s_str(enum=tuple(render_mod.languages())), desc="language of the texts (default en)")),
             response=s_obj({"day": s_str(), "since": s_num(TS), "until": s_num(TS), "created": s_num(TS), "level": s_str(enum=("ok", "info", "warn", "danger")),
                             "points": s_int(), "open": s_int(), "headline": s_str(), "sections": s_arr(SECTION)}))
-    async def report(day: str, lang: str = "en"):
+    async def report(request: Request, day: str, lang: str = "en"):
         rep = state.core.reports.get(day)
         if not rep:
             return err("api.err.not_found", 404)
+        from .sites_report import filter_report
+        rep = filter_report(rep, state.sites.allowed(getattr(request.state, "user", None)))   # lines of other sites (M1)
         r = render_mod.Renderer(lang_of(lang), state.core.reports.tz(), rep["day"])
         sections = []
         for s in rep.get("sections") or []:

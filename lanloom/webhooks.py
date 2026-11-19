@@ -253,7 +253,7 @@ class Webhooks:
         return rows
 
     # ------------------------------------------------------------------ events in
-    def on_journal(self, kind: str, data: dict, t: float) -> None:
+    def on_journal(self, kind: str, data: dict, t: float, site: Optional[dict] = None) -> None:
         ev = JOURNAL_MAP.get(kind)
         if not ev or t < self.clock() - FRESH_S:
             return
@@ -265,35 +265,38 @@ class Webhooks:
                 payload["offline_since"] = data["since"]
         else:
             payload = {"uplink": data.get("name") or ""}
-        self.emit(ev, payload, t)
+        self.emit(ev, payload, t, site=site)
 
-    def on_notify(self, eid: str, key: str, data: dict, resolve: bool, t: float) -> None:
+    def on_notify(self, eid: str, key: str, data: dict, resolve: bool, t: float, site: Optional[dict] = None) -> None:
         """Tap of the notification rules: events that have no journal row (backups, incidents)."""
         if t < self.clock() - FRESH_S:
             return
         if eid == "backup_old" and not resolve:
-            self.emit("backup.stale", {"newest_age_s": data.get("age_dur") or None, "none": bool(data.get("none"))}, t)
+            self.emit("backup.stale", {"newest_age_s": data.get("age_dur") or None, "none": bool(data.get("none"))}, t, site=site)
         elif eid == "incident":
             opened = self.store.get_setting("webhooks_open", {}) or {}
             if resolve:
                 if opened.pop(key, None) is None:
                     return
                 self.store.set_setting("webhooks_open", opened)
-                self.emit("incident.closed", {"incident": key, "title": data.get("title") or ""}, t)
+                self.emit("incident.closed", {"incident": key, "title": data.get("title") or ""}, t, site=site)
             else:
                 opened[key] = t
                 self.store.set_setting("webhooks_open", dict(list(opened.items())[-500:]))
                 self.emit("incident.opened", {"incident": key, "title": data.get("title") or "",
-                                              "severity": data.get("severity") or ""}, t)
+                                              "severity": data.get("severity") or ""}, t, site=site)
 
-    def on_report(self, report: dict) -> None:
+    def on_report(self, report: dict, site: Optional[dict] = None) -> None:
         self.emit("report.ready", {"day": report.get("day"), "level": report.get("level"), "points": report.get("points"),
-                                   "link": "#/reports/%s" % report.get("day")}, report.get("created"))
+                                   "link": "#/reports/%s" % report.get("day")}, report.get("created"), site=site)
 
-    def emit(self, event: str, data: dict, t: Optional[float] = None) -> int:
-        """Queue one delivery per enabled webhook that wants ``event``. Returns how many were queued."""
+    def emit(self, event: str, data: dict, t: Optional[float] = None, site: Optional[dict] = None) -> int:
+        """Queue one delivery per enabled webhook that wants ``event``. Returns how many were queued. ``site``: the
+        further site (M1) the event belongs to ({"id", "name"}); events of the home site carry none."""
         if event not in EVENTS:
             return 0
+        if site:
+            data = dict(data, site={"id": str(site.get("id") or ""), "name": str(site.get("name") or "")})
         t = self.clock() if t is None else float(t)
         n = 0
         with self._lock:

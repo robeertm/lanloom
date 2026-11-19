@@ -1,0 +1,109 @@
+/* Lanloom — several sites (M1): header switcher, its menu, the "All sites" page, the overview card, the site picker. */
+
+/* ---------------------------------------------------------------- header switcher */
+.site-switch { display: inline-flex; align-items: center; gap: 6px; height: 32px; max-width: 220px; padding: 0 10px 0 9px; border-radius: var(--ll-radius-pill);
+  border: 1px solid var(--ll-border); background: var(--ll-surface-2); color: var(--ll-text); font: inherit; font-size: var(--ll-fs-sm);
+  font-weight: var(--ll-fw-semibold); cursor: pointer; white-space: nowrap; flex: 0 0 auto; min-width: 0; }
+.site-switch:hover { background: var(--ll-surface-3); }
+.site-switch[aria-expanded="true"] { border-color: var(--ll-accent); box-shadow: 0 0 0 3px var(--ll-accent-soft); }
+.site-switch__pin { display: inline-flex; color: var(--ll-accent); flex: none; }
+.site-switch--remote .site-switch__pin { color: var(--ll-text-2); }
+.site-switch__name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.site-switch__caret { display: inline-flex; color: var(--ll-text-3); flex: none; }
+
+.site-menu { position: fixed; z-index: 60; width: 300px; max-width: calc(100vw - 16px); max-height: min(70vh, 520px); overflow-y: auto; padding: 6px;
+  box-shadow: var(--ll-shadow-2); display: flex; flex-direction: column; gap: 2px; }
+.site-menu__skel { height: 96px; margin: 4px; }
+.site-menu__head { padding: 8px 10px 6px; font-size: var(--ll-fs-xs); font-weight: var(--ll-fw-semibold); color: var(--ll-text-3); text-transform: uppercase; letter-spacing: .06em; }
+.site-menu__item { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--ll-radius-sm);
+  background: none; color: var(--ll-text); font: inherit; text-align: left; cursor: pointer; }
+.site-menu__item:hover, .site-menu__item:focus-visible { background: var(--ll-surface-2); outline: none; }
+.site-menu__item:focus-visible { box-shadow: inset 0 0 0 2px var(--ll-focus); }
+.site-menu__item.is-current { background: var(--ll-accent-soft); }
+.site-menu__check { color: var(--ll-accent-text); font-weight: var(--ll-fw-bold); text-align: center; }
+.site-menu__main { display: flex; flex-direction: column; min-width: 0; }
+.site-menu__name { font-weight: var(--ll-fw-semibold); overflow-wrap: anywhere; }   /* long names wrap, never cut */
+.site-menu__sub { font-size: var(--ll-fs-xs); color: var(--ll-text-3); }
+.site-menu__sep { height: 1px; background: var(--ll-border); margin: 4px 6px; }
+
+/* ---------------------------------------------------------------- "All sites" page */
+.main--sites { overflow-y: auto; display: block; }
+.site-summary { margin: -4px 0 16px; }
+.site-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: stretch; }   /* always the full width */
+.site-skel { height: 220px; }
+.site-card { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border-left: 4px solid var(--ll-ok); }
+.site-card--info { border-left-color: var(--ll-accent); }
+.site-card--warn { border-left-color: var(--ll-warn); }
+.site-card--danger { border-left-color: var(--ll-danger); }
+.site-card--unknown { border-left-color: var(--ll-border-strong); }
+.site-card.is-current { box-shadow: var(--ll-shadow-1), 0 0 0 1px var(--ll-accent-soft); }
+.site-card__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.site-card__name { font-size: var(--ll-fs-lg); margin: 0; min-width: 0; overflow-wrap: anywhere; flex: 1 1 auto; }
+.site-card__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ll-ok); flex: none; display: inline-block; }
+.site-card__dot--info { background: var(--ll-accent); }
+.site-card__dot--warn { background: var(--ll-warn); }
+.site-card__dot--danger { background: var(--ll-danger); }
+.site-card__dot--unknown { background: var(--ll-grade-unknown); }
+.site-card__state { margin: 0; color: var(--ll-text-2); min-height: 1.4em; }
+.site-card__state--warn { color: var(--ll-warn-text); }
+.site-card__state--danger { color: var(--ll-danger-text); }
+.site-card__facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 12px 0; border-top: 1px solid var(--ll-border); border-bottom: 1px solid var(--ll-border); }
+.site-card__facts > div { min-width: 0; }
+.site-card__facts dt { font-size: var(--ll-fs-xs); color: var(--ll-text-3); margin: 0 0 2px; }
+.site-card__facts dd { margin: 0; font-weight: var(--ll-fw-semibold); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.site-wan--down { color: var(--ll-danger-text); }
+.site-wan--up { color: var(--ll-ok-text); }
+.site-card__reach { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.site-card__reach-label { font-size: var(--ll-fs-xs); margin-right: 2px; }
+.site-card__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+
+.site-extra { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px; align-items: stretch; }
+.site-admin, .site-how { padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.site-admin h2, .site-how h2 { font-size: var(--ll-fs-md); margin: 0; }
+.site-add, .site-ctl__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.site-add .field, .site-ctl__row .field { margin: 0; }
+.site-add__btn { padding-bottom: 1px; }
+.site-ctl__list { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.site-ctl__list legend { font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); margin-bottom: 6px; }
+.site-how__list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; color: var(--ll-text-2); }
+.site-how__list strong { color: var(--ll-text); }
+.site-report__opt .field__hint { display: block; }
+
+/* ---------------------------------------------------------------- overview card (full width, one tile per site) */
+.ov-card--sites { grid-column: 1 / -1; }
+.ov-sites__list { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 24px; }
+.ov-site { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--ll-border); }
+.ov-site__main { display: flex; flex-direction: column; min-width: 0; }
+.ov-site__name { font-weight: var(--ll-fw-semibold); display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.ov-site__sub { font-size: var(--ll-fs-xs); color: var(--ll-text-3); }
+
+/* ---------------------------------------------------------------- site picker (users) */
+.site-picker__list { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-left: 26px; }
+.site-picker .field__hint { display: block; }
+.site-chip { margin-left: 4px; }
+
+/* ---------------------------------------------------------------- narrow screens */
+@media (max-width: 1100px) {
+  .site-extra { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 860px) {
+  .site-switch { max-width: 160px; }
+}
+@media (max-width: 700px) {
+  .site-switch { flex: 0 1 auto; max-width: 180px; height: 32px; padding: 0 8px; gap: 4px; }   /* shrinks first: the name is cut, the buttons stay */
+  .site-menu { width: auto; }                                   /* left and right 8 px: the whole width of the phone */
+  .site-grid { grid-template-columns: minmax(0, 1fr); }
+  .site-extra { grid-template-columns: minmax(0, 1fr); }
+  .site-card { padding: 16px; }
+  .site-card__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .site-card__actions .btn { flex: 1 1 auto; justify-content: center; }
+  .site-add, .site-ctl__row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px) {
+  .topbar:has(.site-switch) { gap: 8px; padding-left: 8px; padding-right: 8px; }
+  .topbar:has(.site-switch) .topbar__right { gap: 6px; }
+  .topbar:has(.site-switch) .grade-pill__text { display: none; }          /* the dot keeps the live state; the site name needs the room */
+  .topbar:has(.site-switch) .grade-pill { padding: 0 11px; }
+  .site-switch { padding: 0 8px; }
+  .site-switch__pin, .site-switch__caret { display: none; }
+}

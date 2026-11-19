@@ -122,7 +122,7 @@ def test_the_link_checker_catches_what_it_should(tmp_path):
 # ---------------------------------------------------------------------------------------------------------------- manual
 VIEW_PAGES = {"overview": "overview.md", "map": "map.md", "network": "network.md", "paths": "data-paths.md",
               "devices": "devices.md", "firewall": "firewall.md", "reports": "nightly-reports.md", "automations": "automations.md",
-              "running": "running.md", "settings": "settings.md"}
+              "running": "running.md", "settings": "settings.md", "sites": "sites.md"}
 EXTRA_PAGES = ("inventory.md", "export.md", "ai.md", "views.md", "README.md")
 SECTIONS = ["Purpose", "What you see", "How to use it", "Limits", "Privacy", "See also"]
 

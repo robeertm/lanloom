@@ -291,6 +291,10 @@
   // ------------------------------------------------------------------ Settings > Users (admin)
   LL.usersPage = async function (pg) {
     const data = await api('/api/users');
+    let siteList = [];
+    try { siteList = (await api('/api/sites')).sites || []; } catch (e) { /* sites unknown: no picker */ }
+    const severalSites = siteList.length > 1;                // M1: released sites per person
+    const invitePicker = severalSites && LL.sitePicker ? LL.sitePicker(siteList, '*') : null;
     const reload = () => LL.route();
     // invite
     const role = h('select', { class: 'select' }, data.roles.map(r => h('option', { value: r }, t('role.name.' + r))));
@@ -299,7 +303,9 @@
     const out = h('div', {});
     const inviteBtn = h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
       try {
-        const r = await api('/api/users/invite', { method: 'POST', body: { role: role.value, note: note.value } });
+        const body = { role: role.value, note: note.value };
+        if (invitePicker) body.sites = invitePicker.value();
+        const r = await api('/api/users/invite', { method: 'POST', body });
         fill(out, linkBox(t('users.invite.ready', { role: t('role.name.' + r.role), when: when(r.expires) }), linkFor(r.token)));
         note.value = '';
         renderInvites((await api('/api/users')).invites);
@@ -317,6 +323,7 @@
     renderInvites(data.invites);
     pg.append(card(t('users.invite.title'), [h('p', { class: 'muted' }, t('users.invite.lead')),
       h('div', { class: 'grid-2' }, LL.field(t('users.role'), role), LL.field(t('users.invite.note'), note)),
+      invitePicker ? h('div', { class: 'field' }, h('span', { class: 'field__label' }, t('users.sites')), invitePicker.el) : null,
       h('div', { class: 'btn-row' }, inviteBtn), out, h('h3', {}, t('users.invite.open')), invites]));
 
     // users
@@ -337,6 +344,7 @@
         h('div', { class: 'acc-menu__list' },
           u.source === 'local' ? h('button', { type: 'button', onclick: () => resetDialog(u) }, t('users.reset')) : null,
           h('button', { type: 'button', onclick: () => sessionsDialog(u) }, t('users.sessions', { n: u.sessions })),
+          severalSites ? h('button', { type: 'button', onclick: () => sitesDialog(u) }, t('users.sites.edit')) : null,
           me ? null : h('button', { type: 'button', onclick: async () => {
             try { await api('/api/users/' + u.id, { method: 'PATCH', body: { disabled: !u.disabled } }); reload(); } catch (e) { LL.toast(LL.errText(e), 'error'); }
           } }, t(u.disabled ? 'users.enable' : 'users.disable')),
@@ -347,13 +355,28 @@
       return h('div', { class: 'acc-row' + (u.disabled ? ' is-disabled' : ''), role: 'row' },
         h('span', { role: 'cell', class: 'acc-cell--main' }, h('strong', {}, u.username), me ? h('span', { class: 'chip chip--accent' }, t('users.you')) : null,
           u.disabled ? h('span', { class: 'chip chip--muted' }, t('users.disabled')) : null, u.source === 'proxy' ? h('span', { class: 'chip chip--muted' }, t('users.via_proxy')) : null,
-          u.source === 'sample' ? h('span', { class: 'chip chip--muted' }, t('users.sample')) : null),
+          u.source === 'sample' ? h('span', { class: 'chip chip--muted' }, t('users.sample')) : null,
+          severalSites && u.role !== 'admin' && Array.isArray(u.sites) ? h('span', { class: 'chip chip--muted site-chip', title: siteNames(u.sites) }, t('users.sites.n', { n: u.sites.length })) : null),
         h('span', { role: 'cell', 'data-label': t('users.role') }, sel),
         h('span', { role: 'cell', 'data-label': t('users.tfa') }, tfa),
         h('span', { role: 'cell', 'data-label': t('users.last') }, when(u.last_login)),
         h('span', { role: 'cell', class: 'acc-cell--act' }, u.source === 'sample' ? null : menu));
     }
     pg.append(card(t('users.title'), [h('p', { class: 'muted' }, t('users.lead')), list, h('p', { class: 'field__hint' }, t('users.roles_hint'))]));
+
+    function siteNames(ids) { return siteList.filter(x => ids.includes(x.id)).map(x => LL.siteName(x)).join(', '); }
+    function sitesDialog(u) {
+      const admin = u.role === 'admin';
+      const picker = LL.sitePicker(siteList, admin ? '*' : u.sites, admin);
+      const msg = h('div', { class: 'msg' });
+      let d;
+      const save = admin ? null : h('button', { class: 'btn btn--primary', type: 'button', onclick: async () => {
+        try { await api('/api/users/' + u.id, { method: 'PATCH', body: { sites: picker.value() } }); d.close(); LL.toast(t('settings.saved'), 'ok'); reload(); }
+        catch (e) { LL.msg(msg, LL.errText(e), 'error'); }
+      } }, t('users.sites.save'));
+      d = LL.dialog(t('users.sites.title', { user: u.username }), h('div', { class: 'stack' },
+        h('p', { class: 'muted' }, t(admin ? 'users.sites.admin' : 'users.sites.lead')), picker.el, msg), save);
+    }
   };
 
   function linkBox(title, link) {

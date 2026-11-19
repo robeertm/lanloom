@@ -25,6 +25,7 @@ Restore replaces the configuration in one transaction after a safety copy of the
 the target (a moved instance has its own new key: every secret is encrypted again with it), ends every session and
 writes one audit entry. An older backup is migrated; a backup from a newer Lanloom is refused with a clear message.
 """
+import asyncio
 import base64
 import gzip
 import hashlib
@@ -77,9 +78,14 @@ SAFETY_KEEP = 2                             # safety copies of the database take
 
 # Tables of the configuration (always) and of the history (optional). Sessions, invitations, notices, known sign-in
 # places and the meta table are never part of a backup: they belong to the running instance.
-CONFIG_TABLES = ("users", "passkeys", "recovery_codes", "settings", "integrations", "devices", "phys_manual", "agent_hosts", "api_tokens")
+CONFIG_TABLES = ("users", "passkeys", "recovery_codes", "settings", "integrations", "devices", "phys_manual", "agent_hosts", "api_tokens",
+                 "sites")
 HISTORY_TABLES = ("scans", "events", "reports", "report_marks", "paths_hour", "paths_day", "paths_seen", "paths_pair_hour", "paths_pair_day",
                   "agent_samples", "host_samples", "api_ingest")
+# what a further site (M1, lanloom/sites.py) keeps in its own database: its configuration and - optionally - its history
+# (every table of the instance lists except the accounts, API keys and external reports, which live at home)
+SITE_CONFIG_TABLES = tuple(t for t in CONFIG_TABLES if t not in ("users", "passkeys", "recovery_codes", "api_tokens", "sites"))
+SITE_HISTORY_TABLES = tuple(t for t in HISTORY_TABLES if t not in ("api_ingest",))
 INSTANCE_TABLES = ("sessions", "invites", "notices", "known_logins", "webhook_deliveries")       # emptied on restore (they name old user ids)
 # settings that describe this instance at runtime, not the configuration
 LOCAL_SETTINGS = frozenset({"fw_sim_state", "fw_jobs", "update_cache", "report_heartbeat", "report_epoch",
@@ -555,7 +561,37 @@ class Backups:
         return {"format": CONTENT_FORMAT, "app": __version__, "created": self.clock(), "history": bool(history),
                 "source": {"arch": platform.machine(), "schema": self._schema()},
                 "tables": tables, "secrets": secrets, "audit": audit_rows, "audit_chain": {"ok": bool(chain["ok"]), "count": chain["count"]},
-                "keys": {"recovery_pepper": self.app.factors.pepper.hex()}}
+                "keys": {"recovery_pepper": self.app.factors.pepper.hex()}, "sites": self._collect_sites(history)}
+
+    def _collect_sites(self, history: bool) -> dict:
+        """The data of every further site (each has a database of its own): {site id: {"tables", "secrets"}}."""
+        hub = getattr(self.app, "sites", None)
+        out = {}
+        if hub is None:
+            return out
+        for sid, core in list(hub.cores.items()):
+            if sid == "home":
+                continue
+            store, vault = core.store, core.vault
+            tables = {}
+            for table in SITE_CONFIG_TABLES + (SITE_HISTORY_TABLES if history else ()):
+                if not [r for r in store.query("PRAGMA table_info(\"%s\")" % table)]:
+                    continue
+                rows = store.query("SELECT * FROM \"%s\"" % table)
+                if table == "settings":
+                    rows = [r for r in rows if r["key"] not in LOCAL_SETTINGS]
+                tables[table] = [{k: _encode_value(v) for k, v in r.items()} for r in rows]
+            secrets = {}
+            for row in store.query("SELECT name FROM secrets ORDER BY name"):
+                try:
+                    value = vault.get(row["name"])
+                except Exception:
+                    log.warning("backup: a stored secret of a site could not be read and is left out")
+                    continue
+                if value is not None:
+                    secrets[row["name"]] = value
+            out[sid] = {"tables": tables, "secrets": secrets}
+        return out
 
     def _schema(self) -> int:
         row = self.store.one("SELECT value FROM meta WHERE key='schema'")
@@ -778,7 +814,25 @@ class Backups:
                     raise ValueError
             except (TypeError, ValueError):
                 raise BackupError("backup.err.damaged")
-        return {"tables": clean, "secrets": secrets, "audit": audit_rows, "pepper": pepper,
+        sites = {}
+        for sid, part in (content.get("sites") or {}).items():
+            from .sites import ID_RE
+            if not isinstance(sid, str) or not ID_RE.match(sid) or sid == "home" or not isinstance(part, dict):
+                raise BackupError("backup.err.damaged")
+            st_tables = {}
+            for table, rows in (part.get("tables") or {}).items():
+                if table not in SITE_CONFIG_TABLES + SITE_HISTORY_TABLES:
+                    continue
+                if not isinstance(rows, list) or any(not isinstance(r, dict) for r in rows):
+                    raise BackupError("backup.err.damaged")
+                st_tables[table] = [{str(k): _decode_value(v) for k, v in r.items()} for r in rows]
+            st_secrets = {}
+            for name, value in (part.get("secrets") or {}).items():
+                if not isinstance(name, str) or not isinstance(value, str) or len(name) > 200:
+                    raise BackupError("backup.err.damaged")
+                st_secrets[name] = value
+            sites[sid] = {"tables": st_tables, "secrets": st_secrets}
+        return {"tables": clean, "secrets": secrets, "audit": audit_rows, "pepper": pepper, "sites": sites,
                 "audit_chain": content.get("audit_chain") or {}, "history": bool(content.get("history")),
                 "app": str(content.get("app") or "")[:20], "created": content.get("created"),
                 "arch": str((content.get("source") or {}).get("arch") or "")[:20], "format": content.get("format")}
@@ -824,6 +878,7 @@ class Backups:
             "audit": {"now": audit_now, "new": len(data["audit"]), "imported": fresh, "source_ok": bool(data["audit_chain"].get("ok", True))},
             "sessions_end": sessions_now,
             "passkeys": len(t.get("passkeys", [])),
+            "sites": {"now": self.store.one("SELECT COUNT(*) AS n FROM sites")["n"], "new": len(t.get("sites", [])) or 1},
         }
 
     # ------------------------------------------------------------------ restore
@@ -905,6 +960,7 @@ class Backups:
                 tx.execute("DELETE FROM sessions")
             if data["pepper"]:
                 app.factors.pepper = bytes.fromhex(data["pepper"])
+            counts["sites"] = self._restore_sites(data)
             imported = 0
             if fresh and getattr(app, "audit", None) is not None:
                 imported = app.audit.rewrite(list(data["audit"]) + own_audit)
@@ -932,6 +988,46 @@ class Backups:
         finally:
             self._lock.release()
 
+    def _restore_sites(self, data: dict) -> int:
+        """Write the data of every further site of the backup into that site's own database (M1). Sites the backup
+        does not have stop with the reload; their folders stay on disk."""
+        hub = getattr(self.app, "sites", None)
+        if hub is None:
+            return 0
+        n = 0
+        for sid, part in (data.get("sites") or {}).items():
+            if not self.store.one("SELECT id FROM sites WHERE id=?", (sid,)):
+                continue                                # only sites of the restored list
+            core = hub.cores.get(sid)
+            if core is not None:
+                store, vault = core.store, core.vault
+            else:
+                from .crypto import Vault
+                from .store import Store
+                store = Store(hub._store_path(sid))
+                vault = Vault(store, self.app.instance_key)
+            history = data["history"]
+            with store.transaction() as tx:
+                for table in SITE_CONFIG_TABLES + (SITE_HISTORY_TABLES if history else ()):
+                    cols_now = [r["name"] for r in store.query("PRAGMA table_info(\"%s\")" % table)]
+                    if not cols_now:
+                        continue
+                    if table == "settings":
+                        keep = ",".join("'%s'" % k for k in sorted(LOCAL_SETTINGS))
+                        tx.execute("DELETE FROM settings WHERE key NOT IN (%s)" % keep)
+                        rows = [r for r in part["tables"].get("settings", []) if r.get("key") not in LOCAL_SETTINGS]
+                    else:
+                        tx.execute("DELETE FROM \"%s\"" % table)
+                        rows = part["tables"].get(table, [])
+                    self._insert(tx, table, rows, cols_now)
+                tx.execute("DELETE FROM secrets")
+                for name, value in part["secrets"].items():
+                    vault.put(name, value)
+            if core is None and store.path != ":memory:":
+                store.close()
+            n += 1
+        return n
+
     def _reload(self) -> None:
         """Make the running app use the restored data: sources, caches, pending sign-ins, set-up code."""
         app = self.app
@@ -943,9 +1039,17 @@ class Backups:
             app.setup_code.ensure()
         except Exception:
             pass
-        core = getattr(app, "core", None)
+        core = getattr(app, "real_core", None) or getattr(app, "core", None)
         if core is not None and hasattr(core, "reload_after_restore"):
             self._on_loop(core.reload_after_restore)
+        hub = getattr(app, "sites", None)
+        if hub is not None:
+            def restart_sites():
+                try:
+                    asyncio.get_running_loop().create_task(hub.reload())
+                except RuntimeError:            # no running loop (tests, set-up page before the app runs): next start
+                    pass
+            self._on_loop(restart_sites)
         fw = getattr(app, "firewall", None)
         if fw is not None:
             fw._sim = None if getattr(fw, "_runner", None) is None else fw._sim

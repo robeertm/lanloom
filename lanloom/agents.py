@@ -170,6 +170,15 @@ class AgentHub:
         return {"code": code[:4] + "-" + code[4:], "expires": now + CODE_VALID_S, "image": "%s:%s" % (IMAGE, __version__),
                 "version": __version__}
 
+    def has_invite(self, code) -> bool:
+        """A valid pairing code of this hub (not used up) - the app looks for the site a code was made in (M1)."""
+        c = normalise_code(code)
+        if not c:
+            return False
+        now, h = self.clock(), code_hash(c)
+        invites = [i for i in (self.store.get_setting("agent_invites", []) or []) if float(i.get("expires") or 0) > now]
+        return any(hmac.compare_digest(str(i.get("hash", "")), h) for i in invites)
+
     def _take_invite(self, code) -> Optional[dict]:
         c = normalise_code(code)
         if not c:

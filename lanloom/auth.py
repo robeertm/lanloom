@@ -220,7 +220,7 @@ class LoginLimiter:
 
 
 # ---------------------------------------------------------------------------- accounts
-USER_COLS = "id, username, user_handle, created, role, disabled, source, mfa_due, last_login, prefs"
+USER_COLS = "id, username, user_handle, created, role, disabled, source, mfa_due, last_login, prefs, sites"
 
 
 class Accounts:
@@ -541,7 +541,7 @@ class Invites:
         self.clock = clock
 
     def create(self, kind: str, role: str, created_by: str, user_id: Optional[int] = None, clear_2fa: bool = False,
-               note: str = "") -> tuple:
+               note: str = "", sites: str = "*") -> tuple:
         if kind not in ("invite", "reset") or role not in access.ROLES:
             raise ValueError("users.err.role")
         token = secrets.token_urlsafe(32)
@@ -549,9 +549,10 @@ class Invites:
         if kind == "reset":       # one open reset link per user
             self.store.execute("DELETE FROM invites WHERE kind='reset' AND user_id=? AND used IS NULL", (user_id,))
         cur = self.store.execute(
-            "INSERT INTO invites(token_hash, kind, role, user_id, clear_2fa, note, created, expires, created_by) VALUES(?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO invites(token_hash, kind, role, user_id, clear_2fa, note, created, expires, created_by, sites)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?)",
             (_hash_token(token), kind, role, user_id, 1 if clear_2fa else 0, str(note or "")[:80], now, now + INVITE_HOURS * 3600,
-             str(created_by)[:64]))
+             str(created_by)[:64], sites if isinstance(sites, str) else "*"))
         return cur.lastrowid, token
 
     def check(self, token: str) -> Optional[dict]:

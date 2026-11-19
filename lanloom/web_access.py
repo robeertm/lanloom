@@ -5,6 +5,7 @@ Who may call what is decided by the guard in main.py from access.RULES; the hand
 the data (last administrator, own sessions, open invitation ...).
 """
 import asyncio
+import json
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -13,6 +14,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
 from . import access, auth, qr, totp
+from . import sites as sites_mod
 from .audit import RETENTION_CHOICES
 
 
@@ -98,13 +100,22 @@ def register(app: FastAPI, c: Ctx) -> None:
                            {"ip": c.requester_ip(request), "agent": agent_of(request), "method": method})
         return response
 
+    def clean_sites(value) -> str:
+        """The stored form of a site release: "*" or a JSON list of known site ids."""
+        if value == sites_mod.ALL:
+            return sites_mod.ALL
+        if not isinstance(value, list) or any(s not in st.sites.ids() for s in value):
+            raise ValueError("site.err.sites")
+        return json.dumps([s for s in st.sites.ids() if s in value])
+
     def public_user(u: dict) -> dict:
         f = st.factors.summary(u["id"])
         mfa = mfa_state(u)
         return {"id": u["id"], "username": u["username"], "role": u["role"], "disabled": bool(u["disabled"]), "source": u["source"],
                 "created": u["created"], "last_login": u["last_login"], "totp": f["totp"], "passkeys": f["passkeys"],
                 "recovery_left": f["recovery_left"], "mfa": mfa,
-                "sessions": len(st.sessions.list(u["id"]))}
+                "sessions": len(st.sessions.list(u["id"])),
+                "sites": sites_mod.parse_user_sites(u.get("sites"))}       # released sites (M1); administrators see all
 
     # ------------------------------------------------------------------ first account
     @app.post("/api/setup/account")
@@ -272,6 +283,7 @@ def register(app: FastAPI, c: Ctx) -> None:
         if not st.invites.consume(inv["id"]):
             return err("invite.err.invalid", 404)
         uid = st.accounts.create(username, password, role=inv["role"], mfa_due=st.policy.due_from_now())
+        st.store.execute("UPDATE users SET sites=? WHERE id=?", (inv.get("sites") or sites_mod.ALL, uid))   # sites of the invitation (M1)
         user = st.accounts.get(uid)
         c.audit_from(request, user, "users.joined", "ok", target=username, detail={"role": inv["role"], "invited_by": inv["created_by"]})
         st.limiter.success(client)
@@ -461,7 +473,12 @@ def register(app: FastAPI, c: Ctx) -> None:
         role = data.get("role")
         if role not in access.ROLES:
             return err("users.err.role")
-        invite_id, token = st.invites.create("invite", role, request.state.user["username"], note=str(data.get("note") or ""))
+        try:
+            sites = clean_sites(data.get("sites", sites_mod.ALL))
+        except ValueError as exc:
+            return err(str(exc))
+        invite_id, token = st.invites.create("invite", role, request.state.user["username"], note=str(data.get("note") or ""),
+                                             sites=sites)
         note(request, target=role, detail={"role": role, "invite": invite_id, "note": str(data.get("note") or "")[:80]})
         return {"id": invite_id, "token": token, "expires": time.time() + auth.INVITE_HOURS * 3600, "role": role}
 
@@ -493,6 +510,12 @@ def register(app: FastAPI, c: Ctx) -> None:
         if disabled != bool(row["disabled"]):
             st.accounts.set_disabled(user_id, disabled)
             changes["disabled"] = disabled
+        if "sites" in data:
+            try:
+                new_sites = st.sites.set_user_sites(user_id, data["sites"])
+            except ValueError as exc:
+                return err(str(exc))
+            changes["sites"] = new_sites if new_sites == sites_mod.ALL else len(new_sites)
         note(request, detail=changes)
         return public_user(st.accounts.get(user_id))
 

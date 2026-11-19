@@ -101,6 +101,16 @@ RULES = {
     ("POST", "/api/setup/restore/check"): R("public", "@"),
     ("POST", "/api/setup/restore"): R("public", "@"),
 
+    # ---------------------------------------------------------------- sites (M1): list and overview show only released sites
+    ("GET", "/api/sites"): R(V),
+    ("GET", "/api/sites/overview"): R(V),
+    ("POST", "/api/sites"): R(A, "sites.create"),
+    ("PATCH", "/api/sites/{site_id}"): R(A, "sites.rename"),
+    ("DELETE", "/api/sites/{site_id}"): R(A, "sites.delete", stepup=True),
+    ("PUT", "/api/sites/report"): R(A, "sites.report_mode"),
+    ("GET", "/api/sites/controller/{integ_id}"): R(A),
+    ("POST", "/api/sites/from-controller"): R(A, "sites.from_controller", stepup=True),
+
     # ---------------------------------------------------------------- settings, networks, scans
     ("GET", "/api/settings"): R(V),
     ("GET", "/api/storage"): R(A),

@@ -18,6 +18,7 @@ from fastapi.routing import APIRoute
 from starlette.routing import Match
 
 from . import __version__, access, agents as agents_mod, api_v1, apitokens, auth, config as config_mod, demoview, flood, mapmodel, palette, setup_assist, textfmt
+from . import sites as sites_mod
 from .audit import AuditLog
 from .core import Core
 from .integrations import catalog
@@ -89,6 +90,7 @@ class App:
         vault = Vault(store, key)
         self.store = store
         self.vault = vault
+        self.instance_key = key          # the vaults of further sites (lanloom/sites.py) use the same instance key
         sub = lambda label: hmac.new(key, label, hashlib.sha256).digest()     # separate keys per purpose
         self.accounts = auth.Accounts(store)
         self.sessions = auth.Sessions(store)
@@ -173,14 +175,29 @@ class App:
                 seed_webhooks(self.webhooks)
                 seed_ingest(self.ingest)
                 store.set_setting("setup_done", True)
+        # sites (M1): this installation is the site "home"; further sites get a core of their own when the app starts
+        self.sites = sites_mod.Sites(self)
+        self.sites.wire(self.real_core)
+        if cfg.demo and os.environ.get("LANLOOM_DEMO_SEED", "").strip() in ("1", "true", "yes"):
+            from .demo_sites import seed_sites
+            seed_sites(self)
 
 
     @property
     def core(self) -> Core:
-        """The core of this request: the sample network for a demo view (see demoview), else the real one."""
+        """The core of this request: the sample network for a demo view (see demoview), else the core of the request's
+        site (see sites; the guard picks it among the sites released for the person), else the home site."""
         if demoview.ACTIVE.get() and self.demo_view.core is not None:
             return self.demo_view.core
-        return self.real_core
+        sid = sites_mod.ACTIVE.get()
+        if sid is None or sid == sites_mod.HOME:
+            return self.real_core
+        if sid == "":
+            raise HTTPException(403, "site.err.none")        # signed in, but no site released for this person
+        core = self.sites.cores.get(sid) if getattr(self, "sites", None) else None
+        if core is None:
+            raise HTTPException(409, "site.err.unknown")     # never fall back to another site's data
+        return core
 
 
 def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
@@ -193,6 +210,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if code:
             log.warning("First start: open the web page and enter the setup code %s (also in %s)", code, state.setup_code.path)
         await state.core.start()
+        await state.sites.start()
         state.backups.start()
         mqtt_task = asyncio.create_task(state.mqtt_out.run())
         hooks_task = asyncio.create_task(state.webhooks.run())
@@ -207,6 +225,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                     pass
             await state.backups.stop()
             await state.demo_view.stop()
+            await state.sites.stop()
             await state.core.stop()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None, telemetry=NO_TELEMETRY)
@@ -330,10 +349,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                 if not state.firewall.token_ok(request.headers.get("authorization", "")):
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)   # token of the executor service, no session
             elif rule is not None and rule.role == "agent":
-                aid = state.core.agents.token_agent(request.headers.get("authorization", ""))
+                aid, agent_site = None, None
+                for site_id, site_core in list(state.sites.cores.items()):      # a host agent belongs to the site it paired with
+                    aid = site_core.agents.token_agent(request.headers.get("authorization", ""))
+                    if aid:
+                        agent_site = site_id
+                        break
                 if not aid:
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)   # token of a host agent, no session
                 request.state.agent = aid
+                sites_mod.ACTIVE.set(agent_site)
             elif rule is not None and rule.role == "public":
                 if request.method in STATE_CHANGING:
                     wait = public_flood.hit(client_of(request))
@@ -361,6 +386,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                     if wait:
                         return flooded(wait)
                 request.state.user = user
+            blocked = pick_site(request, user if user is not None else (current_user(request) if path == "/api/state" else None),
+                                template or path)
+            if blocked is not None:
+                return blocked
             if state.demo_view.requested(request.cookies):
                 # sample network (demo view): only for a signed-in session, and only reading
                 viewer = user if user is not None else (current_user(request) if path == "/api/state" else None)
@@ -380,6 +409,22 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                     target = ",".join("%s" % v for v in params.values()) if params else ""
                 audit_from(request, user, info.get("action") or rule.audit, outcome, target=target, detail=info.get("detail"))
         return response
+
+    def pick_site(conn, viewer: Optional[dict], template: str) -> Optional[JSONResponse]:
+        """Set the site of this request (M1): the one the browser asks for (cookie ll_site or header X-Lanloom-Site),
+        but only among the sites released for this person; otherwise their first one. A site-bound route without
+        any released site is refused; a route of the home site only (firewall editor, AI) refuses another site."""
+        if not viewer or viewer.get("stage") == "enroll":
+            return None
+        scope = sites_mod.scope_of(template)
+        asked = conn.headers.get(sites_mod.HEADER) or conn.cookies.get(sites_mod.COOKIE)
+        sid = state.sites.pick(viewer, asked)
+        sites_mod.ACTIVE.set(sid if sid is not None else "")
+        if sid is None and scope != "global":
+            return JSONResponse({"error": "site.err.none"}, status_code=403)
+        if scope == "primary" and sid != sites_mod.HOME:
+            return JSONResponse({"error": "site.err.primary_only"}, status_code=409)
+        return None
 
     async def token_request(request: Request, call_next, token: str):
         """A request with an API token (Authorization: Bearer llt_...): only the public API, no session, no cookies.
@@ -414,6 +459,9 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                            target=template, detail={"need": need, "via": "api", "key_name": user["token"]["name"]})
             return JSONResponse({"error": "api.err.scope", "need": api_v1.SCOPE_OF_ROLE.get(need, need)}, status_code=403)
         request.state.user = user
+        blocked = pick_site(request, user, template)
+        if blocked is not None:
+            return blocked
         response = await call_next(request)
         if rule is not None and rule.audit and rule.audit != "@" and request.method in STATE_CHANGING:
             info = getattr(request.state, "audit", None) or {}
@@ -462,22 +510,37 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if user:
             language = state.accounts.prefs(user["id"]).get("language") or language
         demo_view = bool(user) and demoview.ACTIVE.get()
+        site_id = sites_mod.ACTIVE.get()
+        if full and site_id == "":
+            full = False            # signed in, but no site released: nothing of any site in the answer
+            no_site = True
+        else:
+            no_site = False
         out = {"version": __version__, "setup_needed": state.store.user_count() == 0, "authenticated": bool(user),
                "addon": bool(getattr(cfg, "addon", False)),
                "user": user["username"] if user else None, "demo": cfg.demo or demo_view, "demo_view": demo_view,
                "setup_done": demo_view or bool(state.store.get_setting("setup_done", False)),
                "language": language,
-               "rate_unit": state.core.rate_unit() if state.core else "bytes",
+               "rate_unit": state.real_core.rate_unit(),
                "reports_unread": state.core.reports.unread() if full else 0,
-               "report_tz_auto": state.store.get_setting("report_tz_auto", "") if full else "",
+               "report_tz_auto": state.core.store.get_setting("report_tz_auto", "") if full else "",
                "ai": state.ai.ready() if full and access.allows(user.get("role"), "operator") else {},
-               "can": access.capabilities(user.get("role")) if user else {}, "enroll": bool(user) and not full,
+               "can": access.capabilities(user.get("role")) if user else {}, "enroll": bool(user) and user.get("stage") == "enroll",
                "proxy": bool(user) and user.get("source") == "proxy",
                "notices": len(state.notices.unseen(user["id"])) if full else 0,
                "hubs": [{"id": i["id"], "name": i["name"]} for i in state.core.integrations() if i["kind"] == "hub"]
                if full and state.core else [],
                "agents": len(state.core.agents.live) if full and state.core else 0,     # host agents + container sources (E4)
                "dns": sum(1 for i in state.core.integrations() if i["kind"] in state.core.dns_kinds()) if full and state.core else 0}
+        if user and not out["enroll"]:
+            if demo_view or no_site:
+                out["site"] = {"id": None, "name": "", "home": False, "remote": False, "several": False, "none": no_site}
+            else:
+                sid = site_id or sites_mod.HOME
+                allowed = state.sites.allowed(user)
+                out["site"] = {"id": sid, "name": state.sites.name(sid), "home": sid == sites_mod.HOME,
+                               "remote": bool(getattr(state.core, "remote", False)), "several": len(allowed) > 1,
+                               "count": len(allowed), "version": state.sites.version}
         return out
 
     @app.get("/api/i18n/{lang}")
@@ -498,6 +561,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     from . import web_api
     web_api.register(app, web_api.Ctx(state=state, body=body, err=err, note=note))
     api_v1.register(app, state, err, api_v1.read_json_limited)
+    from . import web_sites
+    web_sites.register(app, web_sites.Ctx(state=state, body=body, err=err, note=note))
     from . import web_storage
     web_storage.register(app, web_storage.Ctx(state=state, body=body, err=err, note=note))
     from . import web_history
@@ -628,7 +693,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     @app.get("/api/scan")
     async def scan_status():
         # "last scan" is the last finished one: a running, stopped or failed scan does not replace it (its state is in "current")
-        last = state.store.one("SELECT * FROM scans WHERE status='done' ORDER BY id DESC LIMIT 1")
+        last = state.core.store.one("SELECT * FROM scans WHERE status='done' ORDER BY id DESC LIMIT 1")
         return {"current": state.core.scan_state, "last": last}
 
     @app.post("/api/scan")
@@ -868,20 +933,24 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         except ValueError as exc:
             return err(str(exc), 404 if str(exc) == "device.err.missing" else 400)
 
-    # ------------------------------------------------------------------ nightly reports
-    reports = state.core.reports
+    # ------------------------------------------------------------------ nightly reports (of the request's site)
+    from .sites_report import filter_report
+
+    def for_reader(request: Request, rep):
+        """A report as this reader may see it: lines about sites the person may not see are taken out (M1)."""
+        return filter_report(rep, state.sites.allowed(getattr(request.state, "user", None))) if rep else rep
 
     @app.get("/api/reports")
     async def reports_list():
-        return reports.listing()
+        return state.core.reports.listing()
 
     @app.get("/api/reports/preview")
-    async def reports_preview():
-        return await reports.preview()
+    async def reports_preview(request: Request):
+        return for_reader(request, await state.core.reports.preview())
 
     @app.get("/api/reports/settings")
     async def reports_settings():
-        return reports.public_settings()
+        return state.core.reports.public_settings()
 
     @app.put("/api/reports/settings")
     async def reports_settings_put(request: Request):
@@ -890,39 +959,40 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         secrets = data.get("secrets") if isinstance(data.get("secrets"), dict) else {}
         note(request, detail={"fields": sorted(str(k) for k in patch)[:30], "hidden_fields": sorted(str(k) for k, v in secrets.items() if v)[:20]})
         try:
-            return reports.update_settings(patch, secrets)
+            return state.core.reports.update_settings(patch, secrets)
         except ValueError as exc:
             return err(str(exc))
 
     @app.post("/api/reports/tz")
     async def reports_tz(request: Request):
         data = await body(request)
-        reports.set_auto_tz(str(data.get("tz") or "")[:64])
+        state.core.reports.set_auto_tz(str(data.get("tz") or "")[:64])
         return {"ok": True}
 
     @app.post("/api/reports/test")
     async def reports_test(request: Request):
         data = await body(request)
         try:
-            return await reports.test_channel(str(data.get("channel") or ""))
+            return await state.core.reports.test_channel(str(data.get("channel") or ""))
         except ValueError as exc:
             return err(str(exc))
 
     @app.get("/api/reports/{day}")
-    async def report_get(day: str):
-        rep = reports.get(day)
-        return rep if rep else err("report.err.missing", 404)
+    async def report_get(day: str, request: Request):
+        rep = state.core.reports.get(day)
+        return for_reader(request, rep) if rep else err("report.err.missing", 404)
 
     @app.post("/api/reports/{day}/read")
     async def report_read(day: str, request: Request):
         data = await body(request)
+        reports = state.core.reports
         return {"ok": reports.mark_read(day, data.get("read", True) is not False), "unread": reports.unread()}
 
     @app.put("/api/reports/{day}/items")
     async def report_item(day: str, request: Request):
         data = await body(request)
         try:
-            rep = reports.mark_item(day, str(data.get("item") or "")[:200], bool(data.get("done")))
+            rep = state.core.reports.mark_item(day, str(data.get("item") or "")[:200], bool(data.get("done")))
         except ValueError as exc:
             return err(str(exc))
         return rep if rep else err("report.err.missing", 404)
@@ -1427,6 +1497,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if blocked:
             return blocked
         data = await body(request)
+        for site_id, site_core in list(state.sites.cores.items()):     # the agent joins the site its code was made in
+            if site_core.agents.has_invite(data.get("code")):
+                sites_mod.ACTIVE.set(site_id)
+                break
         try:
             out = await asyncio.to_thread(state.core.agents.pair, data.get("code"), data, requester_ip(request))
         except PermissionError:
@@ -1465,7 +1539,14 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if not user or user.get("stage") == "enroll" or not access.allows(user.get("role"), access.RULES[("WS", "/api/live")].role):
             await ws.close(code=4401)
             return
-        core = await state.demo_view.ensure() if state.demo_view.requested(ws.cookies) else state.core
+        if state.demo_view.requested(ws.cookies):
+            core = await state.demo_view.ensure()
+        else:
+            sid = state.sites.pick(user, ws.headers.get(sites_mod.HEADER) or ws.cookies.get(sites_mod.COOKIE))
+            core = state.sites.core(sid) if sid else None
+            if core is None:
+                await ws.close(code=4403)              # no site released for this person
+                return
         await ws.accept()
         queue: asyncio.Queue = asyncio.Queue()
         core.clients.add(queue)
@@ -1622,7 +1703,7 @@ def selftest() -> int:
                 problems.append("i18n placeholders differ (%s)" % lang)
         if not whatsnew.entries():
             problems.append("CHANGELOG.md missing or unreadable (What's new?)")
-        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/fwinsight.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "css/fwinsight.css", "js/portfront.js", "css/portfront.css", "js/netmodes.js", "css/netmodes.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/export.js", "css/export.css", "js/history.js", "css/history.css", "js/services.js", "css/services.css", "board/tree.js", "css/tree.css", "js/a11y.js", "css/a11y.css", "js/automations.js", "css/automations.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
+        for rel in ("index.html", "js/textfmt.js", "js/app.js", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/fwinsight.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "css/fwinsight.css", "js/portfront.js", "css/portfront.css", "js/netmodes.js", "css/netmodes.css", "js/paths.js", "js/worldmap.js", "css/paths.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/sites.js", "css/sites.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/export.js", "css/export.css", "js/history.js", "css/history.css", "js/services.js", "css/services.css", "board/tree.js", "css/tree.css", "js/a11y.js", "css/a11y.css", "js/automations.js", "css/automations.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):
             if not (WEB / rel).is_file():
                 problems.append("missing web asset " + rel)
         store.close()

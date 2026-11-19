@@ -55,12 +55,15 @@ LOGIN_PATH = {"console": "/api/auth/login", "classic": "/api/login"}
 LOGOUT_PATH = {"console": "/api/auth/logout", "classic": "/api/logout"}
 DATA_PREFIX = {"console": "/proxy/network/api/s/%s/stat/", "classic": "/api/s/%s/stat/"}
 KINDS = {"clients": "sta", "devices": "device"}
+SITES_PATH = {"console": "/proxy/network/api/self/sites", "classic": "/api/self/sites"}   # the controller's site list (M1)
+MAX_SITES = 64
 
 # The complete allow-list. Everything else is refused before anything is sent.
 ALLOWED_POST = frozenset(LOGIN_PATH.values()) | frozenset(LOGOUT_PATH.values())
 ALLOWED_GET = (
     re.compile(r"\A/proxy/network/api/s/%s/stat/(?:sta|device)\Z" % _SITE),
     re.compile(r"\A/api/s/%s/stat/(?:sta|device)\Z" % _SITE),
+    re.compile(r"\A(?:/proxy/network)?/api/self/sites\Z"),
 )
 LOGIN_FIELDS = frozenset({"username", "password"})
 
@@ -315,6 +318,34 @@ class Controller:
         return {"type": "topology", "source": SOURCE, "t": now(),
                 "devices": _unique((map_device(d) for d in dev), MAX_DEVICES),
                 "clients": _unique((map_client(c) for c in sta[:MAX_CLIENTS * 2]), MAX_CLIENTS)}
+
+    async def sites(self):
+        """The sites this controller manages (read only): [{"ref": site name for the integration, "name": label}].
+        A further Lanloom site (M1) can read one of them with the same account."""
+        async def probe():
+            try:
+                if not self._logged_in:
+                    await self._login()
+                status, data = await self._call("GET", SITES_PATH[self._style])
+                if status in (401, 403):
+                    raise SourceError("source.controller.forbidden", "account may not read the site list")
+                if not 200 <= status < 300:
+                    raise SourceError("source.controller.protocol", "unexpected status %d" % status)
+                obj = self._json(data)
+                rows = obj.get("data") if isinstance(obj, dict) else obj
+                if not isinstance(rows, list):
+                    raise SourceError("source.controller.protocol", "unexpected reply shape")
+                out = []
+                for r in rows[:MAX_SITES]:
+                    ref = r.get("name") if isinstance(r, dict) else None
+                    if isinstance(ref, str) and SITE_RE.fullmatch(ref):
+                        label = r.get("desc") if isinstance(r.get("desc"), str) else ref
+                        out.append({"ref": ref, "name": clip(label, 60)})
+                return out
+            finally:
+                await self._logout()
+
+        return await short_test(MODULE, probe(), self.timeout * 4 + 5)
 
     # ------------------------------------------------------------ source contract
     async def run(self, emit):

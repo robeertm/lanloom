@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Several sites in one Lanloom.** A site is the level above networks, connections, devices, history and nightly reports: a holiday flat, an office or a relative's home next to your own. Every site keeps its data in a database of its own; an existing installation becomes the site *Home* without moving or losing anything.
+- **Reaching another site only over ways that are already there:** one more site of a controller that manages several (*All sites > A site of your controller* lists its sites read-only and copies the connection with the other site name; nothing is written to the controller), or the host agent on a machine there (a pairing code belongs to the site it was made in). A remote site never uses the interfaces of the Lanloom host: no scan, presence check or flow receiver there; a scan of a remote range needs the consent for that range.
+- **Site switcher** next to the logo, remembered per browser (cookie `ll_site`, header `X-Lanloom-Site` for scripts), on the phone too; **All sites** (`#/sites`) with one card per site (state, devices online, new today, internet, what stands out, how the site is seen) and an *All sites* card on the overview; palette commands *Switch site: …* and *Open Sites*; *Settings > Sites*.
+- **Who sees which site:** administrators release sites per person (*Settings > Users > Sites …*, also in an invitation): all sites (also later ones, the default) or a list. The server picks the site of every request only among the released ones, and names and addresses of other sites never reach an answer, the live feed or a report (tested against every route, the live socket and every static file). API keys follow the sites of their account.
+- **Nightly report per site or combined:** each site writes its own report, delivered through the channels set up at Home with the site name in the title; or one combined report from Home with a *Sites* section (other sites only for readers who may see them). Notifications of a site go only to people who may see it; personal rules apply at every site, each maintenance window belongs to its site. Webhook events of a remote site carry a `site` object.
+- Backups contain every site; a restore brings back the site list and each site's data. Adding, renaming, removing sites, the report mode and site releases are written to the audit log.
+- Demo: a sample branch office (controller site and host agent, one switched-off desk). Docs: manual page *Sites*, screenshots.
+
+### Changed
+- The firewall editor, the executor and the AI assistant work on the Home site; at a remote site their parts are hidden and the server answers `409 site.err.primary_only`.
+- The read-only controller source may also read the controller's site list (`GET /api/self/sites`); the allow-list test names it.
+
 ## [1.47.0] – 2026-11-19
 
 1.44.0, 1.44.1, 1.45.0, 1.46.0 and 1.46.1 below were not released on their own; they are part of this release.

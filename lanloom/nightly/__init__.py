@@ -98,10 +98,20 @@ class Reports:
             s["channels"][ch]["secrets"] = {f: bool(self.vault and self.vault.has("report:%s:%s" % (ch, f))) for f in fields}
         s["tz_effective"] = self.tz_name()
         s["tz_auto"] = self.store.get_setting("report_tz_auto", "") or ""
+        home = getattr(self.core, "channel_reports", None)
+        if home is not None and home is not self:          # a further site (M1): deliveries use the channels set up at home
+            s["channels_home"] = True
+            s["combined"] = self._via() is None
+            for ch in s["channels"]:
+                s["channels"][ch] = {"enabled": bool(home.settings()["channels"][ch].get("enabled"))}
         s["next_at"] = self.next_at()
         return s
 
     def update_settings(self, patch: dict, secrets: Optional[dict] = None) -> dict:
+        home = getattr(self.core, "channel_reports", None)
+        if home is not None and home is not self:          # a further site keeps only its time, zone and keeping time
+            patch = {k: v for k, v in (patch or {}).items() if k in ("time", "tz", "keep_days")}
+            secrets = {}
         cur = self.settings()
         if "time" in patch:
             if not isinstance(patch["time"], str) or not TIME_RE.match(patch["time"]):
@@ -331,6 +341,10 @@ class Reports:
         keep = dict((prev or {}).get("keep") or {}, **ctx.keep)
         if keep:
             out["keep"] = keep
+        hub = getattr(self.core, "site_hub", None)
+        if hub is not None and hub.several():
+            sid = getattr(self.core, "site_id", "home")
+            out["site"] = {"id": sid, "name": hub.name(sid), "home": not getattr(self.core, "remote", False)}
         return out
 
     def _update(self) -> dict:
@@ -453,29 +467,52 @@ class Reports:
         return rep
 
     # ------------------------------------------------------------------ delivery
+    def _people(self):
+        """The store with the instance-wide settings (language ...): the home store for a further site."""
+        return getattr(self.core, "instance_store", None) or self.store
+
+    def _via(self):
+        """The reports whose channels deliver: a further site (lanloom/sites.py) uses the channels set up at home,
+        or none at all when the instance sends one combined report."""
+        home = getattr(self.core, "channel_reports", None)
+        if home is None or home is self:
+            return self
+        hub = getattr(self.core, "site_hub", None)
+        if hub is not None and hub.report_mode() == "combined":
+            return None
+        return home
+
     def enabled_channels(self) -> list:
-        s = self.settings()
+        via = self._via()
+        if via is None:
+            return []
+        s = via.settings()
         return [ch for ch in CHANNELS if s["channels"][ch].get("enabled")]
 
     async def deliver(self, report: dict, only: Optional[list] = None) -> dict:
         chans = only if only is not None else self.enabled_channels()
-        if not chans:
+        via = self._via()
+        if not chans or via is None:
             return {}
         from . import deliver as dl
         from .render import short_text
         s = self.settings()
-        lang = self.store.get_setting("language", None) or "en"
+        s["channels"] = via.settings()["channels"]
+        lang = self._people().get_setting("language", None) or "en"
         plain = None
         try:
             if self.plain_delivery():
                 plain = (report.get("plain") or {}).get("text") or None
         except Exception:
             plain = None
-        msg = short_text(report, lang, self.tz(), s.get("link") or "", plain=plain)
+        msg = short_text(report, lang, self.tz(), s.get("link") or via.settings().get("link") or "", plain=plain)
+        site = report.get("site") or {}
+        if site.get("name") and via is not self:
+            msg["title"] = "%s · %s" % (site["name"], msg["title"])      # which site a delivered report is about
         row = self.store.one("SELECT delivery FROM reports WHERE day=?", (report["day"],))
         state = json.loads(row["delivery"] or "{}") if row else {}
         for ch in chans:
-            ok, key = await asyncio.to_thread(dl.send, ch, s["channels"][ch], self._secrets(ch), msg)
+            ok, key = await asyncio.to_thread(dl.send, ch, s["channels"][ch], via._secrets(ch), msg)
             prev = state.get(ch) or {}
             state[ch] = {"ok": ok, "key": key, "t": self.clock(), "tries": (prev.get("tries") or 0) + 1}
             if not ok:
@@ -504,6 +541,6 @@ class Reports:
         cfg = dict(s["channels"][ch], enabled=True)
         if dl.missing(ch, cfg, self._secrets(ch)):
             return {"ok": False, "key": "report.err.channel_incomplete"}
-        lang = self.store.get_setting("language", None) or "en"
+        lang = self._people().get_setting("language", None) or "en"
         ok, key = await asyncio.to_thread(dl.send, ch, cfg, self._secrets(ch), test_text(lang, s.get("link") or ""))
         return {"ok": ok, "key": key}

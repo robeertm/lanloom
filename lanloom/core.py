@@ -43,6 +43,8 @@ DEFAULT_SETTINGS = {
     "netflow_exporters": [],    # addresses allowed to send flows; packets from anyone else are dropped
     "netflow_lan_networks": [], # extra own LAN ranges for NetFlow (the detected local networks always count)
 }
+# settings of the instance, not of one site (a further site reads and writes them in the home store)
+INSTANCE_SETTINGS = frozenset({"update_check", "language", "setup_done", "rate_unit"})
 NETFLOW_LAN_REFRESH = 300.0
 
 INTEGRATION_FIELDS = {
@@ -91,10 +93,20 @@ def _is_outside(ip: str) -> bool:
 
 
 class Core:
-    def __init__(self, cfg, store: Store, vault: Optional[Vault]):
+    def __init__(self, cfg, store: Store, vault: Optional[Vault], site: str = "home", remote: bool = False, shared=None):
+        """``site``: the site this core belongs to (lanloom/sites.py). ``remote``: a site away from this host - it
+        never uses this host's interfaces, presence check or NetFlow receiver, and scans only ranges the user agreed to.
+        ``shared``: the home core, whose read-only lookups (vendor list, geo table) a further site uses as well."""
         self.cfg = cfg
         self.store = store
         self.vault = vault
+        self.site_id = site
+        self.remote = bool(remote)
+        self.site_hub = None               # the site list of the instance (set by the app)
+        self.people_store = None           # further sites: accounts, personal rules and push devices live in the home store
+        self.people_vault = None
+        self.instance_store = None         # further sites: instance-wide settings (language, updates ...) live there too
+        self.channel_reports = None        # further sites: deliveries use the channels set up at home
         self.demo = None
         self.scan_state = {"state": "idle"}
         self._scan_task: Optional[asyncio.Task] = None
@@ -134,9 +146,12 @@ class Core:
         self._manual_ver = 0
         self.structure_version = 0
         self.last_frame: dict = {}
-        self.geo = geo_mod.Geo()
         data_dir = getattr(cfg, "data_dir", None)
-        self.oui = oui_mod.Oui(extra=(data_dir / "oui" / "oui.bin.gz") if data_dir else None)
+        if shared is not None:
+            self.geo, self.oui = shared.geo, shared.oui      # one copy of the read-only tables for all sites
+        else:
+            self.geo = geo_mod.Geo()
+            self.oui = oui_mod.Oui(extra=(data_dir / "oui" / "oui.bin.gz") if data_dir else None)
         self._ident_cache = None           # (key, identity.groups result)
         self._merge_cache = None           # (key, hubmerge.match result)
         self._radio_cache: dict = {}       # integration id -> (key, monotonic time, radio view)
@@ -174,14 +189,22 @@ class Core:
         self._refresh_index()
 
     # ------------------------------------------------------------------ settings
+    def _setting_store(self, key: str) -> Store:
+        """Instance-wide settings (language, update check ...) live in the home store; the rest belongs to the site."""
+        if key in INSTANCE_SETTINGS and self.instance_store is not None:
+            return self.instance_store
+        return self.store
+
     def settings(self) -> dict:
         out = dict(DEFAULT_SETTINGS)
         for key in DEFAULT_SETTINGS:
-            out[key] = self.store.get_setting(key, DEFAULT_SETTINGS[key])
+            out[key] = self._setting_store(key).get_setting(key, DEFAULT_SETTINGS[key])
+        if self.remote:
+            out["netflow_enabled"] = False                  # the receiver belongs to the home site
         return out
 
     def rate_unit(self) -> str:
-        unit = self.store.get_setting("rate_unit", "bytes")
+        unit = self._setting_store("rate_unit").get_setting("rate_unit", "bytes")
         return unit if unit in live.RATE_UNITS else "bytes"
 
     def update_settings(self, patch: dict) -> dict:
@@ -204,6 +227,8 @@ class Core:
             if nets["netflow_port"] is None:
                 raise ValueError("settings.netflow.invalid_port")
         nf_keys = ("netflow_enabled", "netflow_port", "netflow_exporters", "netflow_lan_networks")
+        if self.remote and patch.get("netflow_enabled") is True:
+            raise ValueError("site.err.netflow_home")       # one receiver per instance, at the home site
         if any(k in patch for k in nf_keys):
             enabled = patch.get("netflow_enabled", self.store.get_setting("netflow_enabled", False)) is True
             exporters = nets.get("netflow_exporters", self.store.get_setting("netflow_exporters", []) or [])
@@ -223,7 +248,7 @@ class Core:
                     continue
                 if key == "rate_unit" and value not in live.RATE_UNITS:
                     continue
-                self.store.set_setting(key, value)
+                self._setting_store(key).set_setting(key, value)
         if any(k in patch for k in nf_keys):
             self._netflow_schedule()
         return self.settings()
@@ -267,7 +292,7 @@ class Core:
         s = self.settings()
         exporters = list(s.get("netflow_exporters") or [])
         port = s.get("netflow_port") or netflow.DEFAULT_PORT
-        on = bool(s.get("netflow_enabled")) and bool(exporters) and not self.cfg.probe and not self.demo
+        on = bool(s.get("netflow_enabled")) and bool(exporters) and not self.cfg.probe and not self.demo and not self.remote
         self.netflow.configure(exporters if on else [], port)
         if not on:
             self.netflow.stop()
@@ -305,11 +330,15 @@ class Core:
             self._tasks.append(asyncio.create_task(self.demo.run(self)))
             self._tasks.append(asyncio.create_task(self.services.loop()))
         else:
-            self._start_source("host", "host", {})
+            if not self.remote:
+                # this host's own interfaces and the presence check belong to the site Lanloom runs in; a remote site
+                # is seen only through its controller or a host agent there (never by probing across a router)
+                self._start_source("host", "host", {})
             for integ in self.integrations():
                 if integ["enabled"]:
                     self._start_integration(integ)
-            self._tasks.append(asyncio.create_task(self._presence_loop()))
+            if not self.remote:
+                self._tasks.append(asyncio.create_task(self._presence_loop()))
             self._tasks.append(asyncio.create_task(self._rescan_loop()))
             self._tasks.append(asyncio.create_task(self.services.loop()))
             await self.netflow_apply()
@@ -735,6 +764,8 @@ class Core:
         """Local networks of this host; read again at most every 30 s (the network view asks on every build)."""
         if self.demo:
             return self.demo.networks()
+        if self.remote:
+            return []                     # the interfaces of this host belong to the home site
         now = time.time()
         cached = getattr(self, "_nets_cache", None)
         if cached and 0 <= now - cached[0] < self.NETWORKS_TTL:
@@ -758,6 +789,14 @@ class Core:
             raise ValueError("scan.err.running")
         if not cidrs:
             raise ValueError("scan.err.no_network")
+        if self.remote:
+            # a remote site is behind other routers: only ranges the user explicitly agreed to (Networks and zones)
+            agreed = set(self.zone_consent())
+            from .scan import safety
+            for c in cidrs:
+                net = safety.parse_cidr(c)
+                if net is None or str(net) not in agreed:
+                    raise ValueError("site.err.scan_consent")
         if self.demo:
             plan = {"cidrs": list(cidrs), "deep": bool(deep)}
         else:
@@ -1128,6 +1167,52 @@ class Core:
             self._start_integration(integ)
         self.structure_version += 1
         return integ
+
+    def integration_parts(self, integ_id: int) -> Optional[tuple]:
+        """(kind, plain config, secrets) of one stored connection - only for copying it to another site (M1)."""
+        row = self.store.one("SELECT kind, config FROM integrations WHERE id=?", (int(integ_id),))
+        if not row:
+            return None
+        fields = integration_fields(row["kind"])
+        sec = {}
+        if fields and self.vault:
+            for field in fields[1]:
+                value = self.vault.get("int:%d:%s" % (int(integ_id), field))
+                if value:
+                    sec[field] = value
+        return row["kind"], json.loads(row["config"] or "{}"), sec
+
+    async def controller_sites(self, integ_id: int) -> dict:
+        """The sites a controller connection manages (read only), so a further Lanloom site can read one of them with
+        the same account: {"ok", "key", "sites": [{"ref", "name"}]}."""
+        parts = self.integration_parts(integ_id)
+        if parts is None:
+            raise ValueError("integration.err.missing")
+        kind, cfg, sec = parts
+        if "site" not in (integration_fields(kind) or ((), ()))[0]:
+            raise ValueError("site.err.no_site_list")
+        if self.demo:
+            lister = getattr(self.demo, "controller_sites", None)
+            if not callable(lister):
+                from .demo_sites import CONTROLLER_SITES
+                lister = lambda: [dict(x) for x in CONTROLLER_SITES]      # noqa: E731
+            return {"ok": True, "key": "source.controller.ok", "sites": lister(), "current": cfg.get("site") or "default"}
+        try:
+            src = self._build_source(kind, cfg, sec)
+            if hasattr(src, "sites"):
+                ok, key, found = await asyncio.wait_for(src.sites(), 40)
+            elif hasattr(src, "list_sites"):
+                found = await asyncio.wait_for(asyncio.to_thread(src.list_sites), 40)
+                ok, key = True, "source.family.ok"
+            else:
+                raise ValueError("site.err.no_site_list")
+        except asyncio.TimeoutError:
+            ok, key, found = False, "source.controller.timeout", []
+        except ValueError:
+            raise
+        except Exception as exc:
+            ok, key, found = False, getattr(exc, "key", "source.controller.error"), []
+        return {"ok": bool(ok), "key": key, "sites": found if ok else [], "current": cfg.get("site") or "default"}
 
     def delete_integration(self, integ_id: int) -> bool:
         self._stop_source("int:%d" % integ_id)
@@ -1784,7 +1869,7 @@ class Core:
         """Every network Lanloom knows (own interfaces, adapter networks and VLANs, routes) with how far it may look
         into each, and the devices of each. No packet is sent."""
         routes = []
-        if not self.demo:
+        if not self.demo and not self.remote:          # this host's routing table belongs to the home site
             from .scan import netinfo
             try:
                 with open(netinfo.ROUTE_PATH, encoding="ascii", errors="replace") as fh:

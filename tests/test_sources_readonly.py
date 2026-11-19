@@ -121,9 +121,13 @@ def test_controller_allow_list_only_logs_in_and_reads():
     assert controller.ALLOWED_POST == {"/api/auth/login", "/api/login", "/api/auth/logout", "/api/logout"}
     assert controller.LOGIN_FIELDS == frozenset({"username", "password"})
     for rx in controller.ALLOWED_GET:
-        assert rx.pattern.startswith("\\A/") and rx.pattern.endswith("(?:sta|device)\\Z"), rx.pattern
+        # the two lists, and the controller's site list (M1: a further Lanloom site reads one more site of the controller)
+        assert rx.pattern.startswith("\\A") and (rx.pattern.endswith("(?:sta|device)\\Z") or rx.pattern.endswith("/api/self/sites\\Z")), rx.pattern
         assert not rx.match("/api/s/default/rest/user") and not rx.match("/api/s/default/stat/sta/extra")
         assert not rx.match("/api/s/default/cmd/stamgr") and not rx.match("/api/s/a b/stat/sta")
+        assert not rx.match("/api/self") and not rx.match("/api/self/sites/x") and not rx.match("/api/stat/sites")
+    sites_rx = [rx for rx in controller.ALLOWED_GET if rx.pattern.endswith("sites\\Z")]
+    assert len(sites_rx) == 1 and sites_rx[0].match("/api/self/sites") and sites_rx[0].match("/proxy/network/api/self/sites")
     sites = set()
     for where, call in calls(tree("controller.py")):
         name = callee(call)

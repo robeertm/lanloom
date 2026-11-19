@@ -297,7 +297,9 @@
     const sec = h('section', { class: 'card settings-card', id: 'report-settings' },
       h('h2', {}, t('settings.report.title')), h('p', { class: 'muted' }, t('settings.report.intro')),
       base, tzList, nextLine, msg, h('div', { class: 'btn-row' }, save),
-      h('hr'), h('h3', {}, t('settings.report.delivery')), h('p', { class: 'field__hint' }, t('settings.report.delivery.hint')), chans);
+      h('hr'), h('h3', {}, t('settings.report.delivery')),
+      s.channels_home ? h('p', { class: 'callout' }, t(s.combined ? 'site.report.channels_combined' : 'site.report.channels_home'))   // a further site (M1)
+        : h('p', { class: 'field__hint' }, t('settings.report.delivery.hint')), s.channels_home ? null : chans);
     return sec;
   };
 

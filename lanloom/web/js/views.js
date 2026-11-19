@@ -62,6 +62,7 @@
     const tabs = [['overview', 'nav.overview'], ['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports'], ['settings', 'nav.settings']];
     if (LL.state && (LL.state.hubs || []).length) tabs.splice(5, 0, ['sensors', 'nav.sensors'], ['automations', 'nav.automations']);   // the hub's sensors and automations, only with a hub connection
     if (LL.state && LL.state.agents > 0) tabs.splice(tabs.findIndex(x => x[0] === 'reports'), 0, ['running', 'nav.running']);   // what runs on the hosts with an agent or a container source
+    if (LL.atHome && !LL.atHome()) tabs.splice(tabs.findIndex(x => x[0] === 'firewall'), 1);   // the firewall editor works on the home site only (M1)
     const nav = h('nav', { class: 'tabs', 'aria-label': t('nav.label') }, tabs.map(([k, label]) =>
       h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null,
         title: t(label), 'aria-label': t(label) },   // narrow screens show only the icon
@@ -78,16 +79,19 @@
       const order = ['auto', 'light', 'dark']; const next = order[(order.indexOf(LL.theme()) + 1) % 3]; LL.setTheme(next); LL.toast(t('theme.' + next));
     } });
     themeBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>';
-    const header = h('header', { class: 'topbar' + (tabs.length > 8 ? ' topbar--many' : '') },   // ten tabs with a hub: narrower steps
+    const siteSwitch = LL.siteSwitcher ? LL.siteSwitcher() : null;          // several sites (M1): the switcher takes the room of one tab
+    const header = h('header', { class: 'topbar' + (tabs.length + (siteSwitch ? 1 : 0) > 8 ? ' topbar--many' : '') },   // ten tabs with a hub: narrower steps
       h('a', { class: 'topbar__brand', href: '#/map' }, LL.logo(26), h('span', { class: 'brand-name' }, 'Lanloom'),
         LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
       LL.versionChip ? LL.versionChip() : null,
-      nav, h('div', { class: 'topbar__right' }, LL.paletteButton ? LL.paletteButton() : null, LL.aiAskButton ? LL.aiAskButton() : null, updateBtn, reconnectBtn, gradePill,
+      siteSwitch,
+      nav, h('div', { class: 'topbar__right' }, LL.paletteButton ? LL.paletteButton() : null, LL.aiAskButton && (!LL.atHome || LL.atHome()) ? LL.aiAskButton() : null, updateBtn, reconnectBtn, gradePill,
         LL.railButtons ? LL.railButtons() : null, themeBtn));
     themeBtn.classList.add('theme-btn');
     const main = h('main', { class: 'main main--' + active, id: 'll-main', tabindex: '-1', 'aria-label': t('nav.' + active) }, content);
     const skip = h('a', { class: 'skip-link', href: '#ll-main', onclick: ev => { ev.preventDefault(); main.focus(); } }, t('a11y.skip'));
-    document.title = t('nav.' + active) + ' · Lanloom';
+    const siteNow = LL.site ? LL.site() : null;
+    document.title = t('nav.' + active) + (siteNow && siteNow.several ? ' · ' + LL.siteName(siteNow) : '') + ' · Lanloom';
     const notes = LL.noticeBar ? LL.noticeBar() : null;              // security notices (new device, lock-out ...)
     const demoBar = LL.state && LL.state.demo_view ? h('div', { class: 'demo-bar', role: 'status' },
       h('span', { class: 'demo-bar__text' }, h('strong', {}, t('setup.demo.bar_title')), ' ', t('setup.demo.bar_text')),
@@ -974,11 +978,13 @@
   const SETTINGS_PAGES = [['general', '', 'settings.general', 'viewer'], ['account', 'account', 'settings.tab.account', 'viewer'],
     ['notifications', 'notifications', 'notify.tab', 'viewer'],
     ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['backup', 'backup', 'backup.tab', 'admin'],
-    ['storage', 'storage', 'storage.tab', 'admin'], ['network', 'network', 'settings.tab.network', 'viewer'], ['agents', 'agents', 'agents.tab', 'viewer'], ['api', 'api', 'api.tab', 'viewer'], ['ai', 'ai', 'ai.tab', 'admin']];
+    ['storage', 'storage', 'storage.tab', 'admin'], ['network', 'network', 'settings.tab.network', 'viewer'], ['agents', 'agents', 'agents.tab', 'viewer'], ['api', 'api', 'api.tab', 'viewer'], ['ai', 'ai', 'ai.tab', 'admin'],
+    ['sites', 'sites', 'nav.sites', 'admin']];   // the sites have a page of their own (#/sites, M1)
   function settingsSubnav(active) {
-    const allowed = p => p[3] === 'viewer' || LL.can(p[3] === 'admin' ? 'admin' : 'operate');
+    const homeOnly = p => p[0] !== 'ai' || !LL.atHome || LL.atHome();        // the AI assistant works on the home site
+    const allowed = p => homeOnly(p) && (p[3] === 'viewer' || LL.can(p[3] === 'admin' ? 'admin' : 'operate'));
     return h('nav', { class: 'seg settings-subnav', 'aria-label': t('settings.sections') }, SETTINGS_PAGES.filter(allowed).map(([k, sub, label]) =>
-      h('a', { href: '#/settings' + (sub ? '/' + sub : ''), class: 'seg__btn' + (k === active ? ' is-active' : ''), 'aria-current': k === active ? 'page' : null }, t(label))));
+      h('a', { href: k === 'sites' ? '#/sites' : '#/settings' + (sub ? '/' + sub : ''), class: 'seg__btn' + (k === active ? ' is-active' : ''), 'aria-current': k === active ? 'page' : null }, t(label))));
   }
   LL.settingsSubnav = settingsSubnav;
   async function settingsView(app, rest) {

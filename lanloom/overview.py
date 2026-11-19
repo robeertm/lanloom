@@ -156,7 +156,7 @@ class Overview:
     def _sources(self, now: float) -> list:
         core = self.core
         out = []
-        if "host" in core.cadence or not core.demo:
+        if not getattr(core, "remote", False) and ("host" in core.cadence or not core.demo):   # a remote site has no host source (M1)
             out.append(dict(source_state(core, "host", now), id="host", name="source.name.host", kind=""))
         for integ in core.integrations():
             key = "int:%d" % integ["id"]

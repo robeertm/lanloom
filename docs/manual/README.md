@@ -18,6 +18,7 @@ guides in [docs/](../)). The *About this view* rail of the app (key `I`) links t
 | Nightly report | [nightly-reports.md](nightly-reports.md) | A short report of every night with points to tick off. |
 | Automations | [automations.md](automations.md) | What the hub does on its own, in plain words, with findings, a dependency board and a day plan. |
 | Running | [running.md](running.md) | What runs on the other hosts: containers, services, timers, failed units, with an optional host agent. |
+| Sites | [sites.md](sites.md) | Several places in one Lanloom: switcher, all sites at a glance, who sees which site, reports per site or combined. |
 | Add-on and MQTT output | [add-on.md](add-on.md) | Lanloom in the side panel of a home-automation hub, and its figures as sensors there over MQTT. |
 | Updating | [updating.md](updating.md) | Update notice, one-click update, channels, hold, going back, signature check, What's new. |
 | Settings | [settings.md](settings.md) | Scanning, connections, appearance, notifications, users, security, backup, storage, AI. |

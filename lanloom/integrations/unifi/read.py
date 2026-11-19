@@ -242,6 +242,19 @@ class UnifiReader:
                 break
         return out
 
+    def list_sites(self) -> list:
+        """The sites of this controller over the official API (API key): [{"ref", "name"}] (read only, M1)."""
+        prefix = self._official_base() if self._key else False
+        if prefix is False:
+            raise SourceError("source.family.config", "the site list needs an API key")
+        out = []
+        for s in (self._page(prefix + "/integration/v1/sites") or [])[:64]:
+            ref = s.get("internalReference") if isinstance(s, dict) else None
+            if isinstance(ref, str) and SITE_RE.match(ref):
+                name = s.get("name") if isinstance(s.get("name"), str) else ref
+                out.append({"ref": ref, "name": name[:60]})
+        return out
+
     def _read_official(self, light: bool) -> dict:
         prefix = self._official_base()
         if prefix is False:

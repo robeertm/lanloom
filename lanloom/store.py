@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
     mfa_due REAL,
     totp_step INTEGER NOT NULL DEFAULT 0,
     last_login REAL,
-    prefs TEXT NOT NULL DEFAULT '{}'
+    prefs TEXT NOT NULL DEFAULT '{}',
+    sites TEXT NOT NULL DEFAULT '*'
 );
 CREATE TABLE IF NOT EXISTS passkeys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,7 +139,8 @@ CREATE TABLE IF NOT EXISTS invites (
     created REAL NOT NULL,
     expires REAL NOT NULL,
     created_by TEXT NOT NULL DEFAULT '',
-    used REAL
+    used REAL,
+    sites TEXT NOT NULL DEFAULT '*'
 );
 CREATE TABLE IF NOT EXISTS notices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -241,6 +243,13 @@ CREATE TABLE IF NOT EXISTS api_ingest (
     actor TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS api_ingest_t ON api_ingest(t);
+CREATE TABLE IF NOT EXISTS sites (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT 'remote',
+    created REAL NOT NULL,
+    pos INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
@@ -268,7 +277,9 @@ class Store:
     _ADDED_COLUMNS = {
         "users": (("role", "TEXT NOT NULL DEFAULT 'viewer'"), ("disabled", "INTEGER NOT NULL DEFAULT 0"),
                   ("source", "TEXT NOT NULL DEFAULT 'local'"), ("mfa_due", "REAL"), ("totp_step", "INTEGER NOT NULL DEFAULT 0"),
-                  ("last_login", "REAL"), ("prefs", "TEXT NOT NULL DEFAULT '{}'")),
+                  ("last_login", "REAL"), ("prefs", "TEXT NOT NULL DEFAULT '{}'"),
+                  ("sites", "TEXT NOT NULL DEFAULT '*'")),          # released sites (M1): '*' = all, else a JSON list
+        "invites": (("sites", "TEXT NOT NULL DEFAULT '*'"),),            # the sites an invited person will see (M1)
         "sessions": (("sid", "TEXT"), ("ip", "TEXT NOT NULL DEFAULT ''"), ("agent", "TEXT NOT NULL DEFAULT ''"),
                      ("foreign_pc", "INTEGER NOT NULL DEFAULT 0"), ("stage", "TEXT NOT NULL DEFAULT 'full'"),
                      ("method", "TEXT NOT NULL DEFAULT 'password'"), ("stepup_until", "REAL NOT NULL DEFAULT 0")),

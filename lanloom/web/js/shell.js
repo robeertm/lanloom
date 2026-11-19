@@ -15,7 +15,7 @@
   const MANUAL = 'https://github.com/robeertm/lanloom/blob/main/docs/manual/';
   // one manual page per view (docs/manual/<name>.md); a view without an entry here has the page of its own name (a test checks every page)
   const MANUAL_PAGE = { paths: 'data-paths', reports: 'nightly-reports' };
-  const ABOUT_VIEWS = ['overview', 'map', 'network', 'paths', 'devices', 'firewall', 'reports', 'automations', 'running', 'settings'];
+  const ABOUT_VIEWS = ['overview', 'map', 'network', 'paths', 'devices', 'firewall', 'reports', 'automations', 'running', 'settings', 'sites'];
 
   // ------------------------------------------------------------------ remembered open states (survive live redraws)
   const openState = new Map();

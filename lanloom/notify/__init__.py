@@ -92,6 +92,29 @@ class Notifier:
         self._hb_next = 0.0
         self._fail_until = 0.0
 
+    # ------------------------------------------------------------------ people and channels of the instance
+    # A further site (lanloom/sites.py) keeps its events, state, maintenance window list and log in its own store; the people,
+    # their personal rules and push devices, and the shared channels belong to the instance and live at home.
+    @property
+    def people(self):
+        return getattr(self.core, "people_store", None) or self.store
+
+    @property
+    def pvault(self):
+        return getattr(self.core, "people_vault", None) or self.vault
+
+    @property
+    def channels(self):
+        """The report settings whose shared channels (e-mail, webhook ...) deliver: the home site's for every site."""
+        return getattr(self.core, "channel_reports", None) or getattr(self.core, "reports", None)
+
+    def site_title(self) -> str:
+        """The name of a further site in front of a message title ("" at home or with a single site)."""
+        hub = getattr(self.core, "site_hub", None)
+        if hub is None or not getattr(self.core, "remote", False):
+            return ""
+        return hub.name(getattr(self.core, "site_id", "")) or ""
+
     # ------------------------------------------------------------------ settings (shared)
     def settings(self) -> dict:
         raw = self.store.get_setting("notify_cfg", {}) or {}
@@ -136,7 +159,7 @@ class Notifier:
 
     # ------------------------------------------------------------------ per-person rules
     def prefs(self, user_id: int) -> dict:
-        raw = self.store.get_setting("notify_user:%d" % int(user_id), {}) or {}
+        raw = self.people.get_setting("notify_user:%d" % int(user_id), {}) or {}
         rules = {}
         for e in ev_mod.ordered():
             r = (raw.get("rules") or {}).get(e.id) or {}
@@ -187,12 +210,12 @@ class Notifier:
             cur["email"] = mail[:254]
         stored = {"rules": {k: v for k, v in cur["rules"].items() if v != {"mode": DEFAULT_MODE, "min": "info", "channels": []}},
                   "quiet": cur["quiet"], "email": cur["email"]}
-        self.store.set_setting("notify_user:%d" % int(user_id), stored)
+        self.people.set_setting("notify_user:%d" % int(user_id), stored)
         return self.prefs(user_id)
 
     def users(self) -> list:
         try:
-            rows = self.store.query("SELECT id, username, role, prefs FROM users WHERE disabled=0 ORDER BY id")
+            rows = self.people.query("SELECT id, username, role, prefs FROM users WHERE disabled=0 ORDER BY id")
         except Exception:
             return []
         for r in rows:
@@ -200,6 +223,9 @@ class Notifier:
                 r["lang"] = (json.loads(r.pop("prefs") or "{}") or {}).get("language")
             except ValueError:
                 r["lang"] = None
+        hub = getattr(self.core, "site_hub", None)
+        if hub is not None and hub.several():
+            rows = hub.recipients(getattr(self.core, "site_id", "home"), rows)   # only people who may see this site
         return rows
 
     # ------------------------------------------------------------------ time helpers
@@ -467,12 +493,12 @@ class Notifier:
     # ------------------------------------------------------------------ channels
     def push_subs(self, user_id: Optional[int] = None) -> list:
         if user_id is None:
-            return self.store.query("SELECT id, user_id, created, label, last_ok, last_err, fails FROM push_subs ORDER BY id")
-        return self.store.query("SELECT id, user_id, created, label, last_ok, last_err, fails FROM push_subs WHERE user_id=? ORDER BY id",
+            return self.people.query("SELECT id, user_id, created, label, last_ok, last_err, fails FROM push_subs ORDER BY id")
+        return self.people.query("SELECT id, user_id, created, label, last_ok, last_err, fails FROM push_subs WHERE user_id=? ORDER BY id",
                                 (int(user_id),))
 
     def shared_ready(self, ch: str, prefs: Optional[dict] = None) -> bool:
-        reports = getattr(self.core, "reports", None)
+        reports = self.channels
         if reports is None:
             return False
         from ..nightly.deliver import missing
@@ -502,11 +528,11 @@ class Notifier:
     # ------------------------------------------------------------------ messages
     def renderer(self, u: dict):
         from ..nightly.render import Renderer
-        lang = (u or {}).get("lang") or self.store.get_setting("language", None) or "en"
+        lang = (u or {}).get("lang") or self.people.get_setting("language", None) or "en"
         return Renderer(lang, self.tz(), self.local(self.clock()).date().isoformat())
 
     def link(self, frag: str = "") -> str:
-        reports = getattr(self.core, "reports", None)
+        reports = self.channels
         base = reports.settings().get("link") if reports else ""
         return ("%s/%s" % (base, frag)) if base else ""
 
@@ -524,7 +550,8 @@ class Notifier:
             text = r.tr("notify.msg.%s" % e.id, **r.values(vars_))
         title = r.tr("notify.back_title", what=r.tr(e.title)) if back is not None else r.tr(e.title)
         frag = "#/devices/%s" % data["device"] if data.get("device") else "#/settings/notifications"
-        return {"title": "Lanloom · " + title, "text": text, "severity": "info" if back is not None else sev,
+        site = self.site_title()
+        return {"title": "Lanloom · " + (site + " · " if site else "") + title, "text": text, "severity": "info" if back is not None else sev,
                 "tag": e.id, "url": self.link(frag), "event": e.id}
 
     def _queue(self, u: dict, chans: list, msg: dict, occ: Optional[int], t: float, same: Optional[str] = None) -> None:
@@ -540,7 +567,7 @@ class Notifier:
             return self.sender(ch, u, msg)
         if ch == "webpush":
             return self._send_push(u["id"], msg)
-        reports = self.core.reports
+        reports = self.channels
         from ..nightly import deliver as dl
         cfg = dict(reports.settings()["channels"][ch])
         prefs = self.prefs(u["id"])
@@ -561,17 +588,17 @@ class Notifier:
         payload = {"title": msg["title"], "body": msg["text"], "url": msg.get("url") or "", "tag": msg.get("tag") or "lanloom",
                    "severity": msg.get("severity") or "info"}
         for s in subs:
-            raw = self.vault.get("push:%d" % s["id"]) if self.vault else None
+            raw = self.pvault.get("push:%d" % s["id"]) if self.pvault else None
             if not raw:
                 continue
             ok, key = webpush.send(json.loads(raw), payload, pem, urgency="high" if msg.get("severity") == "critical" else "normal")
             if ok:
                 ok_any = True
-                self.store.execute("UPDATE push_subs SET last_ok=?, last_err='', fails=0 WHERE id=?", (self.clock(), s["id"]))
+                self.people.execute("UPDATE push_subs SET last_ok=?, last_err='', fails=0 WHERE id=?", (self.clock(), s["id"]))
             elif key == "notify.push.gone" or s["fails"] >= 20:
                 self.remove_push(s["id"])
             else:
-                self.store.execute("UPDATE push_subs SET last_err=?, fails=fails+1 WHERE id=?", (key, s["id"]))
+                self.people.execute("UPDATE push_subs SET last_err=?, fails=fails+1 WHERE id=?", (key, s["id"]))
             last = key
         return (True, "report.send.ok") if ok_any else (False, last)
 
@@ -723,7 +750,7 @@ class Notifier:
             return                                       # a row about the past (sample data, catch-up) is no news now
         try:
             if kind == "dev_new":
-                if not self.store.get_setting("setup_done", False):
+                if not self.people.get_setting("setup_done", False):
                     return                               # the first scan finds everything: that is no news
                 prot = self.protected(data.get("ip") or "")
                 self.emit("dev_new_protected" if prot else "dev_new", "new:%s" % data.get("id"),
@@ -761,19 +788,19 @@ class Notifier:
 
     # ------------------------------------------------------------------ web push keys and subscriptions
     def vapid_public(self, create: bool = False) -> Optional[str]:
-        pub = self.store.get_setting("notify_vapid_public", None)
-        if pub and self.vault and self.vault.has("notify:vapid"):
+        pub = self.people.get_setting("notify_vapid_public", None)
+        if pub and self.pvault and self.pvault.has("notify:vapid"):
             return pub
-        if not create or not self.vault:
+        if not create or not self.pvault:
             return None
         from . import webpush
         pem, pub = webpush.new_vapid()
-        self.vault.put("notify:vapid", pem)
-        self.store.set_setting("notify_vapid_public", pub)
+        self.pvault.put("notify:vapid", pem)
+        self.people.set_setting("notify_vapid_public", pub)
         return pub
 
     def _vapid_private(self) -> Optional[str]:
-        return self.vault.get("notify:vapid") if self.vault else None
+        return self.pvault.get("notify:vapid") if self.pvault else None
 
     def add_push(self, user_id: int, sub: dict, label: str = "") -> dict:
         from . import webpush
@@ -781,30 +808,30 @@ class Notifier:
             raise ValueError("notify.err.push_unavailable")
         clean = webpush.clean_subscription(sub)
         for s in self.push_subs(user_id):                # the same browser again: replace, never duplicate
-            raw = self.vault.get("push:%d" % s["id"])
+            raw = self.pvault.get("push:%d" % s["id"])
             if raw and json.loads(raw).get("endpoint") == clean["endpoint"]:
                 self.remove_push(s["id"])
         if len(self.push_subs(user_id)) >= MAX_PUSH_PER_USER:
             raise ValueError("notify.err.push_many")
-        cur = self.store.execute("INSERT INTO push_subs(user_id, created, label) VALUES(?,?,?)",
+        cur = self.people.execute("INSERT INTO push_subs(user_id, created, label) VALUES(?,?,?)",
                                  (int(user_id), self.clock(), str(label or "")[:80]))
         sid = cur.lastrowid
-        self.vault.put("push:%d" % sid, json.dumps(clean))
+        self.pvault.put("push:%d" % sid, json.dumps(clean))
         return {"id": sid, "label": str(label or "")[:80], "created": self.clock()}
 
     def remove_push(self, sub_id: int, user_id: Optional[int] = None) -> bool:
         if user_id is not None:
-            row = self.store.one("SELECT user_id FROM push_subs WHERE id=?", (int(sub_id),))
+            row = self.people.one("SELECT user_id FROM push_subs WHERE id=?", (int(sub_id),))
             if not row or row["user_id"] != int(user_id):
                 return False
-        n = self.store.execute("DELETE FROM push_subs WHERE id=?", (int(sub_id),)).rowcount
-        if self.vault:
-            self.vault.delete("push:%d" % int(sub_id))
+        n = self.people.execute("DELETE FROM push_subs WHERE id=?", (int(sub_id),)).rowcount
+        if self.pvault:
+            self.pvault.delete("push:%d" % int(sub_id))
         return n > 0
 
     def push_owner_endpoint(self, user_id: int, endpoint: str) -> Optional[int]:
         for s in self.push_subs(user_id):
-            raw = self.vault.get("push:%d" % s["id"]) if self.vault else None
+            raw = self.pvault.get("push:%d" % s["id"]) if self.pvault else None
             if raw and json.loads(raw).get("endpoint") == endpoint:
                 return s["id"]
         return None
@@ -827,39 +854,39 @@ class Notifier:
 
     # ------------------------------------------------------------------ heartbeat (dead man's switch)
     def heartbeat(self) -> dict:
-        raw = self.store.get_setting("notify_heartbeat", {}) or {}
+        raw = self.people.get_setting("notify_heartbeat", {}) or {}
         return {"enabled": bool(raw.get("enabled")), "every_min": raw.get("every_min") if raw.get("every_min") in HB_CHOICES else 5,
-                "url_set": bool(self.vault and self.vault.has("notify:heartbeat:url")),
+                "url_set": bool(self.pvault and self.pvault.has("notify:heartbeat:url")),
                 "last_t": raw.get("last_t"), "ok": raw.get("ok"), "key": raw.get("key") or "", "fails": int(raw.get("fails") or 0),
                 "last_ok": raw.get("last_ok")}
 
     def update_heartbeat(self, patch: dict) -> dict:
-        raw = self.store.get_setting("notify_heartbeat", {}) or {}
+        raw = self.people.get_setting("notify_heartbeat", {}) or {}
         if "url" in patch:
             url = str(patch["url"] or "").strip()
             if url and (not URL_RE.match(url) or len(url) > 500):
                 raise ValueError("report.err.url")
-            if self.vault:
+            if self.pvault:
                 if url:
-                    self.vault.put("notify:heartbeat:url", url)
+                    self.pvault.put("notify:heartbeat:url", url)
                 else:
-                    self.vault.delete("notify:heartbeat:url")
+                    self.pvault.delete("notify:heartbeat:url")
         if "every_min" in patch:
             if patch["every_min"] not in HB_CHOICES or isinstance(patch["every_min"], bool):
                 raise ValueError("notify.err.choice")
             raw["every_min"] = patch["every_min"]
         if "enabled" in patch:
             raw["enabled"] = bool(patch["enabled"])
-        if raw.get("enabled") and not (self.vault and self.vault.has("notify:heartbeat:url")):
+        if raw.get("enabled") and not (self.pvault and self.pvault.has("notify:heartbeat:url")):
             raise ValueError("notify.err.heartbeat_url")
-        self.store.set_setting("notify_heartbeat", raw)
+        self.people.set_setting("notify_heartbeat", raw)
         self._hb_next = 0.0
         return self.heartbeat()
 
     def beat(self, now: Optional[float] = None) -> dict:
         """Call the heartbeat address once (blocking). Never raises; the result is stored."""
         now = self.clock() if now is None else now
-        url = self.vault.get("notify:heartbeat:url") if self.vault else None
+        url = self.pvault.get("notify:heartbeat:url") if self.pvault else None
         if not url:
             return {"ok": False, "key": "notify.err.heartbeat_url"}
         try:
@@ -880,19 +907,19 @@ class Notifier:
             ok, key = False, "report.send.unreachable"
         except Exception:
             ok, key = False, "report.send.error"
-        raw = self.store.get_setting("notify_heartbeat", {}) or {}
+        raw = self.people.get_setting("notify_heartbeat", {}) or {}
         raw.update(last_t=now, ok=ok, key=key, fails=0 if ok else int(raw.get("fails") or 0) + 1)
         if ok:
             raw["last_ok"] = now
-        self.store.set_setting("notify_heartbeat", raw)
+        self.people.set_setting("notify_heartbeat", raw)
         if not ok:
             log.info("heartbeat: call failed (%s)", key)
         return {"ok": ok, "key": key}
 
     def beat_due(self, now: float) -> bool:
         hb = self.heartbeat()
-        if not hb["enabled"] or not hb["url_set"] or self.core.demo:
-            return False
+        if not hb["enabled"] or not hb["url_set"] or self.core.demo or getattr(self.core, "remote", False):
+            return False                                 # one heartbeat per instance: the home site sends it
         if now < self._hb_next:
             return False
         self._hb_next = now + hb["every_min"] * 60
