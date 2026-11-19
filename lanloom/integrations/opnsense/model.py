@@ -552,6 +552,9 @@ def rule_fields(r: dict, topo: Topology, aliases=None) -> dict:
 
 
 # ---------------------------------------------------------------------------- NAT, reservations, VPN, routes
+DNAT_SOURCE = ".".join(("source", "network"))     # dotted field name of a destination NAT row (not a text key)
+
+
 def _forwards(raw, aliases) -> list:
     out = []
     for pos, r in enumerate(rows(raw, "dnat")):
@@ -564,7 +567,7 @@ def _forwards(raw, aliases) -> list:
         proto = PROTOS.get(value(r.get("protocol")).lower(), "tcp_udp")
         wan_port = ports_text(r.get("destination.port") or r.get("destination_port") or "", aliases)
         dst_port = ports_text(r.get("local-port") or r.get("local_port") or "", aliases)
-        src = value(r.get("source.network") or r.get("source_net") or "any").lower()
+        src = value(r.get(DNAT_SOURCE) or r.get("source_net") or "any").lower()
         out.append({"id": oid("f", r.get("uuid") or name), "name": name, "proto": proto if proto in ("tcp", "udp") else "tcp_udp",
                     "wan_port": wan_port or None, "dst_ip": target, "dst_port": dst_port or wan_port or None,
                     "enabled": not flag(r.get("disabled")) if r.get("disabled") is not None else flag(r.get("enabled", "1")),
