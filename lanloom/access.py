@@ -178,6 +178,12 @@ RULES = {
     ("GET", "/api/dns/{integ_id}"): R(V),
     ("GET", "/api/traffic/{comp_id:path}"): R(V),
     ("GET", "/api/maintenance/{comp_id:path}"): R(V),
+    ("GET", "/api/failure/outages"): R(V),
+    ("GET", "/api/failure/candidates"): R(V),
+    ("GET", "/api/failure/board"): R(V),
+    ("GET", "/api/failure/deps/{node:path}"): R(V),
+    ("PUT", "/api/failure/deps/{node:path}"): R(O, "failure.dependency"),
+    ("GET", "/api/failure/{node:path}"): R(V),
 
     # ---------------------------------------------------------------- integrations (credentials: admin)
     ("GET", "/api/integrations"): R(O),

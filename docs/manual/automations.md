@@ -17,7 +17,8 @@ Six views sit under the title (`#/automations?view=list|who|timeline|plan|rooms|
 
 - **List.** Five tiles (automations on or off, with a finding, conflicts in 24 hours, hub health findings, scripts) and
   one row per automation or script: its rooms, the kinds of trigger, when it last ran, runs in 24 hours, findings and
-  state. Rows with a warning come first.
+  state. Rows with a warning come first. While a device is down, the automations it probably reaches carry the chip
+  *Outage* and a dashed outline (the [outage automatic](failure-chain.md)).
 - **One automation.** *When*, *Only if* and *Then* in plain words, its flow with the live state of every entity, its
   findings and its last runs.
 - **Dependency board** (from an automation or an entity, *Show dependencies*). Sources on the left, consumers on the right, a dot travels when an automation runs.
@@ -59,6 +60,7 @@ which say roughly where the home is, never leave Lanloom. Every role that sees t
 ## See also
 
 - [AUTOMATIONS.md](../AUTOMATIONS.md) - the parts, all findings with their rules, API, demo
+- [Failure chain and outages](failure-chain.md) - which automations a failed switch, access point or host reaches (marked in the list during an outage)
 - [HUB-BRIDGE.md](../HUB-BRIDGE.md) - setting up the bridge, admin mode, sparing the hub
 - [NIGHTLY-REPORT.md](../NIGHTLY-REPORT.md) - the *Automations* section of the report
 - [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#home-automation-hub) - connection problems

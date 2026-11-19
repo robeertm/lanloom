@@ -245,22 +245,32 @@
     return sec;
   };
 
-  // ------------------------------------------------------------------ "Simulate maintenance" (reads the topology, switches nothing)
+  // ------------------------------------------------------------------ "Simulate maintenance" (the failure chain "down", nothing is switched)
+  // What stops with it (sure, red) and what is only impaired (likely, yellow), from lanloom/failure.py; "Show on the map" colours the board.
   LL.maintenanceSection = function (deviceId) {
     const out = h('div', { class: 'maint__out' });
     const btn = h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: run }, t('maint.run'));
+    const row = it => h('li', { class: 'maint__item maint__item--' + it.cert }, LL.kindIcon(it.kind === 'device' || it.kind === 'node' ? (it.dev_kind || 'unknown') : it.kind === 'hub' ? 'hub' : it.kind === 'container' ? 'container' : 'service'),
+      it.kind === 'device' ? h('a', { href: '#/devices/' + encodeURIComponent(it.id) }, LL.failure ? LL.failure.nodeName(it) : (it.title || it.ip)) : h('span', {}, LL.failure ? LL.failure.nodeName(it) : it.title),
+      h('span', { class: 'muted' }, ' · ' + t(it.cert === 'sure' ? 'maint.hard' : 'maint.soft')));
     async function run() {
       btn.disabled = true;
       try {
-        const r = await api('/api/maintenance/' + encodeURIComponent(deviceId));
+        const r = await api('/api/failure/' + encodeURIComponent(deviceId) + '?dir=down');
         const kids = [];
-        if (r.self) kids.push(h('p', { class: 'msg msg--info' }, t('maint.self')));
-        if (r.gateway) kids.push(h('p', { class: 'msg msg--warn' }, t('maint.gateway')));
-        kids.push(h('p', {}, r.n ? t('maint.affected', { n: r.n }) : t('maint.none')));
-        if (r.affected.length) kids.push(h('ul', { class: 'maint__list' }, r.affected.map(a => h('li', {}, LL.kindIcon(a.kind), a.device
-          ? h('a', { href: '#/devices/' + encodeURIComponent(a.id) }, a.title) : h('span', {}, a.title), h('span', { class: 'muted' }, ' · ' + t('kind.' + a.kind))))));
-        if (r.more) kids.push(h('p', { class: 'muted' }, t('maint.more', { n: r.more })));
-        if (r.connections.length) kids.push(h('p', {}, t('maint.connections', { names: r.connections.map(c => c.name).join(', ') })));
+        if (r.root.self) kids.push(h('p', { class: 'msg msg--info' }, t('maint.self')));
+        if (r.root.gateway) kids.push(h('p', { class: 'msg msg--warn' }, t('maint.gateway')));
+        const devs = r.items.filter(it => it.kind === 'device' || it.kind === 'node' || it.kind === 'container');
+        const conns = r.items.filter(it => it.kind === 'connection' || it.kind === 'hub');
+        const sure = devs.filter(it => it.cert === 'sure'), soft = devs.filter(it => it.cert !== 'sure');
+        kids.push(h('p', {}, sure.length ? t('maint.affected', { n: sure.length }) : t('maint.none')));
+        if (sure.length) kids.push(h('ul', { class: 'maint__list' }, sure.slice(0, MAX_AFFECTED).map(row)));
+        if (soft.length) kids.push(h('p', {}, t('maint.impaired', { n: soft.length })), h('ul', { class: 'maint__list' }, soft.slice(0, MAX_AFFECTED).map(row)));
+        const more = Math.max(0, sure.length - MAX_AFFECTED) + Math.max(0, soft.length - MAX_AFFECTED);
+        if (more) kids.push(h('p', { class: 'muted' }, t('maint.more', { n: more })));
+        if (r.counts.automations) kids.push(h('p', {}, t('maint.autos', { n: r.counts.automations })));
+        if (conns.length) kids.push(h('p', {}, t('maint.connections', { names: conns.map(c => c.title).join(', ') })));
+        if (LL.failure && r.counts.total) kids.push(h('button', { class: 'btn btn--sm maint__show', type: 'button', onclick: () => LL.failure.simulate(deviceId) }, t('maint.show')));
         kids.push(h('p', { class: 'muted maint__note' }, t('maint.note')));
         out.replaceChildren(...kids);
       } catch (e) { out.replaceChildren(h('p', { class: 'msg msg--error' }, LL.errText(e))); }
@@ -268,6 +278,7 @@
     }
     return h('section', { class: 'detail__sec', 'data-sec': 'maintenance' }, h('h3', {}, t('maint.title')), h('p', { class: 'muted maint__lead' }, t('maint.lead')), btn, out);
   };
+  const MAX_AFFECTED = 40;
 
   // ------------------------------------------------------------------ sections that fold, the state stays across live updates
   const FOLD_KEY = 'll-card-folds';
@@ -399,5 +410,6 @@
   };
   LL.registerAction({ id: 'device-availability', kinds: ['device'], order: 30, label: 'cmdk.act.availability', available: hit => !!hit.id, run: hit => openCard(hit, 'availability') });
   LL.registerAction({ id: 'device-traffic', kinds: ['device'], order: 31, label: 'cmdk.act.traffic', available: hit => !!hit.id, run: hit => openCard(hit, 'traffic') });
-  LL.registerAction({ id: 'device-maintenance', kinds: ['device'], order: 32, label: 'cmdk.act.maintenance', available: hit => !!hit.id, run: hit => openCard(hit, 'maintenance') });
+  LL.registerAction({ id: 'device-maintenance', kinds: ['device'], order: 32, label: 'cmdk.act.maintenance', available: hit => !!hit.id,
+    run: hit => (LL.failure ? LL.failure.simulate(hit.id) : openCard(hit, 'maintenance')) });
 })();

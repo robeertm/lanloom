@@ -54,9 +54,10 @@ updates and when you open another card.
   instead of drawing a flat line.
 - **Connections:** who is at the other end of each connection of the node, by name, the kind (cable, radio, flow) and the
   live rate in both directions; a device at the other end links to its own card.
-- **Simulate maintenance:** what would lose its way if this device were switched off, read from the known topology (the
-  devices below it, the internet when it is the gateway, Lanloom's own connections to it). Only simulated: nothing is
-  switched off and nothing is sent.
+- **Simulate maintenance:** what would stop and what would only be impaired if this device were switched off, from the
+  [failure chain](manual/failure-chain.md) (the devices below it, the hub devices, entities and automations that hang on
+  it, Lanloom's own connections, the internet when it is the gateway). *Show on the map* colours the board: what stops red,
+  what is only impaired yellow. Only simulated: nothing is switched off and nothing is sent.
 
 ![The traffic of a router over 24 hours](screenshots/traffic-card-dark.png)
 

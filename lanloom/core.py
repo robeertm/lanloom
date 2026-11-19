@@ -173,6 +173,8 @@ class Core:
         self.hosthealth = HostHealth(self)              # host gauges, samples and early warnings (W1)
         self.reports.journal.listeners.append(self.notify.on_journal)
         self.reports.on_certs = self.notify.on_certs
+        from .failure import Failure
+        self.failure = Failure(self)                    # failure chain, manual dependencies, outage automatic (S5)
         from .storage import Storage
         self.storage = Storage(self)                    # retention, nightly clean-up, sizes per area
         self.counters = counters_mod.CounterCheck(self)  # hourly reconciliation of meters that see the same bytes
@@ -1849,7 +1851,8 @@ class Core:
                     self.store.execute("UPDATE devices SET kind=?, confidence=? WHERE id=? AND kind='unknown'",
                                        (adapter_inventory.ROLE_KINDS[role], 0.9, classify.device_id(h)))
         for rec in recs:
-            self.presence[classify.device_id(adapter_inventory.host_of(rec))] = now
+            if not rec.get("offline"):         # a device the controller lists as disconnected is no sign of life
+                self.presence[classify.device_id(adapter_inventory.host_of(rec))] = now
         if new_ids or touched:
             self._refresh_index()
         seeded = self.store.get_setting("adapter_seeded", False)

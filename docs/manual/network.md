@@ -94,6 +94,7 @@ kept in the browser. See [Accessibility](../ACCESSIBILITY.md).
 
 - [ACCESSIBILITY.md](../ACCESSIBILITY.md) - the tree view, the keyboard, screen readers
 - [TOPOLOGY.md](../TOPOLOGY.md) - sources, precedence, manual entry, shared ports, troubleshooting
+- [Failure chain and outages](failure-chain.md) - what fails if a switch or access point fails, simulated maintenance, the outage automatic
 - [COMPATIBILITY.md](../COMPATIBILITY.md) - which device families can be read
 - [DISCOVERY.md](../DISCOVERY.md#networks-and-vlans) - networks, VLANs and what is scanned across routers
 - [INTEGRATIONS.md](../INTEGRATIONS.md) - how adapters are built

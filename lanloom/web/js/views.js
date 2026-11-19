@@ -170,7 +170,8 @@
       const host = h('div', { class: 'board-host' });
       const filterBar = h('div', { class: 'map-filter', role: 'toolbar', 'aria-label': t('mapfilter.label') });
       const panel = h('aside', { class: 'detail', hidden: true, 'aria-label': t('detail.label') });
-      fr.main.append(h('div', { class: 'map-col' }, filterBar, host), panel);
+      const fcSlot = h('div', { class: 'fc-slot' });           // the failure chain bar and the outage note (js/failure.js)
+      fr.main.append(h('div', { class: 'map-col' }, filterBar, fcSlot, host), panel);
       // the board can fill the window (phones above all): its host moves into an overlay and back, the live feed keeps running
       const fullScreen = kind === 'network' && LL.hostFullScreen ? LL.hostFullScreen(host, { app, onClosed: () => { const b = filterBar.querySelector('.nm-fullbtn'); if (b) b.focus({ preventScroll: true }); } }) : null;
       const fullButton = () => LL.fullButton(() => fullScreen.open());
@@ -258,6 +259,7 @@
         syncZones();
         board.update(feed(data)); if (LL.a11y) LL.a11y.setNames(localise(data).components); if (selected) board.highlight(selected);
         drawFilter();
+        if (LL.failure) LL.failure.refresh();
       }
       function drawFilter() {
         const zones = localise(data).zones.filter(z => z.id !== 'edge' && !z.fold);
@@ -298,8 +300,10 @@
       };
       let board = mountViewer();
       if (LL.a11y) LL.a11y.setNames(localise(data).components);
+      const fcDetach = LL.failure ? LL.failure.attach({ kind, slot: () => fcSlot, board: () => board, view: () => feed(data) }) : null;
       // Esc closes the open card (not while a dialog, the palette or a text field has the keyboard)
       const onEsc = ev => {
+        if (ev.key === 'Escape' && panel.hidden && LL.failure && LL.failure.active() && !document.querySelector('.modal, .cmdk')) { LL.failure.close(); return; }
         if (ev.key !== 'Escape' || panel.hidden || document.querySelector('.modal, .cmdk')) return;
         const el = ev.target;
         if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
@@ -319,6 +323,7 @@
         board.destroy(); host.replaceChildren();
         board = mountViewer();
         if (selected) board.highlight(selected);
+        if (LL.failure) LL.failure.refresh();
         if (mode === 'board' && talkOn) loadTalk();
         drawFilter();
         const again = filterBar.querySelector('.nv-seg .is-active'); if (again) again.focus();
@@ -356,6 +361,7 @@
       const unsub = liveSubscribe(f => {
         if (document.hidden) { if (f.structure !== structure || (mapver != null && f.mapver !== mapver)) stale = true; mapver = f.mapver; return; }
         board.live(f);
+        if (LL.failure) LL.failure.onFrame(f);
         if (talkOn && f.pathsver != null && f.pathsver !== talkVer) loadTalk();
         const changed = f.structure !== structure || (mapver != null && f.mapver != null && f.mapver !== mapver);
         mapver = f.mapver;
@@ -363,7 +369,7 @@
       });
       const onVis = () => { if (!document.hidden && stale) { stale = false; refresh(); } };
       document.addEventListener('visibilitychange', onVis);
-      return { destroy: () => { unsub(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; if (fullScreen) fullScreen.destroy(); board.destroy(); fr.destroy(); } };
+      return { destroy: () => { unsub(); if (fcDetach) fcDetach(); document.removeEventListener('visibilitychange', onVis); document.removeEventListener('ll-theme', onTheme); document.removeEventListener('keydown', onEsc); document.removeEventListener('ll-fold', redraw); LL.foldHosts = []; if (fullScreen) fullScreen.destroy(); board.destroy(); fr.destroy(); } };
     };
   }
 
@@ -449,7 +455,13 @@
     const links = LL.connectionsSection ? LL.connectionsSection(d, id) : section(t('detail.links'), h('ul', { class: 'link-list' }, d.traces.length ? d.traces.map(tr => h('li', {},
       h('span', { class: 'trace-sw trace-sw--' + tr.kind }), t('board.trace.' + tr.kind), h('span', { class: 'muted' }, ' · ' + (tr.measured ? t('detail.measured') : t('detail.unmeasured'))))) : [h('li', { class: 'muted' }, t('detail.no_links'))]));
     sections.push(links);
+    if (LL.failureSection) sections.push(LL.failureSection(id));          // dependencies, failure chain, manual entries (js/failure.js)
     if (d.device && LL.maintenanceSection) sections.push(LL.maintenanceSection(id));
+    if (LL.failure) {                                                       // "probably affected: X is down" (outage automatic)
+      const hintBox = h('div', { class: 'fc-hint-box' });
+      sections.unshift(hintBox);
+      LL.failure.loadOutages().then(() => { const x = LL.failure.cardHint(id); if (x) hintBox.replaceChildren(x); }).catch(() => {});
+    }
     if (foot) sections.push(foot);
     panel.replaceChildren(h('div', { class: 'detail__head' }, LL.kindIcon(c.kind), h('div', { class: 'detail__titles' }, h('h2', {}, c.title || '—'), h('div', { class: 'muted mono' }, c.subtitle || t('kind.' + c.kind))), close),
       h('div', { class: 'detail__chips' }, h('span', { class: 'chip' }, t('kind.' + c.kind)), statusEl, gradeEl,

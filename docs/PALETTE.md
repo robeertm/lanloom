@@ -49,11 +49,15 @@ Operators: `>` `>=` `<` `<=` `=` (also `≥` and `≤`). A unit is compared when
 
 | Hit | Actions |
 | --- | --- |
-| Device, virtual machine, service | Open (the card of the device), Copy address; for a device also *Move to … / change* (operators: opens the firewall editor with its sheet - network, name, fixed address) |
-| Entity | Open the sensor page, Show the hub card, Show dependencies (the board of the Automations tab), Copy ID |
-| Automation | Open in Automations, Show the hub card, Show dependencies, Copy ID |
+| Device, virtual machine, service | Open (the card of the device), Copy address; for a device also *Move to … / change* (operators: opens the firewall editor with its sheet - network, name, fixed address), *Show availability*, *Show traffic history*, *Simulate maintenance*, *Show failure chain*, *What does it depend on?* |
+| Entity | Open the sensor page, Show the hub card, Show dependencies (the board of the Automations tab), Copy ID, *Show failure chain*, *What does it depend on?* |
+| Automation | Open in Automations, Show the hub card, Show dependencies, Copy ID, *Show failure chain*, *What does it depend on?* |
 
-An action exists only when something registered it, so an action for a view Lanloom does not have yet is never shown. Later features add theirs (for example a chain-of-outage view adds its own action to devices).
+An action exists only when something registered it, so an action for a view Lanloom does not have yet is never shown.
+
+**Commands in two steps.** *Show failure chain …*, *What does … depend on?* and *Simulate maintenance …* first ask for the
+part: the box shows what the choice is for as a chip ("Failure chain of") and lists only devices, automations and entities;
+`Enter` on a hit opens its [failure chain](manual/failure-chain.md).
 
 ![The actions of a device hit](screenshots/palette-actions-light.png)
 

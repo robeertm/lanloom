@@ -16,6 +16,7 @@ guides in [docs/](../)). The *About this view* rail of the app (key `I`) links t
 | Firewall | [firewall.md](firewall.md) | Zones, networks and rules read from the controller; drafts with a dry run. |
 | Data paths | [data-paths.md](data-paths.md) | Which countries your devices exchange data with, on a world map. |
 | Nightly report | [nightly-reports.md](nightly-reports.md) | A short report of every night with points to tick off. |
+| Failure chain | [failure-chain.md](failure-chain.md) | What fails if a part fails, what it depends on, simulated maintenance, and the outage automatic with dashed affected parts. |
 | Automations | [automations.md](automations.md) | What the hub does on its own, in plain words, with findings, a dependency board and a day plan. |
 | Running | [running.md](running.md) | What runs on the other hosts: containers, services, timers, failed units, with an optional host agent. |
 | Sites | [sites.md](sites.md) | Several places in one Lanloom: switcher, all sites at a glance, who sees which site, reports per site or combined. |

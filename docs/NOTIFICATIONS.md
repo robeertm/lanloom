@@ -12,7 +12,7 @@ Open **Settings → Notifications**. Everybody (viewer, operator, admin) has the
 | --- | --- | --- | --- |
 | New device in a protected network | critical | – | – |
 | New device | note | – | – |
-| Device offline (network equipment and servers: warning, others: note) | warning | yes | yes |
+| Device offline (network equipment and servers: warning, others: note; the message adds how many parts probably depend on it, from the [failure chain](manual/failure-chain.md)) | warning | yes | yes |
 | Internet down (the router's internet port, from its counters) | critical | yes | yes |
 | Connection not answering (hub, broker, SNMP, controller, adapter) | warning | yes | yes |
 | Sign-in refused by a connection | warning | yes | yes |

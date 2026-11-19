@@ -99,3 +99,6 @@ button.stab-row:focus-visible { outline: 2px solid var(--ll-focus); outline-offs
 .tile-hover__plot { display: block; width: 100%; height: 54px; }
 .tile-hover .avail-strip { height: 14px; }
 @media (hover: none) { .tile-hover { display: none; } }
+.maint__item--sure .kind-icon { color: var(--ll-danger); }
+.maint__item--likely .kind-icon { color: var(--ll-warn-text); }
+.maint__show { align-self: flex-start; }

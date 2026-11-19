@@ -44,6 +44,7 @@ def records(topo_obs: dict, own_macs: Iterable = ()) -> list:
     ``own_macs``: hardware addresses of this host (never reported as a device found by an adapter)."""
     own = {topology.norm_mac(m) for m in own_macs}
     out: dict = {}
+    seen_live: dict = {}      # mac -> True when any observation says it answers now (a controller lists disconnected devices too)
 
     def add(mac, source, ip=None, name=None, role=None, port=None, parent=None, medium=None, vlan=None, agent=None):
         mac = topology.norm_mac(mac)
@@ -69,7 +70,11 @@ def records(topo_obs: dict, own_macs: Iterable = ()) -> list:
         for d in ev.get("devices") or []:
             add(d.get("mac"), "controller", ip=d.get("ip"), name=d.get("name"), role=d.get("role"),
                 parent=(d.get("uplink") or {}).get("mac"), port=(d.get("uplink") or {}).get("port"))
+            m = topology.norm_mac(d.get("mac"))
+            if m:
+                seen_live[m] = seen_live.get(m, False) or d.get("online") is not False
         for c in ev.get("clients") or []:
+            seen_live[topology.norm_mac(c.get("mac"))] = True
             add(c.get("mac"), "controller", ip=c.get("ip"), name=c.get("name"), port=c.get("port"),
                 parent=c.get("parent_mac"), medium=c.get("medium"), vlan=c.get("vlan"))
         for n in ev.get("lldp") or []:
@@ -80,6 +85,9 @@ def records(topo_obs: dict, own_macs: Iterable = ()) -> list:
             for row in ev.get("fdb") or []:
                 add(row.get("mac"), "fdb", port=row.get("port"), parent=agent_mac, medium="wired",
                     agent=agent_mac or None)
+    for mac, rec in out.items():
+        if seen_live.get(mac) is False and rec["sources"] == ["controller"]:
+            rec["offline"] = True          # only the controller knows it, and it says "disconnected": no sign of life
     return sorted(out.values(), key=lambda r: r["mac"])
 
 

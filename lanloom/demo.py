@@ -334,7 +334,7 @@ def controller_event(now: float) -> dict:
         {"mac": _mac(AP_1), "ip": _host(AP_1)["ip"], "name": "Access point upstairs", "role": "ap", "model": "AP-2",
          "uplink": {"mac": _mac(SWITCH), "port": "2", "own_port": "1", "medium": "wired"}},
         {"mac": _mac(AP_2), "ip": _host(AP_2)["ip"], "name": "Access point garden", "role": "ap", "model": "AP-2",
-         "uplink": {"mac": _mac(AP_1), "port": None, "own_port": None, "medium": "radio"}},
+         "uplink": {"mac": _mac(AP_1), "port": None, "own_port": None, "medium": "radio"}, "online": False},   # the outage of the demo
     ]
     clients = []
     for n, port in WIRED.items():
@@ -383,6 +383,11 @@ def scan_host(h: dict) -> dict:
 
 
 NEW_TODAY = ((99, 2.5 * 3600), (67, 40 * 60))     # (host number, seconds since first seen)
+# The outage of the demo: the access point in the garden went down an hour ago (its controller lists it as disconnected),
+# so the outage automatic has something to show; and two dependencies the user entered by hand on the component card.
+OUTAGE_HOST = 4
+OUTAGE_AGO_S = 3600
+MANUAL_DEPS = ((12, 10, "hard", "Writes its backups there"), (15, 10, "soft", "Keeps copies of its disk images there"))
 
 
 class Demo:
@@ -485,6 +490,28 @@ class Demo:
         self.seed_manual(core)
         seed_paths(core); seed_pairs(core)
         seed_segplan(core)
+        self.seed_failure(core)
+
+    @staticmethod
+    def outage_id() -> str:
+        return "d-" + _hmac(OUTAGE_HOST).replace(":", "")
+
+    def seed_failure(self, core) -> None:
+        """The outage of the demo (last seen an hour ago, the report watch saw it up before) and the manual dependencies."""
+        from . import failure
+        now = time.time()
+        for a, b, kind, note in MANUAL_DEPS:
+            ida, idb = "d-" + _hmac(a).replace(":", ""), "d-" + _hmac(b).replace(":", "")
+            if core.store.device(ida) and core.store.device(idb):
+                failure.set_manual(core.store, ida, idb, kind, note, now - 2 * 86400)
+        ap = self.outage_id()
+        if core.store.device(ap):
+            core.store.execute("UPDATE devices SET last_seen = ? WHERE id = ?", (now - OUTAGE_AGO_S, ap))
+            core.presence.pop(ap, None)
+            watch = getattr(getattr(core, "reports", None), "watch", None)
+            if watch is not None and watch.dev.get(ap) is None:
+                watch.dev[ap] = "up"              # it was up before: the next round notes it offline (night report, notes)
+        core.failure.invalidate()
 
     def seed_manual(self, core) -> None:
         for n, (parent, port) in MANUAL.items():
@@ -844,8 +871,9 @@ class Demo:
                                                                "state": st, "capabilities": hypervisor_capabilities(hv)})
             if now - topo_sent >= 30:
                 topo_sent = now
+                outage = self.outage_id()
                 for row in core.store.query("SELECT id FROM devices"):     # simulated presence check: every demo device answers
-                    if row["id"] not in self.absent:       # ... except the ones the inventory sample keeps away on purpose
+                    if row["id"] not in self.absent and row["id"] != outage:   # ... except the ones kept away on purpose
                         core.presence[row["id"]] = now
                 if "controller" in ids:
                     core.on_event("int:%d" % ids["controller"], ids["controller"], controller_event(now))

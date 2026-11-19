@@ -38,6 +38,10 @@ Many switch and access point product lines are managed by a local controller app
 4. Leave *Login style* on **Automatic**. Lanloom tries the console login first and the classic one when that is refused (HTTP 401, 404 or 405), so a self-hosted controller works without any setting; the credentials count as rejected only when both ways refuse. Pick **Console** or **Classic** only to force one way.
 5. **Test connection** shows how many clients and devices the controller reported. **Save**.
 
+A device the controller still lists but reports as disconnected (or whose heartbeat is missing) keeps its place in the
+topology, but it is no sign of life: Lanloom does not count it as online because of that list, so a dead access point
+shows as down and the [outage automatic](manual/failure-chain.md) can see it.
+
 What Lanloom sends: one sign-in request with the user name and password, then only `GET` requests to the two list endpoints (`…/api/s/<site>/stat/sta` and `…/stat/device`; on a console the same paths below `/proxy/network`). One code path performs all requests and refuses everything else; a test checks this. The password is stored encrypted and never shown or logged again.
 
 ### Device-family adapters

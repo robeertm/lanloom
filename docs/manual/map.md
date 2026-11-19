@@ -63,6 +63,8 @@ there, what talks to what, and what is down, in one picture.
   *Map animation* under [Settings](settings.md#general)).
 - The dashed lines are conversations seen by the router, not cables, and traffic inside one switch is not seen.
 - *Simulate maintenance* is a simulation read from the known topology; nothing is switched off.
+- The [failure chain](failure-chain.md) lights what fails if a part fails (stage marks on the tiles), what it depends on, and
+  dashes what an outage probably reaches; hovering a tile shows only the traces it needs.
 
 ## Privacy
 
@@ -80,6 +82,7 @@ there, what talks to what, and what is down, in one picture.
 
 - [DISCOVERY.md](../DISCOVERY.md) - how devices are recognised and grouped
 - [AVAILABILITY.md](../AVAILABILITY.md) - availability, traffic plots, hover window and *Simulate maintenance*
+- [Failure chain and outages](failure-chain.md) - what fails with a part, what it depends on, the outage automatic
 - [Running](running.md) and [HOST-AGENT.md](../HOST-AGENT.md) - containers and "talks to" lines
 - [DNS-FILTER.md](../DNS-FILTER.md) - the card of a DNS filter and the *DNS* section of a device
 - [TOPOLOGY.md](../TOPOLOGY.md) - where the traces come from

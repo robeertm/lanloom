@@ -248,6 +248,27 @@
 .ll-board.is-focus .ll-trace.is-on { opacity: 1; }
 .ll-board.is-focus .ll-pad:not(.is-on), .ll-board.is-focus .ll-via:not(.is-on) { opacity: .15; }
 .ll-tile.is-selected { border-color: var(--ll-accent); box-shadow: 0 0 0 1px var(--ll-accent), var(--ll-pcb-tile-shadow); }
+.ll-board.is-need .ll-tile.is-hover { border-color: var(--ll-accent); }
+
+/* ---------------------------------------------------------------- failure chain (S5): root, stages, simulation, outage
+   The chain uses the accent; "Simulate maintenance" colours what fails with it red and what is only impaired yellow (dashed).
+   A real outage marks the probably affected parts calmly with a dashed outline; nothing else dims. */
+.ll-board.is-chain .ll-tile.fc-root { border-color: var(--ll-accent); box-shadow: 0 0 0 2px var(--ll-accent), var(--ll-pcb-tile-shadow); }
+.ll-board.is-chain .ll-tile.fc-sure { border-color: var(--ll-accent); }
+.ll-board.is-chain .ll-tile.fc-likely { border-color: var(--ll-accent); border-style: dashed; }
+.ll-board.is-sim .ll-tile.fc-root { border-color: var(--ll-danger); box-shadow: 0 0 0 2px var(--ll-danger), var(--ll-pcb-tile-shadow); }
+.ll-board.is-sim .ll-tile.fc-sure { border-color: var(--ll-danger); box-shadow: 0 0 0 1px var(--ll-danger), var(--ll-pcb-tile-shadow); }
+.ll-board.is-sim .ll-tile.fc-likely { border-color: var(--ll-warn); border-style: solid; box-shadow: 0 0 0 1px var(--ll-warn), var(--ll-pcb-tile-shadow); }
+.ll-fc-stage {
+  position: absolute; bottom: 4px; left: 4px; z-index: 2;   /* inside the tile, bottom left: traces come in from above, so no port or radio mark sits there */
+  box-shadow: 0 0 0 2px var(--ll-pcb-tile);
+  min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box;
+  border-radius: var(--ll-radius-pill); background: var(--ll-accent); color: var(--ll-on-accent);
+  font: var(--ll-fw-semibold) 11px/18px var(--ll-font); text-align: center; pointer-events: none;
+}
+.ll-board.is-sim .fc-sure > .ll-fc-stage { background: var(--ll-danger); color: var(--ll-on-accent); }
+.ll-board.is-sim .fc-likely > .ll-fc-stage { background: var(--ll-warn); color: var(--ll-on-accent); }
+.ll-tile.fc-affected { outline: 2px dashed var(--ll-warn); outline-offset: 3px; }
 
 /* ---------------------------------------------------------------- live layers
    Viewport-sized and sticky at the top of the scroll area; stacked above the traces and below titles and tiles. */

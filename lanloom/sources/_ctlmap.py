@@ -49,6 +49,9 @@ def name_str(*values):
     return None
 
 
+OFFLINE_STATES = (0, 6)      # device states of the controller: 0 disconnected, 6 heartbeat missed
+
+
 def map_device(d):
     if not isinstance(d, dict):
         return None
@@ -63,8 +66,11 @@ def map_device(d):
     if parent is not None:
         uplink = {"mac": parent, "port": port_str(up.get("uplink_remote_port")), "own_port": port_str(up.get("port_idx")),
                   "medium": {"wire": "wired", "wireless": "radio"}.get(up.get("type"))}
-    return {"mac": mac, "ip": ip_str(d.get("ip")), "name": name_str(d.get("name")),
-            "role": ROLES.get(d.get("type"), "other"), "model": name_str(d.get("model")), "uplink": uplink}
+    out = {"mac": mac, "ip": ip_str(d.get("ip")), "name": name_str(d.get("name")),
+           "role": ROLES.get(d.get("type"), "other"), "model": name_str(d.get("model")), "uplink": uplink}
+    if d.get("state") in OFFLINE_STATES and not isinstance(d.get("state"), bool):
+        out["online"] = False          # adopted but disconnected (or its heartbeat is missing): listed, but no sign of life
+    return out
 
 
 def map_client(c):

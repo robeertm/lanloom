@@ -246,10 +246,11 @@
         const trig = (r.triggers || []).map(k => t('auto.k.trigger.' + k));
         const sub = [r.areas && r.areas.length ? list(r.areas, 'conjunction', 2) : null, trig.length ? list(trig, 'conjunction', 2) : null, ago(r.last)].filter(Boolean).join(' · ');
         const warn = r.findings.filter(f => f.level === 'warn');
-        card.append(h('a', { class: 'au-row' + (r.state === 'off' ? ' is-off' : ''), href: '#/automations/' + integ + '/item/' + enc(r.id), dataset: { id: r.id } },
+        const outage = LL.failure ? LL.failure.outageText('he:' + integ + ':' + r.id) : '';      // an outage probably reaches it (failure chain)
+        card.append(h('a', { class: 'au-row' + (r.state === 'off' ? ' is-off' : '') + (outage ? ' is-outage' : ''), href: '#/automations/' + integ + '/item/' + enc(r.id), dataset: { id: r.id } },
           h('span', { class: 'au-row__icon au-kind--' + r.kind + (r.state === 'on' ? ' is-on' : ''), 'aria-hidden': 'true' }),
           h('span', { class: 'au-row__main' }, h('span', { class: 'au-row__name' }, r.name), h('span', { class: 'au-row__sub' }, sub)),
-          h('span', { class: 'au-row__chips' }, r.findings.slice(0, 2).map(findingChip), r.findings.length > 2 ? chip('muted', '+' + LL.fmtNum(r.findings.length - 2)) : null),
+          h('span', { class: 'au-row__chips' }, outage ? chip('warn', t('fail.auto.chip'), outage) : null, r.findings.slice(0, 2).map(findingChip), r.findings.length > 2 ? chip('muted', '+' + LL.fmtNum(r.findings.length - 2)) : null),
           h('span', { class: 'au-row__runs', title: t('auto.runs_day_title') }, h('strong', {}, LL.fmtNum(r.runs_day)), h('span', { class: 'muted' }, t('auto.runs_day_short'))),
           h('span', { class: 'au-row__state' }, warn.length ? h('span', { class: 'au-row__warn', title: warn.map(findingText).join('\n') }) : null, stateChip(r.kind, r.state))));
       });
@@ -498,7 +499,10 @@
     const every = () => ({ list: 15000, who: 15000, timeline: 10000, plan: 60000, rooms: 10000, health: 30000 }[mode] || 15000);
     const loop = () => { timer = setTimeout(async () => { if (!document.hidden && !(mode === 'list' && document.activeElement && body.contains(document.activeElement) && document.activeElement.tagName === 'SELECT')) await loadPart(); if (alive) loop(); }, every()); };
     loop();
-    return { destroy: () => { alive = false; clearTimeout(timer); fr.destroy(); } };
+    const onOutage = () => { if (alive && mode === 'list') renderList(); };
+    document.addEventListener('ll-outage', onOutage);
+    if (LL.failure) LL.failure.loadOutages();
+    return { destroy: () => { alive = false; clearTimeout(timer); document.removeEventListener('ll-outage', onOutage); fr.destroy(); } };
   }
 
   // ------------------------------------------------------------------ one automation

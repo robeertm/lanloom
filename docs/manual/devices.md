@@ -67,6 +67,8 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
 - With an AI set up, *Ask AI what this is* on the card of an uncertain device sends the clues for a suggestion; you
   confirm or dismiss it (see [AI](ai.md)).
 - Use *Show availability*, *Show traffic history* and *Simulate maintenance* from the search (`Ctrl K`).
+- The card section *Dependencies* shows what the device depends on, opens its [failure chain](failure-chain.md) and takes
+  dependencies you enter by hand (hard, soft or none; operators).
 
 ![Identification of a device](../screenshots/identity-light.png)
 

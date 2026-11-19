@@ -8,6 +8,8 @@
    Typos are forgiven, the last choices come first on an empty box ("Recent", kept in this browser only).
    A hit has actions (Open, Copy ...): → or the "⋯" button shows them. An action exists only when something registered it
    with LL.registerAction (js/app.js), so a view that is not there yet never offers one.
+   Two-step commands ("Show failure chain …"): open(prefill, {pick: {label, kinds, run}}) asks for a part first - the box shows the
+   label as a chip, lists only hits of the given groups and runs run(hit) with the chosen one.
    Keyboard: ↑ ↓ Home End move, Enter chooses, → actions, Esc back/close. Screen readers get a combobox with a listbox
    (aria-activedescendant) and a live result count; on a phone the palette is a full-screen sheet. Plain DOM, no dependencies. */
 (function () {
@@ -191,16 +193,20 @@
     return all.filter(c => !c.available || c.available()).map((c, i) => ({ kind: 'cmd', cmd: c, title: text(c.label), extra: text(c.keywords), order: (c.group === 'views' ? 0 : 1000) + (c.order == null ? i : c.order) }));
   }
 
-  function open(prefill) {
-    if (ui) { ui.input.focus(); if (prefill != null) { ui.input.value = prefill; ui.query(); } return; }
+  function open(prefill, opts) {
+    const pick = opts && opts.pick ? opts.pick : null;
+    if (ui && pick) ui.close(true);
+    else if (ui) { ui.input.focus(); if (prefill != null) { ui.input.value = prefill; ui.query(); } return; }
+    document.querySelectorAll('.cmdk').forEach(e => e.remove());     // a palette still fading out (the first step of a two-step command) goes now
     const opener = document.activeElement;
     let rows = [], sel = 0, menu = null, seq = 0, timer = null, server = { q: null, groups: {}, value: null }, failed = false, busy = false;
     const input = h('input', { class: 'cmdk__input', type: 'text', role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'true', 'aria-controls': 'cmdk-list', autocomplete: 'off',
-      autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'go', placeholder: t('cmdk.placeholder'), 'aria-label': t('cmdk.input_label') });
+      autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'go', placeholder: pick ? t('fail.pick.placeholder') : t('cmdk.placeholder'),
+      'aria-label': pick ? text(pick.label) : t('cmdk.input_label') });
     const list = h('ul', { class: 'cmdk__list', id: 'cmdk-list', role: 'listbox', 'aria-label': t('cmdk.title') });
     const status = h('div', { class: 'sr-only', role: 'status', 'aria-live': 'polite' });
     const closeBtn = h('button', { class: 'cmdk__close', type: 'button', 'aria-label': t('cmdk.close'), onclick: () => close() }, h('span', { 'aria-hidden': 'true' }, 'Esc'), h('span', { class: 'cmdk__close-x', 'aria-hidden': 'true' }, '✕'));
-    const head = h('div', { class: 'cmdk__head' }, svg('search', 20), input, closeBtn);
+    const head = h('div', { class: 'cmdk__head' }, svg('search', 20), pick ? h('span', { class: 'cmdk__pick' }, text(pick.label)) : null, input, closeBtn);
     const foot = h('div', { class: 'cmdk__foot', 'aria-hidden': 'true' },
       h('span', {}, h('kbd', {}, '↑'), h('kbd', {}, '↓'), ' ', t('cmdk.hint.move')), h('span', {}, h('kbd', {}, '↵'), ' ', t('cmdk.hint.choose')),
       h('span', {}, h('kbd', {}, '→'), ' ', t('cmdk.hint.actions')), h('span', {}, h('kbd', {}, 'Esc'), ' ', t('cmdk.hint.close')));
@@ -216,6 +222,11 @@
       const out = [];
       const add = (gid, label, items, extra) => { if (items.length) out.push({ head: true, gid, label, extra }); items.forEach(x => out.push(Object.assign({ gid }, x))); };
       if (menu) return;
+      if (pick) {
+        (pick.kinds || []).forEach(g => add(g, t('cmdk.group.' + g), (server.groups[g] || []).slice(0, SHOW_TYPED[g]).map(hit => ({ kind: 'hit', hit }))));
+        rows = out;
+        return;
+      }
       if (!q) {
         const rec = recents().map(e => (e.k === 'cmd' ? (() => { const c = commandItems().find(x => x.cmd.id === e.id); return c ? Object.assign({}, c, { recent: true }) : null; })()
           : { kind: 'hit', hit: e.hit, recent: true })).filter(Boolean);
@@ -251,7 +262,8 @@
         }
         gl.ul.appendChild(rowEl(r, i, q));
       });
-      if (!idx.length) {
+      if (!idx.length && pick && !q) els.push(h('li', { role: 'presentation', class: 'cmdk__empty' }, t('fail.pick.hint')));
+      else if (!idx.length) {
         els.push(h('li', { role: 'presentation', class: 'cmdk__empty' }, busy ? t('cmdk.searching') : failed ? t('cmdk.err') : t('cmdk.none', { q }),
           !busy && !failed ? h('span', { class: 'muted' }, t('cmdk.none.tip')) : null));
       }
@@ -263,7 +275,7 @@
     function rowEl(r, i, q) {
       const hit = r.kind === 'hit' ? r.hit : null;
       const title = hit ? hitTitle(hit) : r.title;
-      const more = hit && actionsOf(hit).length > 1 ? h('button', { class: 'cmdk__more', type: 'button', tabindex: '-1', 'aria-label': t('cmdk.actions_for', { name: title }), title: t('cmdk.more'),
+      const more = hit && !pick && actionsOf(hit).length > 1 ? h('button', { class: 'cmdk__more', type: 'button', tabindex: '-1', 'aria-label': t('cmdk.actions_for', { name: title }), title: t('cmdk.more'),
         onclick: ev => { ev.stopPropagation(); sel = i; openMenu(hit); } }) : null;
       if (more) more.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' + ICON.more + '</svg>';
       return h('li', { role: 'option', id: 'cmdk-o' + i, class: 'cmdk__item' + (r.recent ? ' is-recent' : ''), 'aria-selected': 'false', dataset: { i: String(i) },
@@ -302,6 +314,7 @@
     function choose(i) {
       const r = rows[i]; if (!r || r.head) return;
       if (r.kind === 'cmd') { remember({ k: 'cmd', id: r.cmd.id }); close(true); r.cmd.run(); return; }
+      if (pick) { close(true); pick.run(r.hit); return; }
       const acts = actionsOf(r.hit);
       if (!acts.length) { LL.toast(t('cmdk.no_action'), 'info'); return; }
       remember({ k: 'hit', hit: slim(r.hit) }); close(true); acts[0].run(r.hit);
@@ -347,7 +360,7 @@
       else if (ev.key === 'Enter') { ev.preventDefault(); choose(sel); }
       else if (ev.key === 'ArrowRight' && input.selectionStart === input.value.length) {
         const r = rows[sel];
-        if (r && r.kind === 'hit' && actionsOf(r.hit).length > 1) { ev.preventDefault(); openMenu(r.hit); }
+        if (r && r.kind === 'hit' && !pick && actionsOf(r.hit).length > 1) { ev.preventDefault(); openMenu(r.hit); }
       }
     }
     root.addEventListener('keydown', onKey);

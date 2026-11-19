@@ -1,0 +1,106 @@
+/* Lanloom — failure chain (S5): the bar above the board, the list by stages, the outage note, the card section.
+   Colours come from the tokens only; long names wrap (never cut off). On phones the bar is a sheet above the tab bar. */
+.fc-slot { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 0 12px; }
+.fc-slot:empty { display: none; }
+.fc-slot > :first-child { margin-top: 10px; }
+
+/* ---------------------------------------------------------------- the bar */
+.fc-bar { background: var(--ll-surface); border: 1px solid var(--ll-border); border-left: 3px solid var(--ll-accent); border-radius: var(--ll-radius-md);
+  box-shadow: var(--ll-shadow-1); padding: 10px 14px; min-width: 0; }
+.fc-bar--sim { border-color: var(--ll-danger); border-left-color: var(--ll-danger); background: var(--ll-danger-soft); }
+.fc-bar__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.fc-bar__title { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 260px; }
+.fc-bar__title h2 { font-size: var(--ll-fs-md); font-weight: var(--ll-fw-semibold); line-height: var(--ll-lh-tight); overflow-wrap: anywhere; margin: 0; }
+.fc-bar__icon { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--ll-accent); box-sizing: border-box; position: relative; }
+.fc-bar__icon::after { content: ""; position: absolute; left: 50%; top: 100%; width: 2px; height: 6px; margin-left: -1px; background: var(--ll-accent); }
+.fc-bar--sim .fc-bar__icon { border-color: var(--ll-danger); }
+.fc-bar--sim .fc-bar__icon::after { background: var(--ll-danger); }
+.fc-bar__tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fc-seg .seg__btn { min-height: 28px; padding: 0 12px; }
+.fc-close { min-width: 32px; padding: 0; font-size: 14px; line-height: 1; }
+.fc-end { white-space: nowrap; }
+.fc-bar__body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-top: 6px; }
+.fc-bar__line { margin: 0; font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.fc-bar__note { margin: 0; flex-basis: 100%; }
+.fc-legend { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--ll-fs-xs); color: var(--ll-text-2); }
+.fc-key { display: inline-flex; align-items: center; gap: 6px; }
+.fc-key::before { content: ""; width: 14px; height: 10px; border-radius: 3px; border: 2px solid var(--ll-accent); box-sizing: border-box; }
+.fc-key--likely::before { border-style: dashed; }
+.fc-bar--sim .fc-key--sure::before { border-color: var(--ll-danger); }
+.fc-bar--sim .fc-key--likely::before { border-color: var(--ll-warn); border-style: solid; }
+.msg--warn { color: var(--ll-warn-text); }
+
+/* ---------------------------------------------------------------- the list by stages */
+.fc-list { margin-top: 10px; border-top: 1px solid var(--ll-border); padding-top: 6px; max-height: min(42vh, 420px); overflow-y: auto; }
+.fc-stage + .fc-stage { border-top: 1px solid var(--ll-border); }
+.fc-stage-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 2px; border: 0; background: none; color: var(--ll-text); font: inherit;
+  font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); text-align: left; cursor: pointer; }
+.fc-stage-head::after { content: ""; margin-left: auto; width: 8px; height: 8px; border-right: 2px solid var(--ll-text-3); border-bottom: 2px solid var(--ll-text-3);
+  transform: rotate(-45deg); transition: transform var(--ll-dur-fast) var(--ll-ease); }
+.fc-stage.is-open .fc-stage-head::after { transform: rotate(45deg); }
+.fc-stage-head:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 1px; border-radius: var(--ll-radius-sm); }
+.fc-stage-mark { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: var(--ll-radius-pill);
+  background: var(--ll-accent); color: var(--ll-on-accent); font-size: 11px; }
+.fc-bar--sim .fc-stage-mark { background: var(--ll-danger); color: var(--ll-on-accent); }
+.fc-rows { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 2px 18px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+.fc-rows--card { grid-template-columns: 1fr; }   /* the card is narrow: one column */
+.fc-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 4px; border-radius: var(--ll-radius-sm); }
+.fc-row:hover { background: var(--ll-surface-2); }
+.fc-row .kind-icon { width: 22px; height: 22px; display: inline-grid; place-items: center; color: var(--ll-text-2); }
+.fc-row .kind-icon svg { width: 18px; height: 18px; }
+.fc-row__main { display: flex; flex-direction: column; min-width: 0; }
+.fc-row__name { font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-medium); color: var(--ll-text); overflow-wrap: anywhere; }
+a.fc-row__name { text-decoration: none; }
+a.fc-row__name:hover { text-decoration: underline; }
+.fc-row__why { font-size: var(--ll-fs-xs); color: var(--ll-text-3); overflow-wrap: anywhere; }
+.fc-row__cert { white-space: nowrap; }
+.fc-more { font-size: var(--ll-fs-xs); margin: 4px 0 2px; }
+
+/* simulation: a frame around the whole view says "this is not real" */
+.map-col.fc-sim > .board-host { box-shadow: inset 0 0 0 2px var(--ll-danger); border-radius: var(--ll-radius-md); }
+
+/* ---------------------------------------------------------------- the outage note (names wrap, never cut off) */
+.fc-outage { display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border-radius: var(--ll-radius-md); background: var(--ll-warn-soft);
+  border: 1px solid var(--ll-warn); color: var(--ll-text); min-width: 0; }
+.fc-outage__icon { flex: none; width: 18px; height: 18px; margin-top: 1px; border: 2px dashed var(--ll-warn-text); border-radius: 4px; box-sizing: border-box; }
+.fc-outage__text { flex: 1 1 0; min-width: 0; font-size: var(--ll-fs-sm); line-height: var(--ll-lh-body); white-space: normal; overflow-wrap: anywhere; }
+.fc-outage__title { color: var(--ll-warn-text); }
+.fc-outage__tools { flex: none; display: flex; align-items: center; gap: 6px; }
+.fc-outage__tools .btn--icon, .fc-outage__tools .btn--ghost { min-width: 32px; padding: 0 8px; }
+.fc-hint-box:empty { display: none; }
+.fc-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; margin: 6px 0 2px; border-radius: var(--ll-radius-sm);
+  background: var(--ll-warn-soft); color: var(--ll-text); overflow-wrap: anywhere; }
+
+/* ---------------------------------------------------------------- the card section "Dependencies" */
+.fc-card__lead { margin: 0 0 10px; font-size: var(--ll-fs-sm); }
+.fc-card__btns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.fc-card__h { font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); margin: 10px 0 4px; }
+.fc-card__down { font-size: var(--ll-fs-sm); margin: 6px 0 0; }
+.fc-rows--card .fc-row { padding: 5px 2px; }
+.fc-man { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.fc-man__row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.fc-man__main { display: flex; flex-direction: column; min-width: 0; }
+.fc-man__name { font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.fc-man__note { font-size: var(--ll-fs-xs); overflow-wrap: anywhere; }
+.fc-ed { display: grid; gap: 8px; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md); background: var(--ll-surface-2); }
+.fc-ed__row { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 10px; }
+.fc-ed__label { font-size: var(--ll-fs-xs); color: var(--ll-text-2); font-weight: var(--ll-fw-semibold); }
+.fc-ed .select, .fc-ed .input-sm { width: 100%; min-width: 0; margin: 0; }
+.fc-ed__help { margin: 0; }
+.fc-ed__foot { display: flex; justify-content: flex-end; }
+
+/* the Automations tab marks automations an outage probably reaches */
+.au-row.is-outage { outline: 1px dashed var(--ll-warn); outline-offset: -2px; }
+
+/* ---------------------------------------------------------------- phones: the bar is a sheet above the tab bar, the list open */
+@media (max-width: 760px) {
+  .fc-slot { padding: 0 8px; }
+  .fc-bar { position: fixed; left: 0; right: 0; bottom: calc(60px + env(safe-area-inset-bottom)); z-index: 35; max-height: 62vh; overflow-y: auto;
+    border-radius: var(--ll-radius-lg) var(--ll-radius-lg) 0 0; border-left-width: 1px; border-top: 3px solid var(--ll-accent); box-shadow: var(--ll-shadow-2); padding: 12px 14px; }
+  .fc-bar--sim { border-top-color: var(--ll-danger); }
+  .fc-list { max-height: none; overflow: visible; }
+  .fc-bar__tools { width: 100%; justify-content: space-between; }
+  .fc-outage { flex-wrap: wrap; }
+  .fc-outage__tools { width: 100%; justify-content: flex-end; }
+  .fc-ed__row { grid-template-columns: 1fr; gap: 4px; }
+}

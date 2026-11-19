@@ -4,6 +4,12 @@
    css/board.css, board/endmarks.css and board/portmarks.css). End and port marks are optional: without their scripts the board
    works as before.
    setTalk([{a, b, ab, ba}]) draws dashed lines in the air between the tiles of devices that talk to each other (empty list: none).
+   Failure chain (S5): setChain({root, mode: 'chain'|'sim', tiles: {id: {stage, cert}}}) lights the chain - the root, the parts it
+   reaches with a stage mark (1 = next to the root) and the traces between them - and lets everything else step back; mode 'sim'
+   ("Simulate maintenance") colours sure parts red and likely ones yellow. setOutage({tiles: {id: 1}}) draws the probably affected
+   parts of a real outage dashed (calm, nothing dims); it rests while a chain is shown. setChain(null) / setOutage(null) end both.
+   Hovering a tile with the mouse shows only the traces it needs: its way up through cables, radio, guests and integrations (b of a
+   trace hangs on a) plus the manual dependencies the page passes with setNeeds([[needs, needed], ...]).
    Bundled traces: traces that end at the same tile with the same kind share one trunk there (their dots add up on it).
    port(trace, end) → port key at that end ('' = any, null = never bundle there); bundle: false switches bundling off.
    Zones and tiles are DOM (crisp text, focusable buttons), traces are SVG under the tiles, glow and dots are two
@@ -24,6 +30,8 @@
   const NS = 'http://www.w3.org/2000/svg';
   const GRADES = ['realtime', 'near', 'periodic', 'sluggish', 'interrupted', 'unknown'];
   const TRACE_KINDS = ['uplink', 'lan', 'service', 'flow', 'integration', 'cable', 'radio', 'virtual'];
+  const NEED_KINDS = ['uplink', 'lan', 'cable', 'radio', 'virtual', 'integration'];   // a → b of these: b hangs on a (b needs a)
+  const FC_CLASSES = ['fc-root', 'fc-sure', 'fc-likely', 'fc-affected', 'is-hover'];
   const PHYS_DASH = { radio: '4 3', virtual: '0.5 3.5' };   // legend swatches; the traces get the same pattern from board.css
   const FILTER_KEYS = TRACE_KINDS.concat(['unmeasured', 'talk']);   // what the legend can hide: a line kind, every trace without a measurement, or the dashed "talks to" lines
   const HIDE_KEY = 'lanloom.board.hide.';
@@ -238,6 +246,7 @@
       this.hidden = new Set(); this.hiddenSlot = null; this._dotSig = null;   // line filter (legend toggles), per view
       this.zoneAll = Array.isArray(this.o.zones) ? this.o.zones : null; this.zoneActive = this.o.zone ? String(this.o.zone) : null;   // network toggles of the legend
       this.talk = []; this.peers = {}; this.seenPorts = {}; this.exits = []; this.marks = null; this.routed = false;
+      this.chainSpec = null; this.outageSpec = null; this.hoverId = null; this.needExtra = []; this._fcBadges = [];
       this.ready = new Promise(res => { this._resolveReady = res; });
       this.stats = { routeMs: null, routed: 0, failed: 0, fallback: 0, bundled: 0, fromCache: false, layouts: 0, worker: null };
       this.build();
@@ -266,6 +275,23 @@
         if (typeof this.o.onSelect === 'function') this.o.onSelect(b.dataset.id);
       };
       this.tilesEl.addEventListener('click', this._onClick);
+      // hover (mouse only): the tile shows only the traces it needs; a short pause keeps a sweep over the board calm
+      this._onOver = ev => {
+        if (ev.pointerType && ev.pointerType !== 'mouse') return;
+        const b = ev.target.closest && ev.target.closest('.ll-tile'); if (!b || !this.tilesEl.contains(b)) return;
+        const id = b.dataset.id;
+        clearTimeout(this._hovT);
+        if (id === this.hoverId) return;
+        this._hovT = setTimeout(() => { if (!this.dead) { this.hoverId = id; this.applyHighlight(); } }, 120);
+      };
+      this._onOut = ev => {
+        const b = ev.target.closest && ev.target.closest('.ll-tile'); if (!b) return;
+        if (ev.relatedTarget && b.contains(ev.relatedTarget)) return;
+        clearTimeout(this._hovT);
+        if (this.hoverId) { this.hoverId = null; this.applyHighlight(); }
+      };
+      this.tilesEl.addEventListener('pointerover', this._onOver);
+      this.tilesEl.addEventListener('pointerout', this._onOut);
       this._onLegend = ev => {
         const b = ev.target.closest && ev.target.closest('button[data-flt], button[data-flt-all], button[data-zone]');
         if (!b || !this.legendEl.contains(b)) return;
@@ -361,6 +387,7 @@
         if (this.hidden.size && this.dotSig() !== this._dotSig) this.syncDots();   // a trace got (or lost) its measurement
       }
       if (this.highlighted) this.highlight(this.highlighted);
+      else if (this.chainSpec || this.outageSpec || this.hoverId) this.applyHighlight();
     }
 
     renderZones(lay) {
@@ -662,7 +689,7 @@
       this.renderTalk();
       this.gTr.innerHTML = paths.join('');
       this.gPads.innerHTML = pads.join('') + viaEls.join('');
-      if (this.highlighted) this.applyHighlight();
+      if (this.highlighted || this.chainSpec || this.outageSpec || this.hoverId) this.applyHighlight();
       if (this.marks) { if (this.marks.em) this.marks.em.content(); if (this.marks.pm) this.marks.pm.content(); }
     }
 
@@ -674,7 +701,7 @@
       this.talk = Array.isArray(pairs) ? pairs : [];
       this.renderTalk();
       if (had !== (this.talk.length > 0) && this.view) this.renderLegend();
-      if (this.highlighted) this.applyHighlight();
+      if (this.highlighted || this.chainSpec || this.outageSpec || this.hoverId) this.applyHighlight();
     }
     renderTalk() {
       const lay = this.layout, rows = [];
@@ -828,6 +855,15 @@
       const id = this.highlighted;
       this.root.classList.toggle('is-focus', !!id);
       this.root.querySelectorAll('.is-on, .is-selected').forEach(e => e.classList.remove('is-on', 'is-selected'));
+      this.clearChainMarks();
+      const fc = this.chainSpec;
+      this.root.classList.toggle('is-chain', !!fc);
+      this.root.classList.toggle('is-sim', !!(fc && fc.mode === 'sim'));
+      this.root.classList.remove('is-need');
+      if (!fc) this.applyOutage();
+      if (fc) { this.applyChain(fc); return; }
+      const hov = this.hoverId && this.tiles.has(this.hoverId) ? this.hoverId : null;
+      if (hov) { this.applyNeeds(hov); return; }
       this.gTalk.querySelectorAll('.ll-talkline').forEach(e => e.classList.toggle('is-on', !!id && (e.dataset.a === id || e.dataset.b === id)));
       if (!id) { this.dots.setFocus(null); return; }
       const on = new Set([id]), traces = new Set();
@@ -837,6 +873,72 @@
       const sel = this.tiles.get(id); if (sel) sel.el.classList.add('is-selected');
       this.svg.querySelectorAll('[data-t]').forEach(e => { if (traces.has(e.dataset.t)) e.classList.add('is-on'); });
       this.dots.setFocus(traces);
+    }
+
+    // ---------------------------------------------------------------- failure chain, outage, hover chain (S5)
+    setChain(spec) {
+      this.chainSpec = spec && spec.tiles ? { root: spec.root == null ? null : String(spec.root), mode: spec.mode === 'sim' ? 'sim' : 'chain', tiles: spec.tiles } : null;
+      if (!this.dead) this.applyHighlight();
+    }
+    setOutage(spec) {
+      this.outageSpec = spec && spec.tiles && Object.keys(spec.tiles).length ? { tiles: spec.tiles } : null;
+      if (!this.dead) this.applyHighlight();
+    }
+    setNeeds(extra) {
+      this.needExtra = (Array.isArray(extra) ? extra : []).filter(p => Array.isArray(p) && p[0] != null && p[1] != null).map(p => [String(p[0]), String(p[1])]);
+      if (this.hoverId && !this.dead) this.applyHighlight();
+    }
+    clearChainMarks() {
+      this._fcBadges.forEach(b => b.remove()); this._fcBadges = [];
+      this.tiles.forEach(e => e.el.classList.remove(...FC_CLASSES));
+    }
+    // the way up from a tile: the traces it hangs on, to the top (and the exit to the edge of the board when the way gets there)
+    needsOf(id) {
+      const up = new Map(), add = (k, v) => { if (!up.has(k)) up.set(k, []); up.get(k).push(v); };
+      this.routes.forEach(r => { const t = this.traceInfo.get(r.id); if (t && NEED_KINDS.includes(t.kind) && traceShown(t, this.hidden)) add(r.b, [r.a, r.id]); });
+      this.needExtra.forEach(([a, b]) => add(a, [b, null]));
+      const tiles = new Set([id]), traces = new Set(), queue = [id];
+      while (queue.length) {
+        (up.get(queue.shift()) || []).forEach(([p, rid]) => { if (rid) traces.add(rid); if (!tiles.has(p)) { tiles.add(p); queue.push(p); } });
+      }
+      this.exits.forEach(x => { if (tiles.has(x.a) && exitShown(x, this.hidden)) traces.add(x.id); });
+      return { tiles, traces };
+    }
+    applyNeeds(id) {
+      const n = this.needsOf(id);
+      this.root.classList.add('is-focus', 'is-need');
+      n.tiles.forEach(x => { const e = this.tiles.get(x); if (e) e.el.classList.add('is-on'); });
+      const me = this.tiles.get(id); if (me) me.el.classList.add('is-hover');
+      if (this.highlighted && this.tiles.has(this.highlighted)) this.tiles.get(this.highlighted).el.classList.add('is-selected');
+      this.svg.querySelectorAll('[data-t]').forEach(e => { if (n.traces.has(e.dataset.t)) e.classList.add('is-on'); });
+      this.gTalk.querySelectorAll('.ll-talkline').forEach(e => e.classList.remove('is-on'));
+      this.dots.setFocus(n.traces);
+    }
+    applyChain(fc) {
+      const on = new Set(Object.keys(fc.tiles).filter(x => this.tiles.has(x)));
+      if (fc.root && this.tiles.has(fc.root)) on.add(fc.root);
+      this.root.classList.add('is-focus');
+      on.forEach(x => {
+        const e = this.tiles.get(x); e.el.classList.add('is-on');
+        if (x === fc.root) { e.el.classList.add('fc-root'); return; }
+        const m = fc.tiles[x] || {};
+        e.el.classList.add(m.cert === 'sure' ? 'fc-sure' : 'fc-likely');
+        if (m.stage) {
+          const b = document.createElement('span'); b.className = 'll-fc-stage'; b.setAttribute('aria-hidden', 'true'); b.textContent = String(m.stage);
+          e.el.appendChild(b); this._fcBadges.push(b);
+        }
+      });
+      const traces = new Set();
+      this.routes.forEach(r => { if (on.has(r.a) && on.has(r.b) && traceShown(this.traceInfo.get(r.id), this.hidden)) traces.add(r.id); });
+      this.svg.querySelectorAll('[data-t]').forEach(e => { if (traces.has(e.dataset.t)) e.classList.add('is-on'); });
+      this.gTalk.querySelectorAll('.ll-talkline').forEach(e => e.classList.remove('is-on'));
+      this.dots.setFocus(traces);
+    }
+    applyOutage() {
+      const o = this.outageSpec;
+      this.root.classList.toggle('is-outage', !!o);
+      if (!o) return;
+      Object.keys(o.tiles).forEach(x => { const e = this.tiles.get(x); if (e) e.el.classList.add('fc-affected'); });
     }
 
     // ---------------------------------------------------------------- end and port marks (endmarks.js / portmarks.js, host API 1)
@@ -979,6 +1081,9 @@
       clearTimeout(this._roT);
       this._ro.disconnect();
       this.tilesEl.removeEventListener('click', this._onClick);
+      this.tilesEl.removeEventListener('pointerover', this._onOver);
+      this.tilesEl.removeEventListener('pointerout', this._onOut);
+      clearTimeout(this._hovT);
       this.legendEl.removeEventListener('click', this._onLegend);
       this.scroll.removeEventListener('scroll', this._onScroll);
       if (document.fonts && document.fonts.removeEventListener) document.fonts.removeEventListener('loadingdone', this._onFonts);
@@ -1010,6 +1115,10 @@
       hidden: () => [...b.hidden].sort(),
       setHidden: keys => b.setHidden(keys),
       setZoneFilter: (active, zones) => b.setZoneFilter(active, zones),
+      setChain: spec => b.setChain(spec),
+      setOutage: spec => b.setOutage(spec),
+      setNeeds: extra => b.setNeeds(extra),
+      needsOf: id => { const n = b.needsOf(String(id)); return { tiles: [...n.tiles], traces: [...n.traces] }; },
       destroy: () => b.destroy(),
       ready: b.ready,
       stats: () => Object.assign({}, b.stats, { dots: Object.assign({}, b.dots.stats) }),

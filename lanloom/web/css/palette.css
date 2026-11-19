@@ -71,3 +71,6 @@ body.cmdk-open { overflow: hidden; }
   .cmdk__body { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) { .cmdk, .cmdk__dialog { transition: none; } }
+/* two-step commands: the chip names what the chosen part is for ("Failure chain of") */
+.cmdk__pick { flex: none; max-width: 40%; padding: 3px 10px; border-radius: var(--ll-radius-pill); background: var(--ll-accent-soft); color: var(--ll-accent-text);
+  font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

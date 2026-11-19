@@ -548,6 +548,8 @@ class Notifier:
             text = r.tr("notify.back.%s" % e.id, **r.values(dict(vars_, after_dur=back)))
         else:
             text = r.tr("notify.msg.%s" % e.id, **r.values(vars_))
+            if e.id == "dev_offline" and isinstance(data.get("affected"), int) and data["affected"] > 0:
+                text += " " + r.tr("notify.msg.dev_offline_chain", n=data["affected"], autos=int(data.get("autos") or 0))
         title = r.tr("notify.back_title", what=r.tr(e.title)) if back is not None else r.tr(e.title)
         frag = "#/devices/%s" % data["device"] if data.get("device") else "#/settings/notifications"
         site = self.site_title()
@@ -744,6 +746,19 @@ class Notifier:
                       severity="critical" if days < 0 else None, t=now, once=True)
 
     # ------------------------------------------------------------------ journal bridge
+    def _chain_of(self, device_id) -> dict:
+        """What probably hangs on a device that just went offline (failure chain, lanloom/failure.py): {"affected", "autos"}."""
+        fl = getattr(self.core, "failure", None)
+        if fl is None or not device_id:
+            return {}
+        try:
+            res = fl.chain(device_id, "down")
+        except Exception:            # the chain only adds a sentence; it never stops the message
+            return {}
+        if not res or not res["counts"]["total"]:
+            return {}
+        return {"affected": res["counts"]["total"], "autos": res["counts"]["automations"]}
+
     def on_journal(self, kind: str, data: dict, t: float) -> None:
         """Translate rows of the nightly-report journal into events (called right after each row is written)."""
         if t < self.clock() - 600:
@@ -759,7 +774,10 @@ class Notifier:
             elif kind in ("dev_offline", "dev_back"):
                 from ..nightly.journal import INFRA_KINDS
                 sev = "warning" if data.get("kind") in INFRA_KINDS else "info"
-                self.emit("dev_offline", "off:%s" % data.get("id"), {"title": data.get("title") or ""}, severity=sev, t=t,
+                info = {"title": data.get("title") or ""}
+                if kind == "dev_offline":
+                    info.update(self._chain_of(data.get("id")))
+                self.emit("dev_offline", "off:%s" % data.get("id"), info, severity=sev, t=t,
                           resolve=kind == "dev_back", device=data.get("id"))
             elif kind in ("wan_down", "wan_up"):
                 self.emit("wan_down", "wan", {"name": data.get("name") or ""}, t=t, resolve=kind == "wan_up")
