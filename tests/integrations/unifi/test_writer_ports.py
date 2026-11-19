@@ -229,6 +229,11 @@ def test_body_check_refuses_anything_but_the_port_settings(fake, tmp_path):
     with pytest.raises(WriteError) as e:
         w._overrides_with(ref, {4: entry})
     assert e.value.key == "unifi.body_check"
+    fresh = w._ports[port_id(5)]                                         # a port without an entry of its own
+    with pytest.raises(WriteError) as e:
+        w._overrides_with(fresh, {5: {"port_idx": 5, "isolation": True}})
+    assert e.value.key == "unifi.body_check"
+    assert w._overrides_with(fresh, {5: {"port_idx": 5, "poe_mode": "auto"}})[-1] == {"port_idx": 5, "poe_mode": "auto"}
     ok = w._overrides_with(ref, {4: dict(copy.deepcopy(ref["override"]), name="Bench")})
     assert [o["port_idx"] for o in ok] == [3, 4]
 

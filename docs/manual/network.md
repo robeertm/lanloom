@@ -19,7 +19,8 @@ in?".
   link; the network view keeps its own choice, apart from the map.
 - **Cards** of switches and access points list the devices on their ports and, when a switch controller is read, show the
   **front panel**: every port as it sits on the hardware (odd numbers above, even below, SFP cages apart) with link, speed,
-  power over Ethernet, uplink, VLAN, the devices behind it, and how often the link dropped or counted errors in the last
+  power over Ethernet (also when it is switched off), uplink, VLAN, the port profile, the tagged networks (all networks,
+  none, or the names of a choice), the devices behind it, and how often the link dropped or counted errors in the last
   24 hours (none: fine, one or two: some trouble, three or more: unstable - always with a symbol and a word, not only a
   colour). A port opens a detail line with the live rate. An access point shows its radios with channel and clients now,
   and how often devices moved to or from it in 24 hours. The same panels are in the equipment card of the
@@ -42,6 +43,10 @@ in?".
   traffic runs up to the router.
 
 ![Switch card with the devices on its ports](../screenshots/connection-switch-light.png)
+
+![A port panel with the port profile, the tagged networks and power switched off](../screenshots/switch-front-tagged-light.png)
+
+To change a port (name, profile, networks, power) use the firewall editor: see [Switch ports](firewall.md#switch-ports).
 
 ![The network view with the mode switch and the legend with line styles and networks](../screenshots/network-legend-light.png)
 
@@ -77,7 +82,7 @@ kept in the browser. See [Accessibility](../ACCESSIBILITY.md).
   else: nothing is assigned from it.
 - Where a port has several devices behind it, the rules for shared ports apply (a switch or access point behind the
   port takes the others, hypervisor guests are shown as guests); otherwise every device stays on the port with a note.
-- Everything here is read-only. Lanloom never changes a switch, controller or hypervisor from this view.
+- Everything here is read-only; ports are changed in the [firewall editor](firewall.md#switch-ports). Lanloom never changes a switch, controller or hypervisor from this view.
 
 ## Privacy
 

@@ -161,6 +161,37 @@ With the executor set up for such a family, *Change* mode offers **New rule** be
 
 The plan is written into the firewall's configuration first and put live with one apply at the end. Where the firewall's release has its own revert timer, the executor arms it before the apply and confirms only after it has read every changed rule back as planned; if the executor or its connection fails in between, the firewall puts the rules back by itself after 60 seconds. On releases without it, Lanloom's own backup is the way back. The adapter guide in [COMPATIBILITY.md](../COMPATIBILITY.md) lists the releases.
 
+### Switch ports
+
+When the editor's source can change switch ports (the simulation can; for real writes see [COMPATIBILITY.md](../COMPATIBILITY.md)), the editor has a **Switch ports** card. It shows every switch of the controller as its faceplate, the same front view as *Switch front panels* above. Pick a port to open its panel: link, untagged network with its VLAN, tagged networks, power over Ethernet, the devices behind it and the last 24 hours. In Change mode the panel has **Change port ...**; ports with a change in the draft carry an accent ring and the panel says *Planned*. Viewers see the faceplates without the button.
+
+![The Switch ports card: the faceplate of a switch with port 7 selected and the button Change port](../screenshots/switch-ports-editor-light.png)
+
+1. Pick a port and press **Change port ...**.
+2. The sheet offers what the controller family can write, each field only when it can: *Name* (empty means the switch's own name for the port), *Port profile* (a named port setting of the controller, or *Own settings (no profile)*), *Untagged network* (devices plugged in without VLAN tags land there), *Tagged networks* and *Power over Ethernet*. With a profile chosen the profile decides the networks, and the power when it names one; network fields of the same draft are dropped.
+3. *Tagged networks* is **None (untagged only)**, **All networks** or **A choice** with a checkbox per network. Only networks with a VLAN of their own are listed, and the untagged network cannot also be tagged.
+4. *Power over Ethernet* can be switched on or off, only on ports that can deliver power. Ports in a passive or pass-through power mode are left alone.
+5. **Power cycle** switches the power of the port off for a few seconds so that the device behind it restarts. It is a one-off command; there is nothing to undo.
+6. Add it to the draft, then **Preview** and approve as for every other change (a passkey with the executor, a run in the simulation otherwise). Backup, watch and automatic rollback apply.
+
+![The Change port sheet: name, profile, untagged network, tagged networks with checkboxes, power over Ethernet and power cycle](../screenshots/switch-port-dialog-light.png)
+
+<img src="../screenshots/switch-ports-phone-light.png" width="45%" alt="The Switch ports card on a phone"> <img src="../screenshots/switch-port-dialog-phone-light.png" width="45%" alt="The Change port sheet on a phone">
+
+The preview says in plain words what happens: devices on the port change network and get new addresses (they are named), a device keeps a fixed address of its old network, something that uses a device by its address (a hub integration, a tracker, an automation, a Lanloom source) is named, tagged networks change (devices that understand VLANs, such as access points or servers with virtual machines, see other networks), several devices share the port (a small switch behind it), a port is switched off (the devices that go off are named), a power cycle (the devices that restart are named), a rename.
+
+![Preview of a power cycle, a port switched off and a network change, with warnings and confirmation checkboxes](../screenshots/switch-port-preview-dark.png)
+
+**What is locked.** Lanloom refuses before anything is written, in the preview and again in the executor with its own fresh read:
+
+- Only the **name** may change on the uplink of a switch, on the internet port of a gateway, on a port behind which network equipment hangs (a switch or access point, or a known neighbour), on a port where another device announces itself with LLDP, and on mirror or aggregation ports.
+- A port that carries a device Lanloom protects (gateway, servers others depend on, hubs, the host that runs Lanloom), the device of the person who approves, the executor or the controller keeps its networks and its power. The panel shows a lock and names the reason: *only its name can change*.
+- Only local networks can be used; never an internet uplink or a VPN network.
+
+![A locked port: the note says that only its name can change](../screenshots/switch-ports-locked-dark.png)
+
+**Confirmations.** Every change of power, every power cycle, and the management network as the untagged network of a port or newly tagged on it need their own confirmation tick in the preview. The last one says that whatever is plugged in reaches the admin pages of the network equipment.
+
 ## Limits
 
 - **Checks.** A fixed address must lie inside the device's network, must not be the network's own address or its
@@ -179,6 +210,9 @@ The plan is written into the firewall's configuration first and put live with on
 - **Guests.** Guests that keep the network running (name server, gateway, Lanloom itself, hub or controller, or tagged
   `lanloom-protect`) show a lock and the reason and offer no stop, card or rule changes. A stop is always a clean
   shutdown; creation, removal, migration, snapshots, backups and host networking are not part of any change.
+- **Switch ports.** One change per port and plan; a power cycle and new settings of the same port go into two plans.
+  Ports in a passive or pass-through power mode keep their power setting, and a port whose setting the controller does
+  not report cannot change it. Mirror and aggregation ports change only their name.
 - **What Lanloom never writes:** firmware, restarts, accounts, keys, remote access, VPN and WAN settings, port
   mirroring and factory resets.
 - Real writes need a separate executor service, a built-in adapter for your controller family with write support
@@ -199,7 +233,7 @@ The plan is written into the firewall's configuration first and put live with on
 - **Roles:** viewers look. Operators prepare drafts and previews and undo drafts. Admins apply plans; with the external
   executor each change needs a passkey signature. Operators also keep the network plan. Every draft, plan change,
   approval and undo is in the audit log, and changes on a real controller appear in the nightly report under *Changes
-  written*; the progress of the network plan has a section *Network plan* and the zone pairs that opened or closed a section *Zone matrix*. Viewers may use *May one reach the other?*.
+  written*; the progress of the network plan has a section *Network plan* and the zone pairs that opened or closed a section *Zone matrix*, and changed port profiles, networks and power of switch ports a section *Port settings* (port and network names only, no addresses). Viewers may use *May one reach the other?*.
 
 ## See also
 

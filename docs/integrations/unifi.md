@@ -1,6 +1,6 @@
 # UniFi Network (local API): read adapter and client write half
 
-Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - and since 1.37.0 **internal networks**, **fixed addresses** and **port forwards** and then **zones and zone rules**, each after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) and [Changing networks, fixed addresses and port forwards](#changing-networks-fixed-addresses-and-port-forwards-stage-b) below). Zones and rules are described under [Zone firewall](#zone-firewall-stage-b). Nothing else is ever written.
+Lanloom reads the configuration and the state of a UniFi Network controller (a console or a self-hosted Network application) over its local APIs. The web app **only reads**. Since 1.23.0 the optional executor service can also change **clients** - move a client to another network, give it a fixed address, rename it - and since 1.37.0 **internal networks**, **fixed addresses** and **port forwards** and then **zones and zone rules**, each after the safety checks and your passkey signature (stage B, see [Changing clients](#changing-clients-stage-b) and [Changing networks, fixed addresses and port forwards](#changing-networks-fixed-addresses-and-port-forwards-stage-b) below). Zones and rules are described under [Zone firewall](#zone-firewall-stage-b), **switch ports** (name, profile, untagged and tagged networks, power over Ethernet, power cycle) under [Switch ports](#switch-ports-stage-b). Nothing else is ever written.
 
 What you get:
 
@@ -142,6 +142,34 @@ Zones and zone rules are written over the **classic zone-firewall API** of the c
 **Tested** against a self-hosted Network application 10.0.162 test twin switched to the zone-based firewall: a zone created, a network moved into it, a block rule and an exception for one network and TCP 445, a reorder so that the exception decides first, switching a rule off, renaming it and undoing all of it, lockout scenarios refused with nothing sent, a partial write rolled back, and a crash after creating a zone recovered; the end state equaled the start state.
 
 **How to test safely.** Rehearse in the simulation first (its sample network has zone rules). Then run the executor with `LANLOOM_EXECUTOR_TARGET=simulation` as described above, so the whole signed path is exercised without a controller. For the first real change pick a harmless one, for example renaming a zone Lanloom created, and keep local console access at hand. Use at your own risk; Lanloom never writes without your passkey.
+
+## Switch ports (stage B)
+
+Switch ports are written over the **classic API** with the **same local site-administrator write account** as the other stage-B changes; no further account or option is needed.
+
+**What is written.** The switch's port overrides: `PUT rest/device/<id>` with the field `port_overrides` only. The controller replaces the whole list, so the write half sends the list exactly as it read it and changes only the entry of the planned port and only these fields:
+
+| change | field of the entry |
+|---|---|
+| name | `name` |
+| port profile | `portconf_id` |
+| untagged network | `native_networkconf_id` |
+| tagged networks | `tagged_vlan_mgmt` / `forward` (the mode) and `excluded_networkconf_ids` |
+| power over Ethernet | `poe_mode` (`auto` or `off`) |
+
+**Body check.** Before a request is sent, the write half compares the new list with the list it read; any difference other than the planned fields of the planned entry refuses the write. The allow-list below the adapter additionally checks the shape of every entry.
+
+**Tagged networks.** Releases since 7.x keep the tagged networks of a port as a mode plus a list of networks left out; a choice is stored as the networks that are *not* tagged. Older releases only know all, untagged only and customize, so *a choice* is refused there.
+
+**Power cycle.** `POST cmd/devmgr` with `{"cmd": "power-cycle", "mac": ..., "port_idx": ...}`: the power of the port is switched off for a few seconds. It is a one-off command; there is no way back.
+
+**Read back and way back.** After every write the half reads the switch back and stops when the values did not take; the executor then rolls back. The way back writes the saved override entries of the touched ports, one write per switch.
+
+**Power modes left alone.** Only automatic and off are set. Ports in a passive or pass-through power mode are never changed.
+
+**What is read.** For every port the profile (id and name), the untagged network, the tagged mode and choice, the power mode (auto, off, passive, pass-through) and draw, the mirror or aggregate mode, the internet ports of gateways and LLDP neighbours; for every profile its networks. This feeds the lockout rules (see [FIREWALL-EDITOR.md](../FIREWALL-EDITOR.md#switch-ports)).
+
+**Tested** against the adapter tests (console and self-hosted layout). The self-hosted test twin (Network application 10.0.162) has no switch hardware, so the test places a switch record into the twin's database and writes its overrides through the real API.
 
 ## Troubleshooting
 

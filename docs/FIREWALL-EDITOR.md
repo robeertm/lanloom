@@ -97,6 +97,35 @@ When the executor's adapter can change zones and rules (the simulation can; for 
 
 **Roles.** Viewers may use *May one reach the other?*; drafting needs the **Operator** role, building and approving a plan an **Admin** with a passkey. Changes are in the audit log. The command palette has *Zones of the firewall* and *New firewall rule* (deep links `#/firewall/zones`, `#/firewall/rules/new`); *May one reach the other?* opens the editor's card (`#/firewall/ask`) when no firewall is read. The nightly report has a section **Zone matrix**.
 
+### Switch ports
+
+When the editor's source can change ports (the simulation can; for real writes see the family guide listed in [COMPATIBILITY.md](COMPATIBILITY.md)), **Change** mode adds a **Switch ports** card: every switch of the controller as its faceplate (the same front view as the read-only *Switch front panels*). A port opens its panel (link, untagged network with VLAN, tagged networks, power over Ethernet, devices behind it, last 24 hours); in Change mode the panel has **Change port ...** and a port with a change in the draft carries an accent ring and the note *Planned*. Real writes still go only through the executor, every plan is signed with a passkey, and backup, rollback and watch work as for every other change.
+
+**Plan step kinds.**
+
+- `port.set` - settings of one port. Fields (only those that change): `name` (empty = the switch's own name for the port), `profile` (id of a port profile; empty = own settings), `native_network` (the untagged network; `native_vlan` instead for families that name it by VLAN number), `tagged_mode` (`all`, `none` or `custom`), `tagged` (network ids of the choice, only with `custom`) and `poe` (`on` or `off`). With a profile in the same draft the profile decides the networks (and the power when it names it), so network fields are dropped.
+- `port.cycle` - an action: `before` is `{}`, `after` is `{"cycle": true}`. There is no way back and the step is always confirmed.
+
+**Capability keys.** `port.set.name`, `port.set.profile`, `port.set.native_network`, `port.set.tagged_mode`, `port.set.tagged`, `port.set.poe` (B*) and `port.cycle` (B*). The sheet offers each field only when the executor's family declares its key. An executor of an earlier release does not, so the controls are not offered until the executor is updated by hand.
+
+**Lockout rules** - the same rules in the app's preview and again in the executor right before it writes, against its own fresh read. A refusal stops the plan and nothing is sent:
+
+- only the **name** may change on the uplink of a switch, the internet port of a gateway, a port behind which network equipment hangs (a switch or access point whose uplink points there, or a known neighbour), a port where another device announces itself with LLDP, and mirror or aggregation ports;
+- a port that carries a device Lanloom protects (gateway, servers, hubs, Lanloom's own host), the approver's device, the executor or the controller keeps its networks and its power; the panel's lock note names the reason (*only its name can change*);
+- only local networks are used, never internet uplinks or VPN networks.
+
+**Confirmations (B\*).** Every change of power, every power cycle, and the management network as the untagged network of a port or newly tagged on it (*whatever is plugged in reaches the admin pages of the network equipment*) need their own confirmation tick.
+
+**Plan rules.** One change per port and plan (a power cycle and new settings of the same port go into two plans); at most 10 objects per plan, as before. Power can only be set on ports that can deliver it, and only to automatic or off; passive and pass-through modes are left alone.
+
+**Preview warnings.** Devices on the port change network and get new addresses (named); a device keeps a fixed address of its old network; something that uses a device by its address (hub integration, tracker, automation, Lanloom source) is named; tagged networks change (VLAN-aware devices such as access points or servers with virtual machines see other networks); several devices share the port (a small switch behind it); power off names the devices that switch off; a power cycle names the devices that restart; a rename.
+
+**Simulation.** The sample network has a sample switch *Core switch* with 16 copper ports and one fibre cage, two access points on power over Ethernet behind a trunk profile, the wired sample devices on their ports and four port profiles (*Access point trunk*, *Cameras*, *Smart home*, *Work desk*). Ports of protected sample devices (storage, home server, broker, hub) show the lock.
+
+**Roles and palette.** Drafting needs the **Operator** role, approving an **Admin**; viewers see the faceplates without the button. The command palette has *Change a switch port* (`#/firewall/ports`), which opens the card in Change mode.
+
+**Nightly report.** A section *Port settings* (only when a connection reads port settings) compares with the previous night, whoever changed a setting (Lanloom or the controller's own pages): see [NIGHTLY-REPORT.md](NIGHTLY-REPORT.md).
+
 ### Network plan
 
 The **Network plan** card keeps, per device, the network it should end up in - an existing network, or the name of one still to come (*IoT*). It shows the progress (*X of Y moved*), one row per target with its devices (moved ones ticked) and marks each device tile that still has to move (*→ IoT*). *Plan targets* opens a dialog: choose the target, tick the devices, save. When a target network does not exist yet, *Create this network* opens *New network* with the name filled in; once it exists, *Draft N moves* puts the moves that are possible now into the draft (at most one plan's worth, 10 objects). The plan is Lanloom's own note, stored by the devices' opaque ids, never a controller setting; it works with a read-only connection too, needs the **Operator** role to change and is in the audit log. The nightly report has a section **Network plan** with the progress and the devices moved since the last report.

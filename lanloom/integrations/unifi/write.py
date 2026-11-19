@@ -1095,9 +1095,11 @@ class UnifiWriter(ControllerAdapter):
                 continue
             if idx not in entries:
                 raise WriteError("unifi.body_check")
-            keys = set(b or {}) | set(a or {})
-            changed = {k for k in keys if (b or {}).get(k, None) != (a or {}).get(k, None)} - {"port_idx"}
-            if b is not None and a is not None and changed - PORT_WRITE_KEYS:
+            if a is None:
+                continue                                   # the way back removes an entry the plan added
+            keys = set(b or {}) | set(a)
+            changed = {k for k in keys if (b or {}).get(k, None) != a.get(k, None)} - {"port_idx"}
+            if changed - PORT_WRITE_KEYS:                  # also for a port that had no entry before
                 raise WriteError("unifi.body_check")
         return out
 
