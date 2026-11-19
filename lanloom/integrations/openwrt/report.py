@@ -10,9 +10,10 @@ Items, most important first:
   side, any to any, forward policy accept, rules switched off, an open wireless network, a WAN link that is down);
 * ``night.fwr.rule_new`` / ``rule_gone`` / ``rule_changed`` / ``rule_on`` / ``rule_off``  firewall rules, zone
   forwardings and input policies added, removed, acting differently or switched since the last report;
-* ``night.fwr.forward_new`` / ``forward_gone``  port forwards added or removed;
-* ``night.wrt.ssid_new`` / ``ssid_gone`` / ``ssid_on`` / ``ssid_off`` / ``ssid_security``  wireless networks added,
-  removed, switched or with a different security.
+* ``night.fwr.forward_new`` / ``forward_gone``  port forwards added or removed.
+
+Changes of the wireless networks are reported once for every connection in the shared section *Wireless networks*
+(``firewall/report.py``), not here.
 
 Product names are used only to identify compatible products; no affiliation or endorsement.
 """
@@ -32,10 +33,6 @@ def _rules(state) -> dict:
 def _is_router(state) -> bool:
     return (isinstance(state, dict) and isinstance(state.get("rule_digest"), list)
             and (state.get("controller") or {}).get("class") == "router")
-
-
-def _ssids(state) -> dict:
-    return {s["name"]: s for s in state.get("ssids") or [] if isinstance(s, dict) and s.get("name")}
 
 
 def night_section(previous, state, now: float, name: str = None):
@@ -73,21 +70,6 @@ def night_section(previous, state, now: float, name: str = None):
         for n in sorted(fwd_before - fwd_now, key=str):
             changes += 1
             items.append(_item("info", "night.fwr.forward_gone", rule=n))
-        s_now, s_before = _ssids(state), _ssids(prev)
-        for n in sorted(s_now):
-            s, old = s_now[n], s_before.get(n)
-            if old is None:
-                changes += 1
-                items.append(_item("warn" if s.get("security") == "open" else "info", "night.wrt.ssid_new", ssid=n))
-            elif bool(old.get("enabled")) != bool(s.get("enabled")):
-                changes += 1
-                items.append(_item("info", "night.wrt.ssid_on" if s.get("enabled") else "night.wrt.ssid_off", ssid=n))
-            elif old.get("security") != s.get("security"):
-                changes += 1
-                items.append(_item("warn", "night.wrt.ssid_security", ssid=n))
-        for n in sorted(set(s_before) - set(s_now)):
-            changes += 1
-            items.append(_item("info", "night.wrt.ssid_gone", ssid=n))
     items.sort(key=lambda i: LEVELS[i["level"]])
     look = sum(1 for i in items if i["level"] in ("alert", "warn"))
     return {"family": "openwrt", "title": "night.wrt.title", "name": name, "look": look,

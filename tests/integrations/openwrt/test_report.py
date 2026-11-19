@@ -48,18 +48,16 @@ def test_changes_since_the_last_report():
     got = {(i["key"], json.dumps(i["params"], sort_keys=True)) for i in sec["items"]}
     want = {("night.fwr.rule_on", '{"rule": "Old test"}'), ("night.fwr.rule_changed", '{"rule": "Guest DNS"}'),
             ("night.fwr.rule_gone", '{"rule": "IoT DNS"}'), ("night.fwr.rule_new", '{"rule": "Camera from outside"}'),
-            ("night.fwr.forward_gone", '{"rule": "Web server"}'), ("night.wrt.ssid_off", '{"ssid": "Things"}'),
-            ("night.wrt.ssid_security", '{"ssid": "Guests"}'), ("night.wrt.ssid_new", '{"ssid": "Office"}'),
-            ("fwr.finding.wan_inbound_open", None)}
+            ("night.fwr.forward_gone", '{"rule": "Web server"}'), ("fwr.finding.wan_inbound_open", None)}
     assert {w for w in want if w[1]} <= got
     assert any(k == "fwr.finding.wan_inbound_open" for k, _ in got) is False   # a port-limited rule is no open door
     assert [i["level"] for i in sec["items"]] == sorted((i["level"] for i in sec["items"]), key=report.LEVELS.get)
-    assert sec["params"]["changes"] == 8
+    assert sec["params"]["changes"] == 5
+    assert not any(k.startswith("night.wrt.ssid") for k, _ in got)          # wireless changes: the shared section
 
 
 def test_every_key_exists_in_every_app_language():
-    keys = {"night.wrt.title", "night.wrt.summary_look", "night.wrt.summary_calm", "night.wrt.ssid_new", "night.wrt.ssid_gone",
-            "night.wrt.ssid_on", "night.wrt.ssid_off", "night.wrt.ssid_security", "fwr.finding.forward_accept",
+    keys = {"night.wrt.title", "night.wrt.summary_look", "night.wrt.summary_calm", "fwr.finding.forward_accept",
             "fwr.finding.admin_on_wan", "fwr.finding.ssid_open", "fwr.finding.wan_down", "fwr.finding.rules_disabled",
             "fwr.finding.wan_inbound_open", "fwr.finding.any_any", "night.fwr.rule_new", "night.fwr.forward_new"}
     for lang in ("en", "de"):

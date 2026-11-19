@@ -217,7 +217,7 @@ The Network view has two faces: the board and a **tree** that folds, Internet, g
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/router-wireless-dark.png" width="100%" alt="The router as network equipment, its wireless networks with security and state, and port forwarding"><br><sub>Wireless networks, the router and port forwarding</sub></td>
-<td width="50%"><img src="docs/screenshots/router-report-light.png" width="100%" alt="Nightly report section of the router: a new rule from the internet side, a rule switched off, a wireless network switched on"><br><sub>Nightly report: what changed on the router overnight</sub></td>
+<td width="50%"><img src="docs/screenshots/router-report-light.png" width="100%" alt="Nightly report section of the router: management open on the internet side, a new rule from there, a rule switched off"><br><sub>Nightly report: what changed on the router overnight</sub></td>
 </tr>
 </table>
 

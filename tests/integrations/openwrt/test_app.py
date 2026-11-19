@@ -166,7 +166,7 @@ def test_demo_has_a_sample_router_without_product_names():
     assert {f["kind"] for f in after["findings"]} >= {"admin_on_wan", "rules_disabled", "ssid_open"}
     sec = report.night_section({k: v for k, v in before.items() if k not in contrib.FAMILY_STATE_DROP}, after, NOW, "Sample router")
     k = [i["key"] for i in sec["items"]]
-    assert "night.fwr.rule_new" in k and "night.fwr.rule_off" in k and "night.wrt.ssid_on" in k
+    assert "night.fwr.rule_new" in k and "night.fwr.rule_off" in k
     assert "openwrt" not in json.dumps(demo_live.router_capabilities("x")).lower()
 
 
@@ -179,4 +179,4 @@ def test_demo_seeds_the_sample_router_into_the_reports(env, monkeypatch):
         assert names.get("Sample router") == "openwrt" and names.get("Sample controller") != "openwrt"
         lst = c.get("/api/reports").json()
         texts = [json.dumps(c.get("/api/reports/" + r["day"]).json()) for r in lst["reports"]]
-        assert any("Sample router" in t and "night.wrt.ssid_on" in t for t in texts)
+        assert any("Sample router" in t and "night.wrt.title" in t and "night.fwr.rule_off" in t for t in texts)
