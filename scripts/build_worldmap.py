@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 """Build the offline world base map used by the Lanloom web UI (stdlib only).
 
-Usage:  python3 -I scripts/build_worldmap.py <ne_110m_admin_0_countries.geojson> <ne_50m_admin_0_countries.geojson>
+Usage:  python3 -I scripts/build_worldmap.py <ne_110m_admin_0_countries.geojson> <ne_50m_admin_0_countries.geojson> <ne_10m_populated_places_simple.geojson>
+        python3 -I scripts/build_worldmap.py <ne_110m_admin_0_countries.geojson> <ne_50m_admin_0_countries.geojson>
         python3 -I scripts/build_worldmap.py --refine      (re-apply only the overseas/territory step to the current file)
-Writes lanloom/web/js/worldmap.js (path resolved relative to the repository root, independent of the cwd).
+Writes (paths resolved relative to the repository root, independent of the cwd):
+  lanloom/web/js/worldmap.js        base map 1:110m (+ label points 1:50m), always loaded
+  lanloom/web/js/worldmap_fine.js   fine map 1:50m for high zoom levels, shapes only    (only with three inputs)
+  lanloom/web/js/worldplaces.js     orientation places (Natural Earth populated places)  (only with three inputs)
+With two inputs (or --refine) only worldmap.js is written; the fine files stay as they are.
 
 Overseas parts: a part of a country far away from its main area (French Guiana in the shape of France, Hawaii in the
 shape of the United States) is moved out of ``d``: into its own entry when it lies in a territory with its own ISO code
 (TERRITORIES), otherwise into ``o`` (drawn, but never lit together with the country). Territories the geo data knows
 but the base map has no shape for get a label point (TERRITORY_POINTS), so traffic to them is shown as a dot.
 
-Source: Natural Earth (public domain). Shapes 1:110m, label points 1:50m. The input files are untrusted data:
+Source: Natural Earth (public domain). Shapes 1:110m, label points 1:50m, fine shapes 1:50m, places 1:10m. The input files are untrusted data:
 they are only read and parsed as JSON, never executed.
 Projection: Natural Earth I (Savric et al. 2011), viewBox width 1000, latitudes -58 to 84 degrees.
-The JS project(lon, lat) uses the same formula and scale as this script.
+The JS project(lon, lat) uses the same formula and scale as this script. The output is deterministic (same input, same bytes).
 """
 import json
 import math
@@ -22,11 +27,22 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "lanloom" / "web" / "js" / "worldmap.js"
+JS_DIR = ROOT / "lanloom" / "web" / "js"
+OUT = JS_DIR / "worldmap.js"
+OUT_FINE = JS_DIR / "worldmap_fine.js"
+OUT_PLACES = JS_DIR / "worldplaces.js"
 WIDTH = 1000.0
 LAT_TOP, LAT_BOTTOM = 84.0, -58.0
 TOLERANCE = 0.5     # Douglas-Peucker, in map units
 MIN_AREA = 1.5      # smaller parts are dropped (never the largest part of a country)
+TOLERANCE_FINE = 0.02   # fine map (1:50m): Douglas-Peucker, coordinates rounded to 0.01 (measured: 0.07 -> ~365 kB, 0.02 -> ~630 kB)
+MIN_AREA_FINE = 0.01
+SAMPLE_POINTS = 48      # fine map: a part is measured with at most this many (evenly thinned) points when judging distances
+# Places: a capital or a place up to scalerank 6; rank 0 capital/world city, 1 large, 2 medium, 3 small (from scalerank).
+PLACE_MAX_SCALERANK = 6
+PLACE_NAME_MAX = 24
+# Places whose ISO code Natural Earth leaves open (-99): the code the bundled geo data uses for that area.
+PLACE_CODE_FALLBACK = {"KOS": "XK", "SOL": "SO", "CYN": "CY"}
 OVERSEAS_DIST = 100.0   # map units (~4000 km at the equator) between a part and the main area of its country
 # Territories with their own ISO code that Natural Earth draws inside another country's shape: (code, lon/lat box).
 TERRITORIES = (("GF", (-55.0, 1.5, -51.0, 6.0)),)
@@ -93,16 +109,17 @@ def _area(pts):
     return abs(s) / 2
 
 
-def _num(v):
-    t = ("%.1f" % v).rstrip("0").rstrip(".")
+def _num(v, dec=1):
+    t = ("%.*f" % (dec, v)).rstrip("0").rstrip(".")
     if t in ("-0", ""):
         t = "0"
     return t.replace("-0.", "-.") if t.startswith("-0.") else (t[1:] if t.startswith("0.") else t)
 
 
-def _ring_path(pts):
-    """pts rounded to 0.1 -> 'Mx y l dx dy ... z' (absolute start, relative continuation)."""
-    q = [(round(x * 10), round(y * 10)) for x, y in pts]
+def _ring_path(pts, dec=1):
+    """pts rounded to 10^-dec -> 'Mx y l dx dy ... z' (absolute start, relative continuation)."""
+    f = 10 ** dec
+    q = [(round(x * f), round(y * f)) for x, y in pts]
     d = [q[0]]
     for p in q[1:]:
         if p != d[-1]:
@@ -111,11 +128,11 @@ def _ring_path(pts):
         d.pop()
     if len(d) < 3:
         return None
-    nums = [_num(d[0][0] / 10), _num(d[0][1] / 10)]
+    nums = [_num(d[0][0] / f, dec), _num(d[0][1] / f, dec)]
     out = "M" + nums[0] + (nums[1] if nums[1].startswith("-") else " " + nums[1]) + "l"
     first = True
     for (x0, y0), (x1, y1) in zip(d, d[1:]):
-        for t in (_num((x1 - x0) / 10), _num((y1 - y0) / 10)):
+        for t in (_num((x1 - x0) / f, dec), _num((y1 - y0) / f, dec)):
             out += t if (t.startswith("-") or first) else " " + t
             first = False
     return out + "z"
@@ -132,24 +149,24 @@ def _rings(geom):
     return [([project(lo, la) for lo, la, *_ in r], i == 0) for poly in polys for i, r in enumerate(poly)]
 
 
-def _path(geom):
+def _path(geom, tol=TOLERANCE, min_area=MIN_AREA, dec=1):
     rings = _rings(geom)
     if not rings:
         return None
     cand = []
     for pts, outer in rings:
-        pts = _dp([(round(x, 3), round(y, 3)) for x, y in pts], TOLERANCE)
+        pts = _dp([(round(x, dec + 2), round(y, dec + 2)) for x, y in pts], tol)
         cand.append((_area(pts) if len(pts) >= 3 else 0.0, pts, outer))
     largest = max((k for k in cand if k[2]), key=lambda k: k[0], default=None)
     parts = []
     for area, pts, outer in cand:
-        if area < MIN_AREA and not (largest is not None and (area, pts) == (largest[0], largest[1])):
+        if area < min_area and not (largest is not None and (area, pts) == (largest[0], largest[1])):
             continue
-        p = _ring_path(pts)
+        p = _ring_path(pts, dec)
         if p:
             parts.append(p)
     if not parts and largest is not None:
-        p = _ring_path(largest[1])
+        p = _ring_path(largest[1], dec)
         if p:
             parts.append(p)
     return "".join(parts) or None
@@ -189,11 +206,18 @@ def unproject(x, y):
     return math.degrees((x / SCALE - _X_MAX) / f), lat
 
 
-def _gap(a, b):
+def _thin(pts, n):
+    """Evenly thinned point list (deterministic); a distance between two parts does not need the fine outline."""
+    if not n or len(pts) <= n:
+        return pts
+    return [pts[i * (len(pts) - 1) // (n - 1)] for i in range(n)]
+
+
+def _gap(a, b, sample=None):
     """Smallest distance between two point lists in map units at the equator, measured on the globe (so the two
-    sides of the date line are neighbours, e.g. the far east of Russia)."""
-    ga = [unproject(x, y) for x, y in a]
-    gb = [unproject(x, y) for x, y in b]
+    sides of the date line are neighbours, e.g. the far east of Russia). ``sample``: use at most that many points."""
+    ga = [unproject(x, y) for x, y in _thin(a, sample)]
+    gb = [unproject(x, y) for x, y in _thin(b, sample)]
     best = float("inf")
     for lon1, lat1 in ga:
         for lon2, lat2 in gb:
@@ -212,8 +236,9 @@ def _in_box(pts, box):
     return x0 <= cx <= x1 and y0 <= cy <= y1
 
 
-def refine(countries, points):
-    """Overseas parts out of the main shape, own entries for territories with their own code, territory points."""
+def refine(countries, points, sample=None, labels=True):
+    """Overseas parts out of the main shape, own entries for territories with their own code, territory points.
+    ``sample``: thin the point lists when measuring distances (fine map); ``labels=False``: no label points x/y."""
     for cc in sorted(countries):
         c = countries[cc]
         rings = _parse_rings(c["d"])
@@ -227,7 +252,7 @@ def refine(countries, points):
         while changed:
             changed = False
             for r in list(rest):
-                if any(_gap(r[1], k[1]) <= OVERSEAS_DIST for k in keep):
+                if any(_gap(r[1], k[1], sample) <= OVERSEAS_DIST for k in keep):
                     keep.append(r)
                     rest.remove(r)
                     changed = True
@@ -240,7 +265,9 @@ def refine(countries, points):
             if code:
                 cx = sum(p[0] for p in r[1]) / len(r[1])
                 cy = sum(p[1] for p in r[1]) / len(r[1])
-                countries[code] = {"d": r[0], "x": round(cx, 1), "y": round(cy, 1)}
+                countries[code] = {"d": r[0]}
+                if labels:
+                    countries[code].update({"x": round(cx, 1), "y": round(cy, 1)})
                 points.pop(code, None)
             else:
                 other.append(r[0])
@@ -262,17 +289,57 @@ def _code(p):
     return None
 
 
+def own_code_first(f):
+    return 0 if (f["properties"].get("ISO_A2") or "-99") != "-99" else 1
+
+
 def _load(path):
     with open(path, encoding="utf-8") as f:
         return json.load(f)["features"]
 
 
-def main(path110, path50):
+def build_fine(features50):
+    """Fine map: shapes only, 1:50m, same keys/rules as the base map (overseas parts out of ``d``). Small states that are
+    only points in the base map have their shape here."""
+    shapes = {}
+    for f in sorted(features50, key=own_code_first):
+        c = _code(f["properties"])
+        if not c:
+            continue
+        d = _path(f["geometry"], TOLERANCE_FINE, MIN_AREA_FINE, 2)
+        if d:
+            shapes[c] = shapes.get(c, "") + d
+    fine = {c: {"d": d} for c, d in sorted(shapes.items())}
+    refine(fine, {}, SAMPLE_POINTS, labels=False)
+    return fine
+
+
+def build_places(features):
+    """Orientation places: [x, y, name, ISO-A2, rank], rank 0 capital/world city ... 3 small (from scalerank)."""
+    out = []
+    for f in features:
+        p = f["properties"]
+        sr = p.get("scalerank")
+        capital = (p.get("featurecla") or "").startswith("Admin-0 capital") or p.get("adm0cap") == 1
+        if sr is None or not (capital or sr <= PLACE_MAX_SCALERANK):
+            continue
+        rank = 0 if (capital or sr <= 1) else 1 if sr <= 3 else 2 if sr <= 5 else 3
+        name = (p.get("name") or "").strip()
+        if not name or len(name) > PLACE_NAME_MAX:
+            name = (p.get("nameascii") or name).strip()
+        cc = (p.get("iso_a2") or "").strip()
+        if not cc or cc == "-99":
+            cc = PLACE_CODE_FALLBACK.get(p.get("adm0_a3"), "")
+        if not name or not cc:
+            continue
+        x, y = project(p["longitude"], p["latitude"])
+        out.append([round(x, 2), round(y, 2), name, cc, rank])
+    out.sort(key=lambda o: (o[4], o[2], o[0], o[1]))
+    return out
+
+
+def main(path110, path50, path_places=None):
     f110, f50 = _load(path110), _load(path50)
-
-    def own_code_first(f):
-        return 0 if (f["properties"].get("ISO_A2") or "-99") != "-99" else 1
-
     # Shapes: one code, several features -> concatenate (main feature with its own ISO_A2 first;
     # ISO_A2_EH resolves France, Norway, Kosovo and similar -99 cases)
     shapes = {}
@@ -305,6 +372,9 @@ def main(path110, path50):
     points = {c: [labels[c][0], labels[c][1]] for c in labels if c not in countries}
     refine(countries, points)
     write(countries, points)
+    if path_places:
+        write_fine(build_fine(f50))
+        write_places(build_places(_load(path_places)))
 
 
 def write(countries, points):
@@ -333,6 +403,49 @@ def write(countries, points):
     print("h=%d countries=%d points=%d bytes=%d" % (HEIGHT, len(countries), len(points), len(js.encode())))
 
 
+FINE_HEADER = (
+    "/* Fine world map for high zoom levels - GENERATED, do not edit by hand.\n"
+    " * Source: Natural Earth (public domain), countries 1:50m. Projection as in worldmap.js (Natural Earth I, viewBox 0 0 %d %d).\n"
+    " * Simplified (Douglas-Peucker %.2f, parts smaller than %.2f are dropped), coordinates rounded to 0.01, relative path\n"
+    " * commands (fill rule evenodd). Same keys and rules as worldmap.js (ISO-A2, `o` = far overseas parts); small states that\n"
+    " * are only points there have their shape here. No label points (those are in worldmap.js).\n"
+    " * Regenerate with: python3 -I scripts/build_worldmap.py <ne_110m_admin_0_countries.geojson> <ne_50m_admin_0_countries.geojson> <ne_10m_populated_places_simple.geojson>\n"
+    " */\n")
+PLACES_HEADER = (
+    "/* Orientation places for the world map - GENERATED, do not edit by hand.\n"
+    " * Source: Natural Earth (public domain), populated places 1:10m (capitals and places up to scalerank %d).\n"
+    " * Row: [x, y, name, ISO-A2, rank] - x/y in map units of worldmap.js (0.01), rank 0 capital/world city, 1 large,\n"
+    " * 2 medium, 3 small (from scalerank). Sorted by rank, then name.\n"
+    " * Regenerate with: python3 -I scripts/build_worldmap.py <ne_110m_admin_0_countries.geojson> <ne_50m_admin_0_countries.geojson> <ne_10m_populated_places_simple.geojson>\n"
+    " */\n")
+
+
+def render_fine(fine):
+    return (FINE_HEADER % (WIDTH, HEIGHT, TOLERANCE_FINE, MIN_AREA_FINE)
+            + "(function () {\n  'use strict';\n  window.Lanloom = window.Lanloom || {};\n"
+            "  window.Lanloom.worldmapFine = { countries: %s };\n})();\n"
+            % json.dumps(fine, ensure_ascii=True, separators=(",", ":")))
+
+
+def render_places(places):
+    rows = ",\n".join(json.dumps(o, ensure_ascii=True, separators=(",", ":")) for o in places)
+    return (PLACES_HEADER % PLACE_MAX_SCALERANK
+            + "(function () {\n  'use strict';\n  window.Lanloom = window.Lanloom || {};\n"
+            "  window.Lanloom.worldplaces = [\n" + rows + "\n  ];\n})();\n")
+
+
+def write_fine(fine):
+    js = render_fine(fine)
+    OUT_FINE.write_text(js, encoding="utf-8")
+    print("fine: shapes=%d with-overseas=%d bytes=%d" % (len(fine), sum(1 for v in fine.values() if v.get("o")), len(js.encode())))
+
+
+def write_places(places):
+    js = render_places(places)
+    OUT_PLACES.write_text(js, encoding="utf-8")
+    print("places: %d bytes=%d" % (len(places), len(js.encode())))
+
+
 def refine_current():
     """--refine: apply refine() to the generated file in place (the shapes themselves stay as they are)."""
     src = OUT.read_text(encoding="utf-8")
@@ -351,7 +464,7 @@ def refine_current():
 if __name__ == "__main__":
     if sys.argv[1:] == ["--refine"]:
         refine_current()
-    elif len(sys.argv) != 3:
+    elif len(sys.argv) not in (3, 4):
         sys.exit(__doc__)
     else:
-        main(sys.argv[1], sys.argv[2])
+        main(*sys.argv[1:])
