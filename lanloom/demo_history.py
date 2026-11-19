@@ -27,10 +27,10 @@ OUTAGES = [
     (2, 74, 12), (3, 74, 12), (12, 74, 12), (10, 74, 14), (30, 74, 12), (40, 74, 16), (15, 74, 12), (31, 74, 13), (32, 74, 12),
     (60, 74, 12), (63, 74, 12), (61, 74, 12),
     (2, 8.5, 6), (3, 8.5, 6), (30, 8.5, 6),
-    (31, 30.0, 5), (31, 29.84, 5), (31, 29.68, 5),
     (60, 46, 20), (61, 46, 20),
     (4, 1.0, 70), (51, 1.0, 25), (64, 1.0, 25), (65, 1.0, 25),
 ]
+FLAP_DEVICE, FLAP_START, FLAP_OFFSETS = 31, (30.0, 5), (0, 2, 4)      # three one-slot dropouts with one good slot between each
 FIRMWARE = [(2, 75, "4.2.1", "4.2.2"), (1, 400, "7.57", "7.58"), (3, 900, "6.6.55", "6.6.77"), (4, 900, "6.6.55", "6.6.77"),
             (10, 1300, "7.2.1", "7.2.2"), (2, 1700, "4.1.9", "4.2.1")]      # (device number, hours ago, from, to)
 OLD_DAYS = (36, 90)              # incident rows older than the slots (the calendar shows 90 days)
@@ -66,6 +66,9 @@ def seed_availability(core, now: float) -> None:
         for sid in [k for k, v in ids.items() if v == n]:
             bad.setdefault(sid, set()).update(_slots(ago, mins, now))
     gap = set(_slots(*GAP, now))
+    base = _slots(*FLAP_START, now).start             # the flapping speaker: whole slots, so the wall clock cannot join two runs
+    for sid in [k for k, v in ids.items() if v == FLAP_DEVICE]:
+        bad.setdefault(sid, set()).update(base + off for off in FLAP_OFFSETS)
     rng = random.Random(7)
     subjects = {sid for sid in present if sid in ids and ids[sid] not in (71, 72, 73)}
     kinds = {row["kind"]: row["id"] for row in core.store.query("SELECT id, kind FROM integrations")}

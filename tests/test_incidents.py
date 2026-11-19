@@ -397,3 +397,17 @@ def test_marking_is_an_operators_change_with_an_audit_entry(demo):
     entries = [e for e in app.state.ll.audit.query({"action": "incident.mark"}) if e["outcome"] == "ok"]
     assert entries and entries[0]["target"] == iid and entries[0]["detail"] == {"kind": "maintenance", "note": True}
     assert c.put("/api/incidents/" + iid, json={"kind": None}, headers=HDR).status_code == 200
+
+
+def test_demo_flapping_dropouts_do_not_depend_on_the_minute_it_starts():
+    """The sample speaker's three dropouts are whole slots with one good slot between: never adjacent (one run), whatever the clock says."""
+    from lanloom import demo_history
+    for second in range(0, 600, 7):
+        now = 1_800_000_000 + second
+        base = demo_history._slots(*demo_history.FLAP_START, now).start
+        slots = [base + off for off in demo_history.FLAP_OFFSETS]
+        cells = [0] * (slots[-1] - base + 1)
+        for s in slots:
+            cells[s - base] = 1
+        cells = [(c if c else 5 << 4) for c in cells]
+        assert len(incidents.runs_of(cells)) == 1 and incidents.runs_of(cells)[0][2] == 3, second

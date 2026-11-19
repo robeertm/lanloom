@@ -14,6 +14,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - `LL.fmtBytes` writes terabytes (TB) for sizes from 1 TB on (everywhere in the app).
 - `scripts/build_worldmap.py` takes the populated places file as an optional third argument and then also writes `worldmap_fine.js` and `worldplaces.js`; `worldmap.js` stays byte for byte the same; `--exclude-places FILE` leaves out places whose names are listed in a file outside the repository.
 
+### Fixed
+- Sample network: the three dropouts of the flapping speaker were placed by hours before now, so depending on the minute the history was created they could land in adjacent slots and merge into one outage; the sample incident test failed at random (it broke the image build of a release train). They are now whole slots with one good slot between, and a test covers every phase of the clock.
+
 ## [1.50.1] – 2026-11-19
 
 1.44.0, 1.44.1, 1.45.0, 1.46.0, 1.46.1, 1.47.0, 1.48.0, 1.49.0 and 1.50.0 below were not released on their own; they are part of this release.
