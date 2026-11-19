@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.50.1] – 2026-11-19
+
+1.44.0, 1.44.1, 1.45.0, 1.46.0, 1.46.1, 1.47.0, 1.48.0, 1.49.0 and 1.50.0 below were not released on their own; they are part of this release.
+
 ### Fixed
 - Notification history: a condition that clears on its own and is reported at every reading (an unstable switch port) wrote a new history row every few seconds when its rule was *Nightly report* (or nobody could be told right away), until the history showed nothing else. It is now one row while the condition lasts, marked as resolved when it clears; an all-clear still goes only to those who were told.
 - Network plan export (SVG, draw.io, PDF): a line between two devices of one zone that are not neighbours ran straight across the devices between them (seen with a switch and two access points in one row). It now goes around them through the gaps between the rows.
