@@ -57,7 +57,7 @@
    "purpose": "cities and network operators for the data paths view (Settings > Data paths, off by default): streams the two public source files of the geolocation provider, at most one check a day and one new file a month; the request carries no address, no identifier and no information about the installation"
   },
   {
-   "site": "lanloom/integrations/transport.py::Transport.request::http",
+   "site": "lanloom/integrations/transport.py::Transport._once::http",
    "category": "configured-source",
    "purpose": "adapters of device families: read half in the app, write half only in the executor; address entered by an administrator"
   },

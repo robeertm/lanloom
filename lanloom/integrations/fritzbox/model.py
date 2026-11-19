@@ -24,6 +24,7 @@ It builds::
     networks      the home network with address range and DHCP
     wans          the internet connection and its state
     findings      plain checks: a mesh device is offline, the internet connection is down
+    known_hosts   opaque ids of every host (the night report compares them between nights)
 
 Never copied: the serial number, the device log, passwords and keys, the external address, the guest and VPN
 details. Neutral ids are opaque hashes; hardware addresses are only used for the topology observation.
@@ -407,6 +408,8 @@ def to_neutral(raw: dict) -> dict:
     state = {"v": 2, "zones": [], "networks": [net] if net else [], "devices": devices, "equipment": eq, "ports": [],
              "policies": [], "ssids": [], "dhcp_reservations": [], "port_forwards": [], "wans": _wans(raw), "vpn": [],
              "raw": [], "acl_digest": [], "allow": []}
+    # the night report keeps no device list between nights (core drops ``devices``): the opaque ids are what it compares
+    state["known_hosts"] = sorted(d["id"] for d in devices)[:MAX_ITEMS]
     state["findings"] = findings(state)
     info = _d(raw.get("info"))
     state["controller"] = {"version": text(info.get("firmware"), 32) or "", "class": CONTROLLER_CLASS, "apis": ["official"],

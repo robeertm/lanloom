@@ -50,5 +50,5 @@ MANIFEST = IntegrationManifest(
     # identifiers: the web page title and the SSDP server/product string of the box
     detect=({"title": "fritz!box"}, {"ssdp": "fritz!box"}),
     prefill_scheme="http",
-    guide="fritzbox",
+    guide="tr064",
 )

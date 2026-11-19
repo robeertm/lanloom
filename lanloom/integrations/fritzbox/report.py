@@ -50,7 +50,7 @@ def night_section(previous, state, now: float, name: str = None):
                            **(f.get("params") or {})))
     changes = 0
     if prev is not None:
-        eq0, hosts0 = _by_id(prev.get("equipment")), _by_id(prev.get("devices"))
+        eq0 = _by_id(prev.get("equipment"))
         for eid in sorted(eq, key=lambda k: str(eq[k].get("name"))):
             e, old = eq[eid], eq0.get(eid)
             if old is None:
@@ -69,7 +69,8 @@ def night_section(previous, state, now: float, name: str = None):
         for eid in sorted(set(eq0) - set(eq), key=str):
             changes += 1
             items.append(_item("info", "night.home.device_gone", device=eq0[eid].get("name")))
-        fresh = sorted((hosts[h] for h in set(hosts) - set(hosts0)), key=lambda d: str(d.get("name")))
+        known = set(prev.get("known_hosts") or []) if prev.get("known_hosts") is not None else None
+        fresh = sorted((hosts[h] for h in set(hosts) - known), key=lambda d: str(d.get("name"))) if known is not None else []
         if fresh:
             changes += len(fresh)
             names = ", ".join(str(d.get("name") or "?") for d in fresh[:NAMES_SHOWN]) + (" …" if len(fresh) > NAMES_SHOWN else "")
