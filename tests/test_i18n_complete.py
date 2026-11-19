@@ -126,6 +126,7 @@ def test_plural_forms_complete_and_rendering():
 _NAMES = "a name, a number, an address or a symbol line without a word of its own"
 SAME_IN_LANGUAGE = {
     "fr": {
+        r"routes\.method\.udp": "name of the measuring method (Paris traceroute) with the protocol in brackets",
         r"agents\.snippet\.run": "a shell command",
         r"auto\.dur\.min|notify\.shared\.hold_n|storage\.keep\.minutes": "minute/minutes is written the same way in French",
         r"backup\.files\.version": "Version is the same French word",
@@ -139,6 +140,7 @@ SAME_IN_LANGUAGE = {
         r"ai\.status\.local|svc\.state\.error": "Local / Error is the same Spanish word",
         r"api\.report\.ingest|devices\.filter\.net_vlan|devices\.tag\.wireless|ws\.chip\.rename|inc\.ch\.(version|firmware)|inc\.before\.firmware": _NAMES,
         r"detail\.snmp": "device class with a protocol name in brackets",
+        r"routes\.method\.udp": "name of the measuring method (Paris traceroute) with the protocol in brackets",
         r"fw\.sec\.wpa2?_?(wpa3_)?personal|fw\.sec\.wpa3_personal": "standard protocol label; personal is the same Spanish word",
         r"nc\.proto\.both|portmarks\.mesh\.subghz": "protocol / radio technology name",
         r"users\.tfa\.passkeys": "the loan word passkey is used the same way in every passkey text",
@@ -153,6 +155,7 @@ SAME_IN_LANGUAGE = {
         r"nc\.proto\.both|portmarks\.mesh\.subghz": "protocol / radio technology name",
     },
     "it": {
+        r"routes\.method\.udp": "name of the measuring method (Paris traceroute) with the protocol in brackets",
         r"agents\.snippet\.run": "a shell command",
         r"account\.title|api\.report\.ingest|devices\.filter\.net_vlan|devices\.tag\.wireless|ws\.chip\.rename": _NAMES,
         r"detail\.snmp": "device class with a protocol name in brackets",
