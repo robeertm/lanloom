@@ -16,6 +16,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 - Sample network: the three dropouts of the flapping speaker were placed by hours before now, so depending on the minute the history was created they could land in adjacent slots and merge into one outage; the sample incident test failed at random (it broke the image build of a release train). They are now whole slots with one good slot between, and a test covers every phase of the clock.
+- Plan export (SVG, PDF, draw.io): a line between zones in different rows of the plan went up or down the column gap beside its start pad all the way to the other row and could run across the pads of the zones in the rows between. It now stays inside the two zones, runs along the gap between the rows and, when other rows lie between them, along the left margin of the plan, which no zone reaches; a test with 8 generated layouts (adjacent rows, rows between, a full-width zone on top) covers it. The plan screenshots are renewed.
+- English texts of the incident files: no curly quotation marks around the name of a maintenance window, and the wording around the maintenance window (incidents page, About this view, nightly report docs, manual) follows the product's style rules; incident screenshots renewed.
 
 ## [1.50.1] – 2026-11-19
 

@@ -102,5 +102,5 @@ operator role and lands in the [audit log](settings.md) (action `incident.mark`)
 - [Failure chain and outages](failure-chain.md) - the dependency graph the bundling uses
 - [Availability and stability](../AVAILABILITY.md) - the 5-minute slots
 - [Nightly report](../NIGHTLY-REPORT.md) - the section *Incidents of the night*
-- [Notifications](../NOTIFICATIONS.md) - maintenance windows
+- [Notifications](../NOTIFICATIONS.md) - planning a maintenance window
 - [Command palette](../PALETTE.md) - *Rewind to …*

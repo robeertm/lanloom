@@ -242,13 +242,36 @@ def test_lines_inside_one_zone_go_around_the_pads_between(n, span):
     comps.append({"id": "far", "zone": "y", "kind": "nas", "title": "Other zone"})
     ids = [c["id"] for c in comps[:n]]
     traces = [{"id": "t:%s:%s" % (a, b), "a": a, "b": b, "kind": "cable"} for a in ids for b in ids if a != b]
-    traces += [{"id": "t:%s:far" % a, "a": a, "b": "far", "kind": "wifi"} for a in ids]
+    traces += [{"id": "t:%s:far" % a, "a": a, "b": "far", "kind": "radio"} for a in ids]
     model = {"zones": [{"id": "z", "title": "Zone", "order": 1, "span": span}, {"id": "y", "title": "Other", "order": 2}], "components": comps,
              "traces": traces}
     sc = export_plan.build_scene(model, lambda key, v=None: key)
     assert len(sc["edges"]) == len(traces)
     cols = {p["x"] for p in sc["pads"] if p["zone"] == "z"}
     assert len(cols) >= 3                                                 # there really are pads between others in a row
+    assert_lines_cross_no_pad(sc)
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_lines_between_zones_in_other_rows_go_around_the_pads(seed):
+    """Lines between zones that the plan puts into different rows (adjacent rows and rows with others between them, both directions,
+    with and without a full-width zone on top): none crosses a pad. The cross-zone line used to go up or down the column gap beside its
+    start pad all the way to the target's row and crossed the pads of the zones in the rows between (step 1a red at random, depending on
+    how the sample data wrapped the zones)."""
+    import random
+    rnd = random.Random(seed)
+    zones, comps = [], []
+    if seed % 2:
+        zones.append({"id": "full", "title": "Full", "order": 0, "span": "full"})
+        comps += [{"id": "full%02d" % i, "zone": "full", "kind": "server", "title": "Full %02d" % i} for i in range(rnd.randint(2, 9))]
+    for z in range(rnd.randint(6, 10)):
+        zones.append({"id": "z%d" % z, "title": "Zone %d" % z, "order": z + 1})
+        comps += [{"id": "z%dc%02d" % (z, i), "zone": "z%d" % z, "kind": "iot", "title": "Pad %d %02d" % (z, i)} for i in range(rnd.randint(1, 14))]
+    ids = [c["id"] for c in comps]
+    traces = [{"id": "t:%s:%s" % (a, b), "a": a, "b": b, "kind": rnd.choice(("cable", "radio", "uplink"))}
+              for a in ids for b in ids if a != b and a.split("c")[0] != b.split("c")[0] and rnd.random() < 0.25]
+    sc = export_plan.build_scene({"zones": zones, "components": comps, "traces": traces}, lambda key, v=None: key)
+    assert len(sc["edges"]) == len(traces) and len(sc["bands"]) >= 3       # there really are rows with others between them
     assert_lines_cross_no_pad(sc)
 
 

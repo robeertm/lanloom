@@ -134,13 +134,34 @@ def build_scene(model: dict, tr: Callable, rd=None, title: str = "", sub: str = 
         bands.append((y, y + row_h))
     y += row_h
     width = max([MARGIN * 2 + PLAN_W] + [b["x"] + b["w"] + MARGIN for b in zones])
-    edges = _route(model.get("traces", []), pad_of)
+    edges = _route(model.get("traces", []), pad_of, bands)
     height = y + MARGIN + LEGEND_H
     return {"w": width, "h": height, "zones": zones, "pads": pads, "edges": edges, "title": title, "sub": sub, "legend_y": y + 14, "bands": bands}
 
 
-def _route(traces: list, pad_of: dict) -> list:
+def _route(traces: list, pad_of: dict, bands: Optional[list] = None) -> list:
+    """Orthogonal lines that cross no pad. Neighbours in one row: straight through the gap. One zone: through its column and row gaps
+    (``_route_in_zone``). Zones in one row of the plan: out of A into the column gap beside it, along the channel above the row, in at B.
+    Zones in different rows: the vertical parts stay inside A's and B's own zones (their column gaps hold no pad, and below a zone that is
+    shorter than its row there is nothing); between the two rows the line runs along the row gap, and when other rows lie between them,
+    down or up the left margin of the plan, which no zone reaches. ``bands`` are the (top, bottom) of the plan's rows."""
+    bands = list(bands or [])
+
+    def band_of(blk):
+        for i, (top, bottom) in enumerate(bands):
+            if top - 1 <= blk["y"] and blk["y"] + blk["h"] <= bottom + 1:
+                return i
+        return None
+
     lanes: dict = {}
+
+    def lane(key, n):
+        lanes[key] = lanes.get(key, -1) + 1
+        return lanes[key] % n
+
+    def gap_y(i):                                                # the row gap below row i (each line in it a little lower than the last)
+        return bands[i][1] + 9 + lane(("gap", i), 7) * 4.0
+
     out = []
     for t in traces:
         a, b = pad_of.get(t["a"]), pad_of.get(t["b"])
@@ -149,19 +170,27 @@ def _route(traces: list, pad_of: dict) -> list:
         kind = str(t.get("kind") or "lan")
         A, B = (a, b)
         ab, bb = A["block"], B["block"]
+        ia, ib = band_of(ab), band_of(bb)
         if ab is bb and abs(A["y"] - B["y"]) < 1 and abs(abs(A["x"] - B["x"]) - (PAD_W + GAP_X)) < 1:
             lo, hi = (A, B) if A["x"] < B["x"] else (B, A)        # neighbours in one row: a straight line through the gap between them
             pts = [(lo["x"] + lo["w"], lo["y"] + lo["h"] / 2), (hi["x"], hi["y"] + hi["h"] / 2)]
         elif ab is bb:
             pts = _route_in_zone(A, B)
-        else:                                                    # other zone: out of A to the right, along the channel above B's zone, in at B's left
-            key = id(bb)
-            lane = lanes[key] = lanes.get(key, -1) + 1
-            ch = bb["y"] - 9 - (lane % 7) * 4.0
-            rx = A["x"] + A["w"] + GAP_X / 2
-            lx = B["x"] - GAP_X / 2
+        else:
+            rx = A["x"] + A["w"] + GAP_X / 2                     # A's column gap (or zone padding) on its right
+            lx = B["x"] - GAP_X / 2                              # B's column gap (or zone padding) on its left
             ay, by_ = A["y"] + A["h"] / 2, B["y"] + B["h"] / 2
-            pts = [(A["x"] + A["w"], ay), (rx, ay), (rx, ch), (lx, ch), (lx, by_), (B["x"], by_)]
+            if ia is None or ib is None or ia == ib:             # same row of the plan: along the channel above it
+                ch = bb["y"] - 9 - lane(id(bb), 7) * 4.0
+                pts = [(A["x"] + A["w"], ay), (rx, ay), (rx, ch), (lx, ch), (lx, by_), (B["x"], by_)]
+            else:
+                ga = gap_y(ia - 1) if ib < ia else gap_y(ia)     # the row gap on A's side towards B
+                gb = gap_y(ib) if ib < ia else gap_y(ib - 1)     # the row gap on B's side towards A
+                if abs(ia - ib) == 1:                             # neighbouring rows: one gap between them
+                    pts = [(A["x"] + A["w"], ay), (rx, ay), (rx, ga), (lx, ga), (lx, by_), (B["x"], by_)]
+                else:                                             # rows between them: down or up the left margin
+                    cx = MARGIN - 8 - lane("margin", 4) * 4.0
+                    pts = [(A["x"] + A["w"], ay), (rx, ay), (rx, ga), (cx, ga), (cx, gb), (lx, gb), (lx, by_), (B["x"], by_)]
         out.append({"id": t["id"], "a": A["id"], "b": B["id"], "kind": kind, "pts": pts, "solid": kind in SOLID, "thick": kind in THICK})
     return out
 

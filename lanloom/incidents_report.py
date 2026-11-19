@@ -3,7 +3,7 @@
 Rule based (lanloom/incidents.py): one line per incident with its probable root, how many parts hung on it, when it
 started and how long it lasted. An incident that is still open is a point to look at; an outage that ended is a point
 when it took longer than ``POINT_S`` or took others with it, otherwise a note; blips, flapping and maintenance (own
-updates, maintenance windows, marked by a person) are notes. The section is left out when the slots hold nothing yet or
+updates, a maintenance window, marked by a person) are notes. The section is left out when the slots hold nothing yet or
 there was no incident in the window. Texts are i18n keys."""
 from .nightly.contrib import Contribution, _short, item, register, section
 

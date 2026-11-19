@@ -11,7 +11,7 @@ Sources, all Lanloom's own (nothing here talks to the network):
 * the **dependency graph** (lanloom/failure.py) bundles episodes that started together: a member that sits in the
   failure chain of another member hangs on it (``sure`` or ``likely``, with the reason of the edge); what is left are
   the roots. Several unrelated roots at the same time point at what they share upstream (``likely``, reason ``shared``).
-* **maintenance windows** of the notifications (N1, ``notify.maintenance_at``) and the user's own mark on a file.
+* **a maintenance window** of the notifications (N1, ``notify.maintenance_at``) and the user's own mark on a file.
 
 Kinds: ``maintenance`` (window, own update, or marked by a person), ``flapping`` (``FLAP_RUNS`` or more runs in one
 episode), ``blip`` (one short run up to ``BLIP_S``), ``outage`` (the rest). Phones and computers come and go: they never

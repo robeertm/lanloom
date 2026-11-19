@@ -564,7 +564,7 @@ Press **Rewind** above the map (or `R`) and the last 24 hours play back on the b
 minute, the tiles show what was down; `Space` pauses, `1`-`4` set 60x to 3600x, `W` switches to 7 days, `Esc` goes back
 to live, and the palette understands *rewind to 14:30*. Faults are bundled into **incident files**: devices that went down
 together are listed under the part they hang on in the failure chain (sure or probably), with the kind (outage, flapping,
-blip, maintenance - Lanloom's own updates and maintenance windows never count as faults), what changed before, the
+blip, maintenance - Lanloom's own updates and a maintenance window never count as faults), what changed before, the
 timeline, the measurements and how it healed. A 90-day calendar, a 7-day heatmap by hour, the event chronicle and a
 *Timeline & data state* (firmware jumps, own updates, new devices, long outages) answer "when does this happen?". The
 nightly report has a section *Incidents of the night*. See the [manual page](docs/manual/incidents.md).
