@@ -24,8 +24,8 @@ a.sn-row:hover { background: var(--ll-surface-2); }
 .sn-row__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ll-ok); }
 .sn-dot--down { background: var(--ll-danger); }
 .sn-row__main { display: flex; flex-direction: column; min-width: 0; }
-.sn-row__name { font-weight: var(--ll-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sn-row__sub { font-size: var(--ll-fs-xs); color: var(--ll-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sn-row__name { font-weight: var(--ll-fw-semibold); overflow-wrap: anywhere; }
+.sn-row__sub { font-size: var(--ll-fs-xs); color: var(--ll-text-3); overflow-wrap: anywhere; }
 .sn-row__val { font-variant-numeric: tabular-nums; font-weight: var(--ll-fw-semibold); text-align: right; white-space: nowrap; }
 .sn-row__val.is-down, .hub-ents__val.is-down, .sn-ent__value.is-down { color: var(--ll-danger-text); }
 .sn-row__age { font-size: var(--ll-fs-xs); text-align: right; white-space: nowrap; }

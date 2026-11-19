@@ -264,6 +264,8 @@
         const nTalk = talkOn && talkInfo ? talkInfo.pairs.length : 0;
         const talkChip = chip(t('talk.chip') + (nTalk ? ' · ' + nTalk : ''), talkOn, toggleTalk, ' mf-chip--talk');
         if (nTalk) talkChip.title = t('talk.legend', { n: nTalk });
+        // focus stays on the same control after a redraw: the child-index path from the bar to it, read from the DOM
+        const fPath = []; for (let e = filterBar.contains(document.activeElement) ? document.activeElement : null; e && e !== filterBar; e = e.parentNode) fPath.unshift([...e.parentNode.children].indexOf(e));
         filterBar.replaceChildren(...[
           LL.netModes ? LL.netModes('live') : null, LL.netModes ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
           treeOk ? viewSwitch() : null, mode === 'board' && fullScreen ? fullButton() : null, treeOk || (mode === 'board' && fullScreen) ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
@@ -275,6 +277,7 @@
           ...(zones.length > 1 ? zones.map(z => chip(z.title || '—', zone === z.id, () => set('zone', zone === z.id ? null : z.id))) : []),
           zones.length > 1 ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
           chip(t('mapfilter.problems'), only === 'problems', () => set('only', only === 'problems' ? null : 'problems'), ' mf-chip--problems')].filter(Boolean));
+        if (fPath.length) { let e = filterBar; for (const i of fPath) e = e && e.children[i]; if (e && e.focus) e.focus({ preventScroll: true }); }
         const n = filtered(data).components.filter(c => c.zone !== 'edge').length;
         if ((zone || only) && !n) filterBar.append(h('span', { class: 'mf-empty muted' }, t(only ? 'mapfilter.none_problems' : 'mapfilter.none')));
       }
@@ -370,10 +373,22 @@
     panel.hidden = false;
     panel.classList.add('is-open');
     panel.replaceChildren(h('div', { class: 'detail__loading' }, h('div', { class: 'skeleton' })));
+    // Esc closes the card like the close button (O8), also while it is still loading; a dialog, the palette or the paths full screen
+    // on top takes Esc first. One listener per panel: the newest card's.
+    let close = null, aborted = false;
+    if (panel._llEsc) document.removeEventListener('keydown', panel._llEsc);
+    const onEsc = panel._llEsc = ev => {
+      if (!panel.classList.contains('is-open') || panel.hidden) { document.removeEventListener('keydown', onEsc); return; }
+      if (ev.key !== 'Escape' || ev.defaultPrevented || document.querySelector('.modal, .cmdk, .pw-full')) return;
+      if (close) { close.click(); return; }
+      aborted = true; document.removeEventListener('keydown', onEsc); panel.hidden = true; panel.classList.remove('is-open'); if (onClose) onClose();
+    };
+    document.addEventListener('keydown', onEsc);
     let d;
     try { d = await api('/api/component/' + encodeURIComponent(id)); } catch (e) { panel.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }
+    if (aborted) return;
     const c = localise({ zones: [], components: [d.component], traces: [] }).components[0];
-    const close = h('button', { class: 'icon-btn detail__close', type: 'button', 'aria-label': t('detail.close'), onclick: () => { panel.hidden = true; panel.classList.remove('is-open'); unsub(); if (onClose) onClose(); } }, '✕');
+    close = h('button', { class: 'icon-btn detail__close', type: 'button', 'aria-label': t('detail.close'), onclick: () => { document.removeEventListener('keydown', onEsc); panel.hidden = true; panel.classList.remove('is-open'); unsub(); if (onClose) onClose(); } }, '✕');
     const gradeEl = h('span', { class: 'grade-chip', dataset: { grade: c.grade } }, h('i'), t('board.grade.' + (c.grade || 'unknown')));
     const statusEl = h('span', { class: 'chip chip--' + ({ up: 'ok', down: 'danger' }[c.status] || 'muted') }, t('board.status.' + (c.status || 'unknown')));
     const sections = [];

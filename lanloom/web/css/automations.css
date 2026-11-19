@@ -47,7 +47,7 @@
 .au-row__icon.is-on::before { background: var(--ll-accent-text); }
 .au-row__main { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .au-row__name { font-weight: var(--ll-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.au-row__sub { font-size: var(--ll-fs-xs); color: var(--ll-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.au-row__sub { font-size: var(--ll-fs-xs); color: var(--ll-text-3); overflow-wrap: anywhere; }
 .au-row__chips { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: nowrap; }
 .au-row__runs { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .au-row__runs .muted { font-size: var(--ll-fs-2xs); }

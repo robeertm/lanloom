@@ -163,8 +163,8 @@ a.change__link:hover { background: var(--ll-surface-2); }
 .ov-dev__link { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px; margin: 0 -8px; border-radius: var(--ll-radius-sm); color: var(--ll-text); text-decoration: none; }
 .ov-dev__link:hover { background: var(--ll-surface-2); }
 .ov-dev__main { display: flex; flex-direction: column; min-width: 0; }
-.ov-dev__title { font-weight: var(--ll-fw-medium); font-size: var(--ll-fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-dev__sub { font-size: var(--ll-fs-xs); color: var(--ll-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-dev__title { font-weight: var(--ll-fw-medium); font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.ov-dev__sub { font-size: var(--ll-fs-xs); color: var(--ll-text-3); overflow-wrap: anywhere; }
 .ov-origin { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 24px; }
 .ov-origin--random, .ov-origin--unregistered { background: var(--ll-warn-soft); color: var(--ll-warn-text); }
 

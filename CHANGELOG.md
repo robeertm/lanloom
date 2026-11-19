@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.46.1] – 2026-11-19
+
+### Fixed
+- Names, notes and sub-lines in lists (overview devices, device list, data-path rows, firewall tiles, inventory, connection peers, sensors, AI suggestions, session ids) wrap instead of being cut off with an ellipsis, so a very long name stays readable on a phone. Fixed-geometry board tiles and chips keep their short form; their card shows the full text.
+- The Escape key now closes the open component card, like the close button (it did nothing before).
+- Keyboard focus stays where it was when the live rhythm redraws the overview page or the map's area filter (it was dropped to the page before).
+
+### Changed
+- Browser guard tests (private test repository) cover three recurrences: no visible text cut off in any view at phone and desktop widths in both colour themes with very long names; open parts, filters, scroll position and focus survive the live rhythm; changing a view by anchor or with the back key leaves no sheet or full screen standing.
+
 ## [Unreleased]
 
 ### Added

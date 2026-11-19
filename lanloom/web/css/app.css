@@ -19,7 +19,7 @@ code { font-family: var(--ll-font-mono); font-size: .92em; }
 .muted { color: var(--ll-text-3); }
 .lead { color: var(--ll-text-2); font-size: var(--ll-fs-lg); max-width: 62ch; }
 .fineprint { color: var(--ll-text-3); font-size: var(--ll-fs-sm); max-width: 70ch; }
-.truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.truncate { max-width: 220px; overflow-wrap: anywhere; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stack { display: flex; flex-direction: column; gap: var(--ll-space-4); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ll-space-4); }
@@ -268,7 +268,7 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .device-row:hover { background: var(--ll-surface-2); }
 .device-row.is-hidden { opacity: .55; }
 .device-row__main { display: flex; flex-direction: column; min-width: 0; }
-.device-row__title { font-weight: var(--ll-fw-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-row__title { font-weight: var(--ll-fw-semibold); overflow-wrap: anywhere; }
 .device-row__sub { color: var(--ll-text-3); font-size: var(--ll-fs-xs); }
 .device-row__kind { color: var(--ll-text-2); font-size: var(--ll-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .device-row__svc { display: flex; gap: 4px; overflow: hidden; }

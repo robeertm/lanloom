@@ -43,7 +43,7 @@
 .fw-tile { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm);
   background: var(--ll-surface); box-shadow: var(--ll-shadow-1); }
 .fw-tile__main { min-width: 0; flex: 1; }
-.fw-tile__name { font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fw-tile__name { font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-medium); overflow-wrap: anywhere; }
 .fw-tile__meta { font-size: var(--ll-fs-xs); color: var(--ll-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fw-tile__meta b { color: var(--ll-accent-text); font-weight: var(--ll-fw-semibold); }
 .fw-tile__badge { flex: none; height: 20px; padding: 0 8px; font-size: 10px; gap: 4px; }

@@ -171,8 +171,15 @@
     }));
     S.stamp.textContent = t('ov.stamp', { time: new Date(d.t * 1000).toLocaleTimeString(LL.locale(), { hour12: false, hour: '2-digit', minute: '2-digit' }) });
     const y = S.scroller ? S.scroller.scrollTop : 0;
+    // keyboard focus survives the redraw: remember the focused control by its class list and its index among equals (read from the DOM)
+    const ae = document.activeElement; let fKey = null, fIdx = 0;
+    if (ae && ae !== document.body && S.body.contains(ae)) {
+      fKey = (typeof ae.className === 'string' ? ae.className.trim().split(/\s+/).filter(Boolean) : []).map(c => '.' + CSS.escape(c)).join('') || ae.tagName.toLowerCase();
+      fIdx = [...S.body.querySelectorAll(fKey)].indexOf(ae);
+    }
     S.body.replaceChildren(healthCard(d), kpis, cards);
     if (S.scroller) S.scroller.scrollTop = y;
+    if (fKey && fIdx >= 0) { const again = S.body.querySelectorAll(fKey)[fIdx]; if (again && again.focus) again.focus({ preventScroll: true }); }
   }
   async function load() {
     if (!S || document.hidden) return;

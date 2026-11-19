@@ -41,7 +41,7 @@
 .ai-found__meta { font-size: var(--ll-fs-xs); overflow-wrap: anywhere; }
 .ai-sugg li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: var(--ll-fs-sm);
   border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); padding: 6px 12px; background: var(--ll-surface); }
-.ai-sugg__title { font-weight: var(--ll-fw-medium); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-sugg__title { font-weight: var(--ll-fw-medium); min-width: 0; overflow-wrap: anywhere; }
 .ai-code { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); padding: 12px 14px; background: var(--ll-surface-2); }
 .ai-code__head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .ai-code__value { font-size: var(--ll-fs-xl); letter-spacing: .08em; color: var(--ll-text); }

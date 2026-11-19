@@ -98,7 +98,7 @@
 .pw-row.is-selected { background: var(--ll-accent-soft); }
 .pw-row:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: -2px; }
 .pw-row__cc { font-size: var(--ll-fs-xs); color: var(--ll-text-3); }
-.pw-row__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pw-row__name { overflow-wrap: anywhere; min-width: 0; }
 .pw-row__meta { font-size: var(--ll-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
 .pw-row__value { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pw-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--ll-surface-3); overflow: hidden; }

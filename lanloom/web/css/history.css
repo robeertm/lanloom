@@ -39,7 +39,7 @@
 /* connections */
 .conn-list { gap: 8px; }
 .conn { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; row-gap: 2px; align-items: center; }
-.conn__peer { font-weight: var(--ll-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ll-text); }
+.conn__peer { font-weight: var(--ll-fw-semibold); overflow-wrap: anywhere; color: var(--ll-text); }
 a.conn__peer { color: var(--ll-accent-text); }
 .conn__kind { grid-column: 2; font-size: var(--ll-fs-xs); }
 .conn__rates { grid-column: 3; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; font-size: var(--ll-fs-xs); font-variant-numeric: tabular-nums; }

@@ -46,7 +46,7 @@ th.inv-c--warranty { width: 13%; } th.inv-c--eol { width: 13%; } th.inv-c--firmw
 .inv-row:hover, .inv-row.is-open { background: var(--ll-surface-2); }
 .inv-row.is-open td:first-child { box-shadow: inset 3px 0 0 var(--ll-accent); }
 .inv-row--decommissioned .inv-c--device, .inv-row--decommissioned .inv-c--purpose, .inv-row--decommissioned .inv-c--room { opacity: .6; }
-.inv-title { display: block; font-weight: var(--ll-fw-semibold); color: var(--ll-text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-title { display: block; font-weight: var(--ll-fw-semibold); color: var(--ll-text); text-decoration: none; overflow-wrap: anywhere; }
 .inv-title:hover { color: var(--ll-accent-text); text-decoration: underline; }
 .inv-sub { display: block; font-size: var(--ll-fs-xs); color: var(--ll-text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-val { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }

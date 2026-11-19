@@ -63,7 +63,7 @@
 .api-op__sum .role-chip { height: 20px; font-size: 10px; }
 .api-op__text { font-size: var(--ll-fs-sm); color: var(--ll-text-2); min-width: 0; }
 .api-op__body { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: var(--ll-space-2); background: var(--ll-surface-2); }
-.api-op__params td, .api-op__params th { overflow-wrap: anywhere; }
+.api-op__params td, .api-op__params th { overflow-wrap: anywhere; white-space: normal; overflow: visible; text-overflow: clip; }
 
 @media (max-width: 700px) {
   .acc-table.api-table .acc-row { grid-template-columns: minmax(0, 1fr) auto; }
