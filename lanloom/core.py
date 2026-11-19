@@ -169,6 +169,12 @@ class Core:
         live_routes = data_dir is not None and not getattr(cfg, "demo", False) and not getattr(cfg, "probe", False)
         self.routes = RouteWatch(self, (data_dir if live_routes else None))     # network routes (DW2), off by default
         self.paths.route_sink = self.routes
+        from .cables import CableData                   # real cables (DW3): bundled cable file (ODbL), an admin import
+        if shared is not None and getattr(shared, "cables", None) is not None:
+            self.cables = shared.cables
+        else:
+            self.cables = CableData((data_dir / "cables") if live_routes else None)
+        self._cable_cache: dict = {}       # (route key, measured at, data version) -> estimate, crossings and path (memory only)
         self.availability = availability_mod.Availability(store)     # 5-minute slots per device/connection (S2)
         self.services = services_mod.Services(self)                  # services, web interfaces, link probe, certificates (E5)
         self.traffic_log = trafficlog_mod.TrafficLog(store)           # bytes per minute per trace (plot ranges up to 7 days)
@@ -737,7 +743,7 @@ class Core:
         devices = self._paths_devices()
         out = dict(self.paths.summary(window, devices))
         out["source"] = self.paths_source()
-        out["routes"] = self.routes.rows(limit=20) if self.routes.settings()["enabled"] or self.routes.demo else []
+        out["routes"] = self.with_cables(self.routes.rows(limit=20)) if self.routes.settings()["enabled"] or self.routes.demo else []
         out["routes_on"] = bool(self.routes.settings()["enabled"])
         return out
 
@@ -766,7 +772,7 @@ class Core:
         cc_n = (cc or "").strip().upper()[:2]
         out = dict(self.paths.country_view(cc, window, self._paths_devices(), route_places=rw.places_for(cc_n) if on else None))
         out["source"] = self.paths_source()
-        out["routes"] = rw.rows(cc_n) if (on or rw.demo) else []
+        out["routes"] = self.with_cables(rw.rows(cc_n)) if (on or rw.demo) else []
         out["routes_on"] = on
         out["home_cc"] = (self.settings().get("home_country") or "").upper()
         return out
@@ -774,7 +780,47 @@ class Core:
     def paths_routes(self) -> dict:
         """Network routes (DW2): state of the option, what is possible here, and the stored (condensed) routes."""
         rw = self.routes
-        return {"status": rw.status(), "routes": rw.rows(limit=40) if (rw.settings()["enabled"] or rw.demo) else []}
+        return {"status": rw.status(), "routes": self.with_cables(rw.rows(limit=40)) if (rw.settings()["enabled"] or rw.demo) else []}
+
+    def with_cables(self, rows: list) -> list:
+        """Real cables (DW3): every route gets its sea crossings, the estimated cables (never sure) and the path over the
+        cables for the map. Computed from the stored sections (no address in them) and kept in memory only - nothing of it
+        is stored. Without routes the cable file is not even opened."""
+        if not rows:
+            return rows
+        from . import cableroute
+        data = self.cables.data()
+        ver = self.cables.version
+        places = self.routes.places if data else {}
+        if len(self._cable_cache) > 400:
+            self._cable_cache.clear()
+        out = []
+        for r in rows:
+            k = (r.get("key"), r.get("t"), ver)
+            hit = self._cable_cache.get(k)
+            if hit is None:
+                secs = r.get("sections") or []
+                try:
+                    est = cableroute.estimate(secs, data, places=places) if data else []
+                    hit = {"cables": [{x: e[x] for x in e if x not in ("line", "ends")} for e in est],
+                           "crossings": cableroute.crossings(secs), "path": cableroute.path(secs, est)}
+                except (TypeError, ValueError, KeyError, IndexError, ZeroDivisionError):
+                    hit = {"cables": [], "crossings": [], "path": []}
+                self._cable_cache[k] = hit
+            out.append(dict(r, **hit))
+        return out
+
+    def paths_cables_action(self, action: str, raw: bytes = b"") -> dict:
+        """``import`` (administrator: an Overpass answer of their own replaces the bundled cables), ``reset`` (back to the
+        bundled file). Raises ValueError with a translation key."""
+        if action == "import":
+            out = self.cables.import_answer(raw, time.strftime("%Y-%m-%d", time.gmtime(time.time())))
+        elif action == "reset":
+            out = self.cables.reset()
+        else:
+            raise ValueError("paths.cables.action")
+        self._cable_cache.clear()
+        return out
 
     def paths_routes_action(self, action: str) -> dict:
         """``measure`` (operator: measure the top destinations now), ``clear`` (administrator: forget every stored route)."""

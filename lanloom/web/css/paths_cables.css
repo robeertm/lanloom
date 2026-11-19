@@ -1,0 +1,89 @@
+/* Lanloom — data paths: "Real cables" view (DW3). Only design tokens, so light and dark follow tokens.css.
+   Cable lines keep their screen width at every zoom level (vector-effect), they lie under the traffic and never take the eye. */
+
+/* the two-part control Real cables | Rain */
+.pw-board__view { display: flex; align-items: center; justify-content: flex-start; min-width: 0; }
+.pv-seg .seg__btn { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.pv-ico { display: inline-block; width: 16px; height: 10px; flex: none; position: relative; }
+.pv-ico--cables { background: linear-gradient(var(--ll-text-3), var(--ll-text-3)) 0 50% / 100% 1.5px no-repeat; }
+.pv-ico--cables::after { content: ""; position: absolute; left: 6px; top: 2.5px; width: 5px; height: 5px; border-radius: 50%; background: var(--pw-dot-eu, var(--ll-accent)); }
+.pv-ico--rain { border-top: 1.5px solid var(--ll-text-3); border-radius: 50% 50% 0 0 / 100% 100% 0 0; height: 8px; margin-top: 2px; }
+.pv-ico--rain::after { content: ""; position: absolute; left: 3px; top: -1px; width: 4px; height: 4px; border-radius: 50%; background: var(--pw-dot-out, var(--ll-warn)); }
+.pw-full__seg { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.pc-viewbar { display: flex; justify-content: flex-start; padding: 0 2px; }
+
+/* the cable layer */
+.cb-layer { pointer-events: none; }
+.cb-layer path { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+.cb-sea path { stroke: var(--ll-text-3); stroke-width: .8px; opacity: .42; }
+.cb-land path { stroke: var(--ll-text-3); stroke-width: .7px; opacity: .3; stroke-dasharray: 1 3; }
+.cb-hits { pointer-events: auto; }
+.cb-layer .cb-hit { stroke: transparent; stroke-width: 9px; opacity: 1; cursor: help; pointer-events: stroke; }
+.cb-hot path { fill: none; vector-effect: non-scaling-stroke; stroke: var(--ll-text-2); stroke-width: 2px; opacity: .8; stroke-linecap: round; cursor: help; pointer-events: stroke; }
+.cb-hot path:focus { outline: none; }
+.cb-hot path:focus-visible { stroke: var(--ll-focus); stroke-width: 3px; opacity: 1; }
+
+/* the ways the traffic runs on: cable parts solid, estimated parts dashed */
+.cb-way path { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+.cb-way .cb-way__cable { stroke-width: var(--cb-w, 1.6px); opacity: .85; }
+.cb-way .cb-way__air { stroke-width: max(1px, calc(var(--cb-w, 1.6px) * .7)); opacity: .6; stroke-dasharray: 4 4; }
+.pw-way.pw-out path, .pc-way.is-out path { stroke: var(--pw-out); }
+.pw-way.pw-eu path, .pc-way.is-eu path, .pc-way.is-home path { stroke: var(--pw-eu); }
+.pw-way { cursor: pointer; }
+.pw-way .cb-way__cable { pointer-events: none; }        /* the probable cable below answers hover and tap */
+.pw-way.is-quiet { opacity: .14; }
+.pw-way.is-selected path { opacity: 1; }
+.pc-way { --cb-w: 1.6px; }
+.pc-way--leg path { opacity: .5; }
+.pw-arc.pw-arc--est { stroke-dasharray: 5 5; opacity: .5; }
+.pw-arc.pw-arc--est.pw-eu { opacity: .45; }
+.pw-arc.pw-arc--est.is-quiet { opacity: .12; }
+.cb-on .pw-arc.pw-arc--est { stroke-dasharray: calc(5px / var(--pw-z, 1)) calc(5px / var(--pw-z, 1)); }
+
+/* legend swatches */
+.cb-sw { display: inline-block; width: 18px; height: 0; border-top: 1.5px solid var(--ll-text-3); opacity: .8; flex: none; vertical-align: middle; }
+.cb-sw--hot { border-top: 2.5px solid var(--ll-text-2); opacity: 1; }
+.cb-sw--est { border-top: 2px dashed var(--ll-text-2); opacity: .8; }
+.pc-legend__cb { display: inline-flex; align-items: center; gap: 6px; }
+
+/* attribution line: always visible beside the map while cables are drawn */
+.cb-attr { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: var(--ll-fs-xs); color: var(--ll-text-3); line-height: 1.45; min-width: 0; }
+.cb-attr .cb-sw { position: relative; top: -3px; }
+.cb-attr a { color: var(--ll-text-2); }
+.cb-attr span { min-width: 0; overflow-wrap: anywhere; }
+.pw-full__attr { flex-basis: 100%; }
+.pc-attr { padding: 0 4px; }
+
+/* tooltip */
+.cb-tip { position: absolute; z-index: 5; max-width: 280px; display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; pointer-events: none;
+  background: var(--ll-surface); border: 1px solid var(--ll-border-strong); border-radius: var(--ll-radius-sm); box-shadow: var(--ll-shadow-2);
+  font-size: var(--ll-fs-sm); color: var(--ll-text-2); }
+.cb-tip b { color: var(--ll-text); font-weight: var(--ll-fw-semibold); overflow-wrap: anywhere; }
+.cb-tip small { color: var(--ll-text-3); font-size: var(--ll-fs-xs); }
+.cb-tip__est i { font-style: normal; color: var(--ll-text); font-weight: var(--ll-fw-medium); }
+
+/* the estimated cable in a route of the routes card */
+.rt-cables { list-style: none; margin: 8px 0 0; padding: 8px 0 0; border-top: 1px dashed var(--ll-border); display: flex; flex-direction: column; gap: 4px; font-size: var(--ll-fs-sm); }
+.rt-cable { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.rt-cable b { font-weight: var(--ll-fw-semibold); color: var(--ll-text); overflow-wrap: anywhere; }
+.rt-cable span { color: var(--ll-text-2); }
+.rt-cable small { color: var(--ll-text-3); flex-basis: 100%; }
+.rt-cable.is-unknown b { color: var(--ll-text-3); font-weight: var(--ll-fw-medium); }
+.rt-cable-note { font-size: var(--ll-fs-xs); color: var(--ll-text-3); }
+
+/* settings card */
+.cb-set .facts { margin-top: 4px; }
+
+@media (max-width: 700px) {
+  .pw-board__view { width: 100%; }
+  .pw-board__view .pv-seg { width: 100%; }
+  .pw-board__view .pv-seg .seg__btn { flex: 1 1 0; justify-content: center; padding: 0 10px; }
+  .pv-seg--full .seg__btn { padding: 0 10px; }
+  .pv-seg--full .pv-ico { display: none; }
+  .pc-viewbar .pv-seg { width: 100%; }
+  .pc-viewbar .pv-seg .seg__btn { flex: 1 1 0; justify-content: center; }
+  .cb-tip { max-width: 220px; }
+}
+/* touch: at world scale the thin hit lines would cover the coasts and swallow the tap on a country; they work once zoomed in */
+@media (pointer: coarse) { .pw-map:not(.is-zoomed) .cb-hit { pointer-events: none; } }
+@media (prefers-reduced-motion: reduce) { .cb-way path, .cb-layer path { transition: none; } }

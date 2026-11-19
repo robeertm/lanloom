@@ -8,4 +8,5 @@ tests
 *.md
 !THIRD-PARTY-NOTICES.md
 !CHANGELOG.md
+!lanloom/data/CABLES-LICENSE.md
 deploy

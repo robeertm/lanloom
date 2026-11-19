@@ -414,6 +414,18 @@
    "use": "connect",
    "category": "optional-download",
    "purpose": "public source of the exchange point lists; only after an administrator switched on the network routes and the exchange points from PeeringDB"
+  },
+  {
+   "host": "www.openstreetmap.org",
+   "use": "link",
+   "category": "link",
+   "purpose": "attribution link of the bundled cable data (ODbL), shown beside the map in the real cables view; opened only when clicked (the cable data ships in the image)"
+  },
+  {
+   "host": "opendatacommons.org",
+   "use": "link",
+   "category": "link",
+   "purpose": "licence link of the bundled cable data (ODbL), shown only"
   }
  ]
 }

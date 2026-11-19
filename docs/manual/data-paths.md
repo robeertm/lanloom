@@ -10,9 +10,10 @@ unusually much.
 
 ## What you see
 
-![Data paths, light theme](../screenshots/paths-light.png)
+![Data paths, Real cables view, light theme (sample network)](../screenshots/paths-cables-light.png)
 
-- **Arcs** from your home country to every destination country. The width follows the bytes of the chosen period.
+- **Two views** above the map: **Real cables** (the default) and **Rain**, see [Real cables and Rain](#real-cables-and-rain).
+- **Arcs** (Rain) from your home country to every destination country. The width follows the bytes of the chosen period.
   Destinations outside the EU are amber, those in the EU teal. Dots travel along the arcs in the direction of most of
   the traffic.
 - **Period:** 24 hours (hourly sums), 7 days or 30 days (daily sums).
@@ -75,6 +76,35 @@ each section adds. Everyone can look; operators can press *Measure now*, adminis
 
 Details, limits and the rights in a container: [Data paths](../DATA-PATHS.md#network-routes-an-option-off-by-default).
 
+### Real cables and Rain
+
+The control **Real cables | Rain** above the map (also in the full screen and in the country sheet) switches between two
+views of the same numbers. Your choice is remembered on this device; a link can carry it (`#/paths?view=rain`).
+
+- **Real cables** (the default): the sea and land cables of OpenStreetMap as fine grey lines; the traffic runs as dots over
+  the measured routes and, at each sea crossing, over the cable it **probably** used (that cable lights up). Countries
+  without a measured route get a dashed arc: *path estimated*. Dots towards you are received data, lighter dots sent data.
+- **Rain**: the arcs from your home country with travelling dots, as before.
+- **The sum is the same in both views** - nothing disappears when you switch.
+- **Point at or tap a cable** (on a phone, zoom in first) to see its name, length and operator; the probable cables can also
+  be reached with Tab.
+- **Which cable?** The routes list says *Probably via …*, *Possibly via … or …* or *Cable unknown*, with the reason (round-trip
+  times and where the cables land). It is always an **estimate, never a measurement**; nothing of it is stored.
+- **Incomplete by nature:** the cables come only from OpenStreetMap (© OpenStreetMap contributors, ODbL), community-mapped
+  and incomplete - many cables are missing or have no name. The map says so in the line below it whenever cables are shown.
+- **Cable data** under *Settings > General > Cable data*: source, date, number of cables and the licence. Administrators can
+  import an Overpass answer of their own (for example a region mapped in more detail) and go back to the bundled cables;
+  nothing is downloaded for it.
+- With *reduce motion* no dots run in either view.
+
+![Real cables view, dark theme (sample network)](../screenshots/paths-cables-dark.png)
+
+![Country detail in the Real cables view (sample network)](../screenshots/paths-cables-country-light.png)
+
+![Real cables on a phone, dark theme (sample network)](../screenshots/phone-paths-cables.png)
+
+Details (how a sea crossing and a fitting cable are found, the data file, its licence and the build): [Data paths](../DATA-PATHS.md#real-cables-and-rain-two-views).
+
 ## How to use it
 
 - Select a country or a device; the map follows the selection. `Esc` or the x on the chip clears it.
@@ -112,6 +142,9 @@ Details, limits and the rights in a container: [Data paths](../DATA-PATHS.md#net
 - The controller adapters count bytes per client but not per destination, so the figures by country come only from the
   host's connections and from NetFlow (see [DATA-PATHS.md](../DATA-PATHS.md#what-the-adapter-statistics-can-and-cannot-do)).
 - Hints never create a firewall rule and never block anything.
+- The cables come only from OpenStreetMap and are incomplete; which cable a route used is an estimate from the places of
+  the hops, their round-trip times and where the cables land. *Cable unknown* means that no cable in the data fits, not
+  that there is none.
 - NetFlow receives only from the exporter addresses you allow; packets from any other address are dropped and counted.
 
 ## Privacy
@@ -122,8 +155,8 @@ Details, limits and the rights in a container: [Data paths](../DATA-PATHS.md#net
   device talked to a country, and for a conversation between two devices the two ids and the bytes per direction. With the option for cities and network operators also the city (of the peer, approximate) and the operator. No peer addresses, ports, host names or visited sites are kept; NetFlow records are read in
   memory and dropped. Retention is adjustable under *Settings > Storage*.
 - **Sent:** nothing, unless an administrator switches on cities and network operators: then the request for two public files from *download.db-ip.com* (no address, no name, nothing about the installation). With network routes switched on, small probe packets towards the most important destinations (one per hop) and name lookups of the answering routers through the system resolver; with the PeeringDB option also three public lists from *www.peeringdb.com*.
-  The country data, the base maps and the places ship with the image.
-- **Roles:** every role looks. Admins set up NetFlow, own networks, the networks without internet, the city data and the network routes.
+  The country data, the base maps, the places and the cables ship with the image; the cable data is never downloaded while Lanloom runs.
+- **Roles:** every role looks. Admins set up NetFlow, own networks, the networks without internet, the city data, the network routes and an own import of cable data.
 
 ## See also
 

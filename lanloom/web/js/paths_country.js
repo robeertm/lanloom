@@ -7,7 +7,10 @@
    still shows everything about the country and says so.
    Sum rule: the bubbles of the map, the device list and the header add up to the same number; traffic without a city is drawn
    as an approximate (dashed) bubble, never dropped.
-   Closing: button, Esc, click beside, the back gesture (one history entry). Deep link: #/paths/<ISO>. */
+   Closing: button, Esc, click beside, the back gesture (one history entry). Deep link: #/paths/<ISO> (with ?view=cables|rain).
+   Real cables (DW3, the default view): the cable layer, and per bubble the traffic runs as dots over a measured route to the
+   country (cut where it comes nearest the country) and from there dashed to the bubble; without a route dashed from the home
+   country ("path estimated"). The Rain view is the map as before. The sum of the bubbles stays the same in both views. */
 (function () {
   'use strict';
   const LL = window.Lanloom;
@@ -33,6 +36,8 @@
   const world = () => LL.worldmap || { w: 1000, h: 438, countries: {}, points: {} };
   const labelPoint = cc => { const m = world(), c = m.countries[cc]; return c ? [c.x, c.y] : (m.points[cc] || null); };
   const place = (lon, lat) => (LL.worldmap && LL.worldmap.project ? LL.worldmap.project(lon, lat) : null);
+  const CB = () => LL.pathsCables || null;
+  const cablesOn = () => !!(CB() && CB().on());
 
   // ------------------------------------------------------------------ files loaded on demand (the app's own, never a foreign server)
   let fineLoad = null;
@@ -133,9 +138,42 @@
       b.el = titled(svgEl('circle', { class: 'pc-bubble ' + side + (b.p.approx ? ' is-approx' : ''), cx: b.x.toFixed(2), cy: b.y.toFixed(2), r: b.r, 'data-r': b.r.toFixed(1), 'data-b': b.p.bytes }), label);
       g.appendChild(b.el);
     }
+    const ways = cablesOn() ? cableWays(d, bubbles, side) : null;
     const svg = svgEl('svg', { class: 'pc-map', viewBox: '0 0 ' + m.w + ' ' + m.h, role: 'img', 'aria-label': t('pc.map.aria', { country: name(d.cc) }), preserveAspectRatio: 'xMidYMid meet' },
-      [shapes, g]);
-    return { svg, bubbles, max, side };
+      [shapes, ways ? ways.g : null, g]);
+    Z.sums = { view: ways ? 'cables' : 'rain', bubbles: bubbles.reduce((a, b) => a + b.p.bytes, 0), streams: ways ? ways.streams.reduce((a, x) => a + x.rx + x.tx, 0) : null,
+      routes: ways ? ways.streams.filter(x => x.via === 'route').length : 0, estimated: ways ? ways.streams.filter(x => x.via !== 'route').length : 0 };
+    return { svg, bubbles, max, side, streams: ways ? ways.streams : [], hot: ways ? ways.hot : [], ways };
+  }
+  /* Real cables: per bubble one stream - over the measured route of its city (or the route that comes nearest the country), cut at
+     its point nearest the country, then dashed to the bubble; without a route dashed from the home country. The bytes of a bubble
+     are split into received and sent like the country's totals. */
+  function cableWays(d, bubbles, side) {
+    const cb = CB(), homeCc = d.home_cc || (LL.pathsHomeCc && LL.pathsHomeCc()) || '';
+    const hp = homeCc ? labelPoint(homeCc) : null;
+    const fr = frame(d.cc), mid = fr ? [(fr.x0 + fr.x1) / 2, (fr.y0 + fr.y1) / 2] : (labelPoint(d.cc) || [0, 0]);
+    const routes = (d.routes || []).filter(r => Array.isArray(r.path) && r.path.length);
+    const hot = [];
+    routes.forEach(r => (r.cables || []).forEach(e => hot.push(e)));
+    const cutOf = new Map(routes.map(r => [r.key, cb.cut(cb.withStart(r.path, hp), mid)]));
+    const gap = r => { const ps = cutOf.get(r.key), l = ps && ps.length ? ps[ps.length - 1].p : null, q = l && l[l.length - 1]; return q ? Math.hypot(q[0] - mid[0], q[1] - mid[1]) : 1e9; };
+    const nearest = routes.slice().sort((a, b) => gap(a) - gap(b))[0] || null;
+    const tot = (d.totals && (d.totals.tx + d.totals.rx)) || 0, rxShare = tot ? d.totals.rx / tot : 1;
+    const g = svgEl('g', { class: 'pc-ways' }), drawn = new Set(), streams = [];
+    for (const b of bubbles.slice().sort((a, c) => a.p.bytes - c.p.bytes)) {
+      const r = (b.p.name && routes.find(x => x.city && x.city === b.p.name)) || nearest;
+      let pts;
+      if (r) {
+        const parts = cutOf.get(r.key);
+        if (!drawn.has(r.key)) { drawn.add(r.key); g.appendChild(cb.pathGroup(parts, 'pc-way ' + side)); }
+        pts = parts.reduce((a, x) => a.concat(a.length ? x.p.slice(1) : x.p), []);
+      } else pts = hp ? [hp] : [];
+      if (!pts.length) continue;
+      const end = pts[pts.length - 1];
+      if (Math.hypot(end[0] - b.x, end[1] - b.y) > 0.05) g.appendChild(cb.pathGroup([{ kind: 'air', p: [end, [b.x, b.y]] }], 'pc-way pc-way--leg ' + side));
+      streams.push({ L: cb.line(pts.concat([[b.x, b.y]])), rx: b.p.bytes * rxShare, tx: b.p.bytes * (1 - rxShare), out: side === 'is-out', via: r ? 'route' : 'air' });
+    }
+    return { g, streams, hot, routes };
   }
 
   /* Wheel, drag, pinch, keys and double click on one map; calls onView after every change. Returns a cleanup function. */
@@ -386,13 +424,24 @@
     parts.cc = Z.cc;
     const homeCc = d.home_cc || (LL.pathsHomeCc && LL.pathsHomeCc()) || '';
     const routes = (d.routes || []).length && LL.pathsRoutes;
-    parts.routes = routes ? LL.pathsRoutes.drawOn(parts.svg, d.routes, { project: place, point: labelPoint, home: homeCc }) : null;
+    if (parts.ways) {
+      // Real cables: the routes are the ways the dots run on; a chosen route still frames its whole way
+      const hp = homeCc ? labelPoint(homeCc) : null;
+      parts.routes = { scale() { /* the ways keep their screen width by themselves */ }, box(key) {
+        const r = (d.routes || []).find(x => x.key === key), ps = r ? CB().withStart(r.path || [], hp) : [];
+        const pts = ps.reduce((a, x) => a.concat(x.p), []);
+        if (!pts.length) return null;
+        return { x0: Math.min(...pts.map(q => q[0])), x1: Math.max(...pts.map(q => q[0])), y0: Math.min(...pts.map(q => q[1])), y1: Math.max(...pts.map(q => q[1])) };
+      } };
+      CB().layer(parts.svg, parts.hot, { before: '.pc-ways', detached: true });
+    } else parts.routes = routes ? LL.pathsRoutes.drawOn(parts.svg, d.routes, { project: place, point: labelPoint, home: homeCc }) : null;
     const ratio = phone() ? 0.95 : 0.56;
     const stage = h('div', { class: 'pc-stage', style: '--pc-ratio:' + ratio }, parts.svg, h('div', { class: 'pc-labels', 'aria-hidden': 'true' }));
     const legend = h('div', { class: 'pc-legend' }, h('span', {}, h('i', { class: 'pc-lg pc-lg--city ' + parts.side }), t('pc.legend.city')),
       h('span', {}, h('i', { class: 'pc-lg pc-lg--approx ' + parts.side }), t('pc.legend.approx')), h('span', {}, h('i', { class: 'pc-lg pc-lg--place' }), t('pc.legend.place')),
-      routes ? h('span', {}, h('i', { class: 'pc-lg pc-lg--route' }), t('routes.legend.route')) : null,
-      routes ? h('span', {}, h('i', { class: 'pc-lg pc-lg--route pc-lg--route-est' }), t('routes.legend.estimated')) : null,
+      routes && !parts.ways ? h('span', {}, h('i', { class: 'pc-lg pc-lg--route' }), t('routes.legend.route')) : null,
+      routes && !parts.ways ? h('span', {}, h('i', { class: 'pc-lg pc-lg--route pc-lg--route-est' }), t('routes.legend.estimated')) : null,
+      ...(parts.ways ? CB().legendItems('pc-legend__cb') : []),
       h('span', { class: 'pc-legend__hint' }, t(coarsePointer() ? 'pc.map.hint_touch' : 'pc.map.hint')));
     const note = detailNote(d);
     /* a chosen route frames its whole way on the map; choosing it again returns to the country */
@@ -406,7 +455,9 @@
       if (box.bottom < 60 || box.top > window.innerHeight - 60) stage.scrollIntoView({ block: 'nearest', behavior: reduced() ? 'auto' : 'smooth' });
     };
     const routeCard = LL.pathsRoutes ? LL.pathsRoutes.card(Object.assign({ home_cc: homeCc }, d), { onSelect: fit }) : null;
-    const left = h('div', { class: 'pc-col' }, h('section', { class: 'card pc-card pc-mapcard' }, stage, legend), historyCard(d, parts.side), targetsCard(d));
+    const viewbar = CB() ? h('div', { class: 'pc-viewbar' }, CB().control('pv-seg--sheet')) : null;
+    const left = h('div', { class: 'pc-col' }, h('section', { class: 'card pc-card pc-mapcard' + (parts.ways ? ' is-cables' : ''), 'data-view': CB() ? CB().view() : 'rain' },
+      viewbar, stage, legend, CB() ? CB().attribution('pc-attr') : null), historyCard(d, parts.side), targetsCard(d));
     const right = h('div', { class: 'pc-col' }, kpis(d), note, citiesCard(d, parts.side), operatorsCard(d, parts.side), devicesCard(d, parts.side));
     body.replaceChildren(h('div', { class: 'pc-grid' }, left, right), routeCard, attribution(d));     // routes: the whole width, a chain has room
     body.scrollTop = scroll;
@@ -417,7 +468,9 @@
     let raf = 0;
     const onView = v => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; if (stage.isConnected) placeLabels(stage, parts.svg, parts, v); }); };
     const stop = zoomer(stage, parts.svg, base, ratio, onView);
-    Z.cleanup = () => { stop(); if (raf) cancelAnimationFrame(raf); };
+    let dots = null;
+    if (parts.ways) requestAnimationFrame(() => { if (stage.isConnected && Z.el === el) dots = CB().runDots(stage, parts.svg, parts.streams, { width: world().w }); });
+    Z.cleanup = () => { stop(); if (raf) cancelAnimationFrame(raf); if (dots) dots.stop(); };
     loadFine().then(ok => { if (ok && Z.el === el && Z.d === d && stage.isConnected && !stage.dataset.fine) { stage.dataset.fine = '1'; upgrade(stage, parts, d, base, ratio, onView); } });
   }
   /* The fine map and the places arrived: swap the shapes in place, the view stays where it is. */
@@ -459,6 +512,7 @@
     document.body.classList.remove('pw-noscroll');
     Z.d = null;
     if (fromPop) Z.pushed = false;
+    if (CB() && cablesOn() !== (LL.query && LL.query.get('view') === 'cables')) setTimeout(() => CB().sync(), 0);     // the view chosen in the sheet stays in the address
     if (!Z.pushed && /^#\/paths\/[A-Za-z]{2}$/.test(location.hash) && !fromPop) { try { history.replaceState(null, '', LL.base + '#/paths'); } catch (e) { /* ignore */ } }
   }
   /* Opening adds one history entry with the deep link; the back gesture and the close button take it away again, and the
@@ -493,12 +547,13 @@
   }
   C.close = () => close(true);
   C.isOpen = () => !!Z.el;
-  C.state = () => ({ cc: Z.cc, window: Z.window, loaded: !!Z.d });
+  C.state = () => ({ cc: Z.cc, window: Z.window, loaded: !!Z.d, sums: Object.assign({}, Z.sums || {}) });
+  document.addEventListener('lanloom-paths-view', () => { if (Z.el && Z.d) draw(); });
   C.data = () => Z.d;
   C.refresh = () => load();
   /* the router asks before it redraws the view for a hashchange: the step that only closes the sheet changes nothing below */
   LL.holdRoute = () => {
-    const held = Z.closing && Date.now() - Z.closing < 1500 && location.hash === '#/paths';
+    const held = Z.closing && Date.now() - Z.closing < 1500 && /^#\/paths(\?.*)?$/.test(location.hash);
     if (held) Z.closing = 0;
     return !!held;
   };

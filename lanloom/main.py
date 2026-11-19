@@ -669,6 +669,50 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def post_paths_routes_clear(request: Request):
         return await asyncio.to_thread(state.core.paths_routes_action, "clear")
 
+    # real cables (DW3): the bundled community-mapped cable file (ODbL) or an administrator's import; never fetched from the network
+    @app.get("/api/paths/cables")
+    async def get_paths_cables(request: Request):
+        blob, etag = await asyncio.to_thread(state.core.cables.blob)
+        if not blob:
+            return err("paths.cables.err.missing", 404)
+        head = {"ETag": etag, "Cache-Control": "private, no-cache", "Vary": "Accept-Encoding"}
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers=head)
+        if "gzip" in (request.headers.get("accept-encoding") or "").lower():
+            return Response(blob, media_type="application/json", headers=dict(head, **{"Content-Encoding": "gzip"}))
+        import gzip as _gzip
+        return Response(await asyncio.to_thread(_gzip.decompress, blob), media_type="application/json", headers=head)
+
+    @app.get("/api/paths/cables/info")
+    async def get_paths_cables_info():
+        return await asyncio.to_thread(state.core.cables.info)
+
+    @app.post("/api/paths/cables/import")
+    async def post_paths_cables_import(request: Request):
+        from .cables import MAX_IMPORT_BYTES
+        try:
+            declared = int(request.headers.get("content-length") or 0)
+        except ValueError:
+            declared = 0
+        if declared > MAX_IMPORT_BYTES:
+            return err("paths.cables.err.too_large", 413)
+        buf = bytearray()
+        async for chunk in request.stream():
+            buf.extend(chunk)
+            if len(buf) > MAX_IMPORT_BYTES:
+                return err("paths.cables.err.too_large", 413)
+        note(request, detail={"bytes": len(buf)})
+        try:
+            out = await asyncio.to_thread(state.core.paths_cables_action, "import", bytes(buf))
+        except ValueError as exc:
+            return err(str(exc))
+        note(request, detail={"bytes": len(buf), "sea": out.get("sea"), "land": out.get("land")})
+        return out
+
+    @app.post("/api/paths/cables/reset")
+    async def post_paths_cables_reset(request: Request):
+        return await asyncio.to_thread(state.core.paths_cables_action, "reset")
+
     @app.get("/api/netflow")
     async def get_netflow():
         return state.core.netflow_status()

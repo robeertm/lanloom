@@ -56,6 +56,28 @@
     return h('ol', { class: 'rt-chain' }, out);
   }
 
+  const orList = names => { try { return new Intl.ListFormat(LL.locale(), { type: 'disjunction' }).format(names); } catch (e) { return names.join(' / '); } };
+  /* DW3: per sea crossing the cable the server estimated ("likely" / "possible: A or B"), or "cable unknown" - never a measurement */
+  function cableLine(r) {
+    const cr = r.crossings || [];
+    if (!cr.length) return null;
+    const items = cr.map(c => {
+      const est = (r.cables || []).filter(e => e.step === c.step);
+      const where = (c.from || t('cables.hop')) + ' \u2192 ' + (c.to || t('cables.hop'));
+      if (!est.length) return h('li', { class: 'rt-cable is-unknown' }, h('b', {}, t('cables.unknown')), h('span', {}, where));
+      const names = est.map(e => e.name || t('cables.unnamed'));
+      const best = est[0], conf = best.confidence === 'likely' ? 'likely' : 'possible';
+      const why = best.reason || {};
+      const hint = why.basis === 'latency' ? t('cables.reason.latency', { km: LL.fmtNum(best.cable_km || 0, 0) })
+        : why.basis === 'latency_contradicts' ? t('cables.reason.contradicts', { km: LL.fmtNum(best.cable_km || 0, 0) })
+          : t('cables.reason.no_latency', { km: LL.fmtNum(best.cable_km || 0, 0) });
+      return h('li', { class: 'rt-cable is-' + conf, title: hint },
+        h('b', {}, conf === 'likely' ? t('cables.route.likely', { name: names[0] }) : t('cables.route.possible', { names: orList(names) })),
+        h('span', {}, where), h('small', {}, hint));
+    });
+    return h('ul', { class: 'rt-cables', 'aria-label': t('cables.route.aria') }, items, h('li', { class: 'rt-cable-note muted' }, t('cables.route.note')));
+  }
+
   function targetTitle(r) {
     if (r.anycast) return t('routes.node.anycast');
     return r.operator || (r.asn ? 'AS' + r.asn : cname(r.cc));
@@ -70,7 +92,7 @@
       r.uncertain ? h('span', { class: 'rt-chip rt-chip--est', title: t('routes.estimated.hint') }, t('routes.estimated')) : null,
       h('em', {}, r.rtt != null ? ms(r.rtt) : '–'),
       h('small', {}, meta.join(' · ') + (r.reached ? '' : ' · ' + t('routes.not_reached')))),
-    chain(r, homeCc));
+    chain(r, homeCc), cableLine(r));
     const pick = () => { St.sel = St.sel === r.key ? null : r.key; sync(); if (opts && opts.onSelect) opts.onSelect(St.sel ? r : null); };
     el.addEventListener('click', pick);
     el.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === el) { ev.preventDefault(); pick(); } });

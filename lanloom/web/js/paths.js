@@ -4,7 +4,10 @@
    no addresses. Base map: Lanloom.worldmap (Natural Earth, offline). Arcs (SVG) from the home country to every destination, width by
    bytes; outside the EU amber, in the EU teal. Dots travel on the arcs on a canvas above the map: only while the map is on screen and
    the tab is visible, never with "reduce motion", and the drawing rate steps down by itself when frames come slowly (no GPU).
-   Full screen: button at the map, Esc / close / back gesture close it; window switch, legend and selection stay usable. */
+   Full screen: button at the map, Esc / close / back gesture close it; window switch, legend and selection stay usable.
+   Two views (DW3, paths_cables.js): "Real cables" (default: cables as fine lines, the traffic runs over the measured routes and the
+   cable the server estimated; a country without a measured route gets a dashed arc, "path estimated") and "Rain" (the arcs). The
+   sum of the map is the same in both views. */
 (function () {
   'use strict';
   const LL = window.Lanloom;
@@ -44,6 +47,8 @@
     return (v > 0 && v < 1 ? LL.fmtNum(v, 1) : LL.fmtNum(Math.round(v), 0)) + ' %';
   };
   const reduced = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const CB = () => LL.pathsCables || null;
+  const cablesOn = () => !!(CB() && CB().on());
 
   // ------------------------------------------------------------------ view state (kept across live redraws)
   const S = { window: '24h', d: null, sel: null, el: null, full: null, anims: new Set(), timer: 0, loading: false, error: null, zv: { page: null, full: null }, zc: { page: null, full: null } };
@@ -104,6 +109,8 @@
     const lift = Math.max(6, Math.min(150, dist * 0.3));
     return { x0, y0, x1, y1, cx: (x0 + x1) / 2 + nx * lift, cy: (y0 + y1) / 2 + ny * lift };
   }
+  const arcD = g => 'M' + g.x0.toFixed(1) + ' ' + g.y0.toFixed(1) + 'Q' + g.cx.toFixed(1) + ' ' + g.cy.toFixed(1) + ' ' + g.x1.toFixed(1) + ' ' + g.y1.toFixed(1);
+  const endR = w => (1.6 + w * 0.45).toFixed(1);
   const onArc = (g, u) => { const v = 1 - u; return [v * v * g.x0 + 2 * v * u * g.cx + u * u * g.x1, v * v * g.y0 + 2 * v * u * g.cy + u * u * g.y1]; };
 
   function svgEl(tag, attrs, kids) {
@@ -140,17 +147,46 @@
       small.appendChild(titled(svgEl('circle', { class: 'pw-dot ' + (isEU(x.cc) ? 'pw-eu' : 'pw-out') + (selCC === x.cc ? ' is-selected' : ''),
         cx: px, cy: py, r: 3.2, 'data-r': 3.2, 'data-cc': x.cc }), countryName(x.cc) + ' — ' + LL.fmtBytes(x.tx + x.rx)));
     }
-    const arcs = [];
+    const arcs = [], streams = [], cables = cablesOn(), hot = [];
     const arcG = svgEl('g', { class: 'pw-arcs' });
+    /* Real cables: the measured routes per destination country (their path over the estimated cables, from the server) */
+    const byCc = new Map();
+    if (cables) for (const r of (S.d.routes || [])) {
+      (r.cables || []).forEach(e => hot.push(e));
+      if (r.cc && r.cc !== hc && Array.isArray(r.path) && r.path.length) { if (!byCc.has(r.cc)) byCc.set(r.cc, []); byCc.get(r.cc).push(r); }
+    }
     if (hp) {
       for (const x of others.slice().sort((a, b) => (a.tx + a.rx) - (b.tx + b.rx))) {
         const g = arcGeom(hp, point(x.cc)), share = (x.tx + x.rx) / max, w = 1 + 4.6 * Math.sqrt(share);
         const quiet = !!(selCC && selCC !== x.cc), side = isEU(x.cc) ? 'pw-eu' : 'pw-out';
+        if (cables) {
+          const rs = byCc.get(x.cc) || [], sel = selCC === x.cc ? ' is-selected' : '', q = quiet ? ' is-quiet' : '';
+          if (rs.length) {
+            // the bytes of the country are shared by its measured routes (the sum stays the same)
+            const frac = 1 / rs.length;
+            for (const r of rs) {
+              const parts = CB().withStart(r.path, hp);
+              const grp = CB().pathGroup(parts, 'pw-way ' + side + q + sel, countryName(x.cc) + ' \u2014 ' + LL.fmtBytes((x.tx + x.rx) * frac));
+              grp.setAttribute('data-cc', x.cc);
+              grp.setAttribute('style', '--cb-w:' + (0.8 + 2.4 * Math.sqrt(share * frac)).toFixed(2) + 'px');
+              arcG.appendChild(grp);
+              streams.push({ cc: x.cc, L: CB().pathLine(parts), rx: x.rx * frac, tx: x.tx * frac, out: !isEU(x.cc), quiet, via: 'route' });
+            }
+          } else {
+            const est = svgEl('path', { class: 'pw-arc pw-arc--est ' + side + q + sel, 'data-cc': x.cc, d: arcD(g),
+              style: 'stroke-width:calc(' + Math.min(w, 2.6).toFixed(2) + 'px / var(--pw-z, 1))' });
+            arcG.appendChild(titled(est, countryName(x.cc) + ' \u2014 ' + t('cables.path_estimated')));
+            streams.push({ cc: x.cc, L: CB().arcLine(g), rx: x.rx, tx: x.tx, out: !isEU(x.cc), quiet, via: 'arc' });
+          }
+          arcG.appendChild(titled(svgEl('circle', { class: 'pw-end ' + side + q, 'data-cc': x.cc, cx: g.x1, cy: g.y1, r: endR(w), 'data-r': endR(w) }),
+            countryName(x.cc) + ' \u2014 ' + LL.fmtBytes(x.tx + x.rx)));
+          continue;
+        }
         arcs.push(Object.assign(g, { cc: x.cc, share, out: !isEU(x.cc), inbound: x.rx >= x.tx, quiet }));
         arcG.appendChild(svgEl('path', { class: 'pw-arc ' + side + (quiet ? ' is-quiet' : '') + (selCC === x.cc ? ' is-selected' : ''), 'data-cc': x.cc,
-          d: 'M' + g.x0.toFixed(1) + ' ' + g.y0.toFixed(1) + 'Q' + g.cx.toFixed(1) + ' ' + g.cy.toFixed(1) + ' ' + g.x1.toFixed(1) + ' ' + g.y1.toFixed(1),
+          d: arcD(g),
           style: 'stroke-width:calc(' + w.toFixed(2) + 'px / var(--pw-z, 1))' }));
-        arcG.appendChild(svgEl('circle', { class: 'pw-end ' + side + (quiet ? ' is-quiet' : ''), cx: g.x1.toFixed(1), cy: g.y1.toFixed(1), r: (1.6 + w * 0.45).toFixed(1), 'data-r': (1.6 + w * 0.45).toFixed(1) }));
+        arcG.appendChild(svgEl('circle', { class: 'pw-end ' + side + (quiet ? ' is-quiet' : ''), cx: g.x1.toFixed(1), cy: g.y1.toFixed(1), r: endR(w), 'data-r': endR(w) }));
       }
     }
     const homeG = hp ? svgEl('g', { class: 'pw-homemark' }, [svgEl('circle', { class: 'pw-home-ring', cx: hp[0], cy: hp[1], r: 7, 'data-r': 7 }),
@@ -173,11 +209,15 @@
       if (el && (by.has(el.dataset.cc))) openCountry(el.dataset.cc);
     });
     svg._pw = { labelG, labelItems, homeLabel, hp };
-    // network routes (DW2, an option): quiet polylines over the measured places, the chosen one stands out
-    if (LL.pathsRoutes && S.d && S.d.routes && S.d.routes.length && hp && m.project) {
+    // network routes (DW2, an option): quiet polylines over the measured places, the chosen one stands out (Rain view; in the
+    // Real cables view the routes are the paths the traffic runs on)
+    if (!cables && LL.pathsRoutes && S.d && S.d.routes && S.d.routes.length && hp && m.project) {
       LL.pathsRoutes.drawOn(svg, S.d.routes, { project: (lon, lat) => m.project(lon, lat), point, home: hc, quiet: true, before: '.pw-labels' });
     }
-    return { svg, arcs };
+    if (cables) CB().layer(svg, hot, { before: '.pw-arcs', detached: true });
+    S.sums = { view: cables ? 'cables' : 'rain', map: cables ? streams.reduce((a, x) => a + x.rx + x.tx, 0) : arcs.reduce((a, g) => a + (by.get(g.cc).tx + by.get(g.cc).rx), 0),
+      streams: streams.length, routes: streams.filter(x => x.via === 'route').length, estimated: streams.filter(x => x.via === 'arc').length };
+    return { svg, arcs, streams };
   }
 
 
@@ -422,6 +462,16 @@
     S.anims.delete(anim);
   }
   function stopAllDots() { [...S.anims].forEach(stopDots); }
+  /* the dots of either view: rain arcs here, real cables over their lines (paths_cables.js) */
+  function startAny(stage, svg, built) {
+    if (built.streams && built.streams.length && cablesOn()) {
+      const a = CB().runDots(stage, svg, built.streams, { width: map().w });
+      if (a) S.anims.add(a);
+      return a;
+    }
+    return startDots(stage, svg, built.arcs);
+  }
+  LL.pathsMapSums = () => Object.assign({}, S.sums || {});        // for tests: the sum the map draws, per view
   LL.pathsAnimLevel = () => [...S.anims].map(a => a.level);       // for tests: current drawing level per running canvas
 
   // ------------------------------------------------------------------ building blocks
@@ -435,7 +485,8 @@
       h('span', { class: 'pw-legend__item' }, h('i', { class: 'pw-swatch pw-swatch--out' }), t('paths.legend.out')),
       h('span', { class: 'pw-legend__item' }, h('i', { class: 'pw-swatch pw-swatch--eu' }), t('paths.legend.eu')),
       hc ? h('span', { class: 'pw-legend__item' }, h('i', { class: 'pw-swatch pw-swatch--home' }), t('paths.legend.home', { country: countryName(hc) })) : null,
-      S.d && S.d.routes && S.d.routes.length ? h('span', { class: 'pw-legend__item' }, h('i', { class: 'pw-swatch pw-swatch--route' }), t('routes.legend.route')) : null,
+      !cablesOn() && S.d && S.d.routes && S.d.routes.length ? h('span', { class: 'pw-legend__item' }, h('i', { class: 'pw-swatch pw-swatch--route' }), t('routes.legend.route')) : null,
+      ...(cablesOn() ? CB().legendItems() : []),
       h('span', { class: 'pw-legend__item pw-legend__hint' }, t('paths.legend.width')),
       h('span', { class: 'pw-legend__item pw-legend__hint' }, t('paths.zoom.hint')));
   }
@@ -569,7 +620,10 @@
     const fullBtn = h('button', { type: 'button', class: 'icon-btn pw-full-btn', title: t('paths.full.open'), 'aria-label': t('paths.full.open'), onclick: () => openFull() });
     fullBtn.innerHTML = FULL_ICON;
     const empty = !d.countries.length ? h('p', { class: 'pw-map-empty' }, t('paths.empty.map')) : null;
-    kids.push(h('section', { class: 'card pw-board' }, h('div', { class: 'pw-board__top' }, legend(), h('div', { class: 'pw-board__tools' }, selChip(), fullBtn)), stage, empty, nfn));
+    const viewCtl = CB() ? h('div', { class: 'pw-board__view' }, CB().control()) : null;
+    kids.push(h('section', { class: 'card pw-board' + (cablesOn() ? ' is-cables' : ''), 'data-view': CB() ? CB().view() : 'rain' }, viewCtl,
+      h('div', { class: 'pw-board__top' }, legend(), h('div', { class: 'pw-board__tools' }, selChip(), fullBtn)), stage, empty,
+      CB() ? CB().attribution('pw-board__attr') : null, nfn));
     const un = unusualCard(d);
     if (un) kids.push(un);
     kids.push(h('div', { class: 'pw-grid' }, countriesCard(d), devicesCard(d)));
@@ -577,7 +631,7 @@
     if (rc) kids.push(rc);
     kids.push(attribution(d));
     page.replaceChildren(...kids);
-    if (!S.full) requestAnimationFrame(() => { if (stage.isConnected && !S.full) startDots(stage, built.svg, built.arcs); });
+    if (!S.full) requestAnimationFrame(() => { if (stage.isConnected && !S.full) startAny(stage, built.svg, built); });
     if (S.full) renderFull();
   }
 
@@ -647,15 +701,15 @@
     if (!f) return;
     stopAllDots();
     unzoom('full');
-    f.el.querySelector('.pw-full__seg').replaceChildren(seg());
-    f.el.querySelector('.pw-full__legend').replaceChildren(legend());
+    f.el.querySelector('.pw-full__seg').replaceChildren(seg(), ...(CB() ? [CB().control('pv-seg--full')] : []));
+    f.el.querySelector('.pw-full__legend').replaceChildren(legend(), ...[CB() ? CB().attribution('pw-full__attr') : null].filter(Boolean));
     f.el.querySelector('.pw-full__sel').replaceChildren(...[selChip()].filter(Boolean));
     const stage = f.el.querySelector('.pw-full__stage');
     const built = buildMap(true);
     stage.replaceChildren(built.svg);
     fitFull();
     S.zc.full = enableZoom(stage, built.svg, 'full', f.el.querySelector('.pw-full__head'), f.el.querySelector('.pw-full__area'));
-    requestAnimationFrame(() => { if (S.full === f && stage.isConnected) startDots(stage, built.svg, built.arcs); });
+    requestAnimationFrame(() => { if (S.full === f && stage.isConnected) startAny(stage, built.svg, built); });
   }
 
   // ------------------------------------------------------------------ view
@@ -664,6 +718,7 @@
     const page = S.el = h('div', { class: 'page page--wide pw-page' });
     fr.main.append(page);
     S.d = null; S.sel = null; S.zv = { page: null, full: null };
+    if (CB()) CB().fromAddress();
     render();
     fw = LL.fresh.watch(page, 20000, load);
     await load();
@@ -687,6 +742,8 @@
     let lastW = window.innerWidth;
     const onResize = () => { if ((lastW >= 700) !== (window.innerWidth >= 700)) { lastW = window.innerWidth; render(); } };
     window.addEventListener('resize', onResize);
+    const onView = () => { if (S.d) render(); };                 // Real cables | Rain switched (here, in the full screen or the sheet)
+    document.addEventListener('lanloom-paths-view', onView);
     return { destroy() {
       fr.destroy && fr.destroy();
       clearInterval(S.timer); S.timer = 0;
@@ -694,6 +751,7 @@
       if (unsubLive) unsubLive();
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
+      document.removeEventListener('lanloom-paths-view', onView);
       teardownFull();
       stopAllDots();
       unzoom('page');
