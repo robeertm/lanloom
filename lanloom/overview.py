@@ -13,8 +13,10 @@ Sources never show an error text when they simply have nothing yet. A source is 
 ``nodata`` (connected, but it has not reported anything), ``failed`` (the connection fails; reason key), ``off``.
 
 Later features add rows to the noteworthy list with ``register_note(fn)`` (``fn(core, now) -> [note, ...]``), e.g. open
-incidents. A note is ``{"id", "level": "info"|"warn"|"danger", "key", "sub", "vars", "link"}``; the client shows ``key`` as the
-line and ``sub`` (optional) as the sub line.
+incidents. A note is ``{"id", "level": "info"|"warn"|"danger", "key", "sub", "vars", "link", "human"}``; the client shows ``key``
+as the line and ``sub`` (optional) as the sub line. ``human: True`` marks a row only a person can end: unchanged for 24 hours it
+moves to the "Waiting on someone" line (``waiting``, lanloom/waiting.py) and no longer sets the overall level.
+``forecasts`` are the early warnings of the host health (lanloom/hosthealth.py).
 """
 from __future__ import annotations
 
@@ -23,6 +25,7 @@ from collections import deque
 from typing import Callable
 
 from . import live
+from .waiting import Waiting
 
 HISTORY_STEP_S = 300            # one health sample every five minutes
 HISTORY_LEN = 288               # 24 hours
@@ -83,6 +86,7 @@ class Overview:
         self.history: deque = deque(maxlen=HISTORY_LEN)     # [t, level rank, online, total]
         self._last_sample = 0.0
         self._cache = {}                                    # name -> (t, value)
+        self.waiting = Waiting(getattr(core, "store", None))   # rows that wait on a person (lanloom/waiting.py)
 
     # ------------------------------------------------------------------ cache
     def _cached(self, name: str, now: float, fn: Callable, ttl: float = CACHE_S):
@@ -234,13 +238,13 @@ class Overview:
             if not infra:
                 continue
             since = d["down_since"]
-            out.append({"id": "dev:" + d["id"], "level": "danger" if d["is_gateway"] else "warn", "key": "ov.note.dev_offline", "sub": "ov.note.dev_offline.sub",
+            out.append({"id": "dev:" + d["id"], "level": "danger" if d["is_gateway"] else "warn", "key": "ov.note.dev_offline", "sub": "ov.note.dev_offline.sub", "human": True,
                         "vars": {"name": d["title"] or d["ip"], "kind_key": "kind." + d["kind"], "age_dur": round(now - since) if since else None},
                         "link": "#/devices/" + d["id"]})
         for s in sources:
             name = s["name"]
             if s["state"] == "failed":
-                out.append({"id": "src:" + s["id"], "level": "warn", "key": "ov.note.src_failed", "sub": "ov.note.src_failed.sub",
+                out.append({"id": "src:" + s["id"], "level": "warn", "key": "ov.note.src_failed", "sub": "ov.note.src_failed.sub", "human": True,
                             "vars": {"name": name, "name_key": name if not s["kind"] else "", "reason_key": s.get("key") or ""},
                             "link": "#/settings"})
             elif s["state"] == "stale":
@@ -249,7 +253,7 @@ class Overview:
                             "link": "#/settings"})
         unknown = [d for d in new if d["origin"] in ("random", "unregistered") or d["certainty"] != "sure"]
         if unknown:
-            out.append({"id": "new-unknown", "level": "info", "key": "ov.note.new_unknown", "sub": "ov.note.new_unknown.sub",
+            out.append({"id": "new-unknown", "level": "info", "key": "ov.note.new_unknown", "sub": "ov.note.new_unknown.sub", "human": True,
                         "vars": {"n": len(unknown), "name": unknown[0]["title"] or unknown[0]["ip"]}, "link": "#/devices?show=new"})
         latest = (report or {}).get("latest")
         if latest and not latest["read"] and latest["open"]:
@@ -274,8 +278,13 @@ class Overview:
         sources = self._sources(now)
         wan = self._wan(now)
         report = self._report()
-        notes = self.notes(now, devs, sources, wan, report, new)
-        level = notes[0]["level"] if notes else "ok"
+        notes, waiting = self.waiting.split(self.notes(now, devs, sources, wan, report, new), now)
+        level = notes[0]["level"] if notes else "ok"           # rows that wait on a person drown out nothing
+        hh = getattr(self.core, "hosthealth", None)
+        try:
+            forecasts = hh.hints(now) if hh is not None else []
+        except Exception:
+            forecasts = []
         unsure = [d for d in shown if not d["is_self"] and d["certainty"] != "sure"]
         unsure.sort(key=lambda d: -(d["first_seen"] or 0))
         fresh = sum(1 for s in sources if s["state"] == "fresh")
@@ -300,6 +309,8 @@ class Overview:
             "report": report,
             "health": {"level": level, "notes": len(notes), "history": history, "step_s": HISTORY_STEP_S},
             "notes": notes,
+            "waiting": waiting,
+            "forecasts": forecasts[:MAX_LIST * 2],
             "new": [trim(d) for d in new[:MAX_LIST]],
             "unsure": [trim(d) for d in unsure[:MAX_LIST]],
             "source_list": sources,
@@ -378,7 +389,7 @@ class Overview:
         new = self._new(devs, now)
         trim = lambda d: {k: d[k] for k in ("id", "ip", "title", "kind", "first_seen", "origin", "vendor")}   # noqa: E731
         return {"t": round(now, 3), "talks": self.talks(now), "changes": self.changes(now),
-                "new": [trim(d) for d in new[:MAX_LIST]], "notes": self.notes(now, devs=devs, new=new),
+                "new": [trim(d) for d in new[:MAX_LIST]], "notes": [n for n in self.notes(now, devs=devs, new=new) if not self.waiting.is_waiting(n, now)],
                 "rate_unit": self.core.rate_unit()}
 
 

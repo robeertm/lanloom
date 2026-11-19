@@ -154,6 +154,8 @@ class Core:
         from .notify import Notifier
         self.notify = Notifier(self)
         self.agents = AgentHub(self)                    # host agents and container sources (E4)
+        from .hosthealth import HostHealth
+        self.hosthealth = HostHealth(self)              # host gauges, samples and early warnings (W1)
         self.reports.journal.listeners.append(self.notify.on_journal)
         self.reports.on_certs = self.notify.on_certs
         from .storage import Storage
@@ -316,6 +318,7 @@ class Core:
             self._tasks.append(asyncio.create_task(self.vulns.loop()))
         self._tasks.append(asyncio.create_task(self._tick_loop()))
         self._tasks.append(asyncio.create_task(self.agents.loop()))
+        self._tasks.append(asyncio.create_task(self.hosthealth.loop()))
         self._tasks.append(asyncio.create_task(self.reports.loop()))
         self._tasks.append(asyncio.create_task(self.notify.loop()))
 
@@ -640,6 +643,7 @@ class Core:
             self.paths.forget_device(device_id)
             self.availability.forget("dev:" + device_id)
             self.services.forget_device(device_id)
+            self.hosthealth.forget(device_id)
         self.store.execute("DELETE FROM phys_manual WHERE device_id=? OR parent_id=?", (device_id, device_id))
         self.inventory.forget(device_id)
         self.vulns.forget_device(device_id)
@@ -854,6 +858,7 @@ class Core:
         for old_id in merged:       # outside the transaction: these take their own locks
             self.paths.forget_device(old_id)
             self.availability.forget("dev:" + old_id)
+            self.hosthealth.forget(old_id)
             self.vulns.forget_device(old_id)
         self._refresh_index()
         return len(hosts)
@@ -1968,6 +1973,11 @@ class Core:
                     self.structure_version += 1
 
     def _book_snmp(self, integ_id, ev: dict, now: float) -> None:
+        prev = self.snmp.get(integ_id) or {}
+        if "hr" in ev:
+            ev["hr_t"] = now                   # host values come once a minute; the frames between keep the last reading
+        elif prev.get("hr") is not None:
+            ev["hr"], ev["hr_t"] = prev["hr"], prev.get("hr_t")
         self.snmp[integ_id] = ev
         integ = self.store.one("SELECT config FROM integrations WHERE id=?", (integ_id,)) if integ_id else None
         cfg = json.loads(integ["config"]) if integ else {}

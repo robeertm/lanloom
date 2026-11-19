@@ -41,7 +41,8 @@ or command lines.
 | Data | From where | Needs |
 |---|---|---|
 | Host name, kernel, operating system label, addresses of the host's own interfaces | the kernel's files (`/proc`), the host's release file | nothing; the release file needs the `/:/host:ro` mount |
-| Load, memory, swap, uptime | the kernel's files | nothing |
+| Load, memory, swap, uptime, processor use (since the last report) | the kernel's files | nothing |
+| Processor temperature (the warmest processor-near thermal zone), processor clock share and the firmware's throttling flag where it exists | the kernel's thermal and cpufreq files (`/sys`) | nothing |
 | Disk usage (total and free) | file system statistics of the paths in `LANLOOM_AGENT_DISKS` | the `/:/host:ro` mount (without it only the agent's own file system is measured) |
 | TCP conversations with bytes (local address, peer address, service port, bytes each way) | the kernel's socket diagnostics over netlink, summed between two reports | `network_mode: host` |
 | Listening services (address, port, short process name) | the kernel's TCP and UDP tables; the process name from `/proc/<pid>/comm` (at most 15 characters) | `network_mode: host`; process names also need `pid: host` |

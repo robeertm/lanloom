@@ -18,7 +18,7 @@ executor that has not been updated yet keep working) and adds optional lists::
                         enabled, order, states?, scheduled?, hits?, builtin?, editable?, vendor_ref?}]
                         match = {kind: network|ip|client|region|app|domain|vpn|other, items?, count?, opposite?}
     v2  ssids         [{id, name, network, bands[], security, hidden, enabled}]
-    v2  hosts         [{id, name, online, ip, version, cpu, cores, mem_used, mem_total, load[], uptime_s}]   hypervisor nodes
+    v2  hosts         [{id, name, online, ip, version, cpu, cores, mem_used, mem_total, swap_used, swap_total, load[], uptime_s}]   hypervisor nodes
     v2  guests        [{id, host, kind (vm|lxc), vmid, name, status, cpu, mem, mem_max, disk_max, protected?, ips[],
                         firewall?, backup {last_t, age_s, in_job, failed_t}, traffic?, rrd?}]
     v2  guest_nics    [{id, guest, name, bridge, vlan, trunks[], firewall, rate_mbs, link_down, mac_hash, ips[]}]

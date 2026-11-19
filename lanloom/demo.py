@@ -768,6 +768,8 @@ class Demo:
                 from . import demo_agents
                 if not getattr(self, "_agents_t", 0):
                     demo_agents.seed(core, now)           # sample host agents and a container source (E4)
+                    from . import demo_hosthealth
+                    demo_hosthealth.seed(core, now)       # seven days of host samples with an early warning (W1)
                 self._agents_t = now
                 demo_agents.tick(core, now, el, rng)
             ids = {row["kind"]: row["id"] for row in core.store.query("SELECT id, kind FROM integrations")}

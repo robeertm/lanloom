@@ -1,0 +1,65 @@
+/* Lanloom — host health (W1): health ring, round gauges, source freshness, trends; overview cards */
+
+.hh { display: flex; flex-direction: column; gap: 14px; }
+.hh__top { display: flex; align-items: center; gap: 14px; }
+.hh__head { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.hh__state { font-size: var(--ll-fs-md, 14px); font-weight: var(--ll-fw-semibold); }
+.hh__state--warn { color: var(--ll-warn-text); }
+.hh__state--danger { color: var(--ll-danger-text); }
+.hh__state--stale, .hh__state--none { color: var(--ll-text-3); font-weight: var(--ll-fw-medium); }
+
+/* the ring: the worst gauge */
+.hh-ring { position: relative; flex: none; width: 92px; height: 92px; --hh-c: var(--ll-ok); }
+.hh-ring--warn { --hh-c: var(--ll-warn); }
+.hh-ring--danger { --hh-c: var(--ll-danger); }
+.hh-ring--stale, .hh-ring--none { --hh-c: var(--ll-text-3); opacity: .6; }
+.hh-ring__pic { width: 100%; height: 100%; display: block; }
+.hh-ring__track { fill: none; stroke: var(--ll-surface-3, var(--ll-border)); stroke-width: 8; }
+.hh-ring__bar { fill: none; stroke: var(--hh-c); stroke-width: 8; stroke-linecap: round; }
+.hh-ring__mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.15; }
+.hh-ring__mid b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.hh-ring__mid span { font-size: var(--ll-fs-2xs, 10px); color: var(--ll-text-3); max-width: 68px; overflow-wrap: break-word; hyphens: auto; }
+
+/* sources and their freshness */
+.hh-srcs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--ll-fs-xs); }
+.hh-src { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.hh-src__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ll-ok); flex: none; }
+.hh-src.is-stale { color: var(--ll-text-3); }
+.hh-src.is-stale .hh-src__dot { background: var(--ll-text-3); opacity: .6; }
+
+/* round gauges: one template for all (same size, same baseline) */
+.hh-gauges { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 10px 6px; }
+.hh-gauge { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; --hh-c: var(--ll-ok); }
+.hh-gauge--warn { --hh-c: var(--ll-warn); }
+.hh-gauge--danger { --hh-c: var(--ll-danger); }
+.hh-gauge.is-stale { --hh-c: var(--ll-text-3); opacity: .55; }
+.hh-gauge__dial { position: relative; width: 74px; height: 62px; }
+.hh-gauge__pic { width: 100%; height: 100%; display: block; overflow: visible; }
+.hh-gauge__track { fill: none; stroke: var(--ll-surface-3, var(--ll-border)); stroke-width: 9; stroke-linecap: round; }
+.hh-gauge__bar { fill: none; stroke: var(--hh-c); stroke-width: 9; stroke-linecap: round; }
+.hh-gauge__value { position: absolute; left: 0; right: 0; top: 26px; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hh-gauge__label { font-size: var(--ll-fs-xs); font-weight: var(--ll-fw-medium); color: var(--ll-text-2); margin-top: -4px; max-width: 100%; overflow-wrap: break-word; hyphens: auto; }
+.hh-gauge__sub { font-size: var(--ll-fs-2xs, 10px); color: var(--ll-text-3); min-height: 1.3em; max-width: 100%; overflow-wrap: anywhere; }
+
+/* trends: calm rows, a warning is yellow and never shouts */
+.hh-fc { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--ll-border); padding-top: 10px; }
+.hh-fc__head { margin: 0; font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); }
+.hh-fc__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.hh-fc__row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--ll-radius-sm); background: var(--ll-surface-2); border-left: 3px solid var(--ll-accent); }
+.hh-fc__row--warn { background: var(--ll-warn-soft); border-left-color: var(--ll-warn); }
+.hh-fc__main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.hh-fc__title { font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-medium); overflow-wrap: anywhere; }
+.hh-fc__sub { font-size: var(--ll-fs-xs); color: var(--ll-text-3); overflow-wrap: anywhere; }
+.hh-fc__calm { margin: 0; font-size: var(--ll-fs-xs); }
+.hh-spark { flex: none; width: 80px; height: 22px; }
+.hh-spark path { fill: none; stroke: var(--ll-accent); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.hh-spark--warn path { stroke: var(--ll-warn); }
+
+/* overview: waiting on someone is quiet (no colour of its own) */
+.note-row--waiting .note-row__dot { background: transparent; border: 2px solid var(--ll-text-3); width: 7px; height: 7px; }
+
+@media (max-width: 520px) {
+  .hh__top { gap: 10px; }
+  .hh-ring { width: 78px; height: 78px; }
+  .hh-spark { width: 56px; }
+}

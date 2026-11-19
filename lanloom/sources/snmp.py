@@ -773,6 +773,94 @@ def read_interfaces(client: SnmpClient) -> list[dict]:
     return rows
 
 
+# ================================================================== host health (HOST-RESOURCES-MIB, read only)
+OID_HR_STORAGE_TYPE = "1.3.6.1.2.1.25.2.3.1.2"     # hrStorageType
+OID_HR_STORAGE_DESCR = "1.3.6.1.2.1.25.2.3.1.3"    # hrStorageDescr
+OID_HR_STORAGE_UNITS = "1.3.6.1.2.1.25.2.3.1.4"    # hrStorageAllocationUnits
+OID_HR_STORAGE_SIZE = "1.3.6.1.2.1.25.2.3.1.5"     # hrStorageSize
+OID_HR_STORAGE_USED = "1.3.6.1.2.1.25.2.3.1.6"     # hrStorageUsed
+OID_HR_PROC_LOAD = "1.3.6.1.2.1.25.3.3.1.2"        # hrProcessorLoad (per processor, % over the last minute)
+OID_LA_LOAD = "1.3.6.1.4.1.2021.10.1.3"            # laLoad (UCD: 1, 5, 15 minutes as text)
+OID_UCD_MEM = "1.3.6.1.4.1.2021.4"                 # memory group (UCD, kB)
+OID_LM_TEMP = "1.3.6.1.4.1.2021.13.16.2.1.3"       # lmTempSensorsValue (milli degrees Celsius)
+HR_RAM = "1.3.6.1.2.1.25.2.1.2"
+HR_VIRTUAL = "1.3.6.1.2.1.25.2.1.3"
+HR_FIXED_DISK = "1.3.6.1.2.1.25.2.1.4"
+HR_EVERY_S = 60.0                                  # host values change slowly: once a minute is plenty
+MAX_HR_ROWS = 256
+_SKIP_MOUNTS = ("/proc", "/sys", "/dev", "/run", "/boot/efi", "/snap/")
+
+
+def _pct(used, size):
+    return round(100.0 * used / size, 1) if isinstance(used, int) and isinstance(size, int) and size > 0 and 0 <= used <= size * 1.01 else None
+
+
+def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd_rows: list, temp_rows: list) -> dict:
+    """Raw walks -> ``{"cpu", "cores", "load", "mem", "swap", "disk", "disk_mount", "temp"}`` (percent, load average of
+    15 minutes, degrees Celsius; None where the agent does not tell). ``storage_rows``: {column oid: [(oid, value)]}."""
+    col = {k: _index_map(v, k) for k, v in storage_rows.items()}
+    types, descr = col.get(OID_HR_STORAGE_TYPE, {}), col.get(OID_HR_STORAGE_DESCR, {})
+    units, size, used = col.get(OID_HR_STORAGE_UNITS, {}), col.get(OID_HR_STORAGE_SIZE, {}), col.get(OID_HR_STORAGE_USED, {})
+    out = {"cpu": None, "cores": None, "load": None, "mem": None, "swap": None, "disk": None, "disk_mount": None, "temp": None}
+    disk = None
+    for i, typ in list(types.items())[:MAX_HR_ROWS]:
+        sz, us, u = size.get(i), used.get(i), units.get(i)
+        if not isinstance(u, int) or u <= 0:
+            continue
+        share = _pct(us, sz)
+        if share is None:
+            continue
+        name = clip(descr.get(i) or "", 64) or ""
+        if typ == HR_RAM and out["mem"] is None:
+            out["mem"] = share
+        elif typ == HR_VIRTUAL and "swap" in name.lower() and out["swap"] is None:
+            out["swap"] = share
+        elif typ == HR_FIXED_DISK and not any(name.startswith(m) for m in _SKIP_MOUNTS) and sz * u >= 256 << 20:
+            if disk is None or share > disk[0]:
+                disk = (share, name)
+    if disk:
+        out["disk"], out["disk_mount"] = disk
+    loads = [v for _o, v in proc_rows if isinstance(v, int) and 0 <= v <= 100]
+    if loads:
+        out["cpu"], out["cores"] = round(sum(loads) / len(loads), 1), len(loads)
+    la = _index_map(la_rows, OID_LA_LOAD)
+    for idx in (3, 1):
+        try:
+            v = float(str(la.get(idx)).strip())
+        except (TypeError, ValueError):
+            continue
+        if 0 <= v < 10000:
+            out["load"] = round(v, 2)
+            break
+    ucd = _index_map([(o.rsplit(".", 1)[0], v) for o, v in ucd_rows if o.endswith(".0")], OID_UCD_MEM)
+    total, avail = ucd.get(5), ucd.get(6)
+    if isinstance(total, int) and total > 0 and isinstance(avail, int):
+        free = avail + sum(x for x in (ucd.get(14), ucd.get(15)) if isinstance(x, int))     # buffers and cache can be given back
+        out["mem"] = round(max(0.0, min(100.0, 100.0 * (1 - free / total))), 1)
+    st, sa = ucd.get(3), ucd.get(4)
+    if isinstance(st, int) and st > 0 and isinstance(sa, int) and 0 <= sa <= st:
+        out["swap"] = round(100.0 * (1 - sa / st), 1)
+    temps = [v / 1000.0 for _o, v in temp_rows if isinstance(v, int) and 0 < v < 150_000]
+    if temps:
+        out["temp"] = round(max(temps), 1)
+    return out
+
+
+def read_host_resources(client: SnmpClient) -> dict:
+    """Host values of an agent that serves HOST-RESOURCES-MIB (servers, storage boxes, some routers). Tables the agent
+    lacks are simply missing; an agent with none of them gives ``{}``."""
+    storage = {c: _walk_or_empty(client, c, limit=MAX_HR_ROWS) for c in (OID_HR_STORAGE_TYPE, OID_HR_STORAGE_DESCR, OID_HR_STORAGE_UNITS,
+                                                                         OID_HR_STORAGE_SIZE, OID_HR_STORAGE_USED)}
+    proc = _walk_or_empty(client, OID_HR_PROC_LOAD, limit=MAX_HR_ROWS)
+    if not storage[OID_HR_STORAGE_TYPE] and not proc:
+        return {}
+    la = _walk_or_empty(client, OID_LA_LOAD, limit=8)
+    ucd = _walk_or_empty(client, OID_UCD_MEM, limit=40)
+    temp = _walk_or_empty(client, OID_LM_TEMP, limit=64)
+    out = parse_host_resources(storage, proc, la, ucd, temp)
+    return out if any(v is not None for v in out.values()) else {}
+
+
 # ================================================================== topology (LLDP + forwarding table)
 OID_LLDP_REM = "1.0.8802.1.1.2.1.4.1.1"          # lldpRemEntry
 OID_LLDP_MAN = "1.0.8802.1.1.2.1.4.2.1"          # lldpRemManAddrEntry
@@ -1032,6 +1120,8 @@ class Snmp:
         self.topology_interval = max(1.0, float(topology_interval))
         self._if_names = None
         self._sys_name = None
+        self.host_resources = True
+        self._hr_due = 0.0
 
     def __repr__(self):
         return "Snmp(host=%r, version=%r)" % (self.host, self._client.version)
@@ -1056,7 +1146,19 @@ class Snmp:
             ifaces.append({"index": r["index"], "name": r["name"], "oper": r["oper"], "speed": r["speed"],
                            "in": d_in, "out": d_out})
         self.counters.forget_missing({r["index"] for r in rows})
-        return {"type": "snmp", "source": SOURCE, "host": self.host, "t": now(), "sys": sysinfo, "ifaces": ifaces}
+        frame = {"type": "snmp", "source": SOURCE, "host": self.host, "t": now(), "sys": sysinfo, "ifaces": ifaces}
+        if self.host_resources and mono >= self._hr_due:
+            self._hr_due = mono + HR_EVERY_S
+            try:
+                hr = read_host_resources(client)
+            except SnmpError as exc:
+                if exc.key in _TIMEOUT_KEYS:
+                    raise
+                hr = {}
+            if not hr:
+                self._hr_due = mono + HR_EVERY_S * 30          # no host tables: ask again in half an hour
+            frame["hr"] = hr
+        return frame
 
     def poll_topology(self, client: SnmpClient) -> dict:
         """One blocking topology read -> topology event. Raises only for timeouts/unreachable agents."""

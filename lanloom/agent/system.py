@@ -1,4 +1,5 @@
-"""Host facts of the agent: name, kernel, addresses, load, memory and disks. Read from the kernel's files only.
+"""Host facts of the agent: name, kernel, addresses, load, processor use, memory, disks, temperature and throttling.
+Read from the kernel's files only.
 
 Nothing here runs a program. Disks are the file systems under the paths in ``LANLOOM_AGENT_DISKS`` (default: the
 host's root mounted read-only at ``/host``, else the agent's own root).
@@ -131,7 +132,69 @@ def facts() -> dict:
             "ips": ips, "macs": macs}
 
 
+_CPU_LAST: dict = {}
+HOT_ZONES = ("cpu", "soc", "pkg", "core", "x86", "acpitz", "package")
+
+
+def cpu_percent(proc: str = "/proc") -> float | None:
+    """Processor use since the previous call (all cores, from the first line of /proc/stat); None on the first call."""
+    parts = _read(proc + "/stat", 4096).split("\n", 1)[0].split()
+    if len(parts) < 5 or parts[0] != "cpu":
+        return None
+    try:
+        vals = [int(x) for x in parts[1:9]]
+    except ValueError:
+        return None
+    idle, total = vals[3] + (vals[4] if len(vals) > 4 else 0), sum(vals)
+    last = _CPU_LAST.get(proc)
+    _CPU_LAST[proc] = (idle, total)
+    if not last or total <= last[1]:
+        return None
+    return round(max(0.0, min(100.0, 100.0 * (1 - (idle - last[0]) / (total - last[1])))), 1)
+
+
+def temperature(sys_class: str = "/sys/class/thermal") -> float | None:
+    """Highest processor-near thermal zone in degrees Celsius (any zone when none is named like a processor)."""
+    hot, other = [], []
+    try:
+        names = sorted(n for n in os.listdir(sys_class) if n.startswith("thermal_zone"))[:32]
+    except OSError:
+        return None
+    for n in names:
+        try:
+            v = int(_read("%s/%s/temp" % (sys_class, n), 32).strip()) / 1000.0
+        except ValueError:
+            continue
+        if not 0 < v < 150:
+            continue
+        kind = _read("%s/%s/type" % (sys_class, n), 64).strip().lower()
+        (hot if any(k in kind for k in HOT_ZONES) else other).append(v)
+    pick = hot or other
+    return round(max(pick), 1) if pick else None
+
+
+def throttle(sys_root: str = "/sys") -> dict:
+    """Is the processor held back? ``{"throttled": bool|None, "freq_pct": share of the highest clock}``. The firmware flag
+    exists on some single-board computers only; the clock share works wherever cpufreq is there."""
+    out = {"throttled": None, "freq_pct": None}
+    raw = _read(sys_root + "/devices/platform/soc/soc:firmware/get_throttled", 32).strip()
+    if raw:
+        try:
+            out["throttled"] = bool(int(raw, 16) & 0x6)      # bit 1: frequency capped, bit 2: throttled right now
+        except ValueError:
+            pass
+    try:
+        cur = int(_read(sys_root + "/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", 32).strip())
+        top = int(_read(sys_root + "/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", 32).strip())
+        if top > 0 and 0 < cur <= top * 1.2:
+            out["freq_pct"] = round(min(100.0, 100.0 * cur / top), 1)
+    except ValueError:
+        pass
+    return out
+
+
 def sample() -> dict:
-    out = {"load": load(), "disks": disks()}
+    out = {"load": load(), "disks": disks(), "cpu": cpu_percent(), "temp": temperature()}
     out.update(meminfo())
+    out.update(throttle())
     return out

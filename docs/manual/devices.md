@@ -21,6 +21,14 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
 - **The card of a device** (click a row): name, type, **address origin** (registered maker, private or random address,
   unregistered address, only an IP address), model and firmware where the device tells them, IPv6 addresses, NetBIOS
   name, the reasons for its type, the *Can be connected* section, the *Inventory* block and the *Vulnerabilities* block.
+- **Host health section.** The card of a host whose values Lanloom reads (host agent, SNMP host tables, hypervisor,
+  network controller or the system sensors of a home hub) shows a health ring with the worst value, round gauges for
+  processor, memory, disk, temperature, swap, load per core and the processor clock (where throttling is measurable),
+  green below 70 %, yellow 70–90 %, red above 90 %, every source with the age of its last reading (a source that stopped is
+  dimmed as *stale · 40 min ago*, never red), and the **trends** of memory, swap, disk, load and temperature: a calm yellow
+  row when a limit will be reached within 72 hours. See [HOST-HEALTH.md](../HOST-HEALTH.md).
+
+  ![Host health on the card of a storage box](../screenshots/hosthealth-card-light.png)
 - **Host agent section.** The card of a host that runs an optional [host agent](../HOST-AGENT.md), or is read through a container source, adds the version, the last report, the system values, the counts of containers and failed units, a link to [Running](running.md) and a button to show or hide its containers on the map. The card of a container shows its state, image, ports, networks and live traffic.
 - **Devices | Inventory | Vulnerabilities** switch at the top: opens the [inventory](inventory.md) of the same devices, or
   the [vulnerability hints](vulnerabilities.md) for their firmware.
@@ -87,6 +95,7 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
 ## See also
 
 - [DISCOVERY.md](../DISCOVERY.md) - what a scan sends, who a device is, one device with several interfaces, scan protection
+- [HOST-HEALTH.md](../HOST-HEALTH.md) - host gauges, early warnings, waiting on someone
 - [AVAILABILITY.md](../AVAILABILITY.md) - slots, the stability list, the card sections
 - [INVENTORY.md](../INVENTORY.md) - the same devices with purpose, room and warranty
 - [PALETTE.md](../PALETTE.md) - search and commands

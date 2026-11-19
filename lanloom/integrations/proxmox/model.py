@@ -185,6 +185,7 @@ def _hosts(raw, cstat) -> list:
                     "cores": num(cpuinfo.get("cpus")) or num(r.get("maxcpu")),
                     "mem_used": num(mem.get("used")) if mem else num(r.get("mem")),
                     "mem_total": num(mem.get("total")) if mem else num(r.get("maxmem")),
+                    "swap_used": num(_d(st.get("swap")).get("used")), "swap_total": num(_d(st.get("swap")).get("total")),
                     "load": [x for x in load if x is not None],
                     "uptime_s": num(st.get("uptime")) if st.get("uptime") is not None else num(r.get("uptime"))})
     return out

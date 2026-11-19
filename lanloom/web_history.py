@@ -8,6 +8,10 @@ Read-only, for everybody who sees the map:
 * ``GET /api/dns``                  every DNS filter in short (totals of 24 hours, health, findings, hours); data of the leitstand card
 * ``GET /api/dns/{integration}``    one filter: totals, hours and days, top blocked names, top clients (matched to devices), upstreams,
                                     block lists, findings. Totals only: single queries are never read or stored.
+* ``GET /api/hosthealth``           early warnings of every host and the rows that wait on a person (lanloom/hosthealth.py,
+                                    lanloom/waiting.py)
+* ``GET /api/hosthealth/{device}``  the host card of one device: health ring, gauges, source freshness, 24-hour lines and the
+                                    trend of memory, swap, disk, load and temperature; ``{"known": false}`` without host values
 * ``GET /api/maintenance/{comp_id}`` "Simulate maintenance": what would lose its way if this device were switched off (reads the
                                     resolved topology; nothing is switched, nothing is sent)
 """
@@ -80,6 +84,20 @@ def register(app: FastAPI, c: Ctx) -> None:
     async def dns_filter(integ_id: int):
         core = c.state.core
         return await asyncio.to_thread(dnsfilter.filter_view, core, integ_id) or c.err("component.err.missing", 404)
+
+    @app.get("/api/hosthealth")
+    async def host_health_all():
+        core = c.state.core
+        hints = await asyncio.to_thread(core.hosthealth.hints)
+        summary = await asyncio.to_thread(core.overview.summary)
+        return {"forecasts": hints, "waiting": summary.get("waiting") or []}
+
+    @app.get("/api/hosthealth/{device_id:path}")
+    async def host_health(device_id: str):
+        core = c.state.core
+        if core.store.device(device_id) is None:
+            return {"known": False}
+        return await asyncio.to_thread(core.hosthealth.card, device_id)
 
     @app.get("/api/maintenance/{comp_id:path}")
     async def maintenance(comp_id: str):

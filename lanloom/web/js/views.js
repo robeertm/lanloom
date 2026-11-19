@@ -401,6 +401,7 @@
       trafficSec.dataset.sec = 'traffic';
       sections.push(trafficSec);
     }
+    if (d.device && LL.hostHealthSection) sections.push(LL.hostHealthSection(d.device.id || id));   // host gauges and early warnings (W1)
     if (d.device && LL.availabilitySection) sections.push(LL.availabilitySection(id));
     if (d.dns && LL.dnsSection) sections.push(LL.dnsSection(d.dns));
     if (d.dns_client && LL.dnsClientSection) sections.push(LL.dnsClientSection(d.dns_client));

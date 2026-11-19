@@ -22,12 +22,13 @@ Open **Settings → Notifications**. Everybody (viewer, operator, admin) has the
 | Switch port unstable (three or more link drops or error episodes in 24 hours; only with a switch controller read) | warning | – | yes |
 | Host agent silent (no report for 90 seconds; only with a [host agent](HOST-AGENT.md)) | warning | yes | yes |
 | Failed service or timer on a host with an agent | warning | – | yes |
+| Host value heading for its limit (memory, swap, disk, load or temperature reaches its limit within 72 hours; only once host values are sampled, see [HOST-HEALTH.md](HOST-HEALTH.md)) | warning | – | – |
 | Container unhealthy or restarting (host agent or container source) | warning | yes | yes |
 | Lanloom update available | note | – | – |
 | Security notice for your account (only you get it) | warning | – | – |
 | Controller change put back (only with the external executor; could not be put back: critical) | warning | – | – |
 
-The three events about hosts (*Host agent silent*, *Service or timer failed*, *Container unhealthy*) are in the group **Hosts and containers** and are offered only once a host agent or container source exists. The name of the host and of the unit or container is in the message; nothing from inside a container ever is.
+The three events about hosts (*Host agent silent*, *Service or timer failed*, *Container unhealthy*) are in the group **Hosts and containers** and are offered only once a host agent or container source exists. *Host value heading for its limit* is in the same group and is announced once per host value while the warning lasts. The name of the host and of the unit or container is in the message; nothing from inside a container ever is.
 
 *Vulnerability hint* (group *Incidents*) comes from the [vulnerability hints](VULNERABILITIES.md): once per device and hint, a warning when the hint is certain or exploited in the wild, otherwise information. *Incident* is already in the register and appears as soon as the feature that reports it is there. New devices found by the very first scan are no news; neither are rows about the past.
 

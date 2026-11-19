@@ -25,6 +25,15 @@ what the other views show in detail, and every figure is a link to the place whe
   the address: registered maker, private or random address, unregistered address, only an IP address), *Not yet certain*
   (devices whose type Lanloom guesses), *Sources* (every connection with its calm state, its last sign of life and its
   usual rhythm).
+- **Early warnings** (only when there is one): a host value that will reach its limit within 72 hours – memory, swap,
+  disk, load or temperature – with the time to the limit and the value now; each line opens the device. How the forecast
+  works: [HOST-HEALTH.md](../HOST-HEALTH.md#early-warnings-how-the-forecast-works).
+- **Waiting on someone** (only when there is one): rows that only a person can end – an infrastructure device that is off,
+  a connection whose sign-in is refused, new devices nobody has named, batteries to replace – and that have been unchanged
+  for more than 24 hours. They move here from *Noteworthy*, say how long they have been waiting, and no longer colour the
+  banner, so anything new stands out. Any change brings a row back at once.
+
+![Early warnings and Waiting on someone](../screenshots/hosthealth-overview-light.png)
 
 ### Calm states of a source
 
@@ -87,6 +96,7 @@ adds figures and cards through `Lanloom.registerOverviewTile` and `Lanloom.regis
 ## See also
 
 - [DISCOVERY.md](../DISCOVERY.md) - how devices are found and why some are "not yet certain"
+- [HOST-HEALTH.md](../HOST-HEALTH.md) - host gauges, early warnings, waiting on someone
 - [AVAILABILITY.md](../AVAILABILITY.md) - the history behind the "offline" and stability figures
 - [NIGHTLY-REPORT.md](../NIGHTLY-REPORT.md) - the report card
 - [PERFORMANCE.md](../PERFORMANCE.md) - what the start page costs on a small host

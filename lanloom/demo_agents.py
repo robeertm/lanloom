@@ -77,13 +77,20 @@ def _containers(aid: str, now: float, el: float) -> list:
 
 
 def _system(aid: str, now: float, el: float) -> dict:
+    from . import demo_hosthealth       # the live values continue the curves of the host samples (W1)
     cpus, mem = (4, 16 << 30) if aid == STORAGE else (2, 4 << 30) if aid == BACKUP else (4, 8 << 30)
     wave = 0.5 + 0.5 * math.sin(el / 41.0)
-    disks = {STORAGE: [{"mount": "/", "total": 64 << 30, "free": 41 << 30}, {"mount": "/volume1", "total": 16 << 40, "free": 3 << 40}],
+    vol = 16 << 40
+    disks = {STORAGE: [{"mount": "/", "total": 64 << 30, "free": 41 << 30},
+                       {"mount": "/volume1", "total": vol, "free": int(vol * (1 - demo_hosthealth.volume_pct(now) / 100.0))}],
              BACKUP: [{"mount": "/", "total": 32 << 30, "free": 18 << 30}, {"mount": "/srv/backup", "total": 8 << 40, "free": int(0.6 * (1 << 40))}],
              HOME: [{"mount": "/", "total": 256 << 30, "free": 170 << 30}]}[aid]
+    swap = 2 << 30
+    swap_free = int(swap * (1 - demo_hosthealth.swap_pct(now) / 100.0)) if aid == BACKUP else int(swap * 0.97)
     return {"load": [round(0.4 + cpus * 0.3 * wave, 2), round(0.5 + cpus * 0.2, 2), round(0.6 + cpus * 0.15, 2)],
-            "mem_total": mem, "mem_avail": int(mem * (0.35 + 0.1 * wave)), "swap_total": 2 << 30, "swap_free": 2 << 30, "disks": disks}
+            "mem_total": mem, "mem_avail": int(mem * (0.35 + 0.1 * wave)), "swap_total": swap, "swap_free": swap_free, "disks": disks,
+            "cpu": round((24 if aid == STORAGE else 9) + 18 * wave, 1), "temp": round((47 if aid == STORAGE else 40) + 5 * wave, 1),
+            "freq_pct": round(70 + 28 * wave, 1) if aid == STORAGE else None, "throttled": False if aid == STORAGE else None}
 
 
 def _units(aid: str, now: float) -> dict:

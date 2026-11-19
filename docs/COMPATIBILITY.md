@@ -35,7 +35,7 @@ These work with any device that speaks the protocol; they only read.
 | This host (kernel socket diagnostics) | own TCP flows, interface counters | never |
 | Host agent (optional, other hosts) | TCP conversations with bytes, listening services, load, memory, disks, failed services and timers, containers, overlay VPN peers; never contents, environment variables or command lines ([details](HOST-AGENT.md)) | never |
 | Container source | the container list of a host through the runtime API, `GET` only | never |
-| SNMP v2c / v3 | interface counters, LLDP neighbours, switch address table | never (Get, GetNext, GetBulk only) |
+| SNMP v2c / v3 | interface counters, LLDP neighbours, switch address table, host values (HOST-RESOURCES-MIB; load and temperature from the UCD and LM-SENSORS tables where served) | never (Get, GetNext, GetBulk only) |
 | Switch controller (local JSON API, view-only account) | which client sits on which switch port or access point | never |
 | MQTT broker | message and byte counts per topic group | never (cannot publish) |
 | Home-automation hub (WebSocket API) | rooms, devices, entities, state changes, automation runs; admin mode: entities used by automations and scripts, related items, last runs ([details](HUB-BRIDGE.md)) | never (cannot call services, never renders templates) |

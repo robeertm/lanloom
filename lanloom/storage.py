@@ -42,7 +42,7 @@ DEFAULTS = {"live_min": 10, "paths_hours": 49, "paths_days": 31, "availability_d
 AREAS = (
     ("inventory", ("devices", "phys_manual", "integrations", "secrets", "settings", "meta")),
     ("paths", ("paths_hour", "paths_day", "paths_seen", "paths_pair_hour", "paths_pair_day")),
-    ("availability", ("events", "avail_day", "traffic_min", "dns_sum", "dns_day")),
+    ("availability", ("events", "avail_day", "traffic_min", "dns_sum", "dns_day", "host_samples")),
     ("reports", ("reports", "report_marks", "api_ingest")),
     ("audit", ("audit", "webhook_deliveries")),
     ("scans", ("scans",)),

@@ -161,6 +161,8 @@ RULES = {
     ("GET", "/api/devices/{device_id}/services"): R(V),
     ("POST", "/api/services/forget"): R(O, "service.forget"),
     ("GET", "/api/stability"): R(V),
+    ("GET", "/api/hosthealth"): R(V),
+    ("GET", "/api/hosthealth/{device_id:path}"): R(V),
     ("GET", "/api/availability/{subject:path}"): R(V),
     ("GET", "/api/dns"): R(V),
     ("GET", "/api/dns/{integ_id}"): R(V),
