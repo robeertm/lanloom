@@ -19,6 +19,8 @@ guides in [docs/](../)). The *About this view* rail of the app (key `I`) links t
 | Failure chain | [failure-chain.md](failure-chain.md) | What fails if a part fails, what it depends on, simulated maintenance, and the outage automatic with dashed affected parts. |
 | Rewind and incidents | [incidents.md](incidents.md) | The last 24 hours or 7 days played back on the map; faults bundled into incident files with root, kind, what changed before; 90-day calendar and timeline & data state. |
 | Control room | [controlroom.md](controlroom.md) | Internet with two readings, storage boxes, battery backup and backups on one page, each with how fresh its picture is. |
+| Now and Focus | [now.md](now.md) | The phone's start: health ring, sites, changes, the last 24 hours, sheets you can drag, and one device with its partners in a ring. |
+| Energy | [energy.md](energy.md) | Power of the hub's sensors as dots on traces: sources, home, consumers with watts, cost and CO₂ per hour. |
 | Resilience | [resilience.md](resilience.md) | A score with grade, the ten weak spots with what helps most, emergency scenarios (power cut with a UPS slider, internet down, a part off), the layers everything rests on, and the risk lens on the map. |
 | Automations | [automations.md](automations.md) | What the hub does on its own, in plain words, with findings, a dependency board and a day plan. |
 | Running | [running.md](running.md) | What runs on the other hosts: containers, services, timers, failed units, with an optional host agent. |

@@ -183,6 +183,8 @@ RULES = {
     ("GET", "/api/controlroom"): R(V),
     ("GET", "/api/wan"): R(V),
     ("PUT", "/api/wan/probe"): R(A, "wan.probe"),
+    ("GET", "/api/energy"): R(V),
+    ("PUT", "/api/energy/settings"): R(O, "energy.settings"),
     ("GET", "/api/nas"): R(V),
     ("GET", "/api/ups"): R(V),
     ("GET", "/api/backups"): R(V),

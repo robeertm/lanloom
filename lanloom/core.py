@@ -192,6 +192,8 @@ class Core:
         self.hosthealth = HostHealth(self)              # host gauges, samples and early warnings (W1)
         from .controlroom.room import ControlRoom
         self.controlroom = ControlRoom(self)            # control room: internet watch, UPS, storage box, backup chains (S9-S12)
+        from .energy import EnergyBook
+        self.energy = EnergyBook(self)                  # energy flow from the hub's power sensors, price, CO2, day totals (S17)
         self.reports.journal.listeners.append(self.notify.on_journal)
         self.reports.on_certs = self.notify.on_certs
         from .failure import Failure

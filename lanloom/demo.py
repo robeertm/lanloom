@@ -1022,6 +1022,12 @@ class Demo:
                                              "state": "%.1f" % rng.uniform(18, 24), "t": now})
                 for frame in demo_hub.radio_tick(now, rng):
                     core.on_event(key, hid, frame)
+                if now - getattr(self, "_hub_energy_t", 0) >= 5:
+                    self._hub_energy_t = now
+                    from . import demo_energy
+                    demo_energy.seed(core, now)           # a few past days, once (S17)
+                    for frame in demo_energy.tick(now, rng):
+                        core.on_event(key, hid, frame)
                 if rng.random() < 0.3:
                     eid = rng.choice(["light.living_room_2", "light.hallway_2", "switch.kitchen_3", "switch.office_3"])
                     ev = {"type": "hub_state", "entity_id": eid, "state": rng.choice(["on", "off"]), "t": now}

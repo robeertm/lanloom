@@ -1,0 +1,102 @@
+/* Lanloom — energy page (js/energy.js): key figures, the flow with dots that carry watts, the lanes, the settings */
+.main--energy { overflow-y: auto; display: block; }
+.en-page { max-width: 1240px; margin: 0 auto; }
+.en-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.en-head h1 { margin: 0; }
+.en-lead { margin: 4px 0 0; max-width: 70ch; }
+.en-fresh { font-size: var(--ll-fs-sm); white-space: nowrap; }
+.en-fresh[data-level="stale"], .en-fresh[data-level="late"] { color: var(--ll-warn-text); }
+.en-body { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
+.en-card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.en-card__head h2 { margin: 0; font-size: var(--ll-fs-md); }
+.en-flow, .en-lanes, .en-settings, .en-empty { padding: 18px 20px; }
+.en-flow__hint { font-size: var(--ll-fs-xs); }
+
+/* key figures */
+.en-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.en-kpi { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; background: var(--ll-surface); border: 1px solid var(--ll-border); border-radius: var(--ll-radius-lg); min-width: 0; }
+.en-kpi__label { font-size: var(--ll-fs-xs); color: var(--ll-text-2); font-weight: var(--ll-fw-medium); }
+.en-kpi__value { font-size: var(--ll-fs-xl); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.en-kpi__sub { font-size: var(--ll-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the flow */
+.en-flow[data-level="stale"] .en-fig { opacity: .55; }
+.en-fig { display: block; width: 100%; max-width: 420px; height: auto; margin: 0 auto; background: var(--ll-pcb-board); border-radius: var(--ll-radius-md); }
+.en-fig--wide { max-width: 980px; }
+.en-trace { fill: none; stroke: var(--ll-pcb-copper); stroke-width: 3; stroke-linecap: round; opacity: .45; }
+.en-trace.is-on { opacity: 1; }
+.en-trace--grid { stroke: var(--ll-pcb-trace-uplink); }
+.en-trace--solar, .en-trace--export { stroke: var(--ll-grade-sluggish); }
+.en-trace--battery, .en-trace--charge { stroke: var(--ll-pcb-trace-radio); }
+.en-trace--lane { stroke: var(--ll-pcb-trace-cable); }
+.en-trace--rest { stroke: var(--ll-text-3); stroke-dasharray: 4 4; }
+.en-dot { fill: var(--ll-pcb-dot-core); stroke: var(--ll-pcb-trace-cable); stroke-width: 1.4; }
+.en-dot--grid { stroke: var(--ll-pcb-trace-uplink); }
+.en-dot--solar { stroke: var(--ll-grade-sluggish); }
+.en-dot--battery { stroke: var(--ll-pcb-trace-radio); }
+.en-src__ring { fill: var(--ll-pcb-tile); stroke: var(--ll-pcb-tile-line); stroke-width: 1.5; }
+.en-src--solar .en-src__ring { stroke: var(--ll-grade-sluggish); }
+.en-src--grid .en-src__ring { stroke: var(--ll-pcb-trace-uplink); }
+.en-src--battery .en-src__ring { stroke: var(--ll-pcb-trace-radio); }
+.en-src__icon { fill: none; stroke: var(--ll-pcb-icon); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.en-src__w, .en-home__w { font-family: var(--ll-font); font-size: 13px; font-weight: 700; fill: var(--ll-pcb-silk); font-variant-numeric: tabular-nums; }
+.en-src__name { font-family: var(--ll-font); font-size: 10.5px; fill: var(--ll-pcb-silk-2); }
+.en-home__tile { fill: var(--ll-pcb-tile); stroke: var(--ll-accent); stroke-width: 2; }
+.en-home__w { font-size: 12px; fill: var(--ll-text); }
+.en-pad { fill: var(--ll-pcb-via); }
+.en-pad--rest { fill: var(--ll-text-3); }
+.en-pad__name { font-family: var(--ll-font); font-size: 12px; font-weight: 600; fill: var(--ll-pcb-silk); }
+.en-pad__meta { font-family: var(--ll-font); font-size: 10.5px; fill: var(--ll-pcb-silk-2); font-variant-numeric: tabular-nums; }
+a.en-lane-pad:hover .en-pad__name, a.en-lane-pad:focus .en-pad__name { text-decoration: underline; }
+
+/* lanes */
+.en-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.en-row { display: grid; grid-template-columns: minmax(0, 1.6fr) 80px minmax(60px, 1fr) 84px 96px 104px; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--ll-border); }
+.en-row:first-child { border-top: 0; }
+.en-row__main { display: flex; flex-direction: column; min-width: 0; }
+.en-row__name { font-weight: var(--ll-fw-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.en-row__name a { color: inherit; }
+.en-row__sub { font-size: var(--ll-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.en-mini { width: 80px; height: 10px; display: block; }
+.en-mini .en-dot { r: 2.4; }
+.en-row__bar { height: 6px; border-radius: 3px; background: var(--ll-surface-3); overflow: hidden; }
+.en-row__bar i { display: block; height: 100%; background: var(--ll-accent); border-radius: 3px; }
+.en-row__w { font-weight: var(--ll-fw-semibold); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.en-row__cost, .en-row__co2 { font-size: var(--ll-fs-sm); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.en-rest { margin: 10px 0 0; font-size: var(--ll-fs-sm); }
+.en-share-hint { margin: 0 0 6px; font-size: var(--ll-fs-sm); }
+
+/* settings */
+.en-set__sum { font-weight: var(--ll-fw-semibold); }
+.en-set__lead { margin: 10px 0 12px; font-size: var(--ll-fs-sm); }
+.en-set__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.en-set .btn-row { margin-top: 12px; }
+.en-empty h2 { margin: 0 0 6px; font-size: var(--ll-fs-md); }
+
+/* start page and "Now" */
+.en-small__row { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-bottom: 8px; }
+.en-small__fig { display: flex; flex-direction: column; }
+.en-small__fig b { font-size: var(--ll-fs-lg); font-variant-numeric: tabular-nums; }
+.en-small__fig span { font-size: var(--ll-fs-xs); }
+.en-small__top { margin: 0 0 10px; font-size: var(--ll-fs-sm); }
+
+@media (max-width: 1100px) {
+  .en-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .en-set__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .en-row { grid-template-columns: minmax(0, 1fr) 64px auto; grid-template-areas: "main mini w" "main cost co2"; row-gap: 2px; }
+  .en-row__main { grid-area: main; }
+  .en-mini { grid-area: mini; width: 64px; }
+  .en-row__bar { display: none; }
+  .en-row__w { grid-area: w; }
+  .en-row__cost { grid-area: cost; }
+  .en-row__co2 { grid-area: co2; }
+}
+@media (max-width: 700px) {
+  .en-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .en-flow, .en-lanes, .en-settings, .en-empty { padding: 16px; }
+  .en-kpi { padding: 12px; }
+  .en-kpi__value { font-size: var(--ll-fs-lg); }
+  .en-set__grid { grid-template-columns: minmax(0, 1fr); }
+}

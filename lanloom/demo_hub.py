@@ -209,7 +209,8 @@ def extend_snapshot(snap: dict, now: float) -> dict:
     snap["entries"] = [{"domain": d, "state": st, "n": n} for d, st, n in ENTRIES]
     snap["sun"] = sun_times(now)
     snap["admin"] = True
-    return snap
+    from . import demo_energy
+    return demo_energy.extend(snap, now)
 
 
 # ---------------------------------------------------------------------- merged devices and radio networks (H2)

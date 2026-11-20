@@ -14,8 +14,8 @@
   const NOW_EVERY_MS = 5000;           // refresh of the "Right now" rail while it is shown
   const MANUAL = 'https://github.com/robeertm/lanloom/blob/main/docs/manual/';
   // one manual page per view (docs/manual/<name>.md); a view without an entry here has the page of its own name (a test checks every page)
-  const MANUAL_PAGE = { paths: 'data-paths', reports: 'nightly-reports' };
-  const ABOUT_VIEWS = ['overview', 'map', 'network', 'paths', 'devices', 'firewall', 'reports', 'automations', 'running', 'settings', 'sites', 'incidents', 'controlroom'];
+  const MANUAL_PAGE = { paths: 'data-paths', reports: 'nightly-reports', focus: 'now' };
+  const ABOUT_VIEWS = ['overview', 'map', 'network', 'paths', 'devices', 'firewall', 'reports', 'automations', 'running', 'settings', 'sites', 'incidents', 'controlroom', 'now', 'focus', 'energy'];
 
   // ------------------------------------------------------------------ remembered open states (survive live redraws)
   const openState = new Map();
@@ -163,6 +163,7 @@
   const changeLink = c => (c.data && c.data.id && /^d-/.test(c.data.id) && c.kind.startsWith('dev_') ? '#/devices/' + encodeURIComponent(c.data.id)
     : c.kind.startsWith('src_') ? '#/settings' : c.kind.startsWith('wan_') ? '#/map/internet' : null);
   const changeLevel = k => ({ dev_offline: 'warn', dev_gone: 'warn', src_fail: 'warn', wan_down: 'danger', dev_new: 'info' }[k] || 'ok');
+  LL.changeLink = changeLink; LL.changeLevel = changeLevel;        // the phone's "Now" (js/now.js) shows the same rows
   function section(id, title, count, body, empty) {
     return LL.keepOpen.details('now:' + id, true, h('span', { class: 'rail-sec__title' }, title, count != null ? h('span', { class: 'rail-sec__n' }, String(count)) : null),
       body && body.childNodes.length ? body : h('p', { class: 'rail-empty muted' }, empty));

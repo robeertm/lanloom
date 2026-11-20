@@ -82,13 +82,16 @@
     if (LL.state && LL.state.agents > 0) tabs.splice(tabs.findIndex(x => x[0] === 'reports'), 0, ['running', 'nav.running']);   // what runs on the hosts with an agent or a container source
     tabs.splice(tabs.findIndex(x => x[0] === 'network') + 1, 0, ['controlroom', 'nav.controlroom']);   // the control room: internet, storage boxes, battery backup, backups (js/controlroom.js)
     if (LL.atHome && !LL.atHome()) tabs.splice(tabs.findIndex(x => x[0] === 'firewall'), 1);   // the firewall editor works on the home site only (M1)
+    if (LL.view && LL.PHONE_TABS) tabs.unshift(['now', 'nav.now']);   // "Now" (js/now.js): the phone's start; wide screens have the "Right now" rail instead
     const nav = h('nav', { class: 'tabs', 'aria-label': t('nav.label') }, tabs.map(([k, label]) =>
-      h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : ''), 'aria-current': k === active ? 'page' : null,
+      h('a', { href: '#/' + k, class: 'tab tab--' + k + (k === active ? ' is-active' : '') + (LL.strings['nav.short.' + k] ? ' tab--short' : '')
+        + (LL.PHONE_TABS && !LL.PHONE_TABS.includes(k) && k !== active ? ' tab--extra' : ''), 'aria-current': k === active ? 'page' : null,   // phones: extra views sit in "More"
         title: t(label), 'aria-label': t(label) },   // narrow screens show only the icon
         h('span', { class: 'tab__icon', 'aria-hidden': 'true' }), h('span', { class: 'tab__label' }, t(label)),
         LL.strings['nav.short.' + k] ? h('span', { class: 'tab__short', 'aria-hidden': 'true' }, t('nav.short.' + k)) : null)));
-    const navIcon = k => NAV_ICONS[k] || ({ paths: LL.NAV_PATHS_ICON, reports: LL.NAV_REPORTS_ICON, controlroom: LL.NAV_CONTROLROOM_ICON }[k]) || LL.FW_ICON || '';
+    const navIcon = k => NAV_ICONS[k] || ({ paths: LL.NAV_PATHS_ICON, reports: LL.NAV_REPORTS_ICON, controlroom: LL.NAV_CONTROLROOM_ICON, now: LL.NAV_NOW_ICON }[k]) || LL.FW_ICON || '';
     nav.querySelectorAll('.tab__icon').forEach((el, i) => { el.innerHTML = navIcon(tabs[i][0]); });
+    if (LL.moreButton) nav.appendChild(LL.moreButton());             // phones: the button for the views that are not in the bar (hidden on wide screens)
     // live state in the header: "Live · 14:32:05", "Updated 12 s ago", "Disconnected", "Paused"; the dot is the overall live grade
     const gradePill = h('button', { class: 'grade-pill live-pill', type: 'button', title: t('live.overall'), onclick: () => (live.state === 'offline' ? LL.live.reconnect() : openSources()) },
       h('i', { class: 'grade-pill__dot' }), h('span', { class: 'grade-pill__text' }, t('livestate.connecting')));
@@ -99,7 +102,7 @@
     } });
     themeBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>';
     const siteSwitch = LL.siteSwitcher ? LL.siteSwitcher() : null;          // several sites (M1): the switcher takes the room of one tab
-    const header = h('header', { class: 'topbar' + (tabs.length + (siteSwitch ? 1 : 0) > 9 ? ' topbar--many' : '') },   // more than nine tabs (a hub or running hosts): narrower steps
+    const header = h('header', { class: 'topbar' + (tabs.filter(x => x[0] !== 'now').length + (siteSwitch ? 1 : 0) > 9 ? ' topbar--many' : '') },   // more than nine tabs (a hub or running hosts): narrower steps
       h('a', { class: 'topbar__brand', href: '#/map' }, LL.logo(26), h('span', { class: 'brand-name' }, 'Lanloom'),
         LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
       LL.versionChip ? LL.versionChip() : null,

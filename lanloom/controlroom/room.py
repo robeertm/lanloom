@@ -42,6 +42,9 @@ class ControlRoom:
                 await self.wan.probe_if_due()
                 self.wan.step()
                 self.backups.chains()           # keeps the run tracker current (progress, learned duration)
+                energy = getattr(self.core, "energy", None)
+                if energy is not None:
+                    energy.step(self.clock())
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -215,6 +218,27 @@ class ControlRoom:
             lines.append(item("cr.hub.connected", "ok" if (age or 0) <= 900 else "unknown", n=len(snap.get("entities") or [])))
         return self._block("hub", lines, min(ages) if ages else None, "#/sensors")
 
+    def _energy(self, now: float) -> Optional[dict]:
+        book = getattr(self.core, "energy", None)
+        if book is None:
+            return None
+        v = book.view(now)
+        if not v["available"]:
+            return None
+        lines = []
+        if v["now"]["home_w"] is not None:
+            lines.append(item("cr.en.now", "ok", w=round(v["now"]["home_w"])))
+        if v["now"]["solar_w"]:
+            lines.append(item("cr.en.solar", "ok", w=round(v["now"]["solar_w"])))
+        td = v["today"]
+        if v["price"] and td["cost"] is not None:
+            lines.append(item("cr.en.cost_today", "ok", cost=round(td["cost"], 2), currency=v["price"]["currency"]))
+        if td["co2_kg"] is not None and td["kwh"]:
+            lines.append(item("cr.en.co2_today", "ok", kg=round(td["co2_kg"], 1)))
+        if not lines:
+            return None
+        return self._block("energy", lines, v["fresh"]["age_s"], "#/energy")
+
     def _dns(self, now: float) -> Optional[dict]:
         from .. import dnsfilter
         try:
@@ -266,7 +290,7 @@ class ControlRoom:
         units = self.ups.view(now)
         nas_rows = nas_mod.cards(self.core, now, bv["chains"], self.ups)
         blocks = [b for b in (self._gateway(now, wv), self._wan(now, wv), self._switches(now), self._nas(now, nas_rows), self._ups(now, units),
-                              self._hub(now), self._dns(now), self._backups(now, bv)) if b]
+                              self._hub(now), self._energy(now), self._dns(now), self._backups(now, bv)) if b]
         points = []
         for b in blocks:
             for ln in b["lines"]:
