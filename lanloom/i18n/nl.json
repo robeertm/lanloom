@@ -4750,6 +4750,7 @@
  "sessions.title": "Sessies",
  "settings.about": "Over",
  "settings.about.privacy": "Alles blijft op deze host. Geen telemetrie. Er verlaat niets je netwerk, tenzij je zelf een optionele dienst inschakelt: de updatecontrole, het versturen van het nachtrapport of een cloud-AI (die alleen plaatshouders ontvangt).",
+ "settings.about.license": "Gratis voor privé, niet-commercieel gebruik met maximaal 100 apparaten. Commercieel gebruik, en privégebruik met meer apparaten, vereist een betaalde licentie. Zie het bestand LICENSE.",
  "settings.about.text": "Lanloom tekent je lokale netwerk als een printplaat: apparaten en services als componenten, verbindingen als banen, gemeten bytes als bewegende stippen.",
  "settings.appearance": "Uiterlijk",
  "settings.channel": "Updatekanaal",

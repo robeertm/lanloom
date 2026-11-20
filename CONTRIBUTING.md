@@ -30,7 +30,7 @@ Pull requests are read, but **not merged**. Accepted ideas are re-implemented by
 
 Code that reads the data of one site keeps to the rules in [docs/SITE-SEPARATION.md](docs/SITE-SEPARATION.md) (the request's site from the address and the header, no fallback, every answer and live frame names its site, the page compares after every request and frame); the release checks hold every route and view to them.
 
-There is no plugin mechanism: adapters are built in and listed in a fixed registry (see [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)). Lanloom is source-available, not open source; see [LICENSE](LICENSE).
+There is no plugin mechanism: adapters are built in and listed in a fixed registry (see [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)). Lanloom is source-available, not open source: free for private, non-commercial use with up to 100 devices, commercial use only with a paid license; see [LICENSE](LICENSE).
 
 ## How requests are handled
 

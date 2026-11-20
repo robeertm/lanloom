@@ -4750,6 +4750,7 @@
  "sessions.title": "Sessions",
  "settings.about": "About",
  "settings.about.privacy": "Everything stays on this host. No telemetry. Nothing leaves your network unless you switch on an optional service yourself: the update check, the delivery of the nightly report, or a cloud AI (which only receives placeholders).",
+ "settings.about.license": "Free for private, non-commercial use with up to 100 devices. Commercial use, and private use with more devices, requires a paid license. See the LICENSE file.",
  "settings.about.text": "Lanloom draws your local network as a circuit board: devices and services as components, connections as traces, measured bytes as moving dots.",
  "settings.appearance": "Appearance",
  "settings.channel": "Update channel",

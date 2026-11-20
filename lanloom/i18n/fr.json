@@ -4750,6 +4750,7 @@
  "sessions.title": "Sessions",
  "settings.about": "À propos",
  "settings.about.privacy": "Tout reste sur cet hôte. Aucune télémétrie. Rien ne quitte votre réseau sauf si vous activez vous-même un service facultatif : la recherche de mises à jour, l'envoi du rapport de nuit ou une IA dans le cloud (qui ne reçoit que des marqueurs de substitution).",
+ "settings.about.license": "Gratuit pour un usage privé et non commercial jusqu'à 100 appareils. L'usage commercial, et l'usage privé avec plus d'appareils, nécessite une licence payante. Voir le fichier LICENSE.",
  "settings.about.text": "Lanloom dessine votre réseau local comme un circuit imprimé : appareils et services comme composants, connexions comme pistes, octets mesurés comme points en mouvement.",
  "settings.appearance": "Apparence",
  "settings.channel": "Canal de mise à jour",

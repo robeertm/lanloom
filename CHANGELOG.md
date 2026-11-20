@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- **License: free for private, non-commercial use with up to 100 devices; commercial use requires a paid license.** The license no longer allows internal business use free of charge. Free use is limited to one person's private, non-commercial use for their own household, on machines they own or control, with up to 100 devices in total (every device or host Lanloom discovers or keeps in its inventory, counted across all installations and sites; the sample network does not count). Every commercial use (a company, a self-employed person, a public authority, an association or other organisation, an educational institution, a service provider for its customers, or any use connected with a trade, business or profession) and private use with more than 100 devices need a separate paid license; until a way to buy one is published, contact the copyright holder. The license now ends automatically on a breach. These terms apply to this release and later ones; releases published earlier keep the license they shipped with. Restrictions on modification and redistribution, your data, scanning, third-party components and the warranty disclaimer are unchanged. The README, the FAQ, the landing page, the add-on pages, the API description and *Settings > General > About* (in all six languages) say the same.
+
 ## [1.57.3] – 2026-11-20
 
 Collects the changes since 1.57.2: the self-renewing updater sidecar, complete site separation, and the fix for the duplicated "This host" entry.

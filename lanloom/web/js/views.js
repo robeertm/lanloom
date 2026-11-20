@@ -1237,7 +1237,7 @@
     let updSection = null;
     page.append(updCard(upd));
     page.append(diagnosticsCard());
-    page.append(card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy'))]));
+    page.append(card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy')), h('p', { class: 'muted' }, t('settings.about.license'))]));
     fr.main.append(page);
     if (rest && rest[0] === 'reports' && reportCard) setTimeout(() => reportCard.scrollIntoView({ block: 'start' }), 30);
     if (rest && rest[0] === 'mqtt' && mqttCard) setTimeout(() => mqttCard.scrollIntoView({ block: 'start' }), 400);
@@ -1287,7 +1287,7 @@
     const [lang, theme] = langThemeSelects();
     page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)), paletteField(), motionField()]),
       card(t('settings.role.title'), [h('p', {}, t('settings.role.' + ((LL.state.can && LL.state.can.role) || 'viewer'))), h('p', { class: 'muted' }, t('settings.role.ask'))]),
-      card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy'))]));
+      card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy')), h('p', { class: 'muted' }, t('settings.about.license'))]));
     fr.main.append(page);
     return fr;
   }

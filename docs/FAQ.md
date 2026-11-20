@@ -62,6 +62,9 @@ In Settings, Security, Audit log (admins). It lists every change with user, role
 ### Can a reverse proxy with its own sign-in log people in?
 Yes, optionally. Set `LANLOOM_AUTH_HEADER` and `LANLOOM_TRUSTED_PROXIES` (and the group settings to map groups to roles), and make sure the proxy removes these headers from client requests. See [ACCESS.md](ACCESS.md#sign-in-through-an-authentication-proxy).
 
+### Is Lanloom free? Can my company use it?
+Private, non-commercial use for your own household is free with up to 100 devices in total (every device or host Lanloom discovers or keeps in its inventory, across all installations and sites; the sample network does not count). More devices, and every commercial use (a company, a self-employed person, a public authority, an association or other organisation, a school, a service provider for its customers, or any use connected with work), need a separate paid license; until a way to buy one is published, contact the copyright holder. The terms apply to every release that ships with them and to later releases; releases published earlier keep the license they shipped with. See [LICENSE](../LICENSE).
+
 ### Can I try it without scanning my network?
 Yes. Set `LANLOOM_DEMO=1` (optionally with `LANLOOM_DEMO_SEED=1`) to run a fictional network. Nothing is scanned.
 

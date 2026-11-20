@@ -178,7 +178,7 @@ def openapi(ops: list) -> dict:
         "info": {"title": "Lanloom API", "version": API_VERSION, "x-lanloom-version": __version__,
                  "description": ("Public API of Lanloom. Authenticate with an API token (Settings > API) as "
                                  "'Authorization: Bearer llt_...'. Fields are only added within v1."),
-                 "license": {"name": "See LICENSE in the repository"}},
+                 "license": {"name": "Lanloom Source-Available License (free for private, non-commercial use with up to 100 devices; commercial use requires a paid license)", "url": "https://github.com/robeertm/lanloom/blob/main/LICENSE"}},
         "servers": [{"url": "/"}],
         "tags": [{"name": t} for t in dict.fromkeys(o.tag for o in ops)],
         "components": {"securitySchemes": {

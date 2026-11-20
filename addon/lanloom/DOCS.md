@@ -41,6 +41,11 @@ open issues, health, vulnerability hints, nightly report) through MQTT discovery
 you can pick the broker the add-on system offers - no address or password to type. Only counts, a level, a flag and a
 time are published: never a device name, address, person or place.
 
+## License
+
+Free for private, non-commercial use with up to 100 devices; commercial use, and private use with more devices,
+requires a paid license. See [LICENSE](https://github.com/robeertm/lanloom/blob/main/LICENSE).
+
 ## Help
 
 Handbook: <https://github.com/robeertm/lanloom/blob/main/docs/manual/README.md> ·

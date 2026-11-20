@@ -4750,6 +4750,7 @@
  "sessions.title": "Sitzungen",
  "settings.about": "Über",
  "settings.about.privacy": "Alles bleibt auf diesem Rechner. Keine Telemetrie. Nichts verlässt dein Netz, außer du schaltest selbst einen freiwilligen Dienst ein: die Update-Suche, die Zustellung des Nachtberichts oder eine Cloud-KI (die nur Platzhalter bekommt).",
+ "settings.about.license": "Kostenlos für private, nicht kommerzielle Nutzung mit bis zu 100 Geräten. Kommerzielle Nutzung und private Nutzung mit mehr Geräten brauchen eine kostenpflichtige Lizenz. Siehe die Datei LICENSE.",
  "settings.about.text": "Lanloom zeichnet dein lokales Netz als Leiterplatte: Geräte und Dienste als Bauteile, Verbindungen als Leiterbahnen, gemessene Bytes als wandernde Punkte.",
  "settings.appearance": "Darstellung",
  "settings.channel": "Update-Kanal",

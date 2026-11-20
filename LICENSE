@@ -1,15 +1,48 @@
 Lanloom — Source-Available License
 Copyright © 2026 Robert Manuwald. All rights reserved.
 
-Lanloom is made available so that anyone can run it to map their own network.
-It is source-available, NOT open-source: the source code is visible, but the
-rights granted below are limited.
+Lanloom is made available so that people can run it to map their own home
+network. It is source-available, NOT open-source: the source code is visible,
+but the rights granted below are limited.
+
+In short: private, non-commercial use with up to 100 devices is free of
+charge. Private use with more devices, and every commercial use, requires a
+separate paid license. The terms below are what counts.
+
+DEFINITIONS
+  • "Software" means Lanloom: its source code, container images, add-on,
+    documentation and every update to them.
+  • "Device" means each individual device or host, physical or virtual, that
+    the Software discovers, lists or keeps in its inventory. Devices are
+    counted together across all installations, sites and data folders of the
+    Software that you run or use; the same device counts once. Devices of the
+    built-in sample network do not count.
+  • "Private Use" means use by one natural person for their own household, on
+    machines that person owns or controls, that is not Commercial Use.
+  • "Commercial Use" means any use by or on behalf of a company, a
+    self-employed person, a public authority, an association, club or other
+    organisation, or a school, university or other educational institution;
+    any use by a service provider (including a managed service provider) for
+    its customers or for anyone else; and any other use in connection with a
+    trade, business, profession or other gainful activity. It does not matter
+    whether the use itself earns money.
 
 GRANT
-You are granted a non-exclusive, non-transferable, royalty-free license to:
-  • download, install and run the Software on machines you own or control,
-    for personal or internal business use; and
-  • view the source code for the purpose of running, building and evaluating it.
+Subject to every term of this license, you are granted a non-exclusive,
+non-transferable, non-sublicensable, royalty-free license to:
+  • download, install and run the Software for Private Use only, on machines
+    you own or control, with no more than 100 Devices in total; and
+  • view the source code for the purpose of running, building and evaluating
+    it for that Private Use.
+Viewing the source code grants no right to run the Software beyond this.
+
+PAID LICENSE REQUIRED
+The following are not licensed under these terms and are allowed only under a
+separate, paid, written license from the copyright holder:
+  • any Commercial Use, whatever the number of Devices; and
+  • Private Use with more than 100 Devices.
+Until a way to buy such a license is published, contact the copyright holder.
+Commercial Use without such a license is not permitted.
 
 RESTRICTIONS
 Without the prior written permission of the copyright holder, you may NOT:
@@ -31,6 +64,19 @@ THIRD-PARTY COMPONENTS
 Lanloom includes or links components that are licensed by their own authors
 under their own terms. They are listed in THIRD-PARTY-NOTICES.md. Nothing in
 this license limits the rights those licenses grant you for those components.
+
+TERMINATION
+This license ends automatically, without notice, if you break any of its
+terms. You must then stop using the Software and remove the copies you
+installed. Your data stays yours (see YOUR DATA).
+
+WHICH RELEASES THIS LICENSE COVERS
+This license applies to the release of the Software it ships with and to every
+later release, unless a later release ships with a different license. A release
+that was published earlier with an earlier license text stays under that
+earlier text; this license does not take back rights already granted for such
+a release. Installing or updating to a release that ships with this license
+means using that release under this license.
 
 NO WARRANTY
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR

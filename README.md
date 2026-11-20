@@ -2,6 +2,8 @@
 
 **Your local network, drawn as a circuit board.** Devices and services become components, connections become routed traces, and measured traffic flows along them as moving dots.
 
+**License:** free for private, non-commercial use with up to 100 devices; commercial use requires a paid license. See [License](#license).
+
 ![Lanloom map in dark theme](docs/screenshots/hero-map-dark.png)
 
 > ## ⚠️ Please read before installing
@@ -976,6 +978,13 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 
 ## License
 
-Lanloom is **source-available**, not open source. You may run it for personal or internal use on machines you own or control and read the source. Modification and redistribution require prior written permission. It is provided without warranty of any kind. See [LICENSE](LICENSE). Third-party components and their licenses are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The cable data of the *Real cables* view (`lanloom/data/cables-osm.json.gz`) is © OpenStreetMap contributors and stays available under the [Open Database License 1.0](https://opendatacommons.org/licenses/odbl/1-0/), separately from the code; see [lanloom/data/CABLES-LICENSE.md](lanloom/data/CABLES-LICENSE.md).
+Lanloom is **source-available**, not open source.
+
+- **Free:** private, non-commercial use by one person for their own household, on machines they own or control, with up to **100 devices** in total (every device or host Lanloom discovers or keeps in its inventory, counted across all installations and sites; the sample network does not count). Reading the source is allowed.
+- **Paid license required:** every **commercial use** - by or for a company, a self-employed person, a public authority, an association or other organisation, a school or other educational institution, a service provider for its customers, or any use connected with a trade, business or profession - whatever the number of devices; and private use with **more than 100 devices**. Until a way to buy a license is published, contact the copyright holder.
+- Modification and redistribution require prior written permission. It is provided without warranty of any kind.
+- These terms apply to every release that ships with them (see the [changelog](CHANGELOG.md)) and to later releases. Releases published earlier keep the license they shipped with.
+
+See [LICENSE](LICENSE); the license text is what counts. Third-party components and their licenses are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The cable data of the *Real cables* view (`lanloom/data/cables-osm.json.gz`) is © OpenStreetMap contributors and stays available under the [Open Database License 1.0](https://opendatacommons.org/licenses/odbl/1-0/), separately from the code; see [lanloom/data/CABLES-LICENSE.md](lanloom/data/CABLES-LICENSE.md).
 
 © 2026 Robert Manuwald
