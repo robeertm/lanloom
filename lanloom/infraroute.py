@@ -730,7 +730,7 @@ class InfraNet:
                 if j != b and self.kind[j] in ("country", "home"):
                     continue
                 k = self.edges[e]
-                if k["a"] == "sat":
+                if k["a"] == "sat" and j != b:             # a satellite only as the last step into a destination reached no other way
                     continue
                 if pref and k["a"] == "cable" and k["n"] in pref:
                     c *= 0.5

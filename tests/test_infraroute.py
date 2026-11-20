@@ -243,6 +243,15 @@ def test_anycast_conflict_ends_at_the_measured_place(routes):
     assert "conflict" not in a2["routes"]["US:4:z"] and "end" not in a2["routes"]["US:4:z"]
 
 
+def test_a_measured_route_into_a_satellite_only_country(routes):
+    """A measured route to Antarctica ends with the satellite step from the earth station - not at the last place in Europe."""
+    sec = _sections(("Frankfurt", 50.11, 8.68, "DE", 6, True), ("Cape Town", -33.92, 18.42, "ZA", 160, True))
+    a = routes.compute(DATA, HOME, [_route("AQ:9:s", "AQ", sec, 160.0)])
+    r = a["routes"]["AQ:9:s"]
+    last = a["edges"][r["path"][-1].lstrip("~")]
+    assert last["kind"] == "sat" and "end" not in r, r
+
+
 def test_exit_of_the_home_from_the_measurements(routes):
     rs = []
     for i, (la, lo) in enumerate(((52.52, 13.4), (52.37, 4.9), (48.86, 2.35))):
