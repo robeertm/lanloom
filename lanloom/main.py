@@ -336,7 +336,8 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if over_https(request):
             response.headers["Strict-Transport-Security"] = HSTS
         if request.url.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"
+            if request.url.path != "/api/paths/infra" or "cache-control" not in response.headers:
+                response.headers["Cache-Control"] = "no-store"          # (infrastructure routes name their own: private, one hour)
             # M2: the answer names the site it comes from, so the page can throw away an answer that does not belong to
             # the site it shows now; and no cache may hand the answer of one site to a request for another
             # M1T: the name is the site of the core whose data the answer carries, never just the site the request asked for
@@ -729,6 +730,19 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             return Response(blob, media_type="application/json", headers=dict(head, **{"Content-Encoding": "gzip"}))
         import gzip as _gzip
         return Response(await asyncio.to_thread(_gzip.decompress, blob), media_type="application/json", headers=head)
+
+    # infrastructure routes (view "Real cables"): every country and stored route over land routes, cables, radio or satellite
+    @app.get("/api/paths/infra")
+    async def get_paths_infra(request: Request):
+        def head(stand):
+            return {"ETag": '"%s"' % stand, "Cache-Control": "private, max-age=3600"}
+        stand = await asyncio.to_thread(state.core.paths_infra_stand)
+        if stand and request.headers.get("if-none-match") == head(stand)["ETag"]:
+            return Response(status_code=304, headers=head(stand))
+        out = await asyncio.to_thread(state.core.paths_infra)
+        if out is None:
+            return err("paths.infra.err.no_home", 404)
+        return JSONResponse(out, headers=head(out["stand"]))
 
     @app.get("/api/paths/cables/info")
     async def get_paths_cables_info():

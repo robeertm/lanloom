@@ -7,6 +7,7 @@ import math
 import re
 import threading
 import time
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -175,6 +176,7 @@ class Core:
         else:
             self.cables = CableData((data_dir / "cables") if live_routes else None)
         self._cable_cache: dict = {}       # (route key, measured at, data version) -> estimate, crossings and path (memory only)
+        self._infra = None                 # infraroute.InfraRoutes (view "Real cables": every data path over infrastructure), built on first use
         self.availability = availability_mod.Availability(store)     # 5-minute slots per device/connection (S2)
         self.services = services_mod.Services(self)                  # services, web interfaces, link probe, certificates (E5)
         self.traffic_log = trafficlog_mod.TrafficLog(store)           # bytes per minute per trace (plot ranges up to 7 days)
@@ -782,7 +784,43 @@ class Core:
     def paths_routes(self) -> dict:
         """Network routes (DW2): state of the option, what is possible here, and the stored (condensed) routes."""
         rw = self.routes
-        return {"status": rw.status(), "routes": self.with_cables(rw.rows(limit=40)) if (rw.settings()["enabled"] or rw.demo) else []}
+        rows = self.with_cables(rw.rows(limit=40)) if (rw.settings()["enabled"] or rw.demo) else []
+        return {"status": rw.status(), "routes": rows, "infra_stand": self._infra_stand(rows)}
+
+    def _infra_inputs(self) -> tuple:
+        """(cable data, home, stored routes with their cable estimates) for the infrastructure routes - the same rows as the routes view."""
+        rw = self.routes
+        rows = self.with_cables(rw.rows(limit=40)) if (rw.settings()["enabled"] or rw.demo) else []
+        cc = (self.settings().get("home_country") or "").strip().upper()[:2]
+        return self.cables.data(), ({"cc": cc} if cc else None), rows
+
+    def _infra_stand(self, rows: list) -> Optional[str]:
+        """Fingerprint of the infrastructure routes (cable data, home country, stored routes) - cheap, nothing is computed."""
+        from . import infraroute
+        cc = (self.settings().get("home_country") or "").strip().upper()[:2]
+        if not cc:
+            return None
+        return infraroute.InfraRoutes.stand(self.cables.data(), {"cc": cc}, rows, self.cables.version)
+
+    def paths_infra_stand(self) -> Optional[str]:
+        data, home, rows = self._infra_inputs()
+        return self._infra_stand(rows) if home else None
+
+    def paths_infra(self) -> Optional[dict]:
+        """Infrastructure routes (view "Real cables"): for every country of the world map and every stored route the way over
+        land routes, cables, radio or satellite (``infraroute.py``). Kept in memory per cable version, home country and route
+        state; works without cable data and without measured routes. None while no home country is known."""
+        from . import infraroute
+        data, home, rows = self._infra_inputs()
+        if not home:
+            return None
+        if self._infra is None:
+            world = infraroute.load_world(Path(__file__).resolve().parent / "web" / "js" / "worldmap.js")
+            self._infra = infraroute.InfraRoutes(infraroute.country_points(world), world)
+        try:
+            return self._infra.compute(data, home, rows, version=self.cables.version)
+        except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):
+            return None
 
     def with_cables(self, rows: list) -> list:
         """Real cables (DW3): every route gets its sea crossings, the estimated cables (never sure) and the path over the

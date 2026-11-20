@@ -127,6 +127,7 @@ RULES = {
     ("POST", "/api/paths/routes/measure"): R(O, "paths.routes.measure"),
     ("POST", "/api/paths/routes/clear"): R(A, "paths.routes.clear"),
     ("GET", "/api/paths/cables"): R(V),
+    ("GET", "/api/paths/infra"): R(V),
     ("GET", "/api/paths/cables/info"): R(V),
     ("POST", "/api/paths/cables/import"): R(A, "paths.cables.import"),
     ("POST", "/api/paths/cables/reset"): R(A, "paths.cables.reset"),

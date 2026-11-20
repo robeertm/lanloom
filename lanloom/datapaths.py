@@ -41,6 +41,8 @@ import threading
 import time
 from typing import Callable, Optional
 
+from . import infraroute
+
 OWN = "~own"
 ANYCAST = "~anycast"
 UNASSIGNED = "~unassigned"
@@ -136,6 +138,15 @@ def _nets(values) -> list:
 
 def _in(addr, nets) -> bool:
     return any(addr.version == n.version and addr in n for n in nets)
+
+
+def _with_sat(entry: dict) -> dict:
+    """Operator entry {asn, name, bytes, ...} plus ``sat`` ("leo" or "geo") when it is a satellite network (AS number table or the
+    neutral words in the name); the field is absent otherwise."""
+    s = infraroute.satellite(entry.get("asn"), entry.get("name"))
+    if s:
+        entry["sat"] = s
+    return entry
 
 
 class DataPaths:
@@ -617,16 +628,16 @@ class DataPaths:
             if info is None:
                 continue
             cities.append(dict(info, bytes=c["bytes"], share=(c["bytes"] / total) if total else 0.0, devices=len(c["devices"]),
-                               operators=[{"asn": a, "name": opname(a), "bytes": b} for a, b in
+                               operators=[_with_sat({"asn": a, "name": opname(a), "bytes": b}) for a, b in
                                           sorted(c["ops"].items(), key=lambda x: -x[1])[:4] if a > 0]))
         operators = []
         for asn, o in sorted(by_op.items(), key=lambda x: (-x[1]["bytes"], x[0])):
             if asn == 0:
                 continue
-            operators.append({"asn": asn, "name": opname(asn) if asn > 0 else "", "other": asn < 0, "bytes": o["bytes"],
+            operators.append(_with_sat({"asn": asn, "name": opname(asn) if asn > 0 else "", "other": asn < 0, "bytes": o["bytes"],
                               "share": (o["bytes"] / total) if total else 0.0, "devices": len(o["devices"]),
                               "cities": [{"name": (places.get(k) or {"name": ""})["name"], "bytes": b} for k, b in
-                                         sorted(o["cities"].items(), key=lambda x: -x[1])[:4] if k in places]})
+                                         sorted(o["cities"].items(), key=lambda x: -x[1])[:4] if k in places]}))
         n_operators = sum(1 for o in operators if not o["other"])
         operators = operators[:MAX_OPERATOR_LIST]
 
@@ -686,9 +697,9 @@ class DataPaths:
             d = by_dev.get(r["device"], {"ops": {}, "cities": {}})
             devs.append({"id": r["device"], "title": info.get("title") or "", "kind": info.get("kind") or "", "self": bool(info.get("self")),
                          "tx": tx, "rx": rx, "bytes": tx + rx,
-                         "operators": [{"asn": a, "name": opname(a), "bytes": b} for a, b in sorted(d["ops"].items(), key=lambda x: -x[1])[:3] if a > 0],
+                         "operators": [_with_sat({"asn": a, "name": opname(a), "bytes": b}) for a, b in sorted(d["ops"].items(), key=lambda x: -x[1])[:3] if a > 0],
                          "cities": [places[k]["name"] for k, _ in sorted(d["cities"].items(), key=lambda x: -x[1])[:3] if k in places]})
-        targets = [{"asn": a, "name": opname(a), "city": (places.get(c) or {"name": ""})["name"], "bytes": p["bytes"], "devices": len(p["devices"])}
+        targets = [_with_sat({"asn": a, "name": opname(a), "city": (places.get(c) or {"name": ""})["name"], "bytes": p["bytes"], "devices": len(p["devices"])})
                    for (a, c), p in sorted(pairs.items(), key=lambda x: (-x[1]["bytes"], x[0][0], x[0][1]))[:24]]
 
         # ---- history
