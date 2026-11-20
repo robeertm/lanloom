@@ -215,7 +215,7 @@ token of scope `operate` or `admin`.
 
 ### Ingest
 
-`GET /api/v1/ingest` - external reports delivered recently, newest first. Parameter `limit` (default 50, at most 200).
+`GET /api/v1/ingest` - external reports delivered recently for the request's site, newest first. Parameter `limit` (default 50, at most 200).
 
 ```json
 {"reports": [{"id": 2, "t": 1795001155.9, "source": "disk-check", "title": "Disk check of the media box",
@@ -243,6 +243,9 @@ Errors are JSON with a translation key in `error`.
 | 403 | `api.err.scope` | the scope, or the role of the account, is too low; `need` names the scope that would be needed |
 | 404 | `api.err.not_found` | no such route, device, subject or report |
 | 400 | `api.err.ingest_*` | the body of an external report is wrong (see below) |
+| 400 | `site.err.required` | Lanloom keeps several sites and the external report names none (see below) |
+| 404 | `site.err.unknown` | the request names a site (header `X-Lanloom-Site`, `?site=` or the field `site`) that is empty, unknown or not released for the account - never answered from another site |
+| 409 | `site.err.mismatch` | the header and the field `site` of an external report name different sites |
 | 413 | `api.err.too_large` | the body is larger than the limit (`limit` in bytes); refused before it is read |
 | 429 | `api.err.rate` | too many requests with this token; wait `Retry-After` seconds |
 | 429 | `api.err.ingest_full` | more than 200 external reports in a day |
@@ -418,6 +421,11 @@ curl -X POST -H "Authorization: Bearer llt_..." -H "Content-Type: application/js
 | `level` | `ok`, `info` (default), `warn` or `danger` |
 | `summary` | optional, up to 500 characters |
 | `items` | optional, up to 50 lines, each `{"text": "...", "level": "..."}` (up to 300 characters) or just a string |
+| `site` | the site the report is for (the id from *All sites*); **required when Lanloom keeps several sites** - or send the header `X-Lanloom-Site` instead |
+
+- **Sites:** a report belongs to the site it names and shows only in that site's list and nightly report. With a single
+  site nothing needs to be named. With several, a report that names no site is refused (`400 site.err.required`) - it never
+  lands in the default site; a site the account may not see is `404`, a header and a field that disagree are `409`.
 
 - At most **64 KiB** per report (`413` above) and **200 reports a day** (`429` above).
 - Kept for **35 days** (at most 1000 reports).

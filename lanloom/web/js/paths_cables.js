@@ -351,9 +351,8 @@
       if (!f) return;
       LL.msg(msg, t('cables.set.importing'));
       try {
-        const head = { 'Content-Type': 'application/json', 'X-Lanloom': '1', 'Accept': 'application/json' }, site = LL.pageSite && LL.pageSite();
-        if (site) head['X-Lanloom-Site'] = site;
-        const res = await fetch(LL.url('/api/paths/cables/import'), { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: head, body: f });
+        const head = Object.assign({ 'Content-Type': 'application/json', 'X-Lanloom': '1', 'Accept': 'application/json' }, LL.siteHeaders());
+        const res = LL.siteChecked(await fetch(LL.url('/api/paths/cables/import'), { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: head, body: f }));
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(t(body.error || 'paths.cables.err.no_cables'));
         LL.msg(msg, t('cables.set.imported', { n: body.sea || 0 }), 'ok');

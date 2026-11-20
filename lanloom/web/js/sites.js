@@ -28,6 +28,7 @@
     LL.rememberTabSite(id);
     if (readCookie() !== id) writeCookie(id);
   }
+  LL.rememberSite = remember;                       // app.js: after a resync or an unknown site (M1T), the cookie follows too
   (function syncAtLoad() {
     let own = null; try { own = sessionStorage.getItem('lanloom.site.tab'); } catch (e) { /* storage closed */ }
     const s = own || stored();                      // this tab's own site first (M2), else the last one used in this browser
@@ -43,18 +44,13 @@
     LL.leaveSite();                       // running requests are cancelled, the live feed closes quietly: no late answer of the old site is drawn
     remember(id);
     sitesCache = null;
-    if (hash) history.replaceState(null, '', LL.base + hash);
+    LL.dropTabContext();                  // a card to open, a step, a focus of the site that is left: never carried into the next one (M1T)
+    // the address decides site and view after the reload: a given target, else the view alone - never a part, filter or sheet
+    // of the site that is left (an id there means another thing, or nothing, in the next site)
+    history.replaceState(null, '', LL.base + (hash || LL.viewOnly(location.hash)));
     location.reload();                    // every view, the live feed and the caches start fresh with the new site
   };
-  // '#/devices/d-1?x=1&site=s-12345678' -> '#/devices/d-1?x=1'
-  function withoutSite(hash) {
-    const q = hash.indexOf('?');
-    if (q < 0) return hash;
-    const p = new URLSearchParams(hash.slice(q + 1));
-    p.delete('site');
-    const rest = p.toString();
-    return hash.slice(0, q) + (rest ? '?' + rest : '');
-  }
+  const withoutSite = LL.withoutSite;     // '#/devices/d-1?x=1&site=s-12345678' -> '#/devices/d-1?x=1' 
   // a link with ?site=<id> (M2): the page of that site is opened, only when the person may see it; otherwise the link opens here
   LL.siteDeepLink = async function () {
     const want = LL.query.get('site');

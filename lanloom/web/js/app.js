@@ -101,6 +101,53 @@
   }
   LL.pageSite = () => { const s = LL.state && LL.state.site; return (s && s.id) || tabSite(); };
   LL.switching = () => switching;
+  // M1T: what the page threw away because it belonged to another site - answers that named another site, live frames of
+  // another site. In a working installation both stay 0; the test bench reads them (and fails on anything but 0).
+  LL.siteStats = { discarded: 0, frames: 0, last: null };
+  LL.siteDiscarded = function (kind, got) {
+    LL.siteStats[kind === 'frame' ? 'frames' : 'discarded'] += 1;
+    LL.siteStats.last = { kind, got: got || null, page: LL.pageSite(), at: Date.now() };
+  };
+  // the header every request of the page carries, also the ones that do not go through LL.api (files, uploads)
+  LL.siteHeaders = () => { const s = LL.pageSite(); return s ? { 'X-Lanloom-Site': s } : {}; };
+  // an answer fetched past LL.api (a file, an upload): thrown away when it names another site than this page shows
+  LL.siteChecked = function (r) {
+    const asked = LL.pageSite(), got = r && r.headers ? r.headers.get('X-Lanloom-Site') : null;
+    if (asked && got && got !== asked) {
+      LL.siteDiscarded('answer', got); LL.siteResync(got);
+      const err = new Error('site.err.changed'); err.status = 409; err.key = 'site.err.changed'; err.site = got;
+      throw err;
+    }
+    return r;
+  };
+  // the address names a site (?site=<id>, a deep link, a bookmark, a link in a message): from the first request of a page
+  // that site is asked for - never first the one remembered from before and then a switch (cold start, M1T)
+  function addressSite() {
+    const raw = location.hash || '', q = raw.indexOf('?');
+    if (q < 0) return null;
+    const v = new URLSearchParams(raw.slice(q + 1)).get('site');
+    return v && SITE_RE.test(v) ? v : null;
+  }
+  // the hash without its ?site= (the address keeps the view, the page knows its site)
+  LL.withoutSite = function (hash) {
+    const q = hash.indexOf('?');
+    if (q < 0) return hash;
+    const p = new URLSearchParams(hash.slice(q + 1));
+    p.delete('site');
+    const rest = p.toString();
+    return hash.slice(0, q) + (rest ? '?' + rest : '');
+  };
+  // what a switch takes along: the view only - never a part, a filter or a sheet of the site that is left (ids of one site
+  // mean another thing - or nothing - in the next one)
+  LL.viewOnly = function (hash) {
+    const raw = (hash || '#/').replace(/^#\/?/, '');
+    const name = raw.split('?')[0].split('/')[0];
+    return '#/' + (name || 'overview');
+  };
+  // things a view remembers for the next page of this tab (a card to open, a step, a focus): they belong to the site they were
+  // set in and are dropped when the tab changes its site
+  const TAB_CONTEXT = ['ll-card-focus', 'll-fw-focus', 'll-wiz', 'll-wiz-again', 'll-cidrs'];
+  LL.dropTabContext = () => TAB_CONTEXT.forEach(k => { try { sessionStorage.removeItem(k); } catch (e) { /* storage closed */ } });
   // key of the browser storage that belongs to the site of this page (the home site keeps the plain key)
   LL.siteKey = base => { const id = LL.pageSite(); return id && id !== 'home' ? base + '@' + id : base; };
   // deep link into a site: '#/devices/d-1' -> '#/devices/d-1?site=s-12345678' (the page switches before it draws)
@@ -121,13 +168,17 @@
     try { at = Number(sessionStorage.getItem(RESYNC_KEY)) || 0; } catch (e) { /* storage closed */ }
     if (Date.now() - at < 8000) return;        // just done: the message stays, no reload loop
     if (!actual) {
-      try { const st = await api('/api/state', { allow401: true, noSite: true }); actual = st && st.site && st.site.id; } catch (e) { return; }
+      try { const st = await api('/api/state', { allow401: true, noSite: true }); actual = st && st.site && (st.site.id || st.site.first); } catch (e) { return; }
     }
     if (!actual || actual === LL.pageSite()) return;
     try { sessionStorage.setItem(RESYNC_KEY, String(Date.now())); } catch (e) { /* storage closed */ }
     LL.leaveSite();
     LL.rememberTabSite(actual);
     try { localStorage.setItem('ll-site', actual); } catch (e) { /* private mode */ }
+    if (LL.rememberSite) LL.rememberSite(actual);
+    LL.dropTabContext();
+    // the view stays, its parts do not: an id in the address belongs to the site that was left
+    history.replaceState(null, '', LL.base + LL.viewOnly(location.hash));
     location.reload();
   };
   async function api(path, opts) {
@@ -157,7 +208,8 @@
     const got = r.headers.get('X-Lanloom-Site');
     if (asked && got && got !== asked && path !== '/api/state') {
       // an answer made for another site than this page shows (the access changed, the site is gone): never drawn
-      LL.siteResync(got);
+      LL.siteDiscarded('answer', got);
+      LL.siteResync(got === 'mixed' ? null : got);
       const err = new Error('site.err.changed'); err.status = 409; err.key = 'site.err.changed'; err.site = got;
       throw err;
     }
@@ -169,6 +221,9 @@
       const err = new Error(data.error || data.detail || ('HTTP ' + r.status));
       err.status = r.status; err.key = data.error || data.detail; err.wait = data.wait; err.vars = data.vars;
       if (r.status === 401 && !opts.allow401) { rememberReturn(location.hash); LL.go('#/login'); }   // session over in the middle of the work: come back to this view
+      // the site this page shows is gone or no longer released (M1T): the server refuses instead of answering from another
+      // site; the page follows the server's first site once
+      if (r.status === 404 && data.error === 'site.err.unknown' && asked) LL.siteResync();
       if (r.status === 403 && data.error === 'auth.err.enroll') LL.go('#/enroll');
       throw err;
     }
@@ -385,7 +440,7 @@
   LL.view = function (name, fn) { views[name] = fn; };
   let current = null;
 
-  let routeSeq = 0;
+  let routeSeq = 0, routedOnce = false, unknownOnce = false, addressAsked = null;
   async function route() {
     if (LL.holdRoute && LL.holdRoute()) return;     // a sheet closed itself with the back step: nothing below changes
     const seq = ++routeSeq;
@@ -397,9 +452,30 @@
     const [name, ...rest] = (qpos >= 0 ? raw.slice(0, qpos) : raw).split('/');
     let st;
     const before = LL.state && LL.state.site && LL.state.site.id;
+    if (!before && !routedOnce) {                   // the first route of the page: a site in the address is asked for at once (M1T)
+      const want = addressSite();
+      if (want && want !== tabSite()) { LL.rememberTabSite(want); addressAsked = want; }
+    }
+    routedOnce = true;
     try { st = LL.state = await api('/api/state', { allow401: true }); if (st && st.rate_unit) LL.rateUnit = st.rate_unit === 'bits' ? 'bits' : 'bytes'; }
     catch (e) { if (switching) return; app.replaceChildren(h('div', { class: 'boot-error' }, t('error.offline'))); return; }
     if (switching || seq !== routeSeq) return;
+    if (st && st.site && st.site.unknown) {
+      // M1T: the page asked for a site that is empty, unknown or not released - the server says so instead of answering from
+      // another site. A page that had a site follows the server once; a page that is just starting forgets the remembered (or
+      // linked) site, says so quietly and starts with the person's first site - nothing was drawn yet.
+      if (before) { LL.siteResync(st.site.first); return; }
+      if (st.site.first && !unknownOnce) {
+        unknownOnce = true;
+        LL.rememberTabSite(st.site.first);
+        try { localStorage.setItem('ll-site', st.site.first); } catch (e) { /* private mode */ }
+        if (LL.rememberSite) LL.rememberSite(st.site.first);
+        LL.dropTabContext();
+        if (addressAsked) history.replaceState(null, '', LL.base + LL.viewOnly(location.hash));
+        pendingNotice = 'site.err.unknown';
+        return route();
+      }
+    }
     if (st && st.site && st.site.id) {          // M2: the site of this page is the one the server answered for
       if (before && before !== st.site.id && LL.siteResync) { LL.siteResync(st.site.id); return; }     // the access changed while the page was open
       LL.rememberTabSite(st.site.id);

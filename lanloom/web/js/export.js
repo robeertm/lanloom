@@ -13,7 +13,8 @@
   async function download(what, opts) {
     const body = Object.assign({ what, lang: LL.lang }, opts || {});
     const r = await fetch(LL.url('/api/export'), { method: 'POST', credentials: 'same-origin', cache: 'no-store',
-      headers: Object.assign({ 'X-Lanloom': '1', 'Content-Type': 'application/json' }, LL.pageSite() ? { 'X-Lanloom-Site': LL.pageSite() } : {}), body: JSON.stringify(body) });
+      headers: Object.assign({ 'X-Lanloom': '1', 'Content-Type': 'application/json' }, LL.siteHeaders()), body: JSON.stringify(body) });
+    LL.siteChecked(r);                       // a file made for another site than this page shows is never saved (M1T)
     if (!r.ok) {
       let data = {};
       try { data = await r.json(); } catch (e) { /* empty body */ }

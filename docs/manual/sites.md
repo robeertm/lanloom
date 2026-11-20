@@ -49,9 +49,10 @@ Network > Networks and VLANs* first (the same consent as for routed networks at 
 **Several tabs, several sites.** Each tab keeps the site it shows, also when you switch the site in another tab of the same
 browser: its requests, its live feed and what it draws stay at its own site. A page never draws an answer that was made for
 another site; if the server says the site of a page is not (or no longer) released for you, the page opens the site you may see
-once. Switching cancels everything that is still on its way, without an error message. A link can name a site
-(`#/devices?site=<site id>` - the id is part of the address of the site's cards); it switches before it draws and is
-ignored with a short notice for a site you may not see.
+once. Switching cancels everything that is still on its way, without an error message, and keeps the view you are on (not
+the device or filter you had open - those belong to the site you left). A link can name a site
+(`#/devices?site=<site id>` - the id is part of the address of the site's cards); a page opened with such a link shows that
+site from the very first moment, and a link to a site you may not see opens your own site with a short notice.
 
 **Who sees which site** (administrators): *Settings > Users > Actions > Sites ...* per person - *All sites* (also the
 ones added later, the default) or a list. An invitation can carry the sites too. Administrators always see every site.
@@ -83,10 +84,18 @@ a confirmation; its data is deleted from Lanloom, nothing changes at the site).
 ## Privacy
 
 - Every site keeps its data in a database of its own (`<data>/sites/<id>/lanloom.db`); Home keeps `lanloom.db`.
-- The server decides the site of every request, and only among the sites released for the person (cookie `ll_site` or
-  header `X-Lanloom-Site` are only a wish). Names and addresses of other sites never appear in an answer, the live feed
-  or a report section; a test asks every route as a person with one site and looks for the other site's names.
-- API keys follow the sites of their account (header `X-Lanloom-Site` picks among them).
+- The server decides the site of every request, and only among the sites released for the person. A request that names
+  a site (header `X-Lanloom-Site`, `?site=` in the address, cookie `ll_site`) gets exactly that site - or, when it is
+  unknown or not released, a refusal (`404`), never the data of another site. Every answer and every live frame names the
+  site of its data, and the page throws away anything that names another site than it shows. Names and addresses of
+  other sites never appear in an answer, the live feed or a report section; tests ask every route for both sites and as a
+  person with one site and look for the other site's names, and a browser test watches every view while it switches.
+  The rules for the code are in [SITE-SEPARATION.md](../SITE-SEPARATION.md).
+- API keys follow the sites of their account (header `X-Lanloom-Site` picks among them). An external report
+  (`POST /api/v1/ingest`) names its site when there are several; it is never booked for the default site. A host agent
+  reports only for the site it was paired with.
+- Links in notifications and delivered reports of a further site name that site, so they open it whatever the browser
+  showed last.
 - Backups contain every site; a restore brings back the site list and each site's data.
 - Roles: everybody sees the sites released for them; adding, renaming, removing, the report mode and releasing sites
   are for administrators and are written to the audit log (removing needs a fresh confirmation).

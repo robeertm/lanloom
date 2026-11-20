@@ -183,17 +183,19 @@
     return id;
   }
 
-  // in-memory route cache (per page) + localStorage (per board slot)
+  // in-memory route cache (per page) + localStorage (per board slot and site: two tabs on two sites never take turns
+  // overwriting each other's routes, M1T)
   const memCache = new Map();
+  const routeSlot = slot => { const L = root.Lanloom; return L && L.siteKey ? L.siteKey('lanloom.routes.' + slot) : 'lanloom.routes.' + slot; };
   function cacheGet(slot, key) {
     if (memCache.has(key)) return memCache.get(key);
-    try { const x = JSON.parse(localStorage.getItem('lanloom.routes.' + slot) || 'null'); if (x && x.k === key && Array.isArray(x.r)) return x.r; } catch (e) { /* storage unavailable */ }
+    try { const x = JSON.parse(localStorage.getItem(routeSlot(slot)) || 'null'); if (x && x.k === key && Array.isArray(x.r)) return x.r; } catch (e) { /* storage unavailable */ }
     return null;
   }
   function cachePut(slot, key, routes) {
     memCache.set(key, routes);
     if (memCache.size > 8) memCache.delete(memCache.keys().next().value);
-    try { localStorage.setItem('lanloom.routes.' + slot, JSON.stringify({ k: key, r: routes })); } catch (e) { /* full or blocked — fine */ }
+    try { localStorage.setItem(routeSlot(slot), JSON.stringify({ k: key, r: routes })); } catch (e) { /* full or blocked — fine */ }
   }
 
   // ------------------------------------------------------------------ line filter (pure helpers, also used by the tests)

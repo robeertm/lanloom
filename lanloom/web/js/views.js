@@ -26,6 +26,9 @@
     ws.onmessage = ev => {
       if (live.ws !== ws || (LL.switching && LL.switching())) return;     // a socket of the site that was left draws nothing
       let f; try { f = JSON.parse(ev.data); } catch (e) { return; }
+      // every frame names its site (M1T): a frame of another site than the server confirmed for this page is never drawn
+      const own = LL.state && LL.state.site && LL.state.site.id;
+      if (own && f.site && f.site !== own) { LL.siteDiscarded('frame', f.site); return; }
       live.last = f; live.retry = 1000; live.lastAt = Date.now();
       if (f.t) live.offset = Date.now() / 1000 - f.t;       // clock offset browser - server (plus the transport time)
       liveState('live');

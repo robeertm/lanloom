@@ -177,7 +177,8 @@
         if (!fl) return;
         LL.msg(msg, t('vulns.feed.importing'));
         try {
-          const r = await fetch(LL.url('/api/vulns/feed'), { method: 'POST', credentials: 'same-origin', headers: Object.assign({ 'X-Lanloom': '1', 'Content-Type': 'application/octet-stream' }, LL.pageSite() ? { 'X-Lanloom-Site': LL.pageSite() } : {}), body: fl });
+          const r = await fetch(LL.url('/api/vulns/feed'), { method: 'POST', credentials: 'same-origin', headers: Object.assign({ 'X-Lanloom': '1', 'Content-Type': 'application/octet-stream' }, LL.siteHeaders()), body: fl });
+          LL.siteChecked(r);
           const res = await r.json().catch(() => ({}));
           if (!r.ok) throw Object.assign(new Error(res.error || 'vulns.err.feed'), { key: res.error, status: r.status });
           LL.toast(t('vulns.feed.imported', { n: res.entries, date: day(res.as_of) }), 'ok');

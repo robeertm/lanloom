@@ -132,6 +132,8 @@ With `LANLOOM_TRUSTED_PROXIES` set, the sign-in rate limit counts the client add
 
 To serve Lanloom below a path such as `/lanloom/`, either let the proxy strip the prefix (the web page derives all addresses from its own location) or set `LANLOOM_BASE_PATH=/lanloom` so Lanloom accepts the prefix itself; requests without it still work and `/lanloom` redirects to `/lanloom/`. To let the proxy sign people in, see [ACCESS.md](ACCESS.md#sign-in-through-an-authentication-proxy).
 
+With [several sites](manual/sites.md), every request of the page names its site in the header `X-Lanloom-Site` and every answer names the site of its data in the same header, with `Vary: Cookie, X-Lanloom-Site` and `Cache-Control: no-store`. A proxy that forwards all headers (the usual setup) needs nothing more. A proxy with a list of allowed headers must pass `X-Lanloom` and `X-Lanloom-Site` to Lanloom and `X-Lanloom-Site` and `Vary` back; a caching proxy must not cache `/api/` or must respect `Vary`. Otherwise the page cannot tell which site an answer belongs to and refuses it. See [SITE-SEPARATION.md](SITE-SEPARATION.md).
+
 Leave it empty when nothing sits in front of Lanloom. Without it, all sign-ins through a proxy share the proxy's address: one person typing wrong passwords then locks everybody out for a while. List only proxies you control. A wrong entry lets anybody who can reach Lanloom from that address choose their own client address and slip past the rate limit.
 
 ## Image tags
