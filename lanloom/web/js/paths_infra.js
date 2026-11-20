@@ -281,7 +281,7 @@
   I.scale = function (svg, pxPerUnit) {
     if (!svg || !(pxPerUnit > 0)) return;
     const f = 1 / pxPerUnit, r = svg.getBoundingClientRect();
-    const k = 1.2 * Math.max(0.5, Math.min(1, (r.width || 1100) / 1100));        // smaller maps (phone) get smaller symbols, never larger ones
+    const k = 1.2 * Math.max(0.7, Math.min(1, (r.width || 1100) / 1100));        // smaller maps (phone) get smaller symbols, never larger ones
     svg.querySelectorAll('.in-satellite[data-sat]').forEach(e => e.setAttribute('transform', 'translate(' + e.dataset.x + ' ' + e.dataset.y + ') scale(' + (f * k).toFixed(4) + ')'));
     svg.querySelectorAll('.in-node[data-ir]').forEach(c => c.setAttribute('r', (parseFloat(c.dataset.ir) * f).toFixed(3)));
   };
