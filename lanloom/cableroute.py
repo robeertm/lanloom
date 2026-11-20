@@ -285,7 +285,10 @@ def graphs(data):
     if not isinstance(sea, list):
         return []
     k = (id(sea), len(sea), str(data.get("date")))
-    g = _GRAPHS.get(k)
+    hit = _GRAPHS.get(k)
+    # the entry keeps the list itself: while it is cached its id cannot be given to another data set (a freed list's id is reused,
+    # and a test data set of the same length and date then got the graphs of the one before)
+    g = hit[1] if hit is not None and hit[0] is sea else None
     if g is None:
         g = []
         for e in sea:
@@ -299,7 +302,7 @@ def graphs(data):
                 g.append((e, cg))
         if len(_GRAPHS) > 3:
             _GRAPHS.clear()
-        _GRAPHS[k] = g
+        _GRAPHS[k] = (sea, g)
     return g
 
 

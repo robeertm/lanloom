@@ -946,15 +946,18 @@ class InfraRoutes:
         self.shapes = CountryShapes(shapes) if shapes and not isinstance(shapes, CountryShapes) else shapes
         self._net = None
         self._net_key = None
+        self._net_sea = None
         self._cache = {}
         self._routes = {}                # (home node, route key, measured at) -> way (a new route only computes itself)
 
     def net(self, data):
         sea = data.get("sea") if isinstance(data, dict) else None
-        k = (id(sea) if sea is not None else None, str(data.get("date")) if isinstance(data, dict) else None)
-        if self._net is None or self._net_key != k:
+        k = (str(data.get("date")) if isinstance(data, dict) else None)
+        # compare the list itself (kept here), never its id: a freed list's id is reused by the next data set
+        if self._net is None or self._net_key != k or self._net_sea is not sea:
             self._net = InfraNet(data, self.countries, self.shapes)
             self._net_key = k
+            self._net_sea = sea
             self._cache = {}
             self._routes = {}
         return self._net
