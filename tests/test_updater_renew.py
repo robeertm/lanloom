@@ -499,9 +499,10 @@ def test_helper_identity_from_a_real_socket(tmp_path, monkeypatch):
             def __init__(self, mode, owner, group):
                 self.st_mode, self.st_uid, self.st_gid = mode, owner, group
 
-        monkeypatch.setattr(E.os, "stat", lambda p, *a, **k: St(0o140660, 0, 991) if str(p) == str(sock_path) else real_stat(p, *a, **k))
+        other = 1 if uid == 0 else 0               # a socket owner that is not the data owner (the test runner may be root)
+        monkeypatch.setattr(E.os, "stat", lambda p, *a, **k: St(0o140660, other, 991) if str(p) == str(sock_path) else real_stat(p, *a, **k))
         assert upd.helper_identity() == (f"{uid}:{gid}", ["991"])   # through the socket group
-        monkeypatch.setattr(E.os, "stat", lambda p, *a, **k: St(0o140600, 0, 0) if str(p) == str(sock_path) else real_stat(p, *a, **k))
+        monkeypatch.setattr(E.os, "stat", lambda p, *a, **k: St(0o140600, other, other) if str(p) == str(sock_path) else real_stat(p, *a, **k))
         assert upd.helper_identity() is None                         # root only: keep the manual way
         monkeypatch.setattr(E.os, "stat", real_stat)
         upd.s.socket_path = str(data / "missing.sock")
