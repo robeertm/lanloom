@@ -32,24 +32,26 @@ require(path.join(root, 'paths_cables.js'));
 require(path.join(root, 'paths_infra.js'));
 const LL = global.Lanloom, I = LL.pathsInfra;
 const NET = {
-  stand: 's1',
+  stand: 's1', home: [100, 100],
   edges: { 1: { kind: 'cable', p: [[0, 0], [10, 0]], km: 1, name: 'Test cable' }, 2: { kind: 'land', p: [[10, 0], [20, 5]], km: 1, name: null },
-    3: { kind: 'sat', p: [[5, 5], [30, 40]], km: 1, name: null }, 4: { kind: 'radio', p: [[10, 0], [12, 1]], km: 1, name: null },
+    3: { kind: 'sat', p: [[10, 0], [30, 40]], km: 1, name: null }, 4: { kind: 'radio', p: [[10, 0], [12, 1]], km: 1, name: null },
     5: { kind: 'land', p: [[20, 5], [26, 9]], km: 1, name: null }, 6: { kind: 'access', p: [[10, 0], [8, -2]], km: 1, name: null } },
   hubs: { a: { name: 'Alpha', cc: 'XA', p: [0, 0] }, b: { name: 'Beta', cc: 'XA', p: [20, 5] }, c: { name: 'Gamma', cc: 'XA', p: [26, 9] } },
   countries: { XA: { path: ['1', '2'], origin: 'cable', via: ['Alpha'], cables: ['Test cable'], km: 3, sat: { path: ['1'], gateway: [10, 0], gateway_name: 'Alpha' } },
     XB: { path: ['3'], origin: 'sat', via: [], cables: [], gateway_name: 'Alpha', km: 2 },
+    XD: { path: ['3'], origin: 'sat', via: [], cables: [], gateway_name: 'Alpha', km: 2 },
     XC: { path: ['1', '4'], origin: 'radio', via: [], cables: [], km: 2, sat: { path: ['1'], gateway: [10, 0], gateway_name: 'Alpha' } } },
   routes: { k1: { path: ['1', '2'], measured_edges: 1, origin: 'route', places: 2, via: ['Alpha'], cables: [] },
     k2: { path: ['1'], measured_edges: 1, origin: 'route', places: 1, via: ['Alpha'], cables: [], end: [10, 0], conflict: { rtt: 19, km: 9000, place: 'Alpha' } },
+    k4: { path: ['1', '3'], measured_edges: 1, origin: 'route', places: 1, via: ['Alpha'], cables: [] },
     k3: { path: ['1', '4'], measured_edges: 2, origin: 'route', places: 2, via: [], cables: [] } },
   inland: { XA: { hubs: { a: [0, 0], b: [20, 5], c: [26, 9] }, paths: { 'a|b': ['1', '2'], 'b|c': ['5'], 'a|c': ['1', '2', '5'] } } }
 };
-const targets = [{ cc: 'XA', tx: 40, rx: 60 }, { cc: 'XB', tx: 5, rx: 15 }, { cc: 'XC', tx: 10, rx: 10 }];
-const routes = [{ key: 'k1', cc: 'XA', asn: 1 }, { key: 'k2', cc: 'XA', asn: 2 }, { key: 'k3', cc: 'XC', asn: 3, sat: 'leo' }];
+const targets = [{ cc: 'XA', tx: 40, rx: 60 }, { cc: 'XB', tx: 5, rx: 15 }, { cc: 'XC', tx: 10, rx: 10 }, { cc: 'XD', tx: 2, rx: 2 }];
+const routes = [{ key: 'k1', cc: 'XA', asn: 1 }, { key: 'k2', cc: 'XA', asn: 2, sat: 'leo' }, { key: 'k4', cc: 'XD', asn: 4, sat: 'leo' }, { key: 'k3', cc: 'XC', asn: 3, sat: 'leo' }];
 const out = {};
 out.off = I.on() === true;
-const sh = I.shares(NET, targets, routes, { out: cc => cc !== 'XA', point: cc => ({ XA: [26, 9], XB: [30, 40], XC: [20, 30] })[cc] });
+const sh = I.shares(NET, targets, routes, { out: cc => cc !== 'XA', point: cc => ({ XA: [26, 9], XB: [30, 40], XC: [20, 30], XD: [30, 40] })[cc] });
 out.shareSum = sh.reduce((a, s) => a + s.bytes, 0);
 out.targetSum = targets.reduce((a, x) => a + x.tx + x.rx, 0);
 out.shareCount = sh.length;
@@ -67,6 +69,10 @@ out.legend = I.legendItems('x', d.arts).map(s => s.kids[0].attrs.class);
 out.legendNoSea = !out.legend.some(c => /sea/.test(c));
 out.conflictEnd = sh.filter(s => s.end).map(s => [s.end, s.conflict && s.conflict.place]);
 out.endText = I.endText('XA', sh);
+out.noSatOnEnd = sh.filter(s => s.end).every(s => !s.sat && s.origin === 'route');
+out.viaSat = sh.filter(s => s.cc === 'XD').map(s => [s.origin, s.orbit, s.satTo, !!s.sat]);
+out.satGw = [...els.filter(e => e.attrs['data-sat'])].map(e => [e.attrs['data-x'], e.attrs['data-y']]);
+out.satPaths = els.filter(e => /in-sat\b/.test(e.attrs.class || '')).map(e => e.attrs.d);
 out.satShare = sh.filter(s => s.cc === 'XC').map(s => [s.origin, s.sat && s.sat.orbit]);
 // the country sheet: the way is cut at the first hub of the country, goes on over the inland net to the hub nearest the bubble, a short feeder ends it
 const sheet = I.sheet(NET, { cc: 'XA', routes: [{ key: 'k1', cc: 'XA', asn: 1, city: 'Cityton' }], cities: [{ name: 'Cityton', operators: [{ asn: 1 }] }], operators: [{ asn: 1 }], totals: { tx: 40, rx: 60 } },

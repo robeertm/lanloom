@@ -11,11 +11,15 @@ WEB = Path(__file__).resolve().parent.parent / "lanloom" / "web"
 
 def test_shares_bundles_satellite_and_legend():
     r = run_node("paths_infra_test.js")
-    assert r["shareSum"] == r["targetSum"] == 140 and r["streamSum"] == 140, "the sum of the strands is the sum of the map"
-    assert r["shareCount"] == 4                                      # XA over two measured ways, XB, XC
+    assert r["shareSum"] == r["targetSum"] == 144 and r["streamSum"] == 144, "the sum of the strands is the sum of the map"
+    assert r["shareCount"] == 5                                      # XA over two measured ways, XB, XC
     assert r["noArc"] and r["noDash"]
     assert r["bundled"] == 1 and r["measuredFirst"], "equal strands share one element; measured stays measured"
-    assert r["sats"] == 2 and "sat" in r["arts"] and "measured" in r["arts"]
+    assert r["noSatOnEnd"], "a way with an anycast end gets no satellite"
+    assert r["viaSat"] == [["sat", "leo", [30, 40], False]], "the core's satellite edge supplies the earth station"
+    assert sorted(p[:12] for p in r["satPaths"]) == ["M10.00 0.00Q", "M10.00 0.00Q", "M12.00 1.00Q"], "every hop starts at the earth station (end of the way before the satellite edge), never at the home"
+    assert r["sats"] == 3, "one symbol per earth station, destination and orbit"
+    assert "sat" in r["arts"] and "measured" in r["arts"]
     assert r["satShare"] == [["sat", "leo"]], "a satellite operator runs over the earth station to the destination"
     assert r["conflictEnd"] == [[[10, 0], "Alpha"]], "anycast: the way ends where it was measured"
     assert "infra.origin.route" in r["endText"] and "infra.measured_at" in r["endText"]

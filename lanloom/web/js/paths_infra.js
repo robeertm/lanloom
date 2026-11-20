@@ -109,8 +109,11 @@
         const n = N.routes[r.key];
         Object.assign(s, { ids: n.path, measured: n.measured_edges || 0, origin: 'route', via: n.via, cables: n.cables, key: r.key });
         if (n.end) { s.end = n.end; s.conflict = n.conflict || null; }
+        // a way into a satellite-only country ends with the core's satellite edge: the earth station is where the way before it ends
+        const viaSat = (n.path || []).some(id => N.edges[bare(id)] && N.edges[bare(id)].kind === 'sat');
         if (n.origin === 'sat') { s.origin = 'sat'; s.sat = { gw: n.gateway, to: n.target || pt, orbit: n.orbit || 'geo', name: n.gateway_name }; }
-        else if (!n.end && pt && (r.sat || zi.origin === 'sat')) { s.origin = 'sat'; s.sat = { gw: null, to: pt, orbit: r.sat || 'geo', name: null }; }
+        else if (viaSat) { s.origin = 'sat'; s.orbit = r.sat || 'geo'; s.satTo = pt; }
+        else if (!n.end && pt && r.sat) { s.origin = 'sat'; s.sat = { gw: null, to: pt, orbit: r.sat, name: null, fromEnd: true }; }     // never with an anycast end
         out.push(s);
       }
     }
@@ -182,7 +185,7 @@
   /* Bundles the shares to strands and draws them. -> {g, streams, arts, edges, sats}. opts: {maxW (px, thickest strand), nodes (hubs on the
      carrying strands)}. A share: {ids, bytes, rx, tx, out, quiet, pick, measured, sat?, tail?, cc, origin, via, cables, end?, conflict?}. */
   I.draw = function (N, shares, opts) {
-    const o = opts || {}, edges = new Map(), sats = new Map(), tails = [], arts = new Set(), streams = [], picks = [];
+    const o = opts || {}, edges = new Map(), sats = new Map(), tails = [], arts = new Set(), streams = [], picks = [], satPts = [];
     for (const s of shares) {
       if (!(s.bytes > 0)) continue;
       const ids = s.ids || [];
@@ -207,11 +210,13 @@
       let pts = wayLine(N, ids).slice();
       if (sat) {
         const gw = sat.gw || (pts.length ? pts[pts.length - 1] : null), to = sat.to;
-        if (gw && to) {
+        const atHome = N.home && gw && Math.hypot(gw[0] - N.home[0], gw[1] - N.home[1]) < 1.5;      // an earth station is never the home itself
+        if (gw && to && !atHome) {
           const top = satTop(gw, to, sat.orbit), sk = key2(gw) + '|' + key2(to) + '|' + sat.orbit;
           const m = sats.get(sk) || { gw, to, top, b: 0, bo: 0, orbit: sat.orbit, name: sat.name, ccs: new Set(), quiet: true };
           m.b += s.bytes; if (s.out) m.bo += s.bytes; m.ccs.add(s.cc); if (!s.quiet) m.quiet = false;
           sats.set(sk, m);
+          satPts.push(gw, top);
           arts.add('sat');
           if (!pts.length) pts = [gw];
           const c = [2 * top[0] - (gw[0] + to[0]) / 2, 2 * top[1] - (gw[1] + to[1]) / 2];
@@ -253,7 +258,7 @@
       path.appendChild(tt.cloneNode(true));
       g.appendChild(path);
       const sym = svgEl('g', { class: 'in-satellite' + (m.quiet ? ' is-quiet' : ''), 'data-sat': '1', 'data-x': m.top[0].toFixed(2), 'data-y': m.top[1].toFixed(2),
-        transform: 'translate(' + m.top[0].toFixed(2) + ' ' + m.top[1].toFixed(2) + ') scale(1.6)' });
+        transform: 'translate(' + m.top[0].toFixed(2) + ' ' + m.top[1].toFixed(2) + ') scale(1.2)' });
       sym.innerHTML = '<rect class="in-satellite__body" x="-3" y="-3" width="6" height="6" rx="1.2"/><rect class="in-satellite__panel" x="-11" y="-2" width="7" height="4" rx=".6"/>'
         + '<rect class="in-satellite__panel" x="4" y="-2" width="7" height="4" rx=".6"/><path d="M0 3v3"/>';
       sym.appendChild(tt);
@@ -269,14 +274,15 @@
     }
     for (const pts of picks) g.appendChild(svgEl('path', { class: 'in-pick', d: pathD(pts) }));
     S.arts = arts;
-    return { g, streams, arts, edges: edges.size, sats: sats.size };
+    return { g, streams, arts, edges: edges.size, sats: sats.size, extra: satPts };
   };
 
   /* keeps the satellites and hub points at their screen size at every zoom step (pxPerUnit = screen pixels of one map unit) */
   I.scale = function (svg, pxPerUnit) {
     if (!svg || !(pxPerUnit > 0)) return;
-    const f = 1 / pxPerUnit;
-    svg.querySelectorAll('.in-satellite[data-sat]').forEach(e => e.setAttribute('transform', 'translate(' + e.dataset.x + ' ' + e.dataset.y + ') scale(' + (f * 1.6).toFixed(4) + ')'));
+    const f = 1 / pxPerUnit, r = svg.getBoundingClientRect();
+    const k = 1.2 * Math.max(0.5, Math.min(1, (r.width || 1100) / 1100));        // smaller maps (phone) get smaller symbols, never larger ones
+    svg.querySelectorAll('.in-satellite[data-sat]').forEach(e => e.setAttribute('transform', 'translate(' + e.dataset.x + ' ' + e.dataset.y + ') scale(' + (f * k).toFixed(4) + ')'));
     svg.querySelectorAll('.in-node[data-ir]').forEach(c => c.setAttribute('r', (parseFloat(c.dataset.ir) * f).toFixed(3)));
   };
 

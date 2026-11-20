@@ -154,13 +154,14 @@
     const N = IN.data();
     IN.need(d.infra_stand);
     const g = svgEl('g', { class: 'pc-ways' });
-    let streams = [];
+    let streams = [], extra = [];
     if (N) {
       const dr = IN.draw(N, IN.sheet(N, d, bubbles, { frame: frame(d.cc), out: side === 'is-out' }), { maxW: 3.4 });
       g.appendChild(dr.g);
       streams = dr.streams;
+      extra = dr.extra;
     }
-    return { g, streams };
+    return { g, streams, extra };
   }
 
   /* Wheel, drag, pinch, keys and double click on one map; calls onView after every change. Returns a cleanup function. */
@@ -443,7 +444,7 @@
     const right = h('div', { class: 'pc-col' }, kpis(d), note, citiesCard(d, parts.side), operatorsCard(d, parts.side), devicesCard(d, parts.side));
     body.replaceChildren(h('div', { class: 'pc-grid' }, left, right), routeCard, attribution(d));     // routes: the whole width, a chain has room
     body.scrollTop = scroll;
-    const pts = parts.bubbles.map(b => [b.x, b.y]);
+    const pts = parts.bubbles.map(b => [b.x, b.y]).concat(parts.ways ? parts.ways.extra || [] : []);      // the satellite hop stays in the picture
     Z.zvCc = Z.zvCc || Z.cc;
     if (Z.zvCc !== Z.cc) { Z.zv = null; Z.zvCc = Z.cc; }
     const base = baseView(Z.cc, ratio, pts);
