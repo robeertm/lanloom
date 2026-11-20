@@ -696,8 +696,9 @@ def test_heartbeat_and_owner(env):
         time.sleep(0.01)
     upd.stop()
     hb = json.loads(upd.heartbeat_path.read_text())
-    assert set(hb) == {"version", "t", "features", "previous"} and abs(hb["t"] - time.time()) < 5
-    assert hb["features"] == ["signature", "previous"]
+    assert set(hb) == {"version", "t", "features", "previous", "started"} and abs(hb["t"] - time.time()) < 5
+    assert hb["features"] == ["signature", "previous", "renew"]        # "renew": renews itself after an update
+    assert hb["started"] == upd.started and hb["started"] <= hb["t"]
 
 
 def test_build_create_body_filters(env):

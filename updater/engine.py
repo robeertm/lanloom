@@ -5,12 +5,19 @@ The app and the sidecar talk only through files on the shared data volume:
     <data>/update/request.json   written by the app   {"version","nonce","requested"[,"rollback"]}
     <data>/update/status.json    written by sidecar   {"state","version","from","message_key","log","nonce","t"
                                                         [,"step","signature"]}
-    <data>/update/sidecar.json   written by sidecar   {"version","t"[,"features","previous"]}  (heartbeat every 30 s)
+    <data>/update/sidecar.json   written by sidecar   {"version","t"[,"features","previous","started"]}  (heartbeat every 30 s)
+    <data>/update/renew.json     written by sidecar   {"state","from","to","t"[,"reason"]}  (self-renewal, since 1.58)
+                                 and renewal helper
 
 Since 1.34.0 the sidecar checks the signature of an official candidate before it pulls (updater/sigverify.py) and
 pulls by the checked digest; "step" is "verify" meanwhile and "signature" holds the result. The heartbeat names its
 features (["signature", "previous"]) and the version of the image it keeps as "previous" (the rollback target).
 Older apps ignore the extra fields; older sidecars simply do not send them.
+
+Self-renewal (feature "renew"): after a healthy update of the app to a version newer than the sidecar, the sidecar
+starts a short-lived helper container from the image it has just checked (signature, self-test, trial start, health),
+never from a second pull. The helper (updater/renew.py) re-creates the sidecar with the same configuration on the new
+image, waits for its heartbeat and returns to the old sidecar when none comes. Only one sidecar runs at any time.
 
 Failures before the swap leave everything as it was (state "failed"). Failures after
 the swap began restore the previous container and, if needed, the database
@@ -101,7 +108,23 @@ MESSAGE_KEYS = (
     "update.err.internal",
     "update.err.busy",
 ) + SIGNATURE_KEYS
-FEATURES = ("signature", "previous") if SIGNATURE_AVAILABLE else ("previous",)
+FEATURES = (("signature", "previous") if SIGNATURE_AVAILABLE else ("previous",)) + ("renew",)
+
+# ------------------------------------------------------------ self-renewal of the sidecar
+ROLE_RENEW = "updater-renew"           # label of the short-lived renewal helper
+RENEW_OLD_SUFFIX = "-renewing"         # the old sidecar while the new one starts (stopped, restart policy off)
+RENEW_NEW_SUFFIX = "-next"             # the new sidecar between creation and the switch
+SIDECAR_PREVIOUS_TAG = "updater-previous"   # marks the old sidecar image until the new sidecar reported
+RENEW_FILE = "renew.json"
+RENEW_STATES = ("renewing", "done", "rolled_back", "failed", "skipped")
+RENEW_SKIPS = ("off", "unofficial", "unverified", "self_unknown", "repo", "socket")
+RENEW_ERRORS = ("helper", "timeout", "create", "switch", "no_heartbeat", "runtime", "invalid", "interrupted",
+                "restore")
+# i18n keys of renewal results (all prefixed "update.renew."); the app translates them
+RENEW_KEYS = tuple(f"update.renew.skip.{k}" for k in RENEW_SKIPS) + tuple(f"update.renew.err.{k}" for k in RENEW_ERRORS)
+# the runtime puts the container id into the mount sources of /etc/hostname, /etc/hosts and /etc/resolv.conf
+SELF_ID_RE = re.compile(r"/(?:containers|overlay-containers)/([0-9a-f]{64})/")
+HEXID_RE = re.compile(r"\A[0-9a-f]{12,64}\Z")
 
 
 class UpdateError(Exception):
@@ -370,6 +393,10 @@ class Settings:
     data_mount: str = "/data"
     official_repo: str = OFFICIAL_REPO   # the signature of a candidate from this repository is required
     test_reject: tuple = ()              # bench only (with allow_local): versions whose signature check fails
+    renew: bool = True                   # renew the sidecar itself after a healthy update (LANLOOM_UPDATER_RENEW=0: off)
+    renew_timeout: float = 90.0          # how long the helper waits for the heartbeat of the new sidecar
+    renew_wait: float = 420.0            # how long the old sidecar waits for a helper that has not touched it
+    mountinfo_path: str = "/proc/self/mountinfo"
 
     @classmethod
     def from_env(cls, env: dict | None = None) -> "Settings":
@@ -381,6 +408,7 @@ class Settings:
         s.allow_local = env.get("LANLOOM_UPDATER_ALLOW_LOCAL") == "1"
         s.health_url = env.get("LANLOOM_HEALTH_URL") or None
         s.poll_s = max(0.2, _env_float(env, "LANLOOM_UPDATER_POLL", 2.0))
+        s.renew = (env.get("LANLOOM_UPDATER_RENEW") or "1").strip() != "0"
         if s.allow_local:
             s.test_reject = tuple(v for v in (env.get("LANLOOM_UPDATER_TEST_REJECT") or "").split(",") if parse_semver(v))
         return s
@@ -424,6 +452,7 @@ class Updater:
         self.sleep = sleep
         self.echo = echo if echo is not None else (lambda line: print(line, flush=True))
         self.redact = Redactor()
+        self.started = round(clock(), 3)   # start of this sidecar process (the renewal helper compares it)
         self.status: dict = self.fresh_status("idle")
         self._stop = threading.Event()
         self._hb_thread: threading.Thread | None = None
@@ -499,10 +528,13 @@ class Updater:
             self.echo(f"updater: cannot write status: {type(exc).__name__}")
 
     def write_heartbeat(self) -> None:
+        if self._stop.is_set():
+            return       # stopping (for example by the renewal helper): the next sidecar speaks from now on
         try:
             self.ensure_update_dir()
             atomic_write_json(self.heartbeat_path, {"version": sidecar_version(), "t": round(self.clock(), 3),
-                                                    "features": list(FEATURES), "previous": self.previous},
+                                                    "features": list(FEATURES), "previous": self.previous,
+                                                    "started": self.started},
                               self.data_owner())
         except (OSError, UpdateError) as exc:
             self.echo(f"updater: cannot write heartbeat: {type(exc).__name__}")
@@ -649,7 +681,9 @@ class Updater:
             if isinstance(version, str) and parse_semver(version):
                 self.status["version"] = version
             version, nonce, rollback, repository = self.validate_request(req)
-            self.perform(version, nonce, rollback, repository)
+            run = self.perform(version, nonce, rollback, repository)
+            if self.status.get("state") == "done" and not rollback:
+                self.renew_after_update(run)
         except UpdateError as exc:
             if exc.key in REFUSALS:
                 self.refuse(exc, previous)
@@ -669,7 +703,7 @@ class Updater:
             return
         self.set_state("idle", exc.key, f"refused: {exc.detail or exc.key}")
 
-    def perform(self, version: str, nonce: str, rollback: bool, repository: str | None) -> None:
+    def perform(self, version: str, nonce: str, rollback: bool, repository: str | None) -> _Run:
         run = _Run(nonce=nonce, version=version)
         self.set_state("pulling", None, f"request {version}")
         run.target = self.find_target()
@@ -701,6 +735,7 @@ class Updater:
         self.step_backup(run)
         self.set_state("swap", None, f"swap {run.current or 'unknown'} -> {version}")
         self.step_swap_and_health(run)
+        return run
 
     def check_repository(self, repo: str, requested: str | None) -> None:
         if not repo or not REPO_RE.match(repo):
@@ -1309,6 +1344,249 @@ class Updater:
         self.log(line)
         return line
 
+    # ------------------------------------------------------ self-renewal
+    @property
+    def renew_path(self) -> Path:
+        return self.update_dir / RENEW_FILE
+
+    def write_renew(self, state: str, **fields: Any) -> None:
+        """Result of a self-renewal for the update page (and the nightly report)."""
+        assert state in RENEW_STATES, state
+        record = {"state": state, "t": round(self.clock(), 3)}
+        record.update({k: v for k, v in fields.items() if v is not None})
+        try:
+            self.ensure_update_dir()
+            atomic_write_json(self.renew_path, record, self.data_owner())
+        except (OSError, UpdateError) as exc:
+            self.echo(f"updater: cannot write the renewal state: {type(exc).__name__}")
+
+    def read_renew(self) -> dict | None:
+        try:
+            rec = read_json_file(self.renew_path, 64 * 1024)
+        except UpdateError:
+            return None
+        return rec if isinstance(rec, dict) and rec.get("state") in RENEW_STATES else None
+
+    @staticmethod
+    def _module_args(container: dict) -> list[str]:
+        cfg = container.get("Config") or {}
+        return [str(a) for a in list(cfg.get("Entrypoint") or []) + list(cfg.get("Cmd") or [])]
+
+    @classmethod
+    def runs_updater(cls, container: dict) -> bool:
+        args = cls._module_args(container)
+        return any(args[i] == "-m" and args[i + 1] == "updater" for i in range(len(args) - 1))
+
+    @classmethod
+    def is_sidecar(cls, container: dict) -> bool:
+        """A container running the update loop (not a renewal helper, not a one-shot check)."""
+        args = cls._module_args(container)
+        return cls.runs_updater(container) and not any(a.startswith("--") for a in args[args.index("updater") + 1:])
+
+    @classmethod
+    def is_renew_helper(cls, container: dict) -> bool:
+        labels = (container.get("Config") or {}).get("Labels") or {}
+        return cls.runs_updater(container) and "--renew" in cls._module_args(container) \
+            and labels.get(ROLE_LABEL) == ROLE_RENEW
+
+    def own_container_ids(self) -> list[str]:
+        """Candidate ids of the container this process runs in.
+
+        With host networking the hostname is the host's name, so the ids come from the mount table first (the runtime
+        mounts /etc/hostname, /etc/hosts and /etc/resolv.conf from a folder named after the container id)."""
+        ids: list[str] = []
+        try:
+            with open(self.s.mountinfo_path, "rb") as fh:
+                text = fh.read(1 << 20).decode("utf-8", errors="replace")
+        except OSError:
+            text = ""
+        for m in SELF_ID_RE.finditer(text):
+            if m.group(1) not in ids:
+                ids.append(m.group(1))
+        host = socket.gethostname()
+        if HEXID_RE.match(host or "") and host not in ids:
+            ids.append(host)
+        return ids
+
+    def find_self(self, helper: bool = False) -> dict | None:
+        """Inspect data of the own container (the sidecar, or with helper=True the renewal helper), or None."""
+        for cid in self.own_container_ids():
+            try:
+                c = self.api.container_inspect(cid)
+            except RuntimeAPIError:
+                continue
+            if not (c.get("Id") or "").startswith(cid):
+                continue
+            if (self.is_renew_helper(c) if helper else self.is_sidecar(c)):
+                return c
+        return None
+
+    def helper_identity(self) -> tuple[str, list[str]] | None:
+        """User and extra group for the renewal helper: the owner of the data, plus the group of the runtime socket.
+
+        The helper runs without root and without any capability; it reaches the socket through its group and writes
+        its result as the data owner. None when the socket is not reachable that way (then the page keeps the manual
+        command)."""
+        owner = self.data_owner()
+        try:
+            st = os.stat(self.s.socket_path)
+        except OSError:
+            return None
+        if owner is None or not stat.S_ISSOCK(st.st_mode):
+            return None
+        user = f"{owner[0]}:{owner[1]}"
+        if st.st_uid == owner[0] and st.st_mode & 0o600 == 0o600:
+            return user, []
+        if st.st_mode & 0o060 == 0o060:
+            return user, [str(st.st_gid)]
+        return None
+
+    def renew_blocker(self, run: _Run) -> str | None:
+        """Why the sidecar must not renew itself after this run (None: it may)."""
+        if not self.s.renew:
+            return "off"
+        if not (self.s.allow_local and not is_qualified_repo(run.repo)):   # local bench images carry no signature
+            if run.repo != self.s.official_repo:
+                return "unofficial"             # own builds stay as they are: renewed by hand
+            if not run.digest:
+                return "unverified"
+        if not run.candidate_id:
+            return "unverified"
+        return None
+
+    def renew_after_update(self, run: _Run) -> None:
+        """After a healthy update to a newer version than this sidecar: renew the sidecar from the checked image."""
+        mine, new = parse_semver(sidecar_version()), parse_semver(run.version)
+        if not mine or not new or mine >= new:
+            return
+        base = {"from": sidecar_version(), "to": run.version}
+        try:
+            why = self.renew_blocker(run)
+            me = None
+            if why is None:
+                me = self.find_self()
+                if me is None:
+                    why = "self_unknown"
+                elif split_ref((me.get("Config") or {}).get("Image") or "")[0] != run.repo:
+                    why = "repo"
+            ident = self.helper_identity() if why is None else None
+            if why is None and ident is None:
+                why = "socket"
+            if why:
+                self.log(f"the updater stays at {sidecar_version()} ({why}); renew it by hand")
+                self.write_renew("skipped", reason=f"update.renew.skip.{why}", **base)
+                return
+            self.start_renewal(run, me, ident, base)    # type: ignore[arg-type]
+        except Exception as exc:  # noqa: BLE001 - the update itself is done; a renewal problem never changes that
+            self.write_renew("failed", reason="update.renew.err.helper", **base)
+            self.log(f"renewing the updater failed: {type(exc).__name__}")
+
+    def helper_mounts(self, me: dict) -> list[str]:
+        """The sidecar's own mounts (data volume and runtime socket) as bind specs for the helper."""
+        binds = []
+        for m in me.get("Mounts") or []:
+            dst = m.get("Destination")
+            src = m.get("Name") if m.get("Type") == "volume" else m.get("Source")
+            if src and dst:
+                binds.append(f"{src}:{dst}" + ("" if m.get("RW", True) else ":ro"))
+        return binds
+
+    def start_renewal(self, run: _Run, me: dict, ident: tuple[str, list[str]], base: dict) -> None:
+        name = (me.get("Name") or "").lstrip("/")
+        user, groups = ident
+        host_cfg: dict[str, Any] = {"NetworkMode": "none", "ReadonlyRootfs": True, "CapDrop": ["ALL"],
+                                    "SecurityOpt": ["no-new-privileges:true"], "Tmpfs": {"/tmp": "rw,size=16m"},
+                                    "RestartPolicy": {"Name": "no"}, "AutoRemove": True,
+                                    "Binds": self.helper_mounts(me)}
+        if groups:
+            host_cfg["GroupAdd"] = groups
+        body = {"Image": run.candidate_id,
+                "Cmd": ["python", "-m", "updater", "--renew", me["Id"], "--renew-version", run.version],
+                "Env": self.user_env(me), "User": user,
+                "Labels": {ROLE_LABEL: ROLE_RENEW, PARENT_LABEL: name}, "HostConfig": host_cfg}
+        self.write_renew("renewing", **base)
+        self.log(f"renewing the updater {base['from']} -> {run.version} from the checked image")
+        hid = None
+        try:
+            for c in self.api.containers(labels=[f"{ROLE_LABEL}={ROLE_RENEW}", f"{PARENT_LABEL}={name}"]):
+                if c.get("State") != "running":
+                    self._remove_quietly(c.get("Id"))
+            hid = self.api.container_create(f"{name}-renew-{run.nonce[:8]}", body)
+            self.api.container_start(hid)
+        except RuntimeAPIError as exc:
+            self._remove_quietly(hid)
+            self.write_renew("failed", reason="update.renew.err.helper", **base)
+            self.log(f"renewal helper not started: {exc.message}")
+            return
+        self.wait_for_helper(hid, base)
+
+    def wait_for_helper(self, hid: str, base: dict) -> None:
+        """Wait while the helper works. When it stops this sidecar, the new one takes over (nothing more to do here);
+        when it ends without touching this sidecar, this sidecar simply carries on."""
+        deadline = self.clock() + self.s.renew_wait
+        while True:
+            if self._stop.is_set():
+                return
+            try:
+                st = self.api.container_inspect(hid).get("State") or {}
+                finished = st.get("Status") in ("exited", "dead")
+            except NotFound:
+                finished = True
+            except RuntimeAPIError:
+                finished = False
+            if finished:
+                break
+            if self.clock() >= deadline:
+                self._remove_quietly(hid)
+                self.write_renew("failed", reason="update.renew.err.timeout", **base)
+                self.log("renewal helper did not finish in time; this updater carries on")
+                return
+            self._stop.wait(min(1.0, self.s.check_interval))
+        if self._stop.is_set():
+            return
+        self._remove_quietly(hid)
+        rec = self.read_renew() or {}
+        if rec.get("state") == "renewing":
+            self.write_renew("failed", reason="update.renew.err.interrupted", **base)
+            rec = self.read_renew() or {}
+        if rec.get("state") in ("rolled_back", "failed", "skipped"):
+            self.log(f"the updater was not renewed ({rec.get('reason') or rec.get('state')}); this updater carries on")
+
+    def recover_renewal(self) -> None:
+        """At start: leftovers of a renewal whose helper is gone (the old or the new sidecar container, a stale state)."""
+        me = self.find_self()
+        if me is None:
+            return
+        name = (me.get("Name") or "").lstrip("/")
+        try:
+            helpers = self.api.containers(labels=[f"{ROLE_LABEL}={ROLE_RENEW}", f"{PARENT_LABEL}={name}"])
+            if any(c.get("State") == "running" for c in helpers):
+                return                  # a helper is at work: it cleans up itself
+            for c in helpers:
+                self._remove_quietly(c.get("Id"))
+            for suffix in (RENEW_OLD_SUFFIX, RENEW_NEW_SUFFIX):
+                try:
+                    c = self.api.container_inspect(name + suffix)
+                except NotFound:
+                    continue
+                if c.get("Id") == me.get("Id") or (c.get("State") or {}).get("Running") or not self.is_sidecar(c):
+                    continue
+                self._remove_quietly(c.get("Id"))
+                self.echo(f"updater: removed {name}{suffix} left by an interrupted renewal")
+        except RuntimeAPIError:
+            return
+        rec = self.read_renew()
+        if rec and rec.get("state") == "renewing":
+            done = rec.get("to") == sidecar_version()
+            self.write_renew("done" if done else "failed", reason=None if done else "update.renew.err.interrupted",
+                             **{"from": rec.get("from"), "to": rec.get("to")})
+        try:
+            repo, _ = split_ref((me.get("Config") or {}).get("Image") or "")
+            if repo and self.api.image_inspect(f"{repo}:{SIDECAR_PREVIOUS_TAG}"):
+                self.api.image_untag(f"{repo}:{SIDECAR_PREVIOUS_TAG}")
+        except RuntimeAPIError:
+            pass
+
     # ---------------------------------------------------------- recovery
     def recover(self) -> None:
         """Clean up after an interrupted run (sidecar restarted mid-update)."""
@@ -1405,6 +1683,10 @@ class Updater:
         except RuntimeAPIError:
             self.echo("updater: container runtime not reachable yet")
         self.recover()
+        try:
+            self.recover_renewal()
+        except Exception as exc:  # pragma: no cover - never block the loop
+            self.echo(f"updater: renewal check failed {type(exc).__name__}")
         self.refresh_previous()
         try:
             self.heal_moving_tag()
@@ -1455,6 +1737,14 @@ class Updater:
         except (OSError, ValueError, AttributeError, TypeError):
             report["trust_data"] = False
         report["local_ai"] = self.localai.check()
+        try:
+            me = self.find_self()
+        except RuntimeAPIError:
+            me = None
+        # self-renewal needs the own container and a socket the unprivileged helper may use; without, the page keeps
+        # the manual command (not an error)
+        report["self_renew"] = {"enabled": self.s.renew, "own_container": me is not None,
+                                "helper_socket": self.helper_identity() is not None}
         report["ok"] = bool(report["data_writable"] and report["repository_allowed"]
                             and report["target"]["has_data_mount"] and report["health_version"]
                             and (report["trust_data"] or not report["signature_required"]))

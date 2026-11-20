@@ -276,6 +276,10 @@ class RuntimeAPI:
     def container_rename(self, ref: str, name: str) -> None:
         self.request("POST", f"/containers/{_q(ref)}/rename", {"name": name})  # identifier: runtime API path
 
+    def container_update(self, ref: str, body: dict) -> None:
+        """Change settings of an existing container (here only its restart policy)."""
+        self.request("POST", f"/containers/{_q(ref)}/update", body=body)  # identifier: runtime API path
+
     def container_logs(self, ref: str, tail: int = 20) -> list[str]:
         data = self.request("GET", f"/containers/{_q(ref)}/logs",  # identifier: runtime API path
                             {"stdout": "1", "stderr": "1", "tail": str(tail)}, raw=True, timeout=15)
@@ -295,6 +299,10 @@ class RuntimeAPI:
 
     def image_tag(self, ref: str, repo: str, tag: str) -> None:
         self.request("POST", f"/images/{_qimg(ref)}/tag", {"repo": repo, "tag": tag})  # identifier: runtime API path
+
+    def image_untag(self, ref: str) -> None:
+        """Remove one tag. The image itself goes only when no other tag and no container uses it."""
+        self.request("DELETE", f"/images/{_qimg(ref)}", {"noprune": "1"}, timeout=60)  # identifier: runtime API path
 
     def image_pull(self, repo: str, tag: str, progress: Callable[[dict], None] | None = None,
                    deadline_s: float = 900, read_timeout: float = 120) -> dict:

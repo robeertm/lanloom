@@ -1,11 +1,13 @@
 """Entry point: `python -m updater` (loop), `python -m updater --once-check` (diagnostics) or
 `python -m updater --verify REPOSITORY:TAG` (signature check of a published image, exit 0 = verified).
+`python -m updater --renew ID --renew-version X.Y.Z` is the renewal helper the sidecar starts itself (updater/renew.py).
 
 Environment:
   LANLOOM_DATA                 shared data volume inside the sidecar (default /data)
   LANLOOM_TARGET               name of the app container (default: find it by label org.lanloom.role=app)
   LANLOOM_RUNTIME_SOCKET       path of the container runtime socket
   LANLOOM_UPDATER_POLL         seconds between request polls (default 2)
+  LANLOOM_UPDATER_RENEW        "0" = never renew the sidecar itself after an update (default on)
   LANLOOM_HEALTH_URL           tests only: fixed health URL of the app
   LANLOOM_UPDATER_ALLOW_LOCAL  tests only: "1" accepts local repository names (no pull)
 """
@@ -27,7 +29,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--once-check", action="store_true", help="print a diagnostic report and exit")
     parser.add_argument("--version", action="store_true", help="print the sidecar version and exit")
     parser.add_argument("--verify", metavar="IMAGE", help="check the signature of REPOSITORY:TAG and exit")
+    parser.add_argument("--renew", metavar="ID", help=argparse.SUPPRESS)          # started by the sidecar only
+    parser.add_argument("--renew-version", metavar="VERSION", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+
+    if args.renew:
+        from .renew import Renewer
+        settings = Settings.from_env()
+        return Renewer(RuntimeAPI(settings.socket_path), settings).run(args.renew, args.renew_version or "")
 
     if args.verify:
         from .engine import split_ref
