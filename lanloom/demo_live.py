@@ -415,7 +415,7 @@ def _gw_raw(changed: bool) -> dict:
             "dnat": {"rows": [{"descr": "Lab web server", "disabled": "0", "protocol": "TCP", "destination.port": "8443",
                                "target": "192.168.90.20", "local-port": "443"}]},
             "kea": {"rows": [{"ip_address": "192.168.50.40", "hw_address": "02:4c:4c:00:00:40", "hostname": "office-printer"}]},
-            "routes": {"rows": [{"network": "10.30.0.0/16", "gateway": "Lab router", "disabled": "0"}]},
+            "routes": {"rows": [{"network": "10.70.0.0/16", "gateway": "Lab router", "disabled": "0"}]},
             "gateways": {"items": [{"name": "Internet uplink", "status": "none"}]},
             "vpn_tunnel": {"rows": [{"name": "Phones on the road", "enabled": "1"}]},
             "vpn_ipsec": {"rows": [{"description": "Holiday flat", "enabled": "1"}]}}

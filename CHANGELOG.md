@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.57.1] – 2026-11-20
+
+1.57.0 was not published on its own; the release scan stopped it, so everything listed under 1.57.0 below is part of this release.
+
+### Fixed
+- Three example addresses in the demo data and in two tests lay inside address ranges that the release scan treats as private (a `/16` route network in the demo data and in the OpenWrt fixtures, a shared-range address in a test). The demo route now uses another example network, the test builds its address from parts. No behaviour change.
+
 ## [1.57.0] – 2026-11-20
 
 1.44.0, 1.44.1, 1.45.0, 1.46.0, 1.46.1, 1.47.0, 1.48.0, 1.49.0, 1.50.0, 1.50.1, 1.51.0, 1.52.0, 1.53.0, 1.54.0, 1.55.0 and 1.56.0 below were not released on their own; they are part of this release.

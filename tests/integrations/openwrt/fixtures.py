@@ -63,7 +63,7 @@ def network(version="23.05"):
                     addresses=["10.9.0.1/24"]),
                 sec("wireguard_wg0", anon=True, description="Phone", public_key="pUbLiC", preshared_key=WG_PSK,
                     allowed_ips=["10.9.0.2/32"]),
-                sec("route", anon=True, interface="lan", target="10.30.0.0/16", gateway="192.168.1.254")]
+                sec("route", anon=True, interface="lan", target="10.70.0.0/16", gateway="192.168.1.254")]
     return out
 
 
