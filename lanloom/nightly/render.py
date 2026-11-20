@@ -119,7 +119,9 @@ def short_text(report: dict, lang: str, tz, link: str, plain: str = None) -> dic
     if not lines:
         for sec in report["sections"][:2]:
             lines.append("%s: %s" % (r.tr(sec["title"]), r.line(sec["summary"])))
-    url = ("%s/#/reports/%s" % (link, report["day"])) if link else ""
+    sid = (report.get("site") or {}).get("id")
+    # the report of a further site opens that site (M1T), whatever site the browser showed last
+    url = ("%s/#/reports/%s%s" % (link, report["day"], ("?site=" + sid) if sid and sid != "home" else "")) if link else ""
     plain = str(plain or "").strip()[:900]
     text = "\n".join([head] + ([plain] if plain else []) + lines[:2] + ([url] if url else []))
     out = {"title": title, "headline": head, "lines": lines[:2], "text": text, "url": url, "points": report.get("points", 0),

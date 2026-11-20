@@ -13,20 +13,21 @@ def _parts(core):
 
 def _available(ctx) -> bool:
     tokens, hooks, ingest = _parts(ctx.core)
-    if tokens is None or hooks is None or ingest is None:
+    if ingest is None:
         return False
-    return bool(tokens.count() or hooks.list() or ingest.between(ctx.since, ctx.until))
+    # keys and webhooks belong to the instance (the home site's report names them); every site lists its own external reports
+    return bool((tokens is not None and tokens.count()) or (hooks is not None and hooks.list()) or ingest.between(ctx.since, ctx.until))
 
 
 def _build(ctx) -> dict:
     tokens, hooks, ingest = _parts(ctx.core)
     items = []
-    for t in tokens.expiring(EXPIRY_WARN_S, now=ctx.until):
+    for t in (tokens.expiring(EXPIRY_WARN_S, now=ctx.until) if tokens is not None else []):
         items.append(item("api-expiring:%d" % t["id"], "api.report.expiring", "warn", point=True, name=t["name"], user=t["username"],
                           expires_at=t["expires"]))
-    for t in tokens.expired_since(ctx.since, ctx.until):
+    for t in (tokens.expired_since(ctx.since, ctx.until) if tokens is not None else []):
         items.append(item("api-expired:%d" % t["id"], "api.report.expired", "info", name=t["name"], user=t["username"]))
-    s = hooks.summary(ctx.since, ctx.until)
+    s = hooks.summary(ctx.since, ctx.until) if hooks is not None else {"failed": 0, "failed_hooks": [], "failing_now": [], "sent": 0}
     if s["failed"]:
         items.append(item("api-hook-failed:%d" % int(ctx.until), "api.report.hook_failed", "warn", point=True, n=s["failed"],
                           names=", ".join(s["failed_hooks"][:3])))
@@ -41,7 +42,7 @@ def _build(ctx) -> dict:
     if len(received) > SHOW_REPORTS:
         items.append(item("api-in-more", "api.report.ingest_more", "info", n=len(received) - SHOW_REPORTS))
     key = "api.report.summary" if any(i["point"] for i in items) else "api.report.calm"
-    return section("api", "api.report.title", key, items, sent=s["sent"], received=len(received), tokens=tokens.count(),
+    return section("api", "api.report.title", key, items, sent=s["sent"], received=len(received), tokens=tokens.count() if tokens is not None else 0,
                    points=sum(1 for i in items if i["point"]))
 
 

@@ -17,7 +17,7 @@ from typing import Callable, Optional
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from . import __version__, access, datapaths, ingest as ingest_mod, webhooks as webhooks_mod
+from . import __version__, access, datapaths, ingest as ingest_mod, sites as sites_mod, webhooks as webhooks_mod
 from .nightly import render as render_mod
 
 API_VERSION = "1"
@@ -365,7 +365,7 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
             params=(P("limit", "query", s_int(), desc="at most this many (default 50, at most 200)"),),
             response=s_obj({"reports": s_arr(INGESTED)}))
     async def ingest_list(limit: int = 50):
-        return {"reports": state.ingest.list(limit)}
+        return {"reports": state.ingest.list(limit, site=state.core.site_id)}       # the reports of the request's site (M1T)
 
     CHAIN = s_obj({"id": s_str("short name for declared chains (the run route takes it); other chains have a prefixed id"), "name": s_str(), "kind": s_str(enum=("hypervisor", "hub", "agent", "manual")),
                    "status": s_str("ok, late, failed, running, none or unknown (unknown is never shown as ok)", ("ok", "late", "failed", "running", "none", "unknown")),
@@ -405,7 +405,9 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
     INGEST_BODY = s_obj({"source": s_str("short name of the sender, e.g. nightly-backup (max 60)"), "title": s_str("headline (max 120)"),
                          "level": s_str("default info", ingest_mod.LEVELS), "summary": s_str("one line (max 500)"),
                          "items": s_arr(s_obj({"text": s_str("max 300"), "level": s_str(enum=ingest_mod.LEVELS)}, required=("text",)),
-                                        "at most %d lines" % ingest_mod.MAX_ITEMS)}, required=("source", "title"))
+                                        "at most %d lines" % ingest_mod.MAX_ITEMS),
+                         "site": s_str("the site the report is for - required when Lanloom keeps several sites (or the header X-Lanloom-Site); "
+                                       "a report never lands in a site it did not name")}, required=("source", "title"))
 
     @api.op("POST", BASE + "/ingest", tag="ingest", summary="Deliver an external report (shown in Settings > API and in the next nightly report)",
             description="Needs a token with the scope ingest, operate or admin. At most %d KiB per report and %d reports a day."
@@ -417,8 +419,21 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
         if problem:
             return problem
         user = request.state.user
+        # M1T: a report belongs to the site it names (header, address or the field "site"); with several sites a report that
+        # names none is refused - it never lands in the default site
+        named = getattr(request.state, "site_named", None)
+        sid = sites_mod.ACTIVE.get() or sites_mod.HOME
+        field = data.get("site") if isinstance(data, dict) else None
+        if field is not None:
+            if named in ("header", "address") and field != sid:
+                return err("site.err.mismatch", 409)
+            if not isinstance(field, str) or field not in state.sites.allowed(user):
+                return err("site.err.unknown", 404)
+            sid = field
+        elif named not in ("header", "address") and len(state.sites.ids()) > 1:
+            return err("site.err.required", 400)
         try:
-            out = state.ingest.add(data, size, token=user.get("token"), actor=user.get("username") or "")
+            out = state.ingest.add(data, size, token=user.get("token"), actor=user.get("username") or "", site=sid)
         except OverflowError as exc:
             return err(str(exc), 429)
         except ValueError as exc:

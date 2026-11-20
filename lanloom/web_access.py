@@ -283,7 +283,7 @@ def register(app: FastAPI, c: Ctx) -> None:
         if not st.invites.consume(inv["id"]):
             return err("invite.err.invalid", 404)
         uid = st.accounts.create(username, password, role=inv["role"], mfa_due=st.policy.due_from_now())
-        st.store.execute("UPDATE users SET sites=? WHERE id=?", (inv.get("sites") or sites_mod.ALL, uid))   # sites of the invitation (M1)
+        st.store.execute("UPDATE users SET sites=? WHERE id=?", (inv["sites"] if inv.get("sites") is not None else sites_mod.ALL, uid))   # sites of the invitation (M1)
         user = st.accounts.get(uid)
         c.audit_from(request, user, "users.joined", "ok", target=username, detail={"role": inv["role"], "invited_by": inv["created_by"]})
         st.limiter.success(client)

@@ -2348,7 +2348,8 @@ class Core:
         from . import mapmodel
         grades, metrics = mapmodel.live_overlay(self, now, rates)
         sources = self.source_list()
-        frame = {"t": round(now, 3), "q": self.quant.q, "dots": dots, "rates": rates, "grades": grades, "metrics": metrics,
+        # every frame names its site (M1T): the page drops a frame of another site instead of drawing it
+        frame = {"site": self.site_id, "t": round(now, 3), "q": self.quant.q, "dots": dots, "rates": rates, "grades": grades, "metrics": metrics,
                  "overall": {"grade": live.typical([s["grade"] for s in sources]), "sources": sources},
                  "structure": self.structure_version, "mapver": self.map_change(now), "pathsver": self.paths.version}
         # what the end and port marks of the board show: peers beyond the LAN (at the internet tile) and target ports of host flows

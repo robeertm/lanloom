@@ -537,6 +537,10 @@ class Notifier:
     def link(self, frag: str = "") -> str:
         reports = self.channels
         base = reports.settings().get("link") if reports else ""
+        sid = getattr(self.core, "site_id", "home") or "home"
+        if frag and sid != "home" and "site=" not in frag:
+            # a message of a further site opens that site (M1T): the link names it, whatever site the browser showed last
+            frag += ("&" if "?" in frag else "?") + "site=" + sid
         return ("%s/%s" % (base, frag)) if base else ""
 
     def message(self, e: Event, data: dict, sev: str, u: dict, back: Optional[float] = None) -> dict:

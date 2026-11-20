@@ -50,6 +50,10 @@ HEADER = "x-lanloom-site"
 MIRROR = "X-Lanloom-Site"        # the answer names the site it was made for (M2)
 WS_CHANGED = 4409               # live socket: the page asked for a site that is not released (any more)
 ACTIVE = contextvars.ContextVar("lanloom_site", default=None)
+# the sites whose core a request actually read (M1T): the answer names the site of the data it delivers, not the site the
+# request asked for; a request that reads two cores is a fault and is never answered with one site's name
+SERVED = contextvars.ContextVar("lanloom_served", default=None)
+MIXED = "mixed"                  # the answer read more than one site: the page throws it away
 MAX_SITES = 16
 NAME_MAX = 60
 ID_RE = re.compile(r"^(home|s-[0-9a-f]{8})$")
@@ -71,6 +75,22 @@ GLOBAL_PREFIXES = (
 PRIMARY_PREFIXES = ("/api/firewall", "/api/ai", "/api/executor/")
 
 
+def note_served(sid) -> None:
+    """A request read the core of site ``sid`` (called where the app hands out a core)."""
+    seen = SERVED.get()
+    if seen is not None and sid:
+        seen.add(sid)
+
+
+def served_name(picked: Optional[str], scope: str) -> Optional[str]:
+    """The site an answer names in its header: the site of the core whose data it carries (one site), ``MIXED`` when it
+    read more than one, the picked site when it read none (an error before the handler, a route of the instance)."""
+    seen = SERVED.get() or set()
+    if scope != "global" and seen:
+        return next(iter(seen)) if len(seen) == 1 else MIXED
+    return picked
+
+
 def scope_of(path: str) -> str:
     """"global" | "primary" | "site" for an /api route template (or a concrete path)."""
     if path.startswith(PRIMARY_PREFIXES) and not path.startswith(("/api/ai/installer/", "/api/ai/pair")):
@@ -86,9 +106,12 @@ def clean_name(name) -> str:
 
 
 def parse_user_sites(raw) -> object:
-    """The stored value of ``users.sites``: ``"*"`` or a list of site ids."""
-    if raw in (None, "", ALL):
+    """The stored value of ``users.sites``: ``"*"`` or a list of site ids. Anything that is not exactly ``"*"`` or a list
+    of site ids releases nothing - an empty or broken value never means "all sites" (M1T)."""
+    if raw == ALL:
         return ALL
+    if raw in (None, ""):
+        return []
     try:
         val = json.loads(raw) if isinstance(raw, str) else raw
     except ValueError:
@@ -192,6 +215,9 @@ class Sites:
         core.instance_store = app.store
         core.channel_reports = home.reports
         core.reports.update_state = app.updates.state
+        ingest = getattr(app, "ingest", None)
+        if ingest is not None:                 # external reports delivered for this site (M1T), shown in this site's nightly report
+            core.api_ingest = ingest.of_site(core.site_id)
         hooks = getattr(app, "webhooks", None)
         if hooks is not None:                  # webhooks are set up once for the instance; a site's events name the site
             sid = core.site_id
@@ -329,11 +355,24 @@ class Sites:
         return sid in self.allowed(user)
 
     def pick(self, user: Optional[dict], requested) -> Optional[str]:
-        """The site of a request: the requested one when released for this person, else the first released one."""
+        """The site of a request that names no site: the requested one when released for this person, else the first
+        released one. A request that NAMES a site goes through ``resolve`` and never falls back (M1T)."""
         allowed = self.allowed(user)
         if isinstance(requested, str) and requested in allowed:
             return requested
         return allowed[0] if allowed else None
+
+    def resolve(self, user: Optional[dict], how: Optional[str], asked) -> tuple:
+        """(site id, unknown) of a request. ``how`` says where the request named its site (header, address, cookie) or is
+        None when it named none. A named site that is empty, unknown or not released for this person is ``unknown``:
+        the request is refused (404), never answered from another site - not even the person's first one (M1T). Only a
+        request that names no site at all gets the person's first released site."""
+        allowed = self.allowed(user)
+        if how is None:
+            return (allowed[0] if allowed else None), False
+        if isinstance(asked, str) and asked in allowed:
+            return asked, False
+        return None, True
 
     def recipients(self, sid: str, users: list) -> list:
         """The people (rows with id and role) who may see site ``sid`` - notifications of a site go only to them."""

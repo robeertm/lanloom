@@ -280,6 +280,7 @@ class Store:
                   ("last_login", "REAL"), ("prefs", "TEXT NOT NULL DEFAULT '{}'"),
                   ("sites", "TEXT NOT NULL DEFAULT '*'")),          # released sites (M1): '*' = all, else a JSON list
         "invites": (("sites", "TEXT NOT NULL DEFAULT '*'"),),            # the sites an invited person will see (M1)
+        "api_ingest": (("site", "TEXT NOT NULL DEFAULT 'home'"),),       # the site an external report was delivered for (M1T)
         "sessions": (("sid", "TEXT"), ("ip", "TEXT NOT NULL DEFAULT ''"), ("agent", "TEXT NOT NULL DEFAULT ''"),
                      ("foreign_pc", "INTEGER NOT NULL DEFAULT 0"), ("stage", "TEXT NOT NULL DEFAULT 'full'"),
                      ("method", "TEXT NOT NULL DEFAULT 'password'"), ("stepup_until", "REAL NOT NULL DEFAULT 0")),

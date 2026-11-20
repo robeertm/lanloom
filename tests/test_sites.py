@@ -147,9 +147,16 @@ def test_own_site_is_answered_and_the_other_site_is_never_picked(two_sites):
     c = two_sites
     sign_in(c, "branch_viewer")
     c.cookies.set(sites_mod.COOKIE, "home")
+    # M1T: naming a site one may not see is refused, never answered from another (not even the own) site
     r = c.get("/api/devices", headers={sites_mod.HEADER: "home"})
+    assert r.status_code == 404 and r.json()["error"] == "site.err.unknown" and not found(r.text, HOME_MARKERS)
+    c.cookies.set(sites_mod.COOKIE, c.branch)
+    r = c.get("/api/devices")
     ips = [d["ip"] for d in r.json()["devices"]]
     assert ips and all(ip.startswith("10.44.7.") for ip in ips)
+    c.cookies.delete(sites_mod.COOKIE)
+    r = c.get("/api/devices")                                   # a request that names no site gets the person's first one
+    assert r.headers["x-lanloom-site"] == c.branch and "10.44.7." in r.text
     s = c.get("/api/sites").json()
     assert [x["id"] for x in s["sites"]] == [c.branch] and s["current"] == c.branch and not s["several"]
     state = c.get("/api/state").json()
@@ -166,10 +173,10 @@ def test_own_site_is_answered_and_the_other_site_is_never_picked(two_sites):
 def test_the_live_socket_carries_only_the_own_site(two_sites):
     c = two_sites
     sign_in(c, "branch_viewer")
-    c.cookies.set(sites_mod.COOKIE, "home")
     time.sleep(1.5)                                         # one live frame of each site
     with c.websocket_connect("/api/live", headers={"Origin": "http://testserver"}) as ws:
         text = ws.receive_text()
+    assert json.loads(text)["site"] == c.branch             # every frame names its site (M1T)
     # device ids carry the hardware address: the sample branch office is 02:4c:4c:01:..., the home network 02:4c:4c:00:...
     assert "d-024c4c01" in text and "d-024c4c00" not in text and not found(text, HOME_MARKERS)
 
@@ -210,6 +217,8 @@ def test_api_keys_follow_the_sites_of_their_account(two_sites):
     token = st.tokens.create({"id": c.uids["branch_viewer"], "role": "viewer"}, "probe", "read")["token"]
     c.cookies.clear()
     r = c.get("/api/v1/devices", headers={"Authorization": "Bearer " + token, sites_mod.HEADER: "home"})
+    assert r.status_code == 404 and not found(r.text, HOME_MARKERS)            # a site the account may not see: refused (M1T)
+    r = c.get("/api/v1/devices", headers={"Authorization": "Bearer " + token})
     assert r.status_code == 200
     assert "10.44.7." in r.text and not found(r.text, HOME_MARKERS)
 
@@ -387,10 +396,10 @@ def test_every_answer_names_the_site_it_was_made_for_and_no_cache_may_mix_them(t
     for who, own in (("branch_viewer", c.branch), ("home_viewer", "home")):
         other = "home" if own != "home" else c.branch
         for asked in (other, own, None):                       # a page that shows another site than its rights allow, its own, none
-            hdr = ask_as(c, who, asked, cookie=other) if asked else ask_as(c, who, "", cookie=other)
+            hdr = ask_as(c, who, asked, cookie=other) if asked else ask_as(c, who, "", cookie=None)
             if not asked:
                 hdr = {}
-            seen = 0
+            seen = refused = 0
             for path in visible_get_routes("viewer"):
                 r = c.get(concrete(path, c, other), headers=dict(HDR, **hdr), params={"q": "1", "window": "24h"})
                 mirrored = r.headers.get("x-lanloom-site")
@@ -398,7 +407,14 @@ def test_every_answer_names_the_site_it_was_made_for_and_no_cache_may_mix_them(t
                 vary = r.headers.get("vary", "").lower()
                 assert "cookie" in vary and "x-lanloom-site" in vary, (path, vary)
                 seen += mirrored == own
-            assert seen > 80                                   # the site-bound and the global routes name their site alike
+                if asked == other and sites_mod.scope_of(path) != "global":
+                    # M1T: a named site one may not see is refused on every site-bound route, never answered from the own site
+                    assert r.status_code == 404 and mirrored is None, (who, path, r.status_code, mirrored)
+                    refused += 1
+            if asked == other:
+                assert refused > 80
+            else:
+                assert seen > 80                               # the site-bound and the global routes name their site alike
     # a person who may see both: the answer follows the asked site, whatever the shared cookie says
     for asked, cookie in (("home", c.branch), (c.branch, "home")):
         hdr = ask_as(c, "admin", asked, cookie=cookie)
@@ -440,9 +456,16 @@ def test_the_live_socket_serves_the_site_the_page_asks_for_and_refuses_the_rest(
         with c.websocket_connect("/api/live?site=home", headers=origin) as ws:
             ws.receive_text()
     assert gone.value.code == sites_mod.WS_CHANGED
-    # without an address the old behaviour stays: the released site is served
+    # the shared cookie names a site this person may not see: refused as well (M1T), never the person's first site instead
+    with pytest.raises(WebSocketDisconnect) as gone:
+        with c.websocket_connect("/api/live", headers=origin) as ws:
+            ws.receive_text()
+    assert gone.value.code == sites_mod.WS_CHANGED
+    # a socket that names no site at all gets the released one
+    c.cookies.delete(sites_mod.COOKIE)
     with c.websocket_connect("/api/live", headers=origin) as ws:
-        assert "d-024c4c01" in ws.receive_text()
+        text = ws.receive_text()
+    assert "d-024c4c01" in text and json.loads(text)["site"] == c.branch
 
 
 def test_the_browser_code_sends_the_site_discards_foreign_answers_and_cancels_on_switch():

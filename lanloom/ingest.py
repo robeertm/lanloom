@@ -62,16 +62,17 @@ class Ingest:
         self.store = store
         self.clock = clock
 
-    def add(self, data, size: int, token: Optional[dict] = None, actor: str = "") -> dict:
+    def add(self, data, size: int, token: Optional[dict] = None, actor: str = "", site: str = "home") -> dict:
+        """Store one external report for ``site`` - the site the request named (M1T: never a default when several exist)."""
         rep = clean(data)
         now = self.clock()
         n = self.store.one("SELECT COUNT(*) AS n FROM api_ingest WHERE t > ?", (now - 86400,))["n"]
         if n >= MAX_PER_DAY:
             raise OverflowError("api.err.ingest_full")
-        cur = self.store.execute("INSERT INTO api_ingest(t, source, title, level, data, bytes, token_id, actor) VALUES(?,?,?,?,?,?,?,?)",
+        cur = self.store.execute("INSERT INTO api_ingest(t, source, title, level, data, bytes, token_id, actor, site) VALUES(?,?,?,?,?,?,?,?,?)",
                                  (now, rep["source"], rep["title"], rep["level"],
                                   json.dumps({"summary": rep["summary"], "items": rep["items"]}, separators=(",", ":"), ensure_ascii=False),
-                                  int(size), (token or {}).get("id"), str(actor or "")[:64]))
+                                  int(size), (token or {}).get("id"), str(actor or "")[:64], str(site)))
         if cur.lastrowid % 50 == 0:
             self.prune()
         return {"id": cur.lastrowid, "accepted": True, "t": now, "items": len(rep["items"])}
@@ -82,18 +83,44 @@ class Ingest:
         return {"id": r["id"], "t": r["t"], "source": r["source"], "title": r["title"], "level": r["level"],
                 "summary": data.get("summary") or "", "items": data.get("items") or [], "by": r.get("actor") or ""}
 
-    def list(self, limit: int = 50, since: Optional[float] = None) -> list:
+    def list(self, limit: int = 50, since: Optional[float] = None, site: Optional[str] = None) -> list:
         limit = max(1, min(int(limit or 50), 200))
-        rows = self.store.query("SELECT * FROM api_ingest %s ORDER BY t DESC, id DESC LIMIT ?" % ("WHERE t > ?" if since else ""),
-                                ((float(since),) if since else ()) + (limit,))
+        where, args = [], []
+        if since:
+            where.append("t > ?"); args.append(float(since))
+        if site is not None:
+            where.append("site = ?"); args.append(str(site))
+        rows = self.store.query("SELECT * FROM api_ingest %s ORDER BY t DESC, id DESC LIMIT ?" % ("WHERE " + " AND ".join(where) if where else ""),
+                                tuple(args) + (limit,))
         return [self._view(r) for r in rows]
 
-    def between(self, since: float, until: float) -> list:
-        return [self._view(r) for r in self.store.query("SELECT * FROM api_ingest WHERE t > ? AND t <= ? ORDER BY t", (since, until))]
+    def between(self, since: float, until: float, site: Optional[str] = None) -> list:
+        if site is None:
+            rows = self.store.query("SELECT * FROM api_ingest WHERE t > ? AND t <= ? ORDER BY t", (since, until))
+        else:
+            rows = self.store.query("SELECT * FROM api_ingest WHERE t > ? AND t <= ? AND site = ? ORDER BY t", (since, until, str(site)))
+        return [self._view(r) for r in rows]
+
+    def of_site(self, site: str) -> "SiteIngest":
+        return SiteIngest(self, site)
 
     def prune(self) -> None:
         self.store.execute("DELETE FROM api_ingest WHERE t < ?", (self.clock() - KEEP_DAYS * 86400,))
         self.store.execute("DELETE FROM api_ingest WHERE id NOT IN (SELECT id FROM api_ingest ORDER BY id DESC LIMIT ?)", (KEEP_ROWS,))
+
+
+class SiteIngest:
+    """The external reports of one site, for that site's nightly report (M1T): a report delivered for one site never shows
+    in the report of another."""
+
+    def __init__(self, ingest: Ingest, site: str):
+        self.ingest, self.site = ingest, site
+
+    def list(self, limit: int = 50, since: Optional[float] = None) -> list:
+        return self.ingest.list(limit, since, site=self.site)
+
+    def between(self, since: float, until: float) -> list:
+        return self.ingest.between(since, until, site=self.site)
 
 
 def seed_demo(ingest: Ingest, now: Optional[float] = None) -> None:

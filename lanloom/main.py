@@ -105,7 +105,7 @@ class App:
         self.audit = AuditLog(store, sub(b"lanloom-audit-v1"))
         self.limiter = auth.LoginLimiter()
         self.setup_code = auth.SetupCode(cfg.data_dir, store)
-        self.real_core = Core(cfg, store, vault)
+        self._real_core = Core(cfg, store, vault)
         self.notices.listener = self.real_core.notify.on_notice
         self.demo_view = demoview.DemoView(cfg)
         self.updates = Updates(cfg, store)
@@ -151,7 +151,8 @@ class App:
         self.tokens = Tokens(store)
         self.ingest = Ingest(store)
         self.webhooks = Webhooks(self.real_core, store, vault)
-        self.real_core.tokens, self.real_core.api_ingest, self.real_core.webhooks = self.tokens, self.ingest, self.webhooks
+        self.real_core.tokens, self.real_core.webhooks = self.tokens, self.webhooks
+        self.real_core.api_ingest = self.ingest.of_site(sites_mod.HOME)      # the external reports of the home site (M1T)
         self.real_core.reports.journal.listeners.append(self.webhooks.on_journal)
         self.real_core.notify.taps.append(self.webhooks.on_notify)
         self.real_core.reports.report_listeners.append(self.webhooks.on_report)
@@ -189,6 +190,13 @@ class App:
 
 
     @property
+    def real_core(self) -> Core:
+        """The core of the home site. A request that reads it is noted as reading the home site (M1T): an answer of
+        another site that touched it names both sites and is never drawn as one site's answer."""
+        sites_mod.note_served(sites_mod.HOME)
+        return self._real_core
+
+    @property
     def core(self) -> Core:
         """The core of this request: the sample network for a demo view (see demoview), else the core of the request's
         site (see sites; the guard picks it among the sites released for the person), else the home site."""
@@ -201,7 +209,8 @@ class App:
             raise HTTPException(403, "site.err.none")        # signed in, but no site released for this person
         core = self.sites.cores.get(sid) if getattr(self, "sites", None) else None
         if core is None:
-            raise HTTPException(409, "site.err.unknown")     # never fall back to another site's data
+            raise HTTPException(404, "site.err.unknown")     # never fall back to another site's data
+        sites_mod.note_served(getattr(core, "site_id", sid))
         return core
 
 
@@ -330,9 +339,13 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             response.headers["Cache-Control"] = "no-store"
             # M2: the answer names the site it comes from, so the page can throw away an answer that does not belong to
             # the site it shows now; and no cache may hand the answer of one site to a request for another
+            # M1T: the name is the site of the core whose data the answer carries, never just the site the request asked for
             sent = getattr(request.state, "site_sent", None)
             if sent:
-                response.headers[sites_mod.MIRROR] = sent
+                name = sites_mod.served_name(sent, getattr(request.state, "site_scope", "global"))
+                if name == sites_mod.MIXED:
+                    log.error("an answer read the data of more than one site: %s %s", request.method, request.url.path)
+                response.headers[sites_mod.MIRROR] = name
             vary = [v.strip() for v in response.headers.get("vary", "").split(",") if v.strip()]
             for name in ("Cookie", "X-Lanloom-Site"):
                 if name.lower() not in (v.lower() for v in vary):
@@ -344,6 +357,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         path = request.url.path
         rule = None
         user = None
+        sites_mod.SERVED.set(set())                    # the cores this request reads (M1T)
         if cfg.probe and path.startswith("/api/") and path != "/api/health":
             # trial start of an update candidate: the updater only reads the health check
             return JSONResponse({"error": "app.err.probe"}, status_code=503)
@@ -372,6 +386,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                         break
                 if not aid:
                     return JSONResponse({"error": "auth.err.required"}, status_code=401)   # token of a host agent, no session
+                how, asked = asked_site(request)
+                if how == "header" and asked != agent_site:
+                    # a host agent reports for the site it paired with; a report naming another site is refused, never booked
+                    return JSONResponse({"error": "site.err.agent_site"}, status_code=409)
                 request.state.agent = aid
                 sites_mod.ACTIVE.set(agent_site)
             elif rule is not None and rule.role == "public":
@@ -425,18 +443,37 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                 audit_from(request, user, info.get("action") or rule.audit, outcome, target=target, detail=info.get("detail"))
         return response
 
+    def asked_site(conn) -> tuple:
+        """(how, value): where a request names its site - the header ``X-Lanloom-Site`` (every request of the page), the
+        address ``?site=`` (plain links and downloads of the page, the live socket) or the cookie ``ll_site`` (the last site
+        of the browser) - or (None, None) when it names none. An empty value counts as naming a site (an unknown one)."""
+        for how, value in (("header", conn.headers.get(sites_mod.HEADER)), ("address", conn.query_params.get("site")),
+                           ("cookie", conn.cookies.get(sites_mod.COOKIE))):
+            if value is not None:
+                return how, value.strip()
+        return None, None
+
     def pick_site(conn, viewer: Optional[dict], template: str) -> Optional[JSONResponse]:
-        """Set the site of this request (M1): the one the browser asks for (cookie ll_site or header X-Lanloom-Site),
-        but only among the sites released for this person; otherwise their first one. A site-bound route without
-        any released site is refused; a route of the home site only (firewall editor, AI) refuses another site."""
+        """Set the site of this request (M1, M1T). A request that names a site (header, address or cookie) gets exactly
+        that site when it is released for the person; an empty, unknown or not released site is refused with 404 on every
+        site-bound route - never answered from another site, not from the person's first one either. Only a request that
+        names no site gets the person's first released site. A route of the home site only (firewall editor, AI) refuses
+        another site."""
         if not viewer or viewer.get("stage") == "enroll":
             return None
         scope = sites_mod.scope_of(template)
-        asked = conn.headers.get(sites_mod.HEADER) or conn.cookies.get(sites_mod.COOKIE)
-        sid = state.sites.pick(viewer, asked)
+        conn.state.site_scope = scope
+        how, asked = asked_site(conn)
+        conn.state.site_named = how
+        sid, unknown = state.sites.resolve(viewer, how, asked)
         sites_mod.ACTIVE.set(sid if sid is not None else "")
+        if unknown:
+            conn.state.site_unknown = True
+            if scope != "global":
+                return JSONResponse({"error": "site.err.unknown"}, status_code=404)
+            return None
         if sid:
-            conn.state.site_sent = sid                  # mirrored in the answer (M2)
+            conn.state.site_sent = sid                  # named in the answer (M2), from the data it carries (M1T)
         if sid is None and scope != "global":
             return JSONResponse({"error": "site.err.none"}, status_code=403)
         if scope == "primary" and sid != sites_mod.HOME:
@@ -528,9 +565,10 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
             language = state.accounts.prefs(user["id"]).get("language") or language
         demo_view = bool(user) and demoview.ACTIVE.get()
         site_id = sites_mod.ACTIVE.get()
+        unknown = bool(getattr(request.state, "site_unknown", False))
         if full and site_id == "":
-            full = False            # signed in, but no site released: nothing of any site in the answer
-            no_site = True
+            full = False            # signed in, but no site released, or the page named a site it cannot see: nothing of any site
+            no_site = not unknown
         else:
             no_site = False
         out = {"version": __version__, "setup_needed": state.store.user_count() == 0, "authenticated": bool(user),
@@ -550,7 +588,13 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
                "agents": len(state.core.agents.live) if full and state.core else 0,     # host agents + container sources (E4)
                "dns": sum(1 for i in state.core.integrations() if i["kind"] in state.core.dns_kinds()) if full and state.core else 0}
         if user and not out["enroll"]:
-            if demo_view or no_site:
+            if unknown and not demo_view:
+                # M1T: the page named a site that is empty, unknown or not released - no fallback to another site's data;
+                # the page drops the remembered site and starts again with the first released one (named here, nothing more)
+                allowed = state.sites.allowed(user)
+                out["site"] = {"id": None, "name": "", "home": False, "remote": False, "several": len(allowed) > 1, "unknown": True,
+                               "first": allowed[0] if allowed else None, "count": len(allowed)}
+            elif demo_view or no_site:
                 out["site"] = {"id": None, "name": "", "home": False, "remote": False, "several": False, "none": no_site}
             else:
                 sid = site_id or sites_mod.HOME
@@ -1643,15 +1687,15 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         if state.demo_view.requested(ws.cookies):
             core = await state.demo_view.ensure()
         else:
-            asked = ws.query_params.get("site") or ws.headers.get(sites_mod.HEADER) or ws.cookies.get(sites_mod.COOKIE)
-            sid = state.sites.pick(user, asked)
+            how, asked = asked_site(ws)
+            sid, unknown = state.sites.resolve(user, how, asked)
+            if unknown:
+                await ws.accept()                    # a close before the handshake reaches the browser as a plain 1006, never as a code
+                await ws.close(code=sites_mod.WS_CHANGED)   # M2/M1T: the page named a site that is not (or no longer) its own
+                return
             core = state.sites.core(sid) if sid else None
             if core is None:
                 await ws.close(code=4403)              # no site released for this person
-                return
-            if ws.query_params.get("site") and ws.query_params.get("site") != sid:
-                await ws.accept()                    # a close before the handshake reaches the browser as a plain 1006, never as a code
-                await ws.close(code=sites_mod.WS_CHANGED)   # M2: the page asked for a site that is not (or no longer) its own
                 return
         await ws.accept()
         queue: asyncio.Queue = asyncio.Queue()

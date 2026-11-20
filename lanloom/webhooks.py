@@ -288,7 +288,8 @@ class Webhooks:
 
     def on_report(self, report: dict, site: Optional[dict] = None) -> None:
         self.emit("report.ready", {"day": report.get("day"), "level": report.get("level"), "points": report.get("points"),
-                                   "link": "#/reports/%s" % report.get("day")}, report.get("created"), site=site)
+                                   "link": "#/reports/%s%s" % (report.get("day"), ("?site=" + site["id"]) if site and site.get("id") and site["id"] != "home" else "")},
+                  report.get("created"), site=site)
 
     def emit(self, event: str, data: dict, t: Optional[float] = None, site: Optional[dict] = None) -> int:
         """Queue one delivery per enabled webhook that wants ``event``. Returns how many were queued. ``site``: the
