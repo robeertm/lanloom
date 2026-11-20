@@ -440,7 +440,7 @@
   LL.view = function (name, fn) { views[name] = fn; };
   let current = null;
 
-  let routeSeq = 0, routedOnce = false, unknownOnce = false, addressAsked = null;
+  let routeSeq = 0, routedOnce = false, unknownOnce = false;
   async function route() {
     if (LL.holdRoute && LL.holdRoute()) return;     // a sheet closed itself with the back step: nothing below changes
     const seq = ++routeSeq;
@@ -454,7 +454,7 @@
     const before = LL.state && LL.state.site && LL.state.site.id;
     if (!before && !routedOnce) {                   // the first route of the page: a site in the address is asked for at once (M1T)
       const want = addressSite();
-      if (want && want !== tabSite()) { LL.rememberTabSite(want); addressAsked = want; }
+      if (want && want !== tabSite()) LL.rememberTabSite(want);
     }
     routedOnce = true;
     try { st = LL.state = await api('/api/state', { allow401: true }); if (st && st.rate_unit) LL.rateUnit = st.rate_unit === 'bits' ? 'bits' : 'bytes'; }
@@ -471,7 +471,7 @@
         try { localStorage.setItem('ll-site', st.site.first); } catch (e) { /* private mode */ }
         if (LL.rememberSite) LL.rememberSite(st.site.first);
         LL.dropTabContext();
-        if (addressAsked) history.replaceState(null, '', LL.base + LL.viewOnly(location.hash));
+        history.replaceState(null, '', LL.base + LL.viewOnly(location.hash));     // ids of that site mean nothing here
         pendingNotice = 'site.err.unknown';
         return route();
       }
