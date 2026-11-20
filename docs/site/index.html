@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en" data-theme="auto" data-palette="circuit">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; media-src 'self'; style-src 'self'; script-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Lanloom – your local network, drawn as a circuit board</title>
+<meta name="description" content="Lanloom scans your network and draws it as a circuit board: devices are components, connections are traces, measured traffic flows along them as moving dots. Self-hosted, one container, read-only by default.">
+<meta name="theme-color" content="#07100C">
+<link rel="canonical" href="https://robeertm.github.io/lanloom/">
+<link rel="icon" type="image/svg+xml" href="img/icon.svg">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lanloom">
+<meta property="og:title" content="Lanloom – your local network, drawn as a circuit board">
+<meta property="og:description" content="Devices become components, connections become traces, and measured traffic flows along them as moving dots. Self-hosted, one container, read-only by default.">
+<meta property="og:url" content="https://robeertm.github.io/lanloom/">
+<meta property="og:image" content="https://robeertm.github.io/lanloom/social.png?v=1.56.0">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="The Lanloom map in the dark theme: a network drawn as a circuit board with moving dots on the traces.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://robeertm.github.io/lanloom/social.png?v=1.56.0">
+<link rel="stylesheet" href="site.css">
+<script src="init.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap top__in">
+    <a class="brand" href="#top" aria-label="Lanloom, top of the page"><img src="img/icon.svg" alt="" width="28" height="28">Lanloom</a>
+    <nav class="nav" aria-label="Page sections">
+      <a class="hide-sm" href="#features">Features</a>
+      <a class="hide-sm" href="#tour">Tour</a>
+      <a href="#install">Install</a>
+      <a class="hide-sm" href="https://github.com/robeertm/lanloom/tree/main/docs/manual">Manual</a>
+      <a href="https://github.com/robeertm/lanloom">Source</a>
+    </nav>
+    <div class="tools">
+      <button class="icon-btn" id="theme-btn" type="button" aria-label="Colour mode: automatic" title="Colour mode">Auto</button>
+      <button class="icon-btn" id="palette-btn" type="button" aria-label="Colour theme: Circuit" title="Colour theme">Circuit</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+<section class="hero" id="top">
+  <div class="wrap">
+    <div class="hero__copy">
+      <p class="eyebrow">Self-hosted network map</p>
+      <h1>Your local network, drawn as a circuit board.</h1>
+      <p class="lead">Lanloom finds everything on your network and shows it as a living board: devices are components, connections are traces, and measured traffic flows along them as moving dots.</p>
+      <div class="cta">
+        <a class="btn btn--primary" href="#install">Install with one command</a>
+        <a class="btn" href="#tour">Take the tour</a>
+      </div>
+    </div>
+    <figure class="hero__media frame">
+      <video id="demo" muted loop playsinline preload="metadata" poster="media/demo-still.png" width="1280" height="720" aria-label="A short clip of the sample network: the map with moving dots, the data paths and the nightly report">
+        <source src="media/demo.webm" type="video/webm">
+        <source src="media/demo.mp4" type="video/mp4">
+        <img src="media/demo.gif" alt="A short clip of the sample network: the map with moving dots, the data paths and the nightly report" width="880" height="495">
+      </video>
+      <figcaption>The built-in sample network: the map, the data paths and the nightly report. All names and addresses are invented.</figcaption>
+    </figure>
+    <p class="note-strip"><span>One container, amd64 and arm64</span><span>Read-only by default</span><span>Nothing leaves your network</span><span>English, German, French, Spanish, Dutch, Italian</span></p>
+  </div>
+</section>
+
+<section class="block" id="features">
+  <div class="wrap">
+    <div class="block__head">
+      <p class="eyebrow">What it does</p>
+      <h2>Everything on one board, in words you can read</h2>
+      <p>The start page says in three seconds how the network is doing. Everything below it is one click away and has an address you can bookmark or share.</p>
+    </div>
+    <div class="grid">
+      <article class="card"><span class="tag">Map</span><h3>A board, not a hairball</h3><p>Zones, orthogonal traces, buses and vias. Each dot stands for a fixed number of bytes, so what moves is what was measured; traces without a measurement stay dashed.</p></article>
+      <article class="card"><span class="tag">First picture</span><h3>From setup code to map in minutes</h3><p>The assistant reads your interfaces and neighbours, proposes private ranges and shows a first picture while the scan continues. Nothing is scanned without your tick in a consent box.</p></article>
+      <article class="card"><span class="tag">Data paths</span><h3>Where your devices talk to</h3><p>A calm world map by country, with real cables or rain, in 24 hours, 7 or 30 days. Countries and byte counts only, never addresses. Unusual behaviour is called out calmly.</p></article>
+      <article class="card"><span class="tag">Nightly report</span><h3>A short report about the night</h3><p>Outages, new and missing devices, refused sign-ins, expiring certificates, changes to the controller. One headline says “All quiet” or how many things need a look.</p></article>
+      <article class="card"><span class="tag">Control room</span><h3>What keeps the house running</h3><p>The internet with two readings, storage boxes, the battery backup and the backup chains, each saying how old its picture is. Unknown stays unknown, never “down”.</p></article>
+      <article class="card"><span class="tag">Failure chain</span><h3>What fails if this fails?</h3><p>Pick any device and see what hangs on it and what it depends on, with the reason for every part. Simulate maintenance before you pull a plug; nothing is switched.</p></article>
+      <article class="card"><span class="tag">Firewall</span><h3>Rehearse before you change</h3><p>Move a device to another network, rename it, give it a fixed address, rehearse a rule. You get a plain-language preview first. Out of the box it only simulates; real changes need an explicit arming step.</p></article>
+      <article class="card"><span class="tag">Hosts</span><h3>Early warnings, not alarms</h3><p>Health rings and trends for processor, memory, disk and temperature. A value that will reach its limit within 72 hours is a warning; a daily rhythm never is.</p></article>
+      <article class="card"><span class="tag">Inventory</span><h3>What only you know</h3><p>Purpose, room, warranty, owner and the life cycle of every device. Export the plan as PDF, SVG or an editable diagram, with a Redact option for sharing.</p></article>
+      <article class="card"><span class="tag">Energy</span><h3>Cost and CO₂ per lane</h3><p>With a home-automation hub that has power sensors, grid, solar and battery feed the home and its consumers, drawn like the network, with the cost and CO₂ of the share the grid supplies.</p></article>
+      <article class="card"><span class="tag">Phone</span><h3>Now, in your pocket</h3><p>A phone start page with a health ring and the last 24 hours, a focus view around one device, sheets you can drag and an installable app icon.</p></article>
+      <article class="card"><span class="tag">Sites and people</span><h3>Several sites, three roles</h3><p>Home, a holiday flat, an office, each with its own history. Viewer, operator and admin, two-step sign-in with passkeys or an authenticator, and a tamper-evident audit log.</p></article>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="tour">
+  <div class="wrap">
+    <div class="block__head">
+      <p class="eyebrow">Tour</p>
+      <h2>Every view, in light and dark, in both colour themes</h2>
+      <p>These are real screenshots of the sample network. Pick a view, a mode and a colour theme.</p>
+    </div>
+    <div class="tour__bar">
+      <div class="seg" id="tour-views" role="group" aria-label="View"></div>
+      <div class="tour__opts">
+        <div class="seg" id="tour-mode" role="group" aria-label="Mode"><button type="button" data-v="light" aria-pressed="true">Light</button><button type="button" data-v="dark" aria-pressed="false">Dark</button></div>
+        <div class="seg" id="tour-pal" role="group" aria-label="Colour theme"><button type="button" data-v="circuit" aria-pressed="true">Circuit</button><button type="button" data-v="aurora" aria-pressed="false">Aurora</button></div>
+      </div>
+    </div>
+    <figure class="frame tour__shot" id="tour-shot" data-view="overview">
+      <img id="tour-img" src="img/overview-light-circuit.png" width="1440" height="900" alt="The overview of the sample network in the light theme" loading="lazy">
+    </figure>
+    <p class="tour__cap" id="tour-cap" aria-live="polite">The overview: how the network is doing, six key figures and what stands out.</p>
+
+    <div class="block__head block__head--gap">
+      <h2>And on the phone</h2>
+      <p>The phone gets its own layout, not a shrunken page: a bottom bar with Now, Map, Control room and Devices, and everything else behind More.</p>
+    </div>
+    <div class="phones">
+      <figure><div class="phone"><img data-phone="now" src="img/phone-now-light-circuit.png" width="780" height="1688" alt="Now on a phone: health ring, sites and changes" loading="lazy"></div><figcaption>Now</figcaption></figure>
+      <figure><div class="phone"><img data-phone="map" src="img/phone-map-light-circuit.png" width="780" height="1688" alt="The map on a phone" loading="lazy"></div><figcaption>Map</figcaption></figure>
+      <figure><div class="phone"><img data-phone="overview" src="img/phone-overview-light-circuit.png" width="780" height="1688" alt="The overview on a phone" loading="lazy"></div><figcaption>Overview</figcaption></figure>
+      <figure><div class="phone"><img data-phone="control-room" src="img/phone-control-room-light-circuit.png" width="780" height="1688" alt="The control room on a phone" loading="lazy"></div><figcaption>Control room</figcaption></figure>
+      <figure><div class="phone"><img data-phone="devices" src="img/phone-devices-light-circuit.png" width="780" height="1688" alt="The device list on a phone" loading="lazy"></div><figcaption>Devices</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="install">
+  <div class="wrap">
+    <div class="block__head">
+      <p class="eyebrow">Install</p>
+      <h2>One command, one container</h2>
+      <p>Needs a container runtime with compose v2 on amd64 or arm64 and about 300 MB for the image. A small single-board computer is enough for a home network.</p>
+    </div>
+    <pre><code>curl -fsSL https://raw.githubusercontent.com/robeertm/lanloom/main/deploy/install.sh | sh</code></pre>
+    <p class="muted install__note">It installs into <code>~/lanloom</code>, listens on port 7380 and can add the optional one-click updater. Prefer to read the script first, or use the compose file? Both are in the <a href="https://github.com/robeertm/lanloom/blob/main/docs/INSTALL.md">install guide</a>.</p>
+    <div class="steps">
+      <article class="card"><h3>Open the page</h3><p>Go to <code>http://&lt;host&gt;:7380</code>. Lanloom prints a one-time setup code to its log and stores it next to the data.</p></article>
+      <article class="card"><h3>Create the account</h3><p>Enter the code and create the administrator. Then confirm the networks Lanloom may look at.</p></article>
+      <article class="card"><h3>See the first picture</h3><p>The devices appear while the scan continues, and the adapter suggestions come with a read-only guide. Not sure yet? Explore the sample network first.</p></article>
+    </div>
+    <div class="card warn warn--gap">
+      <h3>Please read before installing</h3>
+      <ul class="plain">
+        <li>Lanloom scans the private ranges you approve. Only scan networks you own or may scan.</li>
+        <li>Credentials you add are stored encrypted, but the key file lives next to the data. Use read-only accounts.</li>
+        <li>To see your network the container shares the host's network stack. It runs unprivileged, read-only and with all capabilities dropped.</li>
+        <li>Classifications are heuristics. Do not base security or safety decisions on them. Provided as is, without warranty.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="more">
+  <div class="wrap">
+    <div class="block__head">
+      <p class="eyebrow">Under the hood</p>
+      <h2>Careful by construction</h2>
+    </div>
+    <div class="grid grid--four">
+      <article class="card"><h3>Read-only by construction</h3><p>The map observes; the app cannot change your devices. Real changes exist only through a separate, optional executor with a signature per change and an explicit arming step.</p></article>
+      <article class="card"><h3>No telemetry</h3><p>Every outgoing connection is on a short list that a test enforces. Vulnerability hints, manufacturer names and country data ship inside the image and are never downloaded at run time.</p></article>
+      <article class="card"><h3>Documented and tested</h3><p>A manual page for every view, a troubleshooting guide, a compatibility matrix, a published security model, signed images with a software bill of materials.</p></article>
+      <article class="card"><h3>Source-available</h3><p>You may run it for personal or internal use on machines you control and read the source. Modification and redistribution need written permission.</p></article>
+    </div>
+    <div class="cta cta--left">
+      <a class="btn btn--primary" href="https://github.com/robeertm/lanloom">Source repository</a>
+      <a class="btn" href="https://github.com/robeertm/lanloom/tree/main/docs/manual">Manual</a>
+      <a class="btn" href="https://github.com/robeertm/lanloom/blob/main/docs/FAQ.md">FAQ</a>
+      <a class="btn" href="https://github.com/robeertm/lanloom/blob/main/CHANGELOG.md">Changelog</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap cols">
+    <div>
+      <p>© 2026 Robert Manuwald. Lanloom is source-available software, provided without warranty of any kind.</p>
+      <p>Product names are used only to say what Lanloom works with. There is no affiliation with and no endorsement by their owners. Parts of the software were written with the help of AI tools; the code is reviewed and covered by automated tests and release checks.</p>
+    </div>
+    <p><a href="https://github.com/robeertm/lanloom/blob/main/LICENSE">License</a> · <a href="https://github.com/robeertm/lanloom/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/robeertm/lanloom/blob/main/THIRD-PARTY-NOTICES.md">Third-party notices</a></p>
+  </div>
+</footer>
+<script src="site.js" defer></script>
+</body>
+</html>

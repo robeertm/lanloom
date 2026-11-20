@@ -64,6 +64,24 @@
 - **Your DNS filter, read only.** A DNS filter adapter shows what the name server that blocks trackers and advertising does: the blocked share of the last 24 hours, queries per hour and day, the most blocked names, the busiest clients matched to your devices, the upstream resolvers and the block lists, with plain findings and a night report section. It reads totals only - never single queries, which device asked for which name - and keeps two numbers per hour and day. See [docs/DNS-FILTER.md](docs/DNS-FILTER.md).
 - **Read-only by construction.** The map observes; the app cannot change your devices. Real changes are only possible through the separate, optional executor service, with a passkey signature per change and an explicit arming step by the operator; the executor can connect only to the app and to its controller.
 
+## Tour
+
+A short clip of the sample network - the map with its moving dots, the data paths and the nightly report:
+
+![The sample network: map, data paths and nightly report (animated, 4 MB)](docs/site/media/demo.gif)
+
+Every view in light and dark and in both colour themes (*Circuit* and *Aurora*), plus the phone layout, is in the **[tour](docs/TOUR.md)**; the same tour, with a viewer, is the static [landing page](docs/site/README.md) in `docs/site/`. A picture here opens its section of the tour.
+
+<table>
+<tr><td width="50%"><a href="docs/TOUR.md#overview"><img src="docs/site/img/overview-light-circuit.png" width="100%" alt="Overview, light, Circuit"></a><br><sub>Overview</sub></td><td width="50%"><a href="docs/TOUR.md#map"><img src="docs/site/img/map-light-circuit.png" width="100%" alt="Map, light, Circuit"></a><br><sub>Map</sub></td></tr>
+<tr><td width="50%"><a href="docs/TOUR.md#network"><img src="docs/site/img/network-light-circuit.png" width="100%" alt="Network, light, Circuit"></a><br><sub>Network</sub></td><td width="50%"><a href="docs/TOUR.md#devices"><img src="docs/site/img/devices-light-circuit.png" width="100%" alt="Devices, light, Circuit"></a><br><sub>Devices</sub></td></tr>
+<tr><td width="50%"><a href="docs/TOUR.md#data-paths"><img src="docs/site/img/data-paths-light-circuit.png" width="100%" alt="Data paths, light, Circuit"></a><br><sub>Data paths</sub></td><td width="50%"><a href="docs/TOUR.md#nightly-report"><img src="docs/site/img/nightly-reports-light-circuit.png" width="100%" alt="Nightly report, light, Circuit"></a><br><sub>Nightly report</sub></td></tr>
+<tr><td width="50%"><a href="docs/TOUR.md#control-room"><img src="docs/site/img/control-room-light-circuit.png" width="100%" alt="Control room, light, Circuit"></a><br><sub>Control room</sub></td><td width="50%"><a href="docs/TOUR.md#firewall"><img src="docs/site/img/firewall-light-circuit.png" width="100%" alt="Firewall, light, Circuit"></a><br><sub>Firewall</sub></td></tr>
+<tr><td width="50%"><a href="docs/TOUR.md#automations"><img src="docs/site/img/automations-light-circuit.png" width="100%" alt="Automations, light, Circuit"></a><br><sub>Automations</sub></td><td width="50%"><a href="docs/TOUR.md#inventory"><img src="docs/site/img/inventory-light-circuit.png" width="100%" alt="Inventory, light, Circuit"></a><br><sub>Inventory</sub></td></tr>
+<tr><td width="50%"><a href="docs/TOUR.md#energy"><img src="docs/site/img/energy-light-circuit.png" width="100%" alt="Energy, light, Circuit"></a><br><sub>Energy</sub></td><td width="50%"><a href="docs/TOUR.md#vulnerabilities"><img src="docs/site/img/vulnerabilities-light-circuit.png" width="100%" alt="Vulnerabilities, light, Circuit"></a><br><sub>Vulnerabilities</sub></td></tr>
+<tr><td width="50%"><a href="docs/TOUR.md#rewind-and-incident-files"><img src="docs/site/img/rewind-light-circuit.png" width="100%" alt="Rewind, light, Circuit"></a><br><sub>Rewind</sub></td><td width="50%"><a href="docs/TOUR.md#settings"><img src="docs/site/img/settings-light-circuit.png" width="100%" alt="Settings, light, Circuit"></a><br><sub>Settings</sub></td></tr>
+</table>
+
 ## Screenshots
 
 All screenshots show the built-in demo network with invented names and addresses.
@@ -916,6 +934,8 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 ## Documentation
 
 - [docs/manual/README.md](docs/manual/README.md): the manual, one page per view (overview, map, network, data paths, devices, inventory, firewall, nightly reports, running, settings, AI) with purpose, what you see, how to use it, limits and privacy; [docs/manual/views.md](docs/manual/views.md) covers the rails, keys, live state and deep links
+- [docs/TOUR.md](docs/TOUR.md): the tour: every view in light and dark and in both colour themes, and the phone layout; the animated clip
+- [docs/site/README.md](docs/site/README.md): the static landing page (`docs/site/`): what is in it, how to preview it, how to publish it with Pages, the pictures and the preview image
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): reading the status of a source, the reasons of every source and adapter with cause and fix, scanning, sign-in, install, and the redacted diagnostic export
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, moving to another host, uninstall
 - [docs/BACKUP.md](docs/BACKUP.md): backup and restore in the app, automatic backups, moving to another host, the file format
