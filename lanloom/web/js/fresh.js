@@ -11,7 +11,7 @@
   'use strict';
   const LL = window.Lanloom;
   const { h, t } = LL;
-  const MIN_STALE_MS = 3 * 60 * 1000, CADENCES = 3, RETRY_MS = 15000, GRACE_MS = 5000, MIN_LOCK_MS = 30000, MIN_WAKE_AGE_MS = 30000;
+  const MIN_STALE_MS = 3 * 60 * 1000, CADENCES = 3, RETRY_MS = 15000, GRACE_MS = 5000, WAKE_GRACE_MS = 45000, JUMP_MS = 5000, MIN_LOCK_MS = 30000, MIN_WAKE_AGE_MS = 30000;
   const watches = new Set();
 
   const staleAfter = every => Math.max(MIN_STALE_MS, CADENCES * (every || 0));
@@ -19,11 +19,12 @@
 
   // opts.band === false: only the refresh after sleep / network change (small parts of a card that must not stack bands)
   function watch(host, every, refresh, opts) {
-    const w = { band_: !(opts && opts.band === false), host, every: every || 0, refresh, lastOk: Date.now(), tried: 0, grace: 0, band: null, retry: 0, dead: false, seen: false, born: Date.now() };
+    const w = { band_: !(opts && opts.band === false), host, every: every || 0, refresh, lastOk: Date.now(), tried: 0, grace: 0, band: null, retry: 0, dead: false, seen: false, born: Date.now(), tick: Date.now() };
     function ask() {
       w.tried = Date.now();
       if (typeof w.refresh !== 'function') return;
-      try { Promise.resolve(w.refresh()).catch(() => {}); } catch (e) { /* a failing refresh is asked again later */ }
+      // a failed answer ends the grace: the real state counts again
+      try { Promise.resolve(w.refresh()).catch(() => { w.grace = 0; }); } catch (e) { w.grace = 0; /* a failing refresh is asked again later */ }
     }
     function show(on) {
       if (on) {
@@ -40,10 +41,12 @@
     }
     function check() {
       if (w.dead) return;
-      const now = Date.now();
+      const now = Date.now(), gap = now - w.tick;
+      w.tick = now;
       if (!host.isConnected) { if (w.seen || now - w.born > 30000) destroy(); return; }    // a section that is built first and put in place a moment later is not given up
       w.seen = true;
       if (document.hidden || !host.getClientRects().length) { w.grace = now + GRACE_MS; return; }    // nobody looks (background tab, closed rail): nothing ages, the first seconds after are free
+      if (gap > JUMP_MS) { w.grace = now + WAKE_GRACE_MS; ask(); return; }    // the clock jumped (sleep without a visibility change, frozen timers): ask at once, no band before the first answer
       const stale = w.band_ && now - w.lastOk > staleAfter(w.every) && now >= w.grace;
       show(stale);
       if (stale && !document.hidden && now - w.tried >= RETRY_MS) ask();
@@ -59,9 +62,9 @@
     watches.add(w);
     return {
       // a good state was drawn
-      ok() { if (w.dead) return; w.lastOk = Date.now(); if (w.band) show(false); },
+      ok() { if (w.dead) return; w.lastOk = Date.now(); w.grace = 0; if (w.band) show(false); },
       // a request failed: ask again soon (once), the view would otherwise stay on its message until the next cadence
-      fail() { if (w.dead || w.retry) return; w.retry = setTimeout(() => { w.retry = 0; if (!w.dead && host.isConnected && !document.hidden) ask(); }, RETRY_MS); },
+      fail() { if (w.dead) return; w.grace = 0; if (w.retry) return; w.retry = setTimeout(() => { w.retry = 0; if (!w.dead && host.isConnected && !document.hidden) ask(); }, RETRY_MS); },
       destroy,
       stale: () => !!w.band,
       lastOk: () => w.lastOk
@@ -76,7 +79,7 @@
     watches.forEach(w => {
       if (w.dead || !w.host.isConnected) return;
       if (now - w.lastOk < MIN_WAKE_AGE_MS) return;      // the shown state is seconds old (a short switch of tabs): nothing to fetch, nothing to redraw
-      w.grace = now + GRACE_MS;              // the answer is on its way: no band for the first seconds
+      w.grace = now + WAKE_GRACE_MS;         // the answer is on its way: no band until it is there or has failed, 45 s at most
       w.ask();
     });
     if (document.querySelector('.boot-error')) LL.route();      // the page itself could not start (no state): try again

@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- **No false "Data stale" band after waking up.** A computer that sleeps with the tab still visible (lid closed, timers frozen) used to show the band at once on wake-up, before anything was asked. Lanloom now recognises the wake-up on its own one-second beat as well (a gap of more than 5 s between two checks, like the clock-jump case), asks again at once, and keeps the band away until the first answer is there or has failed - 45 s at most (it was 5 s, too short behind a slow server or reverse proxy). After that the real state counts again. The time in the band is written fresh each time.
+
 ## [1.57.1] – 2026-11-20
 
 1.57.0 was not published on its own; the release scan stopped it, so everything listed under 1.57.0 below is part of this release.
