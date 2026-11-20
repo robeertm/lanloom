@@ -7363,7 +7363,6 @@
  "now.sites.title": "Sitios",
  "now.sites.here": "Estás aquí",
  "now.sites.devices": "{on} de {total} dispositivos en línea",
- "now.sites.all": "Los {n} sitios",
  "now.sites.manage": "Gestionar sitios",
  "now.changes.title": "Cambios",
  "now.changes.none": "Sin cambios en las últimas seis horas.",
@@ -7470,5 +7469,6 @@
  "about.energy.text": "La potencia que mide tu hub domótico, dibujada como la red: la red eléctrica, la solar y la batería alimentan la casa, y la casa a sus consumidores. Los puntos de una pista llevan vatios: más puntos, más potencia.\n\nCada consumidor con su propio sensor de potencia es un carril con vatios, coste por hora y CO₂ por hora. La página solo aparece con un hub que tenga sensores de potencia.",
  "about.energy.tips": "Un sensor del hub con precio por kWh o intensidad de CO₂ se usa por sí solo; un número introducido en Precio y CO₂ tiene prioridad.\nTodo lo demás es la potencia que ningún sensor propio explica.\nNada sale de este dispositivo: detrás de esta página no hay ningún servicio de precios ni de CO₂ en internet.",
  "energy.lanes.share_hint": "Ahora mismo el {pct} % viene de la red: el coste y el CO₂ solo cuentan esa parte, la energía del tejado o de la batería no cuesta nada.",
- "nav.short.running": "En marcha"
+ "nav.short.running": "En marcha",
+ "now.sites.open": "Mostrar todos los sitios"
 }

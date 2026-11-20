@@ -7363,7 +7363,6 @@
  "now.sites.title": "Locaties",
  "now.sites.here": "Je bent hier",
  "now.sites.devices": "{on} van {total} apparaten online",
- "now.sites.all": "Alle {n} locaties",
  "now.sites.manage": "Locaties beheren",
  "now.changes.title": "Wijzigingen",
  "now.changes.none": "Geen wijzigingen in de afgelopen zes uur.",
@@ -7470,5 +7469,6 @@
  "about.energy.text": "Het vermogen dat je domotica-hub meet, getekend als het netwerk: net, zon en accu voeden het huis, het huis voedt zijn verbruikers. De punten op een spoor dragen watt: meer punten, meer vermogen.\n\nElke verbruiker met een eigen vermogenssensor is een baan met watt, kosten per uur en CO₂ per uur. De pagina verschijnt alleen met een hub die vermogenssensoren heeft.",
  "about.energy.tips": "Een sensor van de hub met een prijs per kWh of een CO₂-intensiteit wordt vanzelf gebruikt; een getal bij Prijs en CO₂ gaat voor.\nAl het andere is het vermogen dat geen eigen sensor verklaart.\nNiets verlaat dit apparaat: achter deze pagina zit geen prijs- of CO₂-dienst op internet.",
  "energy.lanes.share_hint": "Op dit moment komt {pct} % van het net: kosten en CO₂ tellen alleen dat deel, stroom van het dak of uit de accu kost niets.",
- "nav.short.running": "Actief"
+ "nav.short.running": "Actief",
+ "now.sites.open": "Alle locaties tonen"
 }

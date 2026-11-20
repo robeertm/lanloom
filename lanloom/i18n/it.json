@@ -7363,7 +7363,6 @@
  "now.sites.title": "Sedi",
  "now.sites.here": "Sei qui",
  "now.sites.devices": "{on} dispositivi su {total} online",
- "now.sites.all": "Tutte le {n} sedi",
  "now.sites.manage": "Gestisci le sedi",
  "now.changes.title": "Modifiche",
  "now.changes.none": "Nessuna modifica nelle ultime sei ore.",
@@ -7470,5 +7469,6 @@
  "about.energy.text": "La potenza misurata dal tuo hub domotico, disegnata come la rete: rete elettrica, solare e batteria alimentano la casa, la casa alimenta i suoi consumatori. I punti su una pista portano watt: più punti, più potenza.\n\nOgni consumatore con un proprio sensore di potenza è una corsia con watt, costo all'ora e CO₂ all'ora. La pagina compare solo con un hub dotato di sensori di potenza.",
  "about.energy.tips": "Un sensore dell'hub con un prezzo per kWh o un'intensità di CO₂ viene usato da solo; un numero inserito in Prezzo e CO₂ ha la precedenza.\nTutto il resto è la potenza che nessun sensore proprio spiega.\nNulla lascia questo dispositivo: dietro questa pagina non c'è alcun servizio di prezzi o di CO₂ su internet.",
  "energy.lanes.share_hint": "In questo momento il {pct} % arriva dalla rete: costo e CO₂ contano solo quella parte, l'energia dal tetto o dalla batteria non costa nulla.",
- "nav.short.running": "Attivi"
+ "nav.short.running": "Attivi",
+ "now.sites.open": "Mostra tutte le sedi"
 }

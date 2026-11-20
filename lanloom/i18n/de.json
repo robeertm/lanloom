@@ -7363,7 +7363,6 @@
  "now.sites.title": "Standorte",
  "now.sites.here": "Du bist hier",
  "now.sites.devices": "{on} von {total} Geräten online",
- "now.sites.all": "Alle {n} Standorte",
  "now.sites.manage": "Standorte verwalten",
  "now.changes.title": "Änderungen",
  "now.changes.none": "Keine Änderungen in den letzten sechs Stunden.",
@@ -7470,5 +7469,6 @@
  "about.energy.text": "Die Leistung, die dein Hausautomations-Hub misst, gezeichnet wie das Netz: Netz, Solar und Speicher versorgen das Haus, das Haus seine Verbraucher. Die Punkte auf einer Leiterbahn tragen Watt: mehr Punkte, mehr Leistung.\n\nJeder Verbraucher mit eigenem Leistungssensor ist eine Bahn mit Watt, Kosten pro Stunde und CO₂ pro Stunde. Die Seite gibt es nur mit einem Hub, der Leistungssensoren hat.",
  "about.energy.tips": "Ein Sensor des Hubs mit Preis pro kWh oder CO₂-Intensität wird von selbst genutzt; eine unter „Preis und CO₂“ eingetragene Zahl hat Vorrang.\n„Alles andere“ ist die Leistung, die kein eigener Sensor erklärt.\nNichts verlässt dieses Gerät: Hinter dieser Seite steht kein Preis- oder CO₂-Dienst im Internet.",
  "energy.lanes.share_hint": "Gerade kommen {pct} % aus dem Netz: Kosten und CO₂ zählen nur diesen Teil, Strom vom Dach oder aus dem Speicher kostet nichts.",
- "nav.short.running": "Läuft"
+ "nav.short.running": "Läuft",
+ "now.sites.open": "Alle Standorte zeigen"
 }

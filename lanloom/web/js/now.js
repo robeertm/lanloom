@@ -3,7 +3,7 @@
    Now: a health ring (devices online / offline / other, the overall word), the sites (M1, only with several), what changed in the
    last hours, the look back over 24 hours as a strip (a tap opens the rewind of the map at that moment), cards that other parts
    register (LL.registerNowCard({id, order, available(), render()}) - the energy card does), and the way into Focus.
-   Data: GET /api/overview (health, history, incidents), GET /api/overview/now (changes), GET /api/sites/overview (several sites).
+   Data: GET /api/overview (health, history, incidents), GET /api/overview/now (changes), GET /api/sites/overview (several sites, only when the sites sheet opens).
    Details open in sheets (js/sheet.js): what needs a look, all changes, the sites, the phone's "More" list; a link from one full
    sheet to another follows with the back key. Pull down at the top to refresh.
 
@@ -70,13 +70,14 @@
   }
 
   // ------------------------------------------------------------------ sites (M1)
-  function sitesCard(list) {
-    if (!list || list.length < 2) return null;
-    const cur = LL.site && LL.site() ? LL.site().id : null;
+  // only the own site is named on the page; the others appear in the sheet, fetched when it opens (M2: no mark of another site
+  // on a page of this site until the person asks for the list)
+  function sitesCard(site, level) {
+    if (!site || !site.several) return null;
     return h('section', { class: 'card now-card now-sites', 'aria-labelledby': 'now-h-sites' },
-      h('header', { class: 'now-card__head' }, h('h2', { id: 'now-h-sites' }, t('now.sites.title')), h('span', { class: 'now-card__n' }, LL.fmtNum(list.length, 0))),
-      h('ul', { class: 'now-sites__list' }, list.slice(0, 4).map(s => siteRow(s, cur))),
-      list.length > 4 ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => LL.sheets.open('sites') }, t('now.sites.all', { n: list.length })) : null);
+      h('header', { class: 'now-card__head' }, h('h2', { id: 'now-h-sites' }, t('now.sites.title'))),
+      h('ul', { class: 'now-sites__list' }, siteRow({ id: site.id, name: site.name, home: site.home, level }, site.id)),
+      h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => LL.sheets.open('sites') }, t('now.sites.open')));
   }
   function siteRow(s, cur) {
     const dv = s.devices || {};
@@ -163,21 +164,20 @@
     let seq = 0, timer = 0;
     async function load() {
       const my = ++seq;
-      let ov, rn, sites = null;
+      let ov, rn;
       try {
         [ov, rn] = await Promise.all([api('/api/overview'), api('/api/overview/now')]);
-        if (site && site.several) { try { sites = (await api('/api/sites/overview')).sites; } catch (e) { sites = null; } }
       } catch (e) {
         if (my === seq && !last) body.replaceChildren(h('p', { class: 'msg msg--error' }, LL.errText(e)));
         return;
       }
       if (my !== seq || !page.isConnected) return;
-      last = { ov, rn, sites };
+      last = { ov, rn };
       const y = fr.main.scrollTop;
       const extra = LL.nowCards.filter(c => { try { return c.available(); } catch (e) { return false; } }).map(c => {
         try { return c.render(); } catch (e) { return null; }
       });
-      body.replaceChildren(...[ring(ov), sitesCard(sites), changesCard(rn.changes || []), lookBack(ov), ...extra, focusCard()].filter(Boolean));
+      body.replaceChildren(...[ring(ov), sitesCard(site, (ov.health || {}).level), changesCard(rn.changes || []), lookBack(ov), ...extra, focusCard()].filter(Boolean));
       updated.textContent = t('now.updated', { time: new Date(ov.t * 1000).toLocaleTimeString(LL.locale(), { hour12: false }) });
       fr.main.scrollTop = y;
       if (LL.sheets.top() && LL.sheets.top().id !== 'more' && LL.sheets.top().id !== 'lane') redrawSheet();
@@ -197,10 +197,10 @@
   let sheetBody = null, sheetId = null;
   function redrawSheet() {
     if (!sheetBody || !sheetBody.isConnected || !last) return;
-    const kind = { notes: drawNotes, changes: drawChanges, sites: drawSites }[sheetId];
+    const kind = { notes: drawNotes, changes: drawChanges }[sheetId];          // the sites sheet keeps what it fetched when it opened
     if (kind) kind(sheetBody);
   }
-  async function need() { if (!last) { const [ov, rn] = await Promise.all([api('/api/overview'), api('/api/overview/now')]); last = { ov, rn, sites: null }; } }
+  async function need() { if (!last) { const [ov, rn] = await Promise.all([api('/api/overview'), api('/api/overview/now')]); last = { ov, rn }; } }
   function drawNotes(body) {
     const notes = last.ov.notes || [];
     body.replaceChildren(notes.length ? h('ul', { class: 'note-list' }, notes.map(LL.noteRow)) : h('p', { class: 'muted' }, t('now.calm')),
@@ -211,9 +211,12 @@
     body.replaceChildren(ch.length ? h('ul', { class: 'change-list' }, ch.map(changeRow)) : h('p', { class: 'muted' }, t('now.changes.none')),
       h('p', { class: 'sheet__anchor' }, h('a', { href: '#', class: 'sheet-link', onclick: ev => { ev.preventDefault(); LL.sheets.open('notes'); } }, t('now.sheet.to_notes'))));
   }
-  function drawSites(body) {
+  async function drawSites(body) {
     const cur = LL.site && LL.site() ? LL.site().id : null;
-    body.replaceChildren(h('ul', { class: 'now-sites__list' }, (last.sites || []).map(s => siteRow(s, cur))),
+    let list = [];
+    try { list = (await api('/api/sites/overview')).sites || []; } catch (e) { body.replaceChildren(h('p', { class: 'msg msg--error' }, LL.errText(e))); return; }
+    if (!body.isConnected) return;
+    body.replaceChildren(h('ul', { class: 'now-sites__list' }, list.map(s => siteRow(s, cur))),
       LL.can('admin') ? h('a', { class: 'btn btn--ghost btn--sm', href: '#/sites' }, t('now.sites.manage')) : null);
   }
   const sheetKind = (id, title, draw) => LL.sheets.register(id, { title, render: async body => { sheetBody = body; sheetId = id; await need(); draw(body); } });

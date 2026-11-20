@@ -7363,7 +7363,6 @@
  "now.sites.title": "Sites",
  "now.sites.here": "You are here",
  "now.sites.devices": "{on} of {total} devices online",
- "now.sites.all": "All {n} sites",
  "now.sites.manage": "Manage sites",
  "now.changes.title": "Changes",
  "now.changes.none": "No changes in the last six hours.",
@@ -7470,5 +7469,6 @@
  "about.energy.text": "The power your home-automation hub measures, drawn like the network: grid, solar and battery feed the home, the home feeds its consumers. The dots on a trace carry watts: more dots, more power.\n\nEvery consumer with its own power sensor is a lane with watts, cost per hour and CO₂ per hour. The page only appears with a hub that has power sensors.",
  "about.energy.tips": "A sensor of the hub with a price per kWh or a CO₂ intensity is used by itself; a number entered under Price and CO₂ wins.\nEverything else is the power that no sensor of its own explains.\nNothing leaves this device: there is no price or CO₂ service on the internet behind this page.",
  "energy.lanes.share_hint": "{pct} % comes from the grid right now: cost and CO₂ count only that part, power from the roof or the battery costs nothing.",
- "nav.short.running": "Running"
+ "nav.short.running": "Running",
+ "now.sites.open": "Show all sites"
 }

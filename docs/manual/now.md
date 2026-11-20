@@ -21,7 +21,8 @@ well, but they are made for one hand and a small screen. Everything here only re
 - **Health ring**: the share of devices online (green), offline (red) and without a reading (grey), the overall word
   (*All calm*, *Worth a look*, *Needs attention*), how many sources are fresh and how many incidents are open. *N things
   need a look* opens them in a sheet.
-- **Sites** (only with [several sites](sites.md)): every site with its state; a tap switches to it.
+- **Sites** (only with [several sites](sites.md)): the site you are at with its state; *Show all sites* opens every site
+  released for you with its state in a sheet, and a tap switches to it. Other sites are named only once you ask for the list.
 - **Changes**: devices that came, went or came back, sources that failed, the internet line, the last six hours.
 - **Last 24 hours**: one bar every five minutes, its height the share of devices online, its colour the state; a dashed
   line marks the start of an incident. A tap on a moment opens the [rewind](incidents.md) of the map at that moment.
