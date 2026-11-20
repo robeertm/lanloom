@@ -26,7 +26,7 @@ need the updater sidecar (notice, one-click update, channels, hold, going back) 
   Checking health, then Done, Rolled back or Failed.
 
 <table><tr>
-<td width="50%"><img src="../screenshots/updates-light.png" width="100%" alt="Updates card: version, channel, hold, back to the previous version, signature check"><br><sub>The Updates card in the settings</sub></td>
+<td width="50%"><img src="../screenshots/updates-light.png" width="100%" alt="Updates card: version, channel, hold, back to the previous version, signature check, updater that renews itself"><br><sub>The Updates card in the settings; the updater renews itself</sub></td>
 <td width="50%"><img src="../screenshots/whatsnew-dark.png" width="100%" alt="What's new: the changes of each version from the changelog in the image"><br><sub>What's new? from the version number in the header</sub></td>
 </tr><tr>
 <td width="50%"><img src="../screenshots/updates-rollback-light.png" width="100%" alt="Confirmation before going back to the previous version"><br><sub>Going back asks first, in the app's own dialog</sub></td>
