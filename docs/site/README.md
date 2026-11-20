@@ -21,11 +21,11 @@ Then open `http://127.0.0.1:8000/`.
 
 ## The preview image and its version
 
-Link previews are kept per address, so a changed picture under an unchanged address is not shown again. The page therefore names the image as `social.png?v=<version>`. `scripts/site_stamp.py` writes the current `VERSION` into those two addresses (`--check` only compares); the Pages workflow runs it before it publishes.
+Link previews are kept per address, so a changed picture under an unchanged address is not shown again. The page therefore names the image as `social.png?v=<version>`. `scripts/site_stamp.py` writes the current `VERSION` into that address (`--check` only compares); the Pages workflow runs it before it publishes.
 
 ## Publishing with Pages
 
-The workflow `.github/workflows/pages.yml` publishes `docs/site/`. It starts by hand only (*Actions › Pages › Run workflow*) and has no effect until Pages is switched on for the repository (*Settings › Pages › Source: GitHub Actions*). The addresses in `index.html` (`canonical`, `og:url`, `og:image`) assume the usual project address of the repository owner; change them when the page is published somewhere else.
+The workflow `.github/workflows/pages.yml` publishes `docs/site/`. It starts by hand only (*Actions › Pages › Run workflow*) and has no effect until Pages is switched on for the repository (*Settings › Pages › Source: Actions*). The addresses in `index.html` (`canonical`, `og:url`, `og:image`) assume the usual project address of the repository owner; change them when the page is published somewhere else.
 
 ## Pictures
 

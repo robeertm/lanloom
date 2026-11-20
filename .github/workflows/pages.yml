@@ -1,5 +1,5 @@
-# Publishes the static landing page (docs/site) with GitHub Pages. Started by hand only, and only useful once Pages is
-# switched on for this repository (Settings > Pages > Source: GitHub Actions). The page is stamped with the current
+# Publishes the static landing page (docs/site) with the Pages service of the repository host. Started by hand only, and only useful once Pages is
+# switched on for this repository (Settings > Pages > Source: Actions). The page is stamped with the current
 # version first, so the social preview image gets a new address for every release (previews are kept per address).
 name: Pages
 

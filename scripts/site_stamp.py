@@ -3,7 +3,7 @@
 because link previews are kept per address - a new version means a new address and so a new picture.
 
   site_stamp.py [--check] [--root DIR]
-Without --check the two image addresses in docs/site/index.html are rewritten; with --check nothing is written and the
+Without --check the image address in docs/site/index.html are rewritten; with --check nothing is written and the
 exit code is 1 when a stamp differs from the VERSION file (the Pages workflow stamps before it publishes)."""
 import argparse
 import re
@@ -23,8 +23,8 @@ def main(argv=None) -> int:
     page = root / "docs" / "site" / "index.html"
     text = page.read_text(encoding="utf-8")
     found = PATTERN.findall(text)
-    if len(found) < 2:
-        print("site_stamp: expected the og:image and twitter:image addresses with ?v=, found %d" % len(found), file=sys.stderr)
+    if not found:
+        print("site_stamp: expected the og:image address with ?v=", file=sys.stderr)
         return 1
     new = PATTERN.sub(lambda m: m.group(1) + version, text)
     if a.check:

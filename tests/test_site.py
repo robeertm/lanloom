@@ -129,7 +129,7 @@ def test_preview_image_and_version_address():
     assert png_size(SITE / "social.png") == (1280, 640)
     t = html()
     imgs = re.findall(r'content="(https://[^"]*social\.png\?v=[0-9][^"]*)"', t)
-    assert len(imgs) == 2, "og:image and twitter:image carry ?v=<version>"
+    assert len(imgs) == 1, "og:image carries ?v=<version>"
     assert 'property="og:image:width" content="1280"' in t and 'property="og:image:height" content="640"' in t
 
 
@@ -142,7 +142,7 @@ def test_site_stamp_writes_the_version(tmp_path):
     assert run("--check").returncode == 1, "an old stamp is found"
     assert run().returncode == 0
     assert run("--check").returncode == 0
-    assert (tmp_path / "docs" / "site" / "index.html").read_text().count("social.png?v=9.8.7") == 2
+    assert (tmp_path / "docs" / "site" / "index.html").read_text().count("social.png?v=9.8.7") == 1
 
 
 def test_pages_workflow_is_manual_and_pinned():

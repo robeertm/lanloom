@@ -74,7 +74,7 @@
 html { scroll-behavior: smooth; scroll-padding-top: 72px; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
-  font: 450 16px/1.55 "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+  font: 450 16px/1.55 "Inter", system-ui, sans-serif;
 }
 img, video { max-width: 100%; height: auto; display: block; }
 a { color: var(--accent-text); text-underline-offset: 3px; }
