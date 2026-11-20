@@ -86,7 +86,7 @@ class FakeHub:
                        if line.lower().startswith("sec-websocket-key"))
             accept = base64.b64encode(hashlib.sha1((key + _ws.GUID).encode()).digest()).decode()
             if self.mode == "bad_accept":
-                accept = "x" + accept[1:]
+                accept = ("y" if accept[0] == "x" else "x") + accept[1:]   # always different (1 in 64 keys starts with x)
             writer.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
                           "Sec-WebSocket-Accept: %s\r\n\r\n" % accept).encode())
             await self.send(writer, {"type": "auth_required", "ha_version": "1.2.3"})  # identifier: hub auth field
