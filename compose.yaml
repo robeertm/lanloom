@@ -54,6 +54,9 @@ services:
       - no-new-privileges:true
     environment:
       LANLOOM_TARGET: lanloom
+      # After a healthy update the sidecar renews itself from the image it has just checked. "0" switches that off
+      # (then renew it by hand with the command on the settings page).
+      # LANLOOM_UPDATER_RENEW: "0"
     volumes:
       - lanloom-data:/data
       - /var/run/docker.sock:/var/run/docker.sock

@@ -912,6 +912,7 @@ Sign-in is mandatory; there is no open mode. The first account can only be creat
 - **Hold this version:** no update notices until you release it; the nightly report notes when a newer version waits.
 - **Back to the previous version:** one click for administrators with a fresh confirmation, same checks as an update; not offered for versions before 1.29.0 (unsigned), which are restored by hand from the backup.
 - **Signature check:** the updater (1.34.0 and later) verifies the signature of the new image against the publishing workflow and the public transparency log before it swaps anything; on failure nothing changes.
+- **The updater renews itself:** after a healthy update it re-creates itself from the same checked image (no second download), waits for its heartbeat and goes back to the old updater if none comes; only one updater runs at a time. An updater from before this feature is renewed once by hand, the settings page shows the command.
 - **What's new?:** the version number in the header opens the changes of each version from the changelog inside the image; nothing is fetched online.
 
 Image tags: version tags such as `:1.1.0` are immutable; `:1` and `:latest` move only after the published image has been tested; `:edge` is the latest build of the main branch.

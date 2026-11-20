@@ -148,6 +148,8 @@ Without the sidecar:
 docker compose pull && docker compose up -d
 ```
 
+After a healthy update the sidecar renews itself from the image it has just checked: a short-lived helper (no network, no root, no capability) creates the sidecar anew with the same settings and compose labels, waits for its heartbeat and goes back to the old sidecar if none comes. Only one sidecar runs at any time. A sidecar from before self-renewal is renewed once by hand (the settings page shows the command); own images and `LANLOOM_UPDATER_RENEW: "0"` in the sidecar's environment keep the manual way. Details: [Updating](manual/updating.md).
+
 An updater sidecar from before 1.17 created the new container with the version tag and, after a second one-click update, left `:latest` on an older version, so `docker compose up -d` could start that older version again. The settings page shows a note while such a sidecar runs. Renew it once; from then on it keeps the tag itself (and repairs a lagging `:latest` when it starts):
 
 ```sh

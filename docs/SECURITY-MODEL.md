@@ -101,7 +101,10 @@ Someone tampers with what users install: a dependency, the base image, the build
   run against exactly that published image; `:latest` moves only after that. Version tags never move.
 - **Updater:** the one-click updater pulls the new version, runs a self-test without network on a read-only
   file system with all capabilities dropped, starts a trial on a copy of the data, backs up and keeps the old image,
-  and rolls back on failure. Checking the signature before the swap is planned for the next updater release.
+  and rolls back on failure. Before it pulls, it checks the signature of the new image against the publishing workflow
+  and the transparency log and pulls exactly the checked digest. After a healthy update it renews itself from that
+  same checked image (no second pull), so its own checks never lag behind because nobody renewed it by hand; if the
+  renewed sidecar does not report, the old one is started again.
 - **No secrets in the repository:** a secret scanner reads every tracked file and the whole git history in CI.
 - **Remaining risk:** the trust anchor is the maintainer's account on the code host and the build workflow. A compromised maintainer account
   could publish a signed image; the transparency log would show it. Verify the signature (SECURITY.md) if you pull
@@ -177,6 +180,11 @@ writes, compose snippets in the documentation and the containers the updater cre
 - the only exception is the optional updater sidecar: it runs as root because it needs the container runtime socket
   (root-equivalent on the host), is opt-in through its own profile, and still has a read-only file system and
   `no-new-privileges`. Leave it out if you do not want that.
+- the short-lived helper with which the sidecar renews itself runs from the image the sidecar has just checked, without
+  network, read-only, with every capability dropped, `no-new-privileges` and without root: as the owner of the data,
+  with the group of the runtime socket added. It has the socket (and so the same reach on the host as the sidecar), but
+  only for the seconds of the switch, and it removes itself when done. Where the socket is open to root only, the
+  sidecar does not start it and the page shows the manual command instead.
 - the add-on image (`addon/lanloom`, add-on mode) starts as root only to create `/data/lanloom` in the add-on volume and
   give it to uid 10001; the start script then drops every group and privilege before Lanloom's code runs (checked by
   `tests/test_addon.py`). The add-on asks for host networking and ingress only: no added capabilities, no devices, no

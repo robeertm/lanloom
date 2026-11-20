@@ -20,6 +20,11 @@
   come from instead (``mode: "addon"``).
 * Since 1.34.0 the sidecar checks the signature of an official candidate before it pulls; `signature.supported`
   says whether the running sidecar can (older sidecars update without the check until they are renewed).
+* Self-renewal: a sidecar whose heartbeat names the feature "renew" renews itself after a healthy update from the
+  image it has just checked, and writes the result into renew.json. `sidecar_hint` names the one remark the page shows
+  with the renew command: "renew_once" (a sidecar from before self-renewal is behind the app), "renew_failed" (the
+  renewal went back to the old sidecar), "renew_manual" (not renewed here: own image, switched off, no own container
+  found, socket not usable). The nightly report mentions a failed renewal only.
 """
 import asyncio
 import json
@@ -44,6 +49,9 @@ CHANNELS = ("stable", "preview")
 BUSY_FOR = 30 * 60
 # Same as updater.engine.TERMINAL (a test keeps them equal; the app does not import the sidecar code).
 RUN_TERMINAL = ("idle", "done", "rolled_back", "failed")
+# Same as updater.engine.RENEW_STATES (a test keeps them equal).
+RENEW_STATES = ("renewing", "done", "rolled_back", "failed", "skipped")
+RENEWING_FOR = 10 * 60        # a "renewing" record older than this is stale (the sidecar cleans it up on its next start)
 SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 
 
@@ -160,6 +168,38 @@ class Updates:
         except (OSError, ValueError):
             return {"state": "idle"}
 
+    def renewal(self) -> Optional[dict]:
+        """The last self-renewal of the sidecar (renew.json), cleaned, or None."""
+        try:
+            rec = json.loads((self.dir / "renew.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(rec, dict) or rec.get("state") not in RENEW_STATES:
+            return None
+        reason = rec.get("reason")
+        try:
+            t = float(rec.get("t") or 0)
+        except (TypeError, ValueError):
+            t = 0.0
+        return {"state": rec["state"], "t": t,
+                "from": rec.get("from") if parse_version(str(rec.get("from") or "")) else None,
+                "to": rec.get("to") if parse_version(str(rec.get("to") or "")) else None,
+                "reason": reason if isinstance(reason, str) and reason.startswith("update.renew.") else None}
+
+    @staticmethod
+    def sidecar_hint(side_v, cur, renews: bool, renew: Optional[dict]) -> Optional[str]:
+        """The one remark about renewing the sidecar by hand (None: nothing to do)."""
+        if not side_v or not cur or side_v >= cur:
+            return None
+        if not renews:
+            return "renew_once"            # from before self-renewal: renewed by hand once, then it renews itself
+        if renew and renew.get("to") == ".".join(map(str, cur)):
+            if renew["state"] in ("rolled_back", "failed"):
+                return "renew_failed"
+            if renew["state"] == "skipped":
+                return "renew_manual"
+        return None
+
     # ------------------------------------------------------------------ channel, hold, previous version
     def channel(self) -> str:
         ch = self.store.get_setting("update_channel", "stable")
@@ -221,6 +261,14 @@ class Updates:
         older = [e["version"] for e in whatsnew.entries() if is_older(e["version"], __version__)]
         return {"version": older[0], "when": time.time() - 9 * 86400} if older else None
 
+    @staticmethod
+    def _demo_renewal(prev: Optional[dict]) -> Optional[dict]:
+        """The sample instance shows an updater that renewed itself with the last update."""
+        if not prev:
+            return None
+        return {"state": "done", "t": prev.get("when") or time.time() - 9 * 86400, "from": prev["version"],
+                "to": __version__, "reason": None}
+
     def state(self) -> dict:
         if self.addon():
             # the add-on system shows and installs new versions; nothing here asks the feed or touches the sidecar
@@ -229,12 +277,13 @@ class Updates:
                     "sidecar_version": None, "sidecar_old": False, "channel": "stable", "stable": None, "preview": None,
                     "preview_none": False, "held": None, "held_newer": None, "previous": None, "rollback_ok": False,
                     "rollback_unsigned": False, "signature": {"supported": False, "enforced": False},
+                    "sidecar_renews": False, "renew": None, "sidecar_hint": None,
                     "image": self.cfg.image_repo, "demo": self.cfg.demo}
         cache = self.cached()
         side = self.sidecar()
         demo = bool(self.cfg.demo)
         if demo and side is None:   # the sample instance shows every part of the page: an updater that checks signatures
-            side = {"version": __version__, "features": ["signature", "previous"]}
+            side = {"version": __version__, "features": ["signature", "previous", "renew"]}
         side_v = parse_version(str((side or {}).get("version") or ""))
         cur = parse_version(__version__)
         stable = cache.get("latest")
@@ -253,6 +302,10 @@ class Updates:
         # the updater checks the signature of an official rollback target too; images before FIRST_SIGNED have none
         unsigned_prev = bool(prev and self.cfg.image_repo == OFFICIAL_REPO and is_older(prev["version"], FIRST_SIGNED))
         features = (side or {}).get("features") if isinstance((side or {}).get("features"), list) else []
+        renews = "renew" in features
+        renew = self._demo_renewal(prev) if demo else self.renewal()
+        if renew and renew["state"] == "renewing" and time.time() - renew["t"] > RENEWING_FOR:
+            renew = None
         return {"current": __version__, "enabled": self.enabled(), "latest": latest, "available": newer and not held,
                 "notes": offer.get("notes") if newer else "", "url": offer.get("url"), "checked": cache.get("checked"),
                 "error": cache.get("error"), "sidecar": side is not None, "status": {"state": "idle"} if demo else self.status(),
@@ -265,6 +318,8 @@ class Updates:
                 "previous": prev, "rollback_ok": bool(prev and side is not None and not unsigned_prev),
                 "rollback_unsigned": unsigned_prev,
                 "signature": {"supported": "signature" in features, "enforced": self.cfg.image_repo == OFFICIAL_REPO},
+                "sidecar_renews": bool(side is not None and renews), "renew": renew,
+                "sidecar_hint": self.sidecar_hint(side_v, cur, renews, renew) if side is not None else None,
                 "image": self.cfg.image_repo, "demo": self.cfg.demo, "mode": "container"}
 
     def busy(self) -> bool:

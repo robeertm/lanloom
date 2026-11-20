@@ -824,6 +824,25 @@
   const PULL_CMD = 'docker compose pull && docker compose up -d';
   const SIDECAR_CMD = 'docker compose pull && docker compose --profile updater up -d';
   const cmdCallout = (text, cmd) => h('div', { class: 'callout' }, h('p', {}, text), h('code', { class: 'cmd' }, cmd));
+  // the one remark about renewing the updater sidecar by hand (the server picks it: renew_once, renew_failed, renew_manual)
+  function sidecarHint(u) {
+    const sig = u.signature || {};
+    if (!u.sidecar) return null;
+    if (sig.supported === false) return cmdCallout(t('update.signature.unsupported'), SIDECAR_CMD);
+    if (u.sidecar_old) return cmdCallout(t('update.sidecar_old'), SIDECAR_CMD);
+    if (!u.sidecar_hint) return null;
+    const r = u.renew || {};
+    return cmdCallout(t('update.sidecar_hint.' + u.sidecar_hint, { v: u.sidecar_version || '?', to: r.to || u.current, from: r.from || u.sidecar_version || '?',
+      reason: r.reason ? t(r.reason) : '' }), SIDECAR_CMD);
+  }
+  // a calm line about the self-renewal: going on now, or done with the last update
+  function renewNote(u) {
+    const r = u.renew;
+    if (!u.sidecar || !r) return null;
+    if (r.state === 'renewing') return h('p', { class: 'muted upd-renew' }, t('update.renew.renewing', { to: r.to || '' }));
+    if (r.state === 'done' && r.to && r.to === u.sidecar_version && r.from) return h('p', { class: 'muted upd-renew' }, t('update.renew.done_at', { from: r.from, to: r.to, at: LL.fmtDate(r.t) }));
+    return null;
+  }
   function setUpdateState(u) { updateState = u; if (updatePill) updatePill.hidden = !u.available; }
   async function checkUpdate(btn) {
     updatePill = btn;
@@ -848,8 +867,8 @@
       notes,
       u.sidecar ? h('p', { class: 'muted' }, t('update.sidecar_text')) : cmdCallout(t('update.manual'), PULL_CMD),
       u.sidecar && sig.supported && sig.enforced ? h('p', { class: 'muted update-sig' }, t('update.signature.enforced')) : null,
-      u.sidecar && sig.supported === false ? cmdCallout(t('update.signature.unsupported'), SIDECAR_CMD) : null,
-      u.sidecar_old && sig.supported !== false ? cmdCallout(t('update.sidecar_old'), SIDECAR_CMD) : null, msg),
+      u.sidecar && u.sidecar_renews ? h('p', { class: 'muted update-renew' }, t('update.renew.after')) : null,
+      sidecarHint(u), msg),
       h('div', { class: 'btn-row' }, u.url ? h('a', { class: 'btn btn--ghost', href: u.url, target: '_blank', rel: 'noopener noreferrer' }, t('update.notes_link')) : null, apply));
   }
   function followUpdate(msg, version, nonce) {
@@ -1197,9 +1216,11 @@
       }
       return updSection = h('section', { class: 'card settings-card update-card' }, h('h2', {}, t('settings.updates')),
         facts([[t('settings.version'), versionBtn], [t('settings.latest'), u.latest || '—'], [t('settings.channel'), t('update.channel.' + (u.channel === 'preview' ? 'preview' : 'stable'))],
-          [t('settings.checked'), u.checked ? LL.fmtDate(u.checked) : '—'], [t('settings.sidecar'), u.sidecar ? t('settings.sidecar.yes') : t('settings.sidecar.no')],
+          [t('settings.checked'), u.checked ? LL.fmtDate(u.checked) : '—'],
+          [t('settings.sidecar'), !u.sidecar ? t('settings.sidecar.no') : !u.sidecar_version ? t('settings.sidecar.yes')
+            : t(u.sidecar_renews ? 'settings.sidecar.renews' : 'settings.sidecar.version', { v: u.sidecar_version })],
           u.sidecar ? [t('settings.signature'), sig.supported ? t(sig.enforced ? 'settings.signature.enforced' : 'settings.signature.yes') : t('settings.signature.no')] : null]),
-        u.sidecar_old || (u.sidecar && sig.supported === false) ? cmdCallout(t(sig.supported === false ? 'update.signature.unsupported' : 'update.sidecar_old'), SIDECAR_CMD) : null,
+        sidecarHint(u), renewNote(u),
         h('div', { class: 'upd-group' }, LL.field(t('update.channel'), channel, t('update.channel.hint')), u.preview_none ? h('p', { class: 'field__hint upd-none' }, t('update.channel.none')) : null),
         h('div', { class: 'upd-group' }, h('label', { class: 'check' }, hold, h('span', {}, t('update.hold'))), h('p', { class: 'field__hint' }, t('update.hold.hint')),
           u.held ? h('p', { class: 'upd-held' + (u.held_newer ? ' is-newer' : '') }, u.held_newer ? t('update.held_newer', { v: u.held, n: u.held_newer }) : t('update.held', { v: u.held })) : null),

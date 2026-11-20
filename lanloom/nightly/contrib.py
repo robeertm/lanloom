@@ -491,6 +491,12 @@ def _lanloom(ctx: Ctx) -> dict:
     if st.get("state") in ("failed", "rolled_back") and st.get("version") and ctx.since <= float(st.get("t") or 0) < ctx.until:
         items.append(item("updfail:%s" % (st.get("nonce") or st.get("t")), "report.self.update_failed", "warn", True,
                           version=st["version"], reason_key=st.get("message_key") or "update.err.internal"))
+    rn = upd.get("renew") or {}
+    if rn.get("state") in ("rolled_back", "failed") and ctx.since <= float(rn.get("t") or 0) < ctx.until:
+        # only a failed self-renewal of the updater is worth a line; a done or skipped one is not
+        items.append(item("renewfail:%s" % rn.get("t"), "report.self.renew_failed",
+                          "warn" if rn["state"] == "failed" else "info", True, version=rn.get("to") or "",
+                          was=rn.get("from") or "", reason_key=rn.get("reason") or "update.renew.err.helper"))
     for ev in ctx.events("app_start"):
         d = ev["data"]
         if d.get("prev") and d.get("version") and _older(d["version"], d["prev"]):

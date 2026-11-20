@@ -262,6 +262,8 @@ has no update button in the add-on. See [ADDON.md](ADDON.md).
 | Permission error when starting | run with `sudo` or add your user to the container runtime's group |
 | Data folder not writable (bind mount) | the folder must be writable by uid 10001; or keep the named volume |
 | Compose starts an older version after an update | an updater sidecar from before 1.17 left `:latest` on an older image; renew it once with `docker compose pull && docker compose --profile updater up -d` |
+| The settings say the updater could not renew itself | the new updater container did not report in time; the old one keeps working and the next update tries again. To renew it now: `docker compose pull && docker compose --profile updater up -d`. The reason is on the Updates card |
+| The settings say the updater does not renew itself here | own image, `LANLOOM_UPDATER_RENEW: "0"`, own container not found or a runtime socket that only root may use; renew it by hand with the command shown, or check with `docker compose exec updater python -m updater --once-check` (section `self_renew`) |
 | The Update button is missing | the updater sidecar is not running (`docker compose --profile updater up -d`) or the update check is switched off in the settings |
 | A backup cannot be restored: "made by a newer version" | update Lanloom to that version or newer first, then restore ([BACKUP.md](BACKUP.md#restore)) |
 | The nightly report did not come | Lanloom was off at the report time; it is made at the next start and says so ([NIGHTLY-REPORT.md](NIGHTLY-REPORT.md)) |
