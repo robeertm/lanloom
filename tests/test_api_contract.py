@@ -158,11 +158,13 @@ def test_real_answers_match_the_description(env):
 def test_the_ingest_answer_and_the_examples_match(env):
     ops = {(m, p): op for m, p, op in spec_ops(env.spec)}
     op = ops[("POST", "/api/v1/ingest")]
-    r = env.post("/api/v1/ingest", json={"source": "contract", "title": "Contract test", "items": [{"text": "line", "level": "warn"}]},
+    # the sample instance keeps several sites: a report names the site it is for (M1T), with the field or the header
+    r = env.post("/api/v1/ingest", json={"source": "contract", "title": "Contract test", "items": [{"text": "line", "level": "warn"}], "site": "home"},
                  headers={"X-Lanloom": "1"})
     assert r.status_code == 200, r.text
     check(r.json(), op["responses"]["200"]["content"]["application/json"]["schema"])
     check({"source": "a", "title": "b"}, op["requestBody"]["content"]["application/json"]["schema"])
+    check({"source": "a", "title": "b", "site": "home"}, op["requestBody"]["content"]["application/json"]["schema"])
     for m, p, op in spec_ops(env.spec):
         ex = op["responses"]["200"]["content"]["application/json"].get("example")
         if ex is not None:
