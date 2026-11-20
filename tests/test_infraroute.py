@@ -279,6 +279,38 @@ def test_enter_the_country(answer):
     assert "enter" not in answer["countries"]["AQ"]
 
 
+def test_inland_ways_between_the_hubs_of_a_country(answer, routes):
+    de = answer["inland"]["DE"]
+    assert {"muc", "fra", "ber", "ham"} <= set(de["hubs"]) and de["paths"]
+    hubs_of = {k: v["cc"] for k, v in answer["hubs"].items()}
+    for ab, ids in de["paths"].items():
+        a, b = ab.split("|")
+        assert a in de["hubs"] and b in de["hubs"] and ids
+        for i in ids:
+            e = answer["edges"][i.lstrip("~")]
+            assert e["kind"] not in ("sat", "access", "radio")
+        assert _points(answer, ids)[0] == pytest.approx(de["hubs"][a], abs=0.05)
+        assert _points(answer, ids)[-1] == pytest.approx(de["hubs"][b], abs=0.05)
+    assert "AQ" not in answer["inland"]                         # one hub or none: nothing to connect
+    n = N.InfraNet(DATA, COUNTRIES, WORLD)
+    il = n.inland("GR")
+    assert il is n.inland("GR"), "once per country"
+    for w in il["ways"].values():
+        for e, _ in w:
+            assert n.edges[e]["a"] not in ("sat", "access", "radio")
+
+
+def test_a_route_is_computed_once_per_measurement(routes):
+    sec = _sections(("Frankfurt", 50.11, 8.68, "DE", 6, True), ("Paris", 48.86, 2.35, "FR", 12, True), target_rtt=14)
+    r = _route("FR:9:a", "FR", sec, 14.0)
+    a = routes.compute(DATA, HOME, [r])
+    assert any(k[1] == "FR:9:a" and k[2] == 5 for k in routes._routes)
+    cached = next(v for k, v in routes._routes.items() if k[1] == "FR:9:a")
+    b = routes.compute(DATA, dict(HOME, lat=50.6), [r, _route("FR:9:b", "FR", sec, 14.0)])
+    assert routes._routes[next(k for k in routes._routes if k[1] == "FR:9:a")] is cached
+    assert "FR:9:a" in a["routes"] and {"FR:9:a", "FR:9:b"} <= set(b["routes"]) and "_w" not in b["routes"]["FR:9:a"]
+
+
 def test_operator_lists_carry_sat_only_when_it_applies():
     assert datapaths._with_sat({"asn": 14593, "name": "AS14593", "bytes": 1})["sat"] == "leo"
     assert datapaths._with_sat({"asn": 7155, "name": "x", "bytes": 1})["sat"] == "geo"

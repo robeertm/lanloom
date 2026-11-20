@@ -748,6 +748,45 @@ class InfraNet:
             i = i0
         return way[::-1]
 
+    def inland(self, cc):
+        """Ways between the hubs of one country (country sheet: cities hang on the nearest hub, not all on the entry point). Allowed are
+        hubs of the country and cable nodes (islands), never hubs of other countries; no satellite, access or radio edges.
+        -> {"hubs": [node], "ways": {(a, b): [(edge, forward)]}} - computed once per country."""
+        cache = getattr(self, "_inland", None)
+        if cache is None:
+            cache = self._inland = {}
+        if cc in cache:
+            return cache[cc]
+        hubs = [h for h, _, _ in self._hubs_ll if self.cc[h] == cc]
+        ways = {}
+        if len(hubs) >= 2:
+            for a in hubs:
+                dist, prev, heap = {a: 0.0}, {}, [(0.0, a)]
+                while heap:
+                    d, i = heapq.heappop(heap)
+                    if d > dist.get(i, 1e18):
+                        continue
+                    for j, cost, e, fw in self.adj[i]:
+                        if self.edges[e]["a"] in ("sat", "access", "radio"):
+                            continue
+                        if self.kind[j] == "hub" and self.cc[j] != cc:
+                            continue
+                        if self.kind[j] in ("country", "home"):
+                            continue
+                        nd = d + cost
+                        if nd < dist.get(j, 1e18):
+                            dist[j] = nd
+                            prev[j] = (i, e, fw)
+                            heapq.heappush(heap, (nd, j))
+                for b in hubs:
+                    if b <= a or b not in prev:
+                        continue
+                    w = _tree_way(prev, a, b)
+                    if w:
+                        ways[(a, b)] = w
+        cache[cc] = {"hubs": hubs, "ways": ways}
+        return cache[cc]
+
     def snap(self, la, lo):
         """Place of a route -> nearest hub (at most HOP_HUB_KM) or landing point (at most HOP_LANDING_KM) or None."""
         best = None
@@ -908,6 +947,7 @@ class InfraRoutes:
         self._net = None
         self._net_key = None
         self._cache = {}
+        self._routes = {}                # (home node, route key, measured at) -> way (a new route only computes itself)
 
     def net(self, data):
         sea = data.get("sea") if isinstance(data, dict) else None
@@ -916,6 +956,7 @@ class InfraRoutes:
             self._net = InfraNet(data, self.countries, self.shapes)
             self._net_key = k
             self._cache = {}
+            self._routes = {}
         return self._net
 
     @staticmethod
@@ -950,7 +991,8 @@ class InfraRoutes:
            "countries": {cc: {"path": [edge ids, "~" = reversed], "origin", "km", "via", "cables", "enter"?, "gateway_name"?,
                               "sat"?: {"path", "gateway", "gateway_name"}}},
            "routes": {key: {"path", "origin": "route"|"sat", "places", "measured_edges", "via", "cables", "end"?, "conflict"?,
-                            "orbit"?, "jump_ms"?, "gateway"?, "gateway_name"?, "target"?}}}
+                            "orbit"?, "jump_ms"?, "gateway"?, "gateway_name"?, "target"?}},
+           "inland": {cc: {"hubs": {key: [x, y]}, "paths": {"a|b": [edge ids]}}}  (ways between the hubs of one country)}
         None if the home has no point."""
         st = self.stand(data, home, routes, version)
         if st in self._cache:
@@ -996,17 +1038,34 @@ class InfraRoutes:
                     z["sat"] = {"path": [_id(e, fw) for e, fw in gw], "gateway": [round(net.x[g], 2), round(net.y[g], 2)],
                                 "gateway_name": net.name[g]}
             targets[cc] = z
+        inland = {}
+        for cc in country_node:                            # inland net per country (only countries with several hubs)
+            il = net.inland(cc)
+            if not il["ways"]:
+                continue
+            for w in il["ways"].values():
+                for e, _ in w:
+                    used[e] = True
+            inland[cc] = {"hubs": {net.key[h][2:]: [round(net.x[h], 2), round(net.y[h], 2)] for h in il["hubs"]},
+                          "paths": {net.key[a][2:] + "|" + net.key[b][2:]: [_id(e, fw) for e, fw in w] for (a, b), w in il["ways"].items()}}
         measured = {}
+        if len(self._routes) > 400:
+            self._routes = {}
         for r in routes or []:
-            try:
-                x = self._route(net, s, r)
-            except (KeyError, TypeError, ValueError, IndexError):
-                x = None
+            rk = (s, r.get("key"), r.get("t"))
+            if rk in self._routes:
+                x = self._routes[rk]
+            else:
+                try:
+                    x = self._route(net, s, r)
+                except (KeyError, TypeError, ValueError, IndexError):
+                    x = None
+                self._routes[rk] = x
             if not x:
                 continue
-            for e, _ in x.pop("_w"):
+            for e, _ in x["_w"]:
                 used[e] = True
-            measured[r["key"]] = x
+            measured[r["key"]] = {k: v for k, v in x.items() if k != "_w"}
         edges = {}
         for e in sorted(used):
             k = net.edges[e]
@@ -1019,7 +1078,7 @@ class InfraRoutes:
                     hubs[net.key[i][2:]] = {"name": net.name[i], "cc": net.cc[i], "p": [round(net.x[i], 2), round(net.y[i], 2)]}
         out = {"version": VERSION, "stand": st, "cables_stand": net.cables_stand, "home": [round(net.x[s], 2), round(net.y[s], 2)],
                "sources": SOURCES_ALWAYS + (["cables_osm"] if net.landings else []),
-               "edges": edges, "hubs": hubs, "countries": targets, "routes": measured}
+               "edges": edges, "hubs": hubs, "countries": targets, "routes": measured, "inland": inland}
         if len(self._cache) > 6:
             self._cache.clear()
         self._cache[st] = out
