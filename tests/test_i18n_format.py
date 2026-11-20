@@ -62,14 +62,23 @@ def test_javascript_and_python_agree():
     for (text, vars_, lang), got in zip(TEXTS, js["fill"]):
         assert norm(got) == norm(textfmt.fill(text, vars_, lang)), (text, vars_, lang, got)
     for (lang, n, d), got in zip(NUMS, js["num"]):
-        assert norm(got) == norm(textfmt.num(lang, n, d)), (lang, n, d, got)
+        want = textfmt.num(lang, n, d)
+        if lang in textfmt.MIN_GROUPING and len(str(int(abs(n)))) == 4:
+            # Spanish and Italian write four digits without a separator in current CLDR data (minimumGroupingDigits 2); the ICU of an
+            # older Node (the NAS test image) still groups them. Both are right for their data: only the separator may differ.
+            assert norm(got).replace(".", "") == norm(want).replace(".", ""), (lang, n, d, got)
+            continue
+        assert norm(got) == norm(want), (lang, n, d, got)
 
 
 def test_plural_categories_match_cldr_table():
     js = run_node([], [])
     assert len(js["cat"]) == len(LANGS_CHECKED)
     for lang, row in zip(LANGS_CHECKED, js["cat"]):
-        assert row == [textfmt.category(lang, n) for n in (0, 1, 2, 5, 21, 1000000)], lang
+        want = [textfmt.category(lang, n) for n in (0, 1, 2, 5, 21, 1000000)]
+        assert row[:5] == want[:5], lang
+        # "many" (exact millions) came with newer CLDR data; an older ICU says "other" there. Texts need no "many" form, so both are fine.
+        assert row[5] == want[5] or (row[5] == "other" and want[5] == "many"), lang
 
 
 def test_board_fallback_matches_for_english():
