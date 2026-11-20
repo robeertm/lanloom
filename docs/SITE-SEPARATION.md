@@ -55,7 +55,7 @@ code follows and the checks that hold it to them. Every new route and every new 
 ## Behind a reverse proxy
 
 The header `X-Lanloom-Site` has to pass the proxy in both directions, and `Vary` must reach the browser. Proxies that
-forward every header (the usual setup of nginx, Caddy, Traefik, HAProxy) need nothing. A proxy with a list of allowed
+forward every header (the usual setup of the common reverse proxies) need nothing. A proxy with a list of allowed
 headers needs `X-Lanloom-Site` and `X-Lanloom` on the request side and `X-Lanloom-Site` and `Vary` on the answer side. A
 caching proxy must not cache `/api/` (Lanloom sends `Cache-Control: no-store`) or must respect `Vary`. See
 [INSTALL.md](INSTALL.md#behind-a-reverse-proxy).
