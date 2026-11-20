@@ -271,8 +271,9 @@ const d = /Some Words/.test(s) ? 1 : 2;
 # ------------------------------------------------------------------ numbers, dates, times, plurals
 # `.toFixed(` writes a decimal point; for text a person reads use LL.fmtNum (Intl). Remaining uses are SVG / CSS geometry (always a point).
 TOFIXED_GEOMETRY = {
-    "paths.js": (22, "SVG path and style values of the world map arcs, zoom viewBox, label transforms and radii; stroke widths of the real cables ways"),
-    "paths_cables.js": (2, "SVG path coordinates of the cable ways and estimated legs (map units)"),
+    "paths.js": (20, "SVG path and style values of the world map arcs, zoom viewBox, label transforms and radii"),
+    "paths_cables.js": (2, "SVG path coordinates of the cable lines (map units)"),
+    "paths_infra.js": (23, "SVG path coordinates, stroke widths and transforms of the strands, satellite hops and hub points of the Real cables view"),
     "paths_routes.js": (7, "SVG path coordinates and point radii of the route lines on the maps"),
     "paths_country.js": (14, "SVG viewBox, bubble radii, label positions and bar heights of the country map and history"),
     "hypervisor.js": (2, "SVG path of the sparkline"),

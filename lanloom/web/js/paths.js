@@ -5,8 +5,9 @@
    bytes; outside the EU amber, in the EU teal. Dots travel on the arcs on a canvas above the map: only while the map is on screen and
    the tab is visible, never with "reduce motion", and the drawing rate steps down by itself when frames come slowly (no GPU).
    Full screen: button at the map, Esc / close / back gesture close it; window switch, legend and selection stay usable.
-   Two views (DW3, paths_cables.js): "Real cables" (default: cables as fine lines, the traffic runs over the measured routes and the
-   cable the server estimated; a country without a measured route gets a dashed arc, "path estimated") and "Rain" (the arcs). The
+   Two views (DW3, paths_cables.js): "Real cables" (default: ONLY lines, paths_infra.js - every country's traffic runs over sea cables,
+   land lines, radio links or a satellite hop, bundled into strands that get thicker with the traffic; never an arc, never dashed) and
+   "Rain" (the arcs). The
    sum of the map is the same in both views. */
 (function () {
   'use strict';
@@ -49,6 +50,7 @@
   const reduced = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const CB = () => LL.pathsCables || null;
   const cablesOn = () => !!(CB() && CB().on());
+  const INF = () => LL.pathsInfra || null;
 
   // ------------------------------------------------------------------ view state (kept across live redraws)
   const S = { window: '24h', d: null, sel: null, el: null, full: null, anims: new Set(), timer: 0, loading: false, error: null, zv: { page: null, full: null }, zc: { page: null, full: null } };
@@ -147,41 +149,35 @@
       small.appendChild(titled(svgEl('circle', { class: 'pw-dot ' + (isEU(x.cc) ? 'pw-eu' : 'pw-out') + (selCC === x.cc ? ' is-selected' : ''),
         cx: px, cy: py, r: 3.2, 'data-r': 3.2, 'data-cc': x.cc }), countryName(x.cc) + ' — ' + LL.fmtBytes(x.tx + x.rx)));
     }
-    const arcs = [], streams = [], cables = cablesOn(), hot = [];
+    const arcs = [], cables = cablesOn();
+    let streams = [], shares = [];
     const arcG = svgEl('g', { class: 'pw-arcs' });
-    /* Real cables: the measured routes per destination country (their path over the estimated cables, from the server) */
-    const byCc = new Map();
-    if (cables) for (const r of (S.d.routes || [])) {
-      (r.cables || []).forEach(e => hot.push(e));
-      if (r.cc && r.cc !== hc && Array.isArray(r.path) && r.path.length) { if (!byCc.has(r.cc)) byCc.set(r.cc, []); byCc.get(r.cc).push(r); }
+    const IN = cables ? INF() : null, N = IN ? IN.data() : null;
+    if (IN) IN.need(S.d.infra_stand);
+    const endOf = new Map(), seenAt = new Map();
+    if (cables && N) {
+      // Real cables: only lines. Every country's bytes run over its ways (measured ones, else the estimated way of the country).
+      shares = IN.shares(N, others, S.d.routes || [], { out: cc => !isEU(cc), sel: selCC, point });
+      const drawn = IN.draw(N, shares, { maxW: 4.2 });
+      arcG.appendChild(drawn.g);
+      streams = drawn.streams;
+      for (const x of others) {                              // a way that ends where it was measured (anycast): the end moves there
+        const mine = shares.filter(s => s.cc === x.cc);
+        if (mine.length && mine.every(s => s.end)) { endOf.set(x.cc, mine[0].end); if (mine[0].conflict) seenAt.set(x.cc, mine[0].conflict.place); }
+      }
     }
-    if (hp) {
+    if (cables && hp) {
+      for (const x of others.slice().sort((a, b) => (a.tx + a.rx) - (b.tx + b.rx))) {
+        const w = 1 + 4.6 * Math.sqrt((x.tx + x.rx) / max), side = isEU(x.cc) ? 'pw-eu' : 'pw-out', quiet = !!(selCC && selCC !== x.cc);
+        const p = endOf.get(x.cc) || point(x.cc);
+        const e = svgEl('circle', { class: 'pw-end ' + side + (quiet ? ' is-quiet' : ''), 'data-cc': x.cc, cx: p[0], cy: p[1], r: endR(w), 'data-r': endR(w) });
+        arcG.appendChild(titled(e, countryName(x.cc) + ' \u2014 ' + LL.fmtBytes(x.tx + x.rx) + (N ? '\n' + IN.endText(x.cc, shares) : '')));
+      }
+    }
+    if (hp && !cables) {
       for (const x of others.slice().sort((a, b) => (a.tx + a.rx) - (b.tx + b.rx))) {
         const g = arcGeom(hp, point(x.cc)), share = (x.tx + x.rx) / max, w = 1 + 4.6 * Math.sqrt(share);
         const quiet = !!(selCC && selCC !== x.cc), side = isEU(x.cc) ? 'pw-eu' : 'pw-out';
-        if (cables) {
-          const rs = byCc.get(x.cc) || [], sel = selCC === x.cc ? ' is-selected' : '', q = quiet ? ' is-quiet' : '';
-          if (rs.length) {
-            // the bytes of the country are shared by its measured routes (the sum stays the same)
-            const frac = 1 / rs.length;
-            for (const r of rs) {
-              const parts = CB().withStart(r.path, hp);
-              const grp = CB().pathGroup(parts, 'pw-way ' + side + q + sel, countryName(x.cc) + ' \u2014 ' + LL.fmtBytes((x.tx + x.rx) * frac));
-              grp.setAttribute('data-cc', x.cc);
-              grp.setAttribute('style', '--cb-w:' + (0.8 + 2.4 * Math.sqrt(share * frac)).toFixed(2) + 'px');
-              arcG.appendChild(grp);
-              streams.push({ cc: x.cc, L: CB().pathLine(parts), rx: x.rx * frac, tx: x.tx * frac, out: !isEU(x.cc), quiet, via: 'route' });
-            }
-          } else {
-            const est = svgEl('path', { class: 'pw-arc pw-arc--est ' + side + q + sel, 'data-cc': x.cc, d: arcD(g),
-              style: 'stroke-width:calc(' + Math.min(w, 2.6).toFixed(2) + 'px / var(--pw-z, 1))' });
-            arcG.appendChild(titled(est, countryName(x.cc) + ' \u2014 ' + t('cables.path_estimated')));
-            streams.push({ cc: x.cc, L: CB().arcLine(g), rx: x.rx, tx: x.tx, out: !isEU(x.cc), quiet, via: 'arc' });
-          }
-          arcG.appendChild(titled(svgEl('circle', { class: 'pw-end ' + side + q, 'data-cc': x.cc, cx: g.x1, cy: g.y1, r: endR(w), 'data-r': endR(w) }),
-            countryName(x.cc) + ' \u2014 ' + LL.fmtBytes(x.tx + x.rx)));
-          continue;
-        }
         arcs.push(Object.assign(g, { cc: x.cc, share, out: !isEU(x.cc), inbound: x.rx >= x.tx, quiet }));
         arcG.appendChild(svgEl('path', { class: 'pw-arc ' + side + (quiet ? ' is-quiet' : '') + (selCC === x.cc ? ' is-selected' : ''), 'data-cc': x.cc,
           d: arcD(g),
@@ -197,7 +193,8 @@
     if (labels && hp) {
       const cand = others.slice().sort((a, b) => (b.tx + b.rx) - (a.tx + a.rx)).slice(0, 40);
       if (selCC && by.get(selCC) && !cand.some(x => x.cc === selCC) && selCC !== hc) cand.push(by.get(selCC));
-      for (const x of cand) labelItems.push({ cc: x.cc, p: point(x.cc), t1: countryName(x.cc), t2: LL.fmtBytes(x.tx + x.rx), out: !isEU(x.cc), sel: x.cc === selCC });
+      for (const x of cand) labelItems.push({ cc: x.cc, p: endOf.get(x.cc) || point(x.cc), t1: countryName(x.cc),
+        t2: LL.fmtBytes(x.tx + x.rx) + (seenAt.get(x.cc) ? ' \u00b7 ' + t('infra.measured_at', { place: seenAt.get(x.cc) }) : ''), out: !isEU(x.cc), sel: x.cc === selCC });
       labelItems.sort((a, b) => (b.sel ? 1 : 0) - (a.sel ? 1 : 0));          // the selection is laid out first and always gets its label
     }
     const hx = labels && hp ? by.get(hc) : null;
@@ -205,7 +202,9 @@
     const svg = svgEl('svg', { class: 'pw-map', viewBox: '0 0 ' + m.w + ' ' + m.h, role: 'img', 'aria-label': t('paths.map.aria'), preserveAspectRatio: 'xMidYMid meet' },
       [shapes, small, arcG, homeG, labelG]);
     svg.addEventListener('click', ev => {
-      const el = ev.target.closest('[data-cc]');
+      // the strands of the Real cables view answer hover only: a click goes to the country under them
+      let el = ev.target.closest('[data-cc]');
+      if (!el && ev.target.closest('.in-layer')) el = document.elementsFromPoint(ev.clientX, ev.clientY).find(e => e.dataset && e.dataset.cc);
       if (el && (by.has(el.dataset.cc))) openCountry(el.dataset.cc);
     });
     svg._pw = { labelG, labelItems, homeLabel, hp };
@@ -214,9 +213,9 @@
     if (!cables && LL.pathsRoutes && S.d && S.d.routes && S.d.routes.length && hp && m.project) {
       LL.pathsRoutes.drawOn(svg, S.d.routes, { project: (lon, lat) => m.project(lon, lat), point, home: hc, quiet: true, before: '.pw-labels' });
     }
-    if (cables) CB().layer(svg, hot, { before: '.pw-arcs', detached: true });
+    if (cables) CB().layer(svg, { before: '.pw-arcs', detached: true });
     S.sums = { view: cables ? 'cables' : 'rain', map: cables ? streams.reduce((a, x) => a + x.rx + x.tx, 0) : arcs.reduce((a, g) => a + (by.get(g.cc).tx + by.get(g.cc).rx), 0),
-      streams: streams.length, routes: streams.filter(x => x.via === 'route').length, estimated: streams.filter(x => x.via === 'arc').length };
+      streams: streams.length, routes: streams.filter(x => x.via === 'route').length, estimated: 0 };
     return { svg, arcs, streams };
   }
 
@@ -261,6 +260,12 @@
     const hl = P.homeLabel;
     if (hl && inView(hp[0], hp[1])) mk('pw-label pw-label--home', hp[0] - 9 * k, hp[1] + 20 * k, hl.t1, hl.t2, 'end', hl.cc);
   }
+  /* satellites and hub points of the Real cables view keep their screen size at every zoom step */
+  function rescale(svg) {
+    if (!INF()) return;
+    const vb = svg.viewBox.baseVal, r = svg.getBoundingClientRect();
+    if (r.width && vb.width) INF().scale(svg, r.width / vb.width);
+  }
   function applyView(svg, v) {
     const m = map(), ratio = m.h / m.w;
     let w = Math.max(m.w / 16, Math.min(m.w, v.w)), hgt = w * ratio;
@@ -270,6 +275,7 @@
     svg.style.setProperty('--pw-z', z.toFixed(4));
     svg.querySelectorAll('circle[data-r]').forEach(c => c.setAttribute('r', (parseFloat(c.dataset.r) / z).toFixed(3)));
     svg.classList.toggle('is-zoomed', z > 1.001);
+    rescale(svg);
     placeLabels(svg);
     return { x, y, w };
   }
@@ -631,6 +637,7 @@
     if (rc) kids.push(rc);
     kids.push(attribution(d));
     page.replaceChildren(...kids);
+    rescale(built.svg);
     if (!S.full) requestAnimationFrame(() => { if (stage.isConnected && !S.full) startAny(stage, built.svg, built); });
     if (S.full) renderFull();
   }
@@ -690,6 +697,7 @@
     stage.style.width = w + 'px';
     stage.style.height = Math.floor(w / ratio) + 'px';
     area.classList.toggle('is-wide', portrait);
+    const sv = stage.querySelector('svg'); if (sv) rescale(sv);
     if (portrait && !f.centred) {                       // start at the home country
       const hp = point(home());
       if (hp) area.scrollLeft = Math.max(0, hp[0] / m.w * w - r.width / 2);
@@ -701,14 +709,15 @@
     if (!f) return;
     stopAllDots();
     unzoom('full');
+    const built = buildMap(true);                                 // first: the legend names the lines this map draws
     f.el.querySelector('.pw-full__seg').replaceChildren(seg(), ...(CB() ? [CB().control('pv-seg--full')] : []));
     f.el.querySelector('.pw-full__legend').replaceChildren(legend(), ...[CB() ? CB().attribution('pw-full__attr') : null].filter(Boolean));
     f.el.querySelector('.pw-full__sel').replaceChildren(...[selChip()].filter(Boolean));
     const stage = f.el.querySelector('.pw-full__stage');
-    const built = buildMap(true);
     stage.replaceChildren(built.svg);
     fitFull();
     S.zc.full = enableZoom(stage, built.svg, 'full', f.el.querySelector('.pw-full__head'), f.el.querySelector('.pw-full__area'));
+    rescale(built.svg);
     requestAnimationFrame(() => { if (S.full === f && stage.isConnected) startAny(stage, built.svg, built); });
   }
 
@@ -744,6 +753,8 @@
     window.addEventListener('resize', onResize);
     const onView = () => { if (S.d) render(); };                 // Real cables | Rain switched (here, in the full screen or the sheet)
     document.addEventListener('lanloom-paths-view', onView);
+    const onInfra = () => { if (S.d && cablesOn()) render(); };    // the ways of the Real cables view arrived
+    document.addEventListener('lanloom-paths-infra', onInfra);
     return { destroy() {
       fr.destroy && fr.destroy();
       clearInterval(S.timer); S.timer = 0;
@@ -752,6 +763,7 @@
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
       document.removeEventListener('lanloom-paths-view', onView);
+      document.removeEventListener('lanloom-paths-infra', onInfra);
       teardownFull();
       stopAllDots();
       unzoom('page');

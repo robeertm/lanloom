@@ -190,7 +190,7 @@ PATHS = {
     31: [("US", 3, 60), ("IE", 1, 30)],
     32: [("US", 4, 700), ("GB", 1, 90)],
     51: [("CN", 12, 1)],
-    65: [("CN", 2, 1), ("SG", 1, 0.5)],
+    65: [("CN", 2, 1), ("SG", 1, 0.5), ("FK", 0.8, 5)],
     66: [("NL", 1, 0.3), ("DE", 0.5, 0.2), ("~anycast", 0.05, 0.05)],
 }
 # Conversations between two devices of the LAN (as a gateway would report them across networks): host number, host number,

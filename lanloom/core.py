@@ -749,6 +749,7 @@ class Core:
         out["source"] = self.paths_source()
         out["routes"] = self.with_cables(self.routes.rows(limit=20)) if self.routes.settings()["enabled"] or self.routes.demo else []
         out["routes_on"] = bool(self.routes.settings()["enabled"])
+        out["infra_stand"] = self.paths_infra_stand()
         return out
 
     def _paths_devices(self) -> dict:
@@ -778,6 +779,7 @@ class Core:
         out["source"] = self.paths_source()
         out["routes"] = self.with_cables(rw.rows(cc_n)) if (on or rw.demo) else []
         out["routes_on"] = on
+        out["infra_stand"] = self.paths_infra_stand()
         out["home_cc"] = (self.settings().get("home_country") or "").upper()
         return out
 
@@ -828,7 +830,7 @@ class Core:
         is stored. Without routes the cable file is not even opened."""
         if not rows:
             return rows
-        from . import cableroute
+        from . import cableroute, infraroute
         data = self.cables.data()
         ver = self.cables.version
         places = self.routes.places if data else {}
@@ -847,7 +849,11 @@ class Core:
                 except (TypeError, ValueError, KeyError, IndexError, ZeroDivisionError):
                     hit = {"cables": [], "crossings": [], "path": []}
                 self._cable_cache[k] = hit
-            out.append(dict(r, **hit))
+            row = dict(r, **hit)
+            sat = infraroute.satellite(r.get("asn"), r.get("operator"))
+            if sat:
+                row["sat"] = sat                                   # the destination network is a satellite network (leo/geo)
+            out.append(row)
         return out
 
     def paths_cables_action(self, action: str, raw: bytes = b"") -> dict:

@@ -613,13 +613,13 @@ def test_demo_seed_fills_routes_and_nothing_is_measured(env):
     rw = env.rw
     assert rw.demo is True and env.core.settings()["paths_routes"] is True
     st = rw.status()
-    assert st["demo"] is True and st["possible"] is True and st["stored"] == len(demo_routes.ROUTES) == 7
+    assert st["demo"] is True and st["possible"] is True and st["stored"] == len(demo_routes.ROUTES) == 8
     rows = rw.rows(limit=40)
-    assert len(rows) == 7 and any(r["anycast"] for r in rows) and any(r["changed_recent"] for r in rows) and any(r["uncertain"] for r in rows)
+    assert len(rows) == 8 and any(r["anycast"] for r in rows) and any(r["changed_recent"] for r in rows) and any(r["uncertain"] for r in rows)
     text = json.dumps(rows)
     assert not IPV4.search(text) and "example." not in text
     demo_routes.seed(env.core, now=NOW)                                       # a second time changes nothing
-    assert rw.status()["stored"] == 7
+    assert rw.status()["stored"] == 8
     assert rw.run_once() == {"ran": False, "reason": "off"}
     feed(env)
     assert rw.candidates == {} and rw.wants() is False
@@ -695,7 +695,7 @@ def audit_actions(c):
 def test_api_demo_is_shown_in_the_sample_network(api):
     login(api, "vera")
     d = api.get("/api/paths/routes").json()
-    assert d["status"]["demo"] is True and d["status"]["enabled"] is True and len(d["routes"]) == 7
+    assert d["status"]["demo"] is True and d["status"]["enabled"] is True and len(d["routes"]) == 8
     assert not IPV4.search(json.dumps(d))
 
 

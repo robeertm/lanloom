@@ -41,6 +41,7 @@ OPERATORS = {
     "FI": [(65536, "Example Hosting", 1, [("Helsinki", 1)])],
     "CN": [(65537, "Example Telecom", 1, [("Beijing", 3), (None, 2)])],
     "KR": [(65538, "Example Telecom", 1, [("Seoul", 2), (None, 1)])],
+    "FK": [(14593, "Orbit Link", 1, [(None, 1)])],           # a remote destination reached over a low-orbit satellite network
 }
 
 

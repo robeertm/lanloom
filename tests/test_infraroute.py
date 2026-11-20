@@ -380,3 +380,19 @@ def test_api_without_a_home_country_there_is_no_answer(app_client):
         assert c.get("/api/paths/routes").json()["infra_stand"] is None
     finally:
         core.store.set_setting("home_country", old)
+
+
+def test_api_demo_has_a_satellite_destination_and_the_stand_in_every_answer(app_client):
+    c = app_client
+    login(c, "vera")
+    d = c.get("/api/paths").json()
+    infra = c.get("/api/paths/infra").json()
+    assert d["infra_stand"] == infra["stand"]
+    fk = next(r for r in d["routes"] if r["cc"] == "FK")
+    assert fk["sat"] == "leo" and all("sat" not in r for r in d["routes"] if r["cc"] != "FK")
+    way = infra["routes"][fk["key"]]
+    assert way["origin"] == "route" and "conflict" not in way and "end" not in way, "a low-orbit latency fits the distance"
+    sheet = c.get("/api/paths/country/FK").json()
+    assert sheet["infra_stand"] == infra["stand"]
+    assert any(o.get("sat") == "leo" and o["name"] == "Orbit Link" for o in sheet["operators"]) or not sheet["operators"]
+    assert infra["countries"]["FK"]["origin"] == "sat"

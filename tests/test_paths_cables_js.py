@@ -20,10 +20,6 @@ def test_line_helpers():
     assert r["line"]["start"] == [0, 0] and r["line"]["end"] == [3, 10] and r["line"]["over"] == [3, 10]
     assert abs(r["line"]["mid"][0] - 3) < 1e-9 and abs(r["line"]["mid"][1] - 4.5) < 1e-9
     assert r["jump"] == 4
-    assert r["arc"] == {"n": 5, "first": [0, 0], "last": [10, 0]}
-    assert r["withStart"] == [["air", 3], ["cable", 3], ["air", 2]]
-    assert r["withStartSame"] == [["air", 2], ["cable", 3], ["air", 2]]
-    assert r["withStartCable"] == [["air", 2], ["cable", 2]]
-    assert r["cut"] == [["air", 2], ["cable", 2]]
     assert r["pathLen"] > 60
+    assert r["gone"] == [] and r["legendOff"] == [], "Real cables knows no arc, no cut and no dashed path part"
     assert r["d"] == "M1.00 2.00L3.33 4.00M998.00 4.00M2.00 4.00"          # jumps over 400 units (date line) are not drawn

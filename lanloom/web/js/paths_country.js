@@ -8,9 +8,10 @@
    Sum rule: the bubbles of the map, the device list and the header add up to the same number; traffic without a city is drawn
    as an approximate (dashed) bubble, never dropped.
    Closing: button, Esc, click beside, the back gesture (one history entry). Deep link: #/paths/<ISO> (with ?view=cables|rain).
-   Real cables (DW3, the default view): the cable layer, and per bubble the traffic runs as dots over a measured route to the
-   country (cut where it comes nearest the country) and from there dashed to the bubble; without a route dashed from the home
-   country ("path estimated"). The Rain view is the map as before. The sum of the bubbles stays the same in both views. */
+   Real cables (DW3, the default view): ONLY lines (paths_infra.js). Per bubble the way over the infrastructure up to the first hub of
+   the country (else the first point inside), on over the country's inland net to the hub nearest the bubble and a short feeder to the
+   bubble; satellite networks run from the earth station straight to the bubble; a chosen route lights up. The Rain view is the map as
+   before. The sum of the bubbles stays the same in both views. */
 (function () {
   'use strict';
   const LL = window.Lanloom;
@@ -142,38 +143,24 @@
     const svg = svgEl('svg', { class: 'pc-map', viewBox: '0 0 ' + m.w + ' ' + m.h, role: 'img', 'aria-label': t('pc.map.aria', { country: name(d.cc) }), preserveAspectRatio: 'xMidYMid meet' },
       [shapes, ways ? ways.g : null, g]);
     Z.sums = { view: ways ? 'cables' : 'rain', bubbles: bubbles.reduce((a, b) => a + b.p.bytes, 0), streams: ways ? ways.streams.reduce((a, x) => a + x.rx + x.tx, 0) : null,
-      routes: ways ? ways.streams.filter(x => x.via === 'route').length : 0, estimated: ways ? ways.streams.filter(x => x.via !== 'route').length : 0 };
+      routes: ways ? ways.streams.filter(x => x.via === 'route').length : 0, estimated: 0 };
     return { svg, bubbles, max, side, streams: ways ? ways.streams : [], hot: ways ? ways.hot : [], ways };
   }
-  /* Real cables: per bubble one stream - over the measured route of its city (or the route that comes nearest the country), cut at
-     its point nearest the country, then dashed to the bubble; without a route dashed from the home country. The bytes of a bubble
-     are split into received and sent like the country's totals. */
+  /* Real cables: per bubble one strand and one stream (paths_infra.js); the bytes of a bubble are split into received and sent like the
+     country's totals. Without the ways (still loading) only the bubbles are drawn. */
   function cableWays(d, bubbles, side) {
-    const cb = CB(), homeCc = d.home_cc || (LL.pathsHomeCc && LL.pathsHomeCc()) || '';
-    const hp = homeCc ? labelPoint(homeCc) : null;
-    const fr = frame(d.cc), mid = fr ? [(fr.x0 + fr.x1) / 2, (fr.y0 + fr.y1) / 2] : (labelPoint(d.cc) || [0, 0]);
-    const routes = (d.routes || []).filter(r => Array.isArray(r.path) && r.path.length);
-    const hot = [];
-    routes.forEach(r => (r.cables || []).forEach(e => hot.push(e)));
-    const cutOf = new Map(routes.map(r => [r.key, cb.cut(cb.withStart(r.path, hp), mid)]));
-    const gap = r => { const ps = cutOf.get(r.key), l = ps && ps.length ? ps[ps.length - 1].p : null, q = l && l[l.length - 1]; return q ? Math.hypot(q[0] - mid[0], q[1] - mid[1]) : 1e9; };
-    const nearest = routes.slice().sort((a, b) => gap(a) - gap(b))[0] || null;
-    const tot = (d.totals && (d.totals.tx + d.totals.rx)) || 0, rxShare = tot ? d.totals.rx / tot : 1;
-    const g = svgEl('g', { class: 'pc-ways' }), drawn = new Set(), streams = [];
-    for (const b of bubbles.slice().sort((a, c) => a.p.bytes - c.p.bytes)) {
-      const r = (b.p.name && routes.find(x => x.city && x.city === b.p.name)) || nearest;
-      let pts;
-      if (r) {
-        const parts = cutOf.get(r.key);
-        if (!drawn.has(r.key)) { drawn.add(r.key); g.appendChild(cb.pathGroup(parts, 'pc-way ' + side)); }
-        pts = parts.reduce((a, x) => a.concat(a.length ? x.p.slice(1) : x.p), []);
-      } else pts = hp ? [hp] : [];
-      if (!pts.length) continue;
-      const end = pts[pts.length - 1];
-      if (Math.hypot(end[0] - b.x, end[1] - b.y) > 0.05) g.appendChild(cb.pathGroup([{ kind: 'air', p: [end, [b.x, b.y]] }], 'pc-way pc-way--leg ' + side));
-      streams.push({ L: cb.line(pts.concat([[b.x, b.y]])), rx: b.p.bytes * rxShare, tx: b.p.bytes * (1 - rxShare), out: side === 'is-out', via: r ? 'route' : 'air' });
+    const IN = LL.pathsInfra;
+    if (!IN) return null;
+    const N = IN.data();
+    IN.need(d.infra_stand);
+    const g = svgEl('g', { class: 'pc-ways' });
+    let streams = [];
+    if (N) {
+      const dr = IN.draw(N, IN.sheet(N, d, bubbles, { frame: frame(d.cc), out: side === 'is-out' }), { maxW: 3.4 });
+      g.appendChild(dr.g);
+      streams = dr.streams;
     }
-    return { g, streams, hot, routes };
+    return { g, streams };
   }
 
   /* Wheel, drag, pinch, keys and double click on one map; calls onView after every change. Returns a cleanup function. */
@@ -401,6 +388,7 @@
     requestAnimationFrame(() => el.classList.add('is-open'));
     closeBtn.focus();
   }
+  document.addEventListener('lanloom-paths-infra', () => { if (Z.el && Z.d && cablesOn()) draw(); });      // the ways of the Real cables view arrived
   let lastPhone = phone();
   function onResize() { if (Z.el && lastPhone !== phone()) { lastPhone = phone(); draw(); } }
   function segment() {
@@ -425,15 +413,9 @@
     const homeCc = d.home_cc || (LL.pathsHomeCc && LL.pathsHomeCc()) || '';
     const routes = (d.routes || []).length && LL.pathsRoutes;
     if (parts.ways) {
-      // Real cables: the routes are the ways the dots run on; a chosen route still frames its whole way
-      const hp = homeCc ? labelPoint(homeCc) : null;
-      parts.routes = { scale() { /* the ways keep their screen width by themselves */ }, box(key) {
-        const r = (d.routes || []).find(x => x.key === key), ps = r ? CB().withStart(r.path || [], hp) : [];
-        const pts = ps.reduce((a, x) => a.concat(x.p), []);
-        if (!pts.length) return null;
-        return { x0: Math.min(...pts.map(q => q[0])), x1: Math.max(...pts.map(q => q[0])), y0: Math.min(...pts.map(q => q[1])), y1: Math.max(...pts.map(q => q[1])) };
-      } };
-      CB().layer(parts.svg, parts.hot, { before: '.pc-ways', detached: true });
+      // Real cables: the routes are the strands the dots run on; a chosen route lights up and frames its whole way
+      parts.routes = { scale(f) { LL.pathsInfra.scale(parts.svg, f); }, box: key => LL.pathsInfra.box(key) };
+      CB().layer(parts.svg, { before: '.pc-ways', detached: true });
     } else parts.routes = routes ? LL.pathsRoutes.drawOn(parts.svg, d.routes, { project: place, point: labelPoint, home: homeCc }) : null;
     const ratio = phone() ? 0.95 : 0.56;
     const stage = h('div', { class: 'pc-stage', style: '--pc-ratio:' + ratio }, parts.svg, h('div', { class: 'pc-labels', 'aria-hidden': 'true' }));
@@ -470,6 +452,7 @@
     const stop = zoomer(stage, parts.svg, base, ratio, onView);
     let dots = null;
     if (parts.ways) requestAnimationFrame(() => { if (stage.isConnected && Z.el === el) dots = CB().runDots(stage, parts.svg, parts.streams, { width: world().w }); });
+    if (parts.ways) LL.pathsInfra.mark();
     Z.cleanup = () => { stop(); if (raf) cancelAnimationFrame(raf); if (dots) dots.stop(); };
     loadFine().then(ok => { if (ok && Z.el === el && Z.d === d && stage.isConnected && !stage.dataset.fine) { stage.dataset.fine = '1'; upgrade(stage, parts, d, base, ratio, onView); } });
   }

@@ -1,17 +1,17 @@
 /* Lanloom — data paths: the "Real cables" view (DW3).
 
    Two views of the data paths map (world, full screen, phone, country sheet), switched with a two-part control:
-     * Real cables (the default): sea and land cables as fine lines; the traffic runs as dots over the paths of the measured network
-       routes - at sea crossings over the cable the server estimated (never a measurement), elsewhere a dashed line ("path
-       estimated"). A country without a measured route gets a dashed arc, also "path estimated". No traffic disappears: the sum of
-       the map is the same in both views.
+     * Real cables (the default): ONLY lines, never an arc and never a dashed line. Every data path runs over infrastructure
+       (paths_infra.js; the server computes the ways, lanloom/infraroute.py): sea cables, land lines, radio links, satellite hops.
+       Equal strands are bundled and get thicker with the traffic; measured ways are drawn full, estimated ones lighter. The
+       cables of the map lie faintly below. No traffic disappears: the sum of the map is the same in both views.
      * Rain: the arcs from the home country with travelling dots, unchanged.
    The choice is kept per device (localStorage `lanloom-paths-view`, like the period) and in the address: `#/paths?view=cables|rain`
    (also with a country: `#/paths/DE?view=rain`). With "reduce motion" no dots run in either view.
    Cable data: GET /api/paths/cables (OpenStreetMap, ODbL; bundled with the app or an administrator's import), loaded only when the
    view needs it. Attribution and "incomplete - community-mapped" stay visible beside the map whenever cables are drawn.
-   Hooks: LL.pathsCables.view(), .set(v), .control(), .layer(svg, hot, opts), .legendItems(), .attribution(), .line(points),
-   .at(L, u), .arcLine(g), .pathLine(parts, start), .cut(parts, target), .runDots(stage, svg, streams), .settingsCard(s).
+   Hooks: LL.pathsCables.view(), .set(v), .control(), .layer(svg, opts), .legendItems(), .attribution(), .line(points),
+   .at(L, u), .pathLine(parts), .pathD(points), .runDots(stage, svg, streams), .settingsCard(s).
    Event `lanloom-paths-view` on document after every switch. No inline handler, colours only from tokens. */
 (function () {
   'use strict';
@@ -102,46 +102,27 @@
     root.append(land, sea, hit);
     return root;
   }
-  /* Puts the cable layer into a map (or takes it out); `hot` = estimates whose cables light up (ids), `opts.before` = selector of
-     the group the layer goes in front of. Called again after the data arrived. */
-  C.layer = function (svg, hot, opts) {
+  /* Puts the cable layer into a map (or takes it out); `opts.before` = selector of the group the layer goes in front of. Called again
+     after the data arrived. */
+  C.layer = function (svg, opts) {
     if (!svg) return;
     opts = opts || {};
-    svg.querySelectorAll('.cb-layer, .cb-hot').forEach(e => e.remove());
+    svg.querySelectorAll('.cb-layer').forEach(e => e.remove());
     svg.classList.toggle('cb-on', C.on());
-    svg._cbHot = hot || [];
     if (!C.on()) return;
     const put = () => {
       if (!svg.isConnected && !opts.detached) return;
       if (!S.data || svg.querySelector('.cb-layer')) return;
       const before = opts.before ? svg.querySelector(opts.before) : null;
       svg.insertBefore(layerNodes(), before);
-      const ids = new Set((svg._cbHot || []).map(x => x.id).filter(Boolean));
-      if (ids.size) {
-        const g = svgEl('g', { class: 'cb-hot' });
-        S.data.sea.forEach((e, i) => {
-          if (!ids.has(e.id)) return;
-          const est = (svg._cbHot || []).filter(x => x.id === e.id);
-          const label = t('cables.tip.estimate', { name: e.n || t('cables.unnamed'), from: est[0].from || t('cables.hop'), to: est[0].to || t('cables.hop'),
-            confidence: t('cables.confidence.' + (est[0].confidence === 'likely' ? 'likely' : 'possible')) });
-          const p = svgEl('path', { class: 'cb-hotline', d: e.d, 'data-cb': String(i), tabindex: '0', role: 'img', 'aria-label': label });
-          g.appendChild(p);
-        });
-        svg.insertBefore(g, before);
-      }
       if (opts.onReady) opts.onReady();
     };
     if (S.data) put(); else load().then(d => { if (d && C.on()) put(); });
   };
 
   // ------------------------------------------------------------------ legend and attribution
-  C.legendItems = function (cls) {
-    if (!C.on()) return [];
-    const k = cls || 'pw-legend__item';
-    return [h('span', { class: k }, h('i', { class: 'cb-sw cb-sw--cable' }), t('cables.legend.cable')),
-      h('span', { class: k }, h('i', { class: 'cb-sw cb-sw--hot' }), t('cables.legend.probable')),
-      h('span', { class: k }, h('i', { class: 'cb-sw cb-sw--est' }), t('cables.legend.estimated'))];
-  };
+  /* the lines drawn right now (paths_infra.js), neutral patterns */
+  C.legendItems = function (cls, arts) { return C.on() && LL.pathsInfra ? LL.pathsInfra.legendItems(cls, arts) : []; };
   /* "(c) OpenStreetMap contributors (ODbL) - incomplete, community-mapped; which cable a route used is always an estimate" - the
      words of the source come from the data itself */
   C.attribution = function (cls) {
@@ -153,7 +134,7 @@
       h('span', {}, t('cables.attr.title'), ': ',
         a ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, a) : t('cables.attr.loading'),
         lic ? [' (', h('a', { href: lurl, target: '_blank', rel: 'noopener noreferrer' }, lic), ')'] : null,
-        ' — ', t('cables.attr.incomplete'), date ? ' · ' + date : ''));
+        ' — ', t('cables.attr.incomplete'), ' · ', t('infra.attr.estimated'), date ? ' · ' + date : ''));
   };
   document.addEventListener('lanloom-paths-cables', () => {
     document.querySelectorAll('.cb-attr').forEach(p => { const n = C.attribution(p.className.replace('cb-attr', '').trim()); if (n) p.replaceWith(n); });
@@ -166,19 +147,16 @@
     const stage = path.closest('.pw-stage, .pc-stage');
     if (!e || !stage) return;
     if (!S.tip || S.tip.parentNode !== stage) { hideTip(); S.tip = h('div', { class: 'cb-tip', role: 'tooltip' }); stage.appendChild(S.tip); }
-    const svg = path.ownerSVGElement, est = ((svg && svg._cbHot) || []).filter(z => z.id === e.id);
     S.tip.replaceChildren(h('b', {}, e.n || t('cables.unnamed')),
       h('span', {}, t('cables.tip.meta', { km: LL.fmtNum(e.km || 0, 0) })),
       e.op ? h('span', {}, t('cables.tip.operator', { operator: e.op })) : null,
-      ...est.slice(0, 2).map(z => h('span', { class: 'cb-tip__est' }, h('i', {}, t('cables.confidence.' + (z.confidence === 'likely' ? 'likely' : 'possible'))),
-        ': ' + (z.from || t('cables.hop')) + ' → ' + (z.to || t('cables.hop')))),
       h('small', {}, t('cables.tip.source')));
     const r = stage.getBoundingClientRect(), s = S.tip;
     s.style.left = Math.max(4, Math.min(x - r.left + 12, r.width - s.offsetWidth - 4)) + 'px';
     s.style.top = Math.max(4, Math.min(y - r.top + 14, r.height - s.offsetHeight - 4)) + 'px';
   }
   let away = 0;
-  const target = ev => ev.target && ev.target.closest && ev.target.closest('.cb-hit, .cb-hotline');
+  const target = ev => ev.target && ev.target.closest && ev.target.closest('.cb-hit');
   document.addEventListener('mouseover', ev => { const p = target(ev); if (p) { clearTimeout(away); showTip(p, ev.clientX, ev.clientY); } });
   document.addEventListener('mousemove', ev => { const p = target(ev); if (p && S.tip) showTip(p, ev.clientX, ev.clientY); });
   document.addEventListener('mouseout', ev => { if (target(ev)) hideTip(); });
@@ -209,51 +187,12 @@
     const seg = l[b] - l[a], f = seg > 0 ? (goal - l[a]) / seg : 0;
     return [p[a][0] + (p[b][0] - p[a][0]) * f, p[a][1] + (p[b][1] - p[a][1]) * f];
   };
-  /* a quadratic arc (like the rain view) as a line */
-  C.arcLine = function (g, n) {
-    const out = [], m = n || 32;
-    for (let i = 0; i <= m; i++) { const u = i / m, v = 1 - u; out.push([v * v * g.x0 + 2 * v * u * g.cx + u * u * g.x1, v * v * g.y0 + 2 * v * u * g.cy + u * u * g.y1]); }
-    return C.line(out);
-  };
-  /* path parts of a route ([{kind: 'cable'|'air', p}]) with a start point in front (the home point of the map) */
-  C.withStart = function (parts, start) {
-    const ps = (parts || []).filter(x => x && Array.isArray(x.p) && x.p.length);
-    if (!start) return ps;
-    if (!ps.length) return [];
-    const first = ps[0].p[0];
-    if (Math.hypot(first[0] - start[0], first[1] - start[1]) < 0.05) return ps;
-    if (ps[0].kind === 'air') return [Object.assign({}, ps[0], { p: [start].concat(ps[0].p) })].concat(ps.slice(1));
-    return [{ kind: 'air', p: [start, first] }].concat(ps);
-  };
   C.pathLine = parts => C.line((parts || []).reduce((a, x) => a.concat(a.length ? x.p.slice(1) : x.p), []));
   C.pathD = function (points) {
     let s = '', prev = null;
     for (const [x, y] of points) { s += (prev && Math.abs(x - prev[0]) <= JUMP ? 'L' : 'M') + x.toFixed(2) + ' ' + y.toFixed(2); prev = [x, y]; }
     return s;
   };
-  /* the parts up to the point nearest `goal` ([x, y]): a route to a country that goes on beyond it ends at its coast */
-  C.cut = function (parts, goal) {
-    let best = null;
-    (parts || []).forEach((x, i) => (x.p || []).forEach((q, j) => { const d = Math.hypot(q[0] - goal[0], q[1] - goal[1]); if (!best || d < best.d) best = { d, i, j }; }));
-    if (!best) return [];
-    const out = parts.slice(0, best.i).map(x => Object.assign({}, x));
-    const last = Object.assign({}, parts[best.i], { p: parts[best.i].p.slice(0, best.j + 1) });
-    if (last.p.length >= 2) out.push(last);
-    else if (!out.length) out.push({ kind: 'air', p: [last.p[0], last.p[0]] });
-    return out;
-  };
-  /* SVG group of a path: cable parts solid, air parts dashed ("path estimated") */
-  C.pathGroup = function (parts, cls, title) {
-    const g = svgEl('g', { class: 'cb-way ' + (cls || '') });
-    for (const x of parts || []) {
-      const p = svgEl('path', { class: x.kind === 'cable' ? 'cb-way__cable' : 'cb-way__air', d: C.pathD(x.p) });
-      if (x.kind !== 'cable') p.appendChild(svgEl('title', {})).textContent = t('cables.path_estimated');
-      g.appendChild(p);
-    }
-    if (title) g.appendChild(svgEl('title', {})).textContent = title;
-    return g;
-  };
-
   // ------------------------------------------------------------------ dots on the lines (canvas, only while visible)
   /* streams: [{L, rx, tx, out, quiet}] - dots towards home (received, full colour) and away from it (sent, lighter); number and speed
      by bytes; at most ~360 dots per frame (no GPU: every dot costs), dots outside the view are not drawn. Self-throttling like the

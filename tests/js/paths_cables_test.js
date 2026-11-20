@@ -29,14 +29,9 @@ out.ignored = C.view();
 const L = C.line([[0, 0], [3, 4], [3, 10]]);
 out.line = { len: L.len, l: L.l, mid: C.at(L, 0.5), start: C.at(L, 0), end: C.at(L, 1), over: C.at(L, 2) };
 out.jump = C.line([[999, 10], [1, 10], [5, 10]]).len;          // the date line is no distance
-const g = { x0: 0, y0: 0, cx: 5, cy: -5, x1: 10, y1: 0 };
-const A = C.arcLine(g, 4);
-out.arc = { n: A.p.length, first: A.p[0], last: A.p[A.p.length - 1] };
 const parts = [{ kind: 'air', p: [[10, 10], [20, 10]] }, { kind: 'cable', p: [[20, 10], [40, 10], [60, 10]] }, { kind: 'air', p: [[60, 10], [70, 12]] }];
-out.withStart = C.withStart(parts, [0, 10]).map(x => [x.kind, x.p.length]);
-out.withStartSame = C.withStart(parts, [10, 10]).map(x => [x.kind, x.p.length]);
-out.withStartCable = C.withStart([{ kind: 'cable', p: [[5, 5], [9, 9]] }], [0, 0]).map(x => [x.kind, x.p.length]);
-out.cut = C.cut(parts, [41, 12]).map(x => [x.kind, x.p.length]);
 out.pathLen = C.pathLine(parts).len;
+out.gone = ['arcLine', 'withStart', 'cut', 'pathGroup'].filter(k => k in C);      // no arcs and no dashed parts any more
+out.legendOff = C.legendItems();
 out.d = C.pathD([[1, 2], [3.333, 4], [998, 4], [2, 4]]);
 process.stdout.write(JSON.stringify(out));

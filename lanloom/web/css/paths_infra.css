@@ -1,0 +1,37 @@
+/* Lanloom — data paths: infrastructure routes, the strands of the "Real cables" view (paths_infra.js). Only design tokens.
+   ONLY lines: no arc, nothing dashed. Strands keep their screen width at every zoom level (vector-effect); the thickness follows the
+   traffic, the colour says EU or outside; measured ways are drawn full, estimated ones lighter, sea cables a little stronger. */
+.pw-page, .pw-full, .pc-sheet, .in-layer { --in-sat: var(--ll-text-2); }
+.in-layer .in-k { fill: none; stroke-width: var(--in-w, 1.4px); vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round;
+  opacity: .5; pointer-events: stroke; cursor: help; transition: opacity .15s; }
+.in-layer .in-k.pw-eu { stroke: var(--pw-eu); }
+.in-layer .in-k.pw-out { stroke: var(--pw-out); }
+.in-layer .in-k--cable { opacity: .82; }
+.in-layer .in-k--radio { opacity: .8; }
+.in-layer .in-k.is-measured { opacity: .96; }
+.in-layer .in-k.is-quiet { opacity: .1; }
+.in-layer .in-k:hover { opacity: 1; }
+/* satellite: a thin line from the earth station up to the satellite and down to the destination */
+.in-layer .in-sat { stroke: var(--in-sat) !important; opacity: .85; }
+.in-layer .in-satellite { pointer-events: visiblePainted; cursor: help; }
+.in-layer .in-satellite.is-quiet { opacity: .15; }
+.in-layer .in-satellite__body { fill: var(--in-sat); stroke: var(--ll-surface); stroke-width: .8px; }
+.in-layer .in-satellite__panel { fill: color-mix(in srgb, var(--in-sat) 35%, var(--ll-surface)); stroke: var(--in-sat); stroke-width: .8px; }
+.in-layer .in-satellite path { fill: none; stroke: var(--in-sat); stroke-width: 1px; stroke-linecap: round; }
+/* hubs on the carrying strands */
+.in-layer .in-node { fill: var(--ll-surface); stroke: var(--ll-text-2); stroke-width: .9px; vector-effect: non-scaling-stroke; opacity: .85; pointer-events: visiblePainted; cursor: help; }
+/* the way of the route chosen in the list */
+.in-layer .in-route { fill: none; stroke: var(--ll-text); stroke-width: 2.6px; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; opacity: .9; pointer-events: none; }
+
+/* legend: the pattern says what kind of line, never the colour (that says EU or outside) */
+.in-sw { display: inline-block; width: 18px; height: 0; flex: none; vertical-align: middle; border-top: 2.5px solid var(--ll-text-2); border-radius: 1px; }
+.in-sw--cable { opacity: .85; }
+.in-sw--sea, .in-sw--land { border-top-width: 2px; opacity: .5; }
+.in-sw--measured { border-top-width: 3.5px; }
+.in-sw--radio { height: 8px; border: 0; background: no-repeat center / 18px 8px var(--ll-text-2);
+  -webkit-mask: no-repeat center / 18px 8px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 8'%3E%3Cpath d='M0 4q2.25-3 4.5 0t4.5 0 4.5 0 4.5 0' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E");
+  mask: no-repeat center / 18px 8px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 8'%3E%3Cpath d='M0 4q2.25-3 4.5 0t4.5 0 4.5 0 4.5 0' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E"); }
+.in-sw--sat { height: 10px; border: 0; background: var(--in-sat);
+  -webkit-mask: no-repeat center / 18px 10px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 10'%3E%3Cpath d='M1 9.5L9 3L17 9.5' fill='none' stroke='black' stroke-width='1.2'/%3E%3Crect x='7.4' y='1.2' width='3.2' height='3.2' rx='.6'/%3E%3Crect x='3.4' y='2' width='3.4' height='1.6' opacity='.7'/%3E%3Crect x='11.2' y='2' width='3.4' height='1.6' opacity='.7'/%3E%3C/svg%3E");
+  mask: no-repeat center / 18px 10px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 10'%3E%3Cpath d='M1 9.5L9 3L17 9.5' fill='none' stroke='black' stroke-width='1.2'/%3E%3Crect x='7.4' y='1.2' width='3.2' height='3.2' rx='.6'/%3E%3Crect x='3.4' y='2' width='3.4' height='1.6' opacity='.7'/%3E%3Crect x='11.2' y='2' width='3.4' height='1.6' opacity='.7'/%3E%3C/svg%3E"); }
+@media (prefers-reduced-motion: reduce) { .in-layer .in-k { transition: none; } }

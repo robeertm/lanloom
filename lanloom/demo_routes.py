@@ -64,6 +64,10 @@ ROUTES = [
         _s("transit", 64501, "Example Transit", "FR", _place("mrs"), 24, 2),
         _s("network", 64511, "Example Cloud Services", "SG", _place("sin"), 158, 4),
         _s("target", 64511, "Example Cloud Services", "SG", None, 160, 0, anycast=False, reached=True, city="Singapore")]),
+    ("FK", 14593, "", False, [
+        _s("transit", 64501, "Example Transit", "GB", _place("lon"), 13, 2),
+        _s("network", 14593, "Orbit Link", "FK", None, 148, 3),
+        _s("target", 14593, "Orbit Link", "FK", None, 150, 0, anycast=False, reached=True, city=None)]),
     ("~anycast", 0, "", False, [
         _s("network", None, None, "NL", _place("ams", sure=False, source="city"), 7, 1),
         _s("target", None, None, None, None, 7, 0, anycast=True, reached=True, city=None)]),

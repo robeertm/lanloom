@@ -105,6 +105,7 @@
   function sync() {
     document.querySelectorAll('.rt-route[data-route]').forEach(e => { const on = e.dataset.route === St.sel; e.classList.toggle('is-sel', on); e.setAttribute('aria-pressed', String(on)); });
     St.maps.forEach(m => { if (!m.svg.isConnected) St.maps.delete(m); else m.mark(); });
+    if (LL.pathsInfra) LL.pathsInfra.mark();         // Real cables: the way of the chosen route lights up on the lines
   }
 
   /* The section "Routes there" (country sheet) or "Network routes" (data paths view). */
@@ -121,6 +122,7 @@
     return h('section', { class: 'card ' + (opts.cls || 'pc') + '-card rt-card', id: opts.id || null }, head, body, foot);
   };
   R.selected = () => St.sel;
+  R.active = () => St.hover || St.sel;
   R.select = key => { St.sel = key; sync(); };
 
   // ------------------------------------------------------------------ the line on a map
