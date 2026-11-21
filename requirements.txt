@@ -1,15 +1,18 @@
 # Direct dependencies
-fastapi==0.163.1
-uvicorn[standard]==0.34.0
-argon2-cffi==23.1.0
+# The image installs exactly this list: `pip install --no-deps -r requirements.txt` followed by `pip check`, so a
+# transitive package without a pin here breaks the build instead of being fetched unpinned. Resolved in the base
+# image of the Dockerfile on amd64 and arm64 (the same list on both). Checked inside the image by the self-test
+# (lanloom/pins.py) and scanned by scripts/dep_scan.py.
+fastapi==0.165.0
+uvicorn[standard]==0.54.0
+argon2-cffi==25.1.0
 cryptography==50.0.2
-webauthn==2.5.2
+webauthn==3.0.1
 # Pinned transitive dependencies (reproducible images)
-annotated-doc==0.0.6
+annotated-doc==0.0.7
 annotated-types==0.8.0
 anyio==4.16.0
 argon2-cffi-bindings==26.2.0
-asn1crypto==1.5.1
 cbor2==6.3.0
 cffi==2.1.1
 click==8.5.1
@@ -17,15 +20,19 @@ h11==0.16.0
 httptools==0.9.0
 idna==3.20
 opentelemetry-api==1.45.2
+pyasn1==0.6.5
+pyasn1_modules==0.4.2
 pycparser==3.12
-pydantic==2.14.3
-pydantic_core==2.50.4
+pydantic==2.14.4
+pydantic_core==2.50.5
 pyOpenSSL==26.4.0
 python-dotenv==1.2.4
-PyYAML==6.0.3
+PyYAML==6.0.4
 starlette==1.10.0
 typing-inspection==0.4.5
 typing_extensions==4.16.0
 uvloop==0.23.0
 watchfiles==1.3.0
 websockets==17.4
+# Installer (installed first, on its own; the base image brings its own pip)
+pip==26.3

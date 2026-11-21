@@ -163,6 +163,24 @@ def client_address(peer: str, headers, proxies) -> str:
     return str(real) if real is not None else peer
 
 
+def peer_host(addr) -> str:
+    """Host part of an ASGI address (scope["client"] / scope["server"], or the framework's request.client).
+
+    Over TCP it is (host, port). Over a unix socket the server reports no peer address: newer uvicorn gives the
+    client as None and the server as (socket path, None), other servers ("", 0) or (path, None). A socket path is not
+    an address, so it comes back as "" - it never matches a trusted proxy, never counts as loopback."""
+    if not addr:
+        return ""
+    try:
+        host, port = addr[0], addr[1]
+    except (TypeError, IndexError, KeyError):
+        return ""
+    host = str(host or "")
+    if port is None or "/" in host:
+        return ""
+    return host
+
+
 def from_trusted_proxy(peer: str, proxies) -> bool:
     return bool(proxies) and _trusted(_ip(peer), proxies)
 
@@ -327,6 +345,29 @@ class Accounts:
 
 
 _DUMMY_HASH = _hasher.hash("lanloom-timing-equaliser")
+
+# A hash written by an older version of the password library (argon2-cffi 23.1, its defaults) for a sample password,
+# the same one tests/fixtures/auth_old_libs.json holds. Stored hashes of real accounts look like this.
+_OLD_HASH_SAMPLE = ("sample-password-before-update",
+                    "$argon2id$v=19$m=65536,t=3,p=4$EBBrWM5BnqaOKqsSLYOZOQ$UoemQLyuCDrIguDTsEwQpMURCkcG0NZ7bGiIcjAuTTE")
+
+
+def password_hashes_compatible() -> bool:
+    """Self-test: a hash stored by an older library version still verifies, a wrong password does not, and the
+    current parameters do not ask for a rehash (an update must not rewrite every stored hash on the next sign-in)."""
+    sample, stored = _OLD_HASH_SAMPLE
+    try:
+        _hasher.verify(stored, sample)
+    except (VerificationError, InvalidHashError):
+        return False
+    try:
+        _hasher.verify(stored, sample + "!")
+        return False
+    except VerifyMismatchError:
+        pass
+    except (VerificationError, InvalidHashError):
+        return False
+    return not _hasher.check_needs_rehash(stored)
 
 
 # ---------------------------------------------------------------------------- sessions

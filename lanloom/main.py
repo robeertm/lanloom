@@ -250,7 +250,7 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     proxy_auth = auth.ProxyAuth(cfg, proxies, state)
 
     def peer_of(request) -> str:
-        return request.client.host if request.client else "?"
+        return auth.peer_host(request.client) or "?"
 
     def client_of(request) -> str:
         """Rate-limit key of the client (forwarding headers only from LANLOOM_TRUSTED_PROXIES)."""
@@ -1745,7 +1745,34 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         app.add_middleware(BasePath, base=base)
     if getattr(cfg, "addon", False) and not getattr(cfg, "addon_lan", False):
         app.add_middleware(PeerGate, allowed=proxies)
+    app.add_middleware(SocketAddresses)          # added last = runs first, before every other layer
     return app
+
+
+class SocketAddresses:
+    """One form for the addresses of a unix-socket connection. Newer uvicorn reports the server of a unix socket as
+    (socket path, None) where older versions gave None, and some servers give the client a path as well. Every layer
+    behind this one (URL building of the framework, peer checks, add-on gate, rate limits) sees the classic form:
+    no server address and no client address. Without a Host header the framework would otherwise build a URL with
+    the socket path and "None" as its authority."""
+
+    def __init__(self, app):
+        self.app = app
+
+    @staticmethod
+    def _socket(addr) -> bool:
+        if not isinstance(addr, (tuple, list)) or len(addr) != 2:
+            return False
+        return addr[1] is None or "/" in str(addr[0] or "")
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket") and (self._socket(scope.get("server")) or self._socket(scope.get("client"))):
+            scope = dict(scope)
+            if self._socket(scope.get("server")):
+                scope["server"] = None
+            if self._socket(scope.get("client")):
+                scope["client"] = None
+        await self.app(scope, receive, send)
 
 
 class PeerGate:
@@ -1761,8 +1788,7 @@ class PeerGate:
         self.allowed = allowed
 
     def admits(self, scope) -> bool:
-        client = scope.get("client") or ("", 0)
-        peer = auth._ip(str(client[0] or ""))
+        peer = auth._ip(auth.peer_host(scope.get("client")))
         return peer is not None and (peer.is_loopback or auth.from_trusted_proxy(str(peer), self.allowed))
 
     async def __call__(self, scope, receive, send):
@@ -1865,6 +1891,11 @@ def selftest() -> int:
                 problems.append("i18n keys differ (%d en / %d %s)" % (len(en), len(other), lang))
             elif any(textfmt.placeholders(en[k]) != textfmt.placeholders(other[k]) for k in en):
                 problems.append("i18n placeholders differ (%s)" % lang)
+        from . import pins
+        if pins.in_image():                    # the image holds exactly the pinned package list (B8)
+            problems += pins.problems()
+        if not auth.password_hashes_compatible():
+            problems.append("password hashes: a stored hash does not verify or would be rewritten")
         if not whatsnew.entries():
             problems.append("CHANGELOG.md missing or unreadable (What's new?)")
         for rel in ("index.html", "js/textfmt.js", "js/app.js", "js/fresh.js", "css/fresh.css", "board/board.js", "board/router.js", "board/bundles.js", "board/endmarks.js", "board/portmarks.js", "js/firewall.js", "js/fwinsight.js", "js/hypervisor.js", "js/hub.js", "css/firewall.css", "css/fwinsight.css", "js/portfront.js", "css/portfront.css", "js/netmodes.js", "css/netmodes.css", "js/paths.js", "js/paths_country.js", "js/paths_routes.js", "css/paths_routes.css", "js/worldmap.js", "js/worldmap_fine.js", "js/worldplaces.js", "css/paths.css", "css/paths_country.css", "js/reports.js", "css/reports.css", "js/ai.js", "css/ai.css", "js/ask.js", "css/ask.css", "js/access.js", "css/access.css", "js/backup.js", "css/backup.css", "js/fuzzy.js", "js/palette.js", "css/palette.css", "js/overview.js", "js/shell.js", "css/overview.css", "js/sites.js", "css/sites.css", "js/storage.js", "css/storage.css", "js/discovery.js", "css/discovery.css", "js/inventory.js", "css/inventory.css", "js/export.js", "css/export.css", "js/history.js", "css/history.css", "js/services.js", "css/services.css", "board/tree.js", "css/tree.css", "js/a11y.js", "css/a11y.css", "js/automations.js", "css/automations.css", "js/sheet.js", "js/now.js", "css/now.css", "js/energy.js", "css/energy.css", "css/tokens.css", "css/palettes.css", "fonts/InterVariable.woff2"):

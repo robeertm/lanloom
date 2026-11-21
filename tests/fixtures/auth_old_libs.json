@@ -1,0 +1,22 @@
+{
+ "made_with": {
+  "argon2-cffi": "23.1.0",
+  "webauthn": "2.5.2",
+  "cbor2": "6.3.0",
+  "cryptography": "50.0.2"
+ },
+ "password": "sample-password-before-update",
+ "softkey_label": "stored before the library update",
+ "user": {
+  "username": "before-update",
+  "pw_hash": "$argon2id$v=19$m=65536,t=3,p=4$EBBrWM5BnqaOKqsSLYOZOQ$UoemQLyuCDrIguDTsEwQpMURCkcG0NZ7bGiIcjAuTTE",
+  "user_handle": "f06bef480f7b27dd0fa42f8de75ef6c042c445f2b918defe0bdd349dab18a40a",
+  "role": "admin"
+ },
+ "passkey": {
+  "credential_id": "c43d4fc23d01feceee0b4b0e8b94f77402b5230b",
+  "public_key": "a501020326200121582043a2ab759b2369ac20963f28f4757a712345567d6870417923236c812d9f15472258201402eb5cd632d18526b564a617188e4ebcee76eb93f9b252a7bef46dc5629d87",
+  "sign_count": 1,
+  "name": "Laptop"
+ }
+}
