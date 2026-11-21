@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.59.0] – 2026-11-21
+
+1.58.0 below was not released on its own; it is part of this release.
+
 ### Fixed
 - **Cable tooltip no longer shows the text "null".** A sea cable without a mapped operator showed "null" as a third line when hovered, because a missing line was handed to the DOM as an empty value. The line is now left out; the same pattern is closed in the device detail sheet and in the data paths and country views, and a test guards the tooltip with and without an operator.
 

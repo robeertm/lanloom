@@ -1,7 +1,7 @@
 # Lanloom as an add-on: read-only circuit-board map of the local network, opened from the side panel (ingress).
 # The version below must equal VERSION in the repository root (tests/test_addon.py keeps them equal).
 name: Lanloom
-version: "1.58.0"
+version: "1.59.0"
 slug: lanloom
 description: Read-only circuit-board map of your local network
 url: https://github.com/robeertm/lanloom
