@@ -101,3 +101,13 @@ def test_selftest_refuses_a_password_library_that_rewrites_old_hashes(monkeypatc
     monkeypatch.setattr(auth, "_hasher", PasswordHasher(time_cost=4))     # changed defaults: every stored hash looks outdated
     assert main.selftest() == 1
     assert "password hashes" in capsys.readouterr().out
+
+
+def test_the_notices_list_exactly_the_pinned_packages():
+    text = (ROOT / "THIRD-PARTY-NOTICES.md").read_text(encoding="utf-8")
+    block = text.split("## Python packages", 1)[1].split("\n## ", 1)[0]
+    rows = re.findall(r"^\| ([A-Za-z0-9._-]+) \| ([0-9][^ |]*) \| (.+?) \|$", block, re.M)
+    listed = {pins.norm(n): v for n, v, _ in rows}
+    assert len(listed) == len(rows)
+    assert listed == pins.pinned()
+    assert all(lic.strip() for _, _, lic in rows)

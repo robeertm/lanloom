@@ -1,6 +1,6 @@
 # Third-party notices
 
-Lanloom itself is distributed under the terms in [LICENSE](LICENSE). It includes or runs on the components below, each licensed by its own authors under its own terms. Nothing in the Lanloom license limits the rights those licenses grant you. Full license texts are available from each project and are included in the installed packages.
+Lanloom itself is distributed under the terms in [LICENSE](LICENSE). It includes or runs on the components below, each licensed by its own authors under its own terms. Nothing in the Lanloom license limits the rights those licenses grant you. Full license texts are available from each project and are included in the installed packages. The Python package table lists exactly the packages installed in the image (`requirements.txt`, checked by a test).
 
 ## Runtime and base image
 
@@ -13,33 +13,37 @@ Lanloom itself is distributed under the terms in [LICENSE](LICENSE). It includes
 
 | Package | Version | License |
 | --- | --- | --- |
-| fastapi | 0.115.6 | MIT (Sebastián Ramírez) |
-| starlette | 0.41.3 | BSD-3-Clause (Encode OSS Ltd.) |
-| pydantic | 2.14.2 | MIT (Pydantic Services Inc. and contributors) |
-| pydantic_core | 2.50.2 | MIT (Pydantic Services Inc. and contributors) |
+| fastapi | 0.165.0 | MIT (Sebastián Ramírez) |
+| starlette | 1.10.0 | BSD-3-Clause (Encode OSS Ltd.) |
+| pydantic | 2.14.4 | MIT (Pydantic Services Inc. and contributors) |
+| pydantic_core | 2.50.5 | MIT (Pydantic Services Inc. and contributors) |
 | annotated-types | 0.8.0 | MIT |
+| annotated-doc | 0.0.7 | MIT (Sebastián Ramírez) |
 | typing_extensions | 4.16.0 | PSF-2.0 (Python Software Foundation) |
-| typing-inspection | 0.4.4 | MIT |
-| uvicorn | 0.34.0 | BSD-3-Clause (Encode OSS Ltd.) |
+| typing-inspection | 0.4.5 | MIT |
+| uvicorn | 0.54.0 | BSD-3-Clause (Encode OSS Ltd.) |
 | httptools | 0.9.0 | MIT (MagicStack Inc.) |
 | uvloop | 0.23.0 | MIT OR Apache-2.0 (MagicStack Inc.) |
 | watchfiles | 1.3.0 | MIT (Samuel Colvin) |
 | websockets | 17.4 | BSD-3-Clause (Aymeric Augustin and contributors) |
 | python-dotenv | 1.2.4 | BSD-3-Clause |
-| PyYAML | 6.0.3 | MIT (Kirill Simonov) |
-| click | 8.5.0 | BSD-3-Clause (Pallets) |
+| PyYAML | 6.0.4 | MIT (Kirill Simonov) |
+| click | 8.5.1 | BSD-3-Clause (Pallets) |
 | h11 | 0.16.0 | MIT (Nathaniel J. Smith) |
 | anyio | 4.16.0 | MIT (Alex Grönholm) |
 | idna | 3.20 | BSD-3-Clause (Kim Davies and contributors) |
-| argon2-cffi | 23.1.0 | MIT (Hynek Schlawack) |
-| argon2-cffi-bindings | 26.1.0 | MIT (Hynek Schlawack) |
+| opentelemetry-api | 1.45.2 | Apache-2.0 |
+| argon2-cffi | 25.1.0 | MIT (Hynek Schlawack) |
+| argon2-cffi-bindings | 26.2.0 | MIT (Hynek Schlawack) |
 | cffi | 2.1.1 | MIT (Armin Rigo, Maciej Fijalkowski) |
 | pycparser | 3.12 | BSD-3-Clause (Eli Bendersky) |
-| cryptography | 44.0.3 | Apache-2.0 OR BSD-3-Clause (the cryptography developers) |
-| webauthn | 2.5.2 | BSD-3-Clause (Duo Labs and contributors) |
-| cbor2 | 6.1.5 | MIT (Alex Grönholm) |
-| pyOpenSSL | 25.1.0 | Apache-2.0 (the pyOpenSSL developers) |
-| asn1crypto | 1.5.1 | MIT (Will Bond) |
+| cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause (the cryptography developers) |
+| webauthn | 3.0.1 | BSD-3-Clause (Duo Labs and contributors) |
+| cbor2 | 6.3.0 | MIT (Alex Grönholm) |
+| pyOpenSSL | 26.4.0 | Apache-2.0 (the pyOpenSSL developers) |
+| pyasn1 | 0.6.5 | BSD-2-Clause (Ilya Etingof) |
+| pyasn1_modules | 0.4.2 | BSD-2-Clause (Ilya Etingof) |
+| pip | 26.3 | MIT (the pip developers) |
 
 Where a package offers a choice of licenses ("OR"), the choice is yours. Copyright holders are named where well known; for others see the respective project.
 
