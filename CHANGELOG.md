@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.59.1] – 2026-11-21
+
 ### Security
 - **Python packages raised, the image holds exactly the pinned list.** uvicorn 0.34.0 → 0.54.0, argon2-cffi 23.1.0 → 25.1.0, webauthn 2.5.2 → 3.0.1, FastAPI 0.163.1 → 0.165.0 and the dependencies that come with them (pydantic 2.14.4, PyYAML 6.0.4, pyasn1 0.6.5 and pyasn1_modules 0.4.2 instead of asn1crypto), resolved in the base image of the Dockerfile on amd64 and arm64 (the same list on both). The image now installs pip from its own pin (26.3; the base image brought 25.0.1 with five medium and one low advisory that the list scan could not see), then every package with `--no-deps`, then runs `pip check`: a package without a pin stops the build instead of being fetched unpinned behind the back of the dependency scan. The self-test (CI on both architectures, the release gate, the updater before every swap) compares the installed packages with `requirements.txt` again - nothing missing, nothing extra, every version as pinned - and checks that a password hash stored by the older library still verifies and is not rewritten. `scripts/dep_scan.py python`: 0 findings, pip included. The package table in THIRD-PARTY-NOTICES.md lists exactly the pinned packages again (it had fallen behind), kept so by a test.
 - **Passkeys and passwords keep working across the update.** A passkey registered with the older library signs in with the new one (sign-in and step-up, the counter moves on, a replayed counter is refused), stored password hashes verify unchanged and are not rehashed on the next sign-in; checked against an account and a passkey written by the previous version, also in a browser with a virtual authenticator.
