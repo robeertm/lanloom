@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- **The test job of the image build no longer ends as cancelled at its own time limit.** The test suite (5622 tests, about 14.5 minutes on the hosted runner) had grown up to the 15 minute limit of the job; for the release train 1.59.1 every step passed and the job was still cancelled by the clock, so the image of that commit was never built. The limit of the test job in the publish and test workflows is now 45 minutes (three times the measured run); the hang guard per test stays as it is.
+
 ## [1.59.1] – 2026-11-21
 
 ### Security
