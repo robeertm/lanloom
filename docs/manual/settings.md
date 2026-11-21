@@ -6,7 +6,7 @@
 
 Scanning, connections to your router, controller and hub, appearance, notifications, users, security, backup, storage
 and AI. Connections are read-only unless you switch on writing for a device family yourself. The settings are split
-into sub pages; the tabs at the top show only the ones your role may open (`#/settings/<page>`).
+into sub pages; the tabs at the top show only the ones your role may open (`#/settings/<page>`); when they do not fit the width they break into a second line, so none is ever hidden.
 
 Something not working? *Settings > General > Diagnostic export* downloads a redacted JSON file (no addresses, no names, no credentials) for an issue; see [Troubleshooting](../TROUBLESHOOTING.md#the-diagnostic-export).
 

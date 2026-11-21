@@ -9,6 +9,9 @@
 .fw-head__tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--ll-surface-3); border: 1px solid var(--ll-border); border-radius: var(--ll-radius-pill); }
+/* a row of tabs never reaches past its box and never hides a tab behind a scroll nobody sees (lanloom#10): when the labels do not fit
+   (a long language, many sections, a narrow phone) the row breaks into a second line, and the corners stop being a full pill then */
+.seg { flex-wrap: wrap; max-width: 100%; border-radius: min(var(--ll-radius-pill), 19px); }
 .seg__btn { font: inherit; font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); min-height: 30px; padding: 0 16px; border: 0; border-radius: var(--ll-radius-pill);
   background: transparent; color: var(--ll-text-2); cursor: pointer; }
 .seg__btn.is-active { background: var(--ll-surface); color: var(--ll-text); box-shadow: var(--ll-shadow-1); }
@@ -311,8 +314,6 @@
 }
 @media (max-width: 640px) {
   .fw-head, .fw-head__title, .fw-head__tools { min-width: 0; max-width: 100%; }
-  .fw-source { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-  .fw-source .seg__btn { flex: none; }
 }
 
 /* guest changes of a hypervisor (firewall editor) */

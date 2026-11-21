@@ -198,11 +198,12 @@ produce (see [Webhooks](#webhooks)).
 ### Backups
 
 `GET /api/v1/backups` - the backup chains of the control room with their state. A status is `ok` only when a success is known
-and recent; a chain nobody reports on is `unknown`, never `ok`.
+and recent; a chain nobody reports on is `unknown`, never `ok`. `ignored` lists the ids of chains found by Lanloom that a person set to
+*not used* in the control room: they are in no `summary` and not in `chains`.
 
 ```json
 {"summary": {"ok": 1}, "chains": [{"id": "offsite", "name": "Off-site copy", "kind": "manual", "status": "ok", "level": "ok",
-                                   "last_ok_t": 1795032261.2, "expect_s": 86400.0, "restore_checked_t": null, "progress": null}]}
+                                   "last_ok_t": 1795032261.2, "expect_s": 86400.0, "restore_checked_t": null, "progress": null}], "ignored": []}
 ```
 
 `POST /api/v1/backups/{chain_id}/run` - a backup script reports that a chain declared in the control room just finished

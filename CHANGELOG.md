@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- **A row of tabs never reaches past its box and never hides a tab.** The sections of the settings (twelve of them for an administrator) were wider than the page and scrolled sideways without any hint, so the last tab was cut off ("API" looked like "AI"). Every segmented row of tabs and choices now breaks into a second line when the labels do not fit (settings sections, the source picker of the firewall page on every width, the tabs of Automations on a phone) and the corners stop being a full pill when it does; a row that fits looks exactly as before. Checked on the 390, 1280, 1512 and 2560 pixel widths in two browser engines; a test keeps the rule in the style sheets.
+- **Backups Lanloom found by itself can be set to "not used", and "Checked today" can be taken back.** A backup chain that Lanloom adds on its own (a hypervisor guest, the backup of a home-automation hub, a host-agent timer) but that the person saves another way - for example through the hypervisor, reported by a script - stood in "no backup at all" or "needs a look" for ever, with no way to remove it. Each such card now has *Not used*: the chain leaves the counts, the warnings, the sentence on top, the nightly report, the storage cards and the resilience grade; it is listed under *Not used* with the date, never comes back by itself (it survives a restart and a silent source) and can be used again with *Use again*. A backup you declared yourself is removed as before. *Checked today* now has *Take back* next to the date, so a click by mistake can be undone. New routes `POST /api/backups/ignore` and `POST /api/backups/restore-check/undo` (operators, in the audit log as `chain.ignore` and `chain.restore_uncheck`); `GET /api/backups` and `GET /api/v1/backups` carry `ignored`. Translated into all six languages; manual, control room page and API reference updated.
+
 ## [1.59.0] – 2026-11-21
 
 1.58.0 below was not released on its own; it is part of this release.

@@ -59,7 +59,14 @@ gateway cannot be caught. Under *Internet > Outside check* pick a ready-made set
 every run with one request to the API; the token comes from *Settings > API*. A long run can report its progress and the
 page shows a bar. Backups of a hypervisor or a host agent appear by themselves. *Checked today* notes that you restored
 from a backup and looked at the result: a backup nobody restored is only a hope, and the page says so when the last
-check is missing or older than 180 days.
+check is missing or older than 180 days. *Take back* next to the date removes it again (a click by mistake): the backup is
+"never restored and checked" again.
+
+**Not used** (operators, backups Lanloom found itself: a guest of a hypervisor, the backup of a home-automation hub, a timer of a
+host agent): if you save that thing another way - say through the hypervisor, and a script reports it - press *Not used* on its
+card. It leaves every count: the warnings, the sentence on top, the nightly report, the storage cards and the resilience grade. It
+moves to the list *Not used* below the cards, where it stays with the date, never comes back by itself (not after a restart, not
+when the source falls silent) and can be used again with *Use again*. A backup you declared yourself is removed instead.
 
 **Battery backup**: connect a UPS monitoring service under *Settings > Connections > Battery backup (UPS)* (host and
 optionally the name of one UPS; port 3493). Lanloom reads only; it sends no login and no commands.

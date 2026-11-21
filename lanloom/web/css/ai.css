@@ -1,6 +1,6 @@
 /* Lanloom — AI: settings sub-navigation, AI cards, "Explain" button and dialog. */
 .settings-head { flex-wrap: wrap; align-items: center; justify-content: space-between; row-gap: 10px; }
-.settings-subnav { flex: none; }
+.settings-subnav { flex: 0 1 auto; min-width: 0; }
 .settings-subnav .seg__btn { display: inline-flex; align-items: center; text-decoration: none; color: var(--ll-text-2); }
 .settings-subnav .seg__btn.is-active { color: var(--ll-text); }
 

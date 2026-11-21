@@ -194,6 +194,8 @@ RULES = {
     ("POST", "/api/backups/chains/{chain_id}/run"): R(O, "chain.report"),
     ("POST", "/api/backups/chains/{chain_id}/progress"): R(O, "chain.progress"),
     ("POST", "/api/backups/restore-check"): R(O, "chain.restore_check"),
+    ("POST", "/api/backups/restore-check/undo"): R(O, "chain.restore_uncheck"),
+    ("POST", "/api/backups/ignore"): R(O, "chain.ignore"),
     ("GET", "/api/hosthealth"): R(V),
     ("GET", "/api/hosthealth/{device_id:path}"): R(V),
     ("GET", "/api/availability/{subject:path}"): R(V),

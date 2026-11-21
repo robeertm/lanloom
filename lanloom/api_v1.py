@@ -374,9 +374,9 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
                    "progress": s_num("percent while running, when known", nullable=True)}, required=("id", "name", "kind", "status", "level"), extra=True)
 
     @api.op("GET", BASE + "/backups", tag="backups", summary="Backup chains with their state (control room)",
-            response=s_obj({"summary": s_map(s_int()), "chains": s_arr(CHAIN)}),
+            response=s_obj({"summary": s_map(s_int()), "chains": s_arr(CHAIN), "ignored": s_arr(s_str(), "ids of automatically found chains a person set to not used; they are in no total")}),
             example={"summary": {"ok": 1}, "chains": [{"id": "offsite", "name": "Off-site copy", "kind": "manual", "status": "ok", "level": "ok",
-                                                      "last_ok_t": 1795032261.2, "expect_s": 86400.0, "restore_checked_t": None, "progress": None}]})
+                                                      "last_ok_t": 1795032261.2, "expect_s": 86400.0, "restore_checked_t": None, "progress": None}], "ignored": []})
     async def backups_list():
         v = await asyncio.to_thread(state.core.controlroom.backups.view)
         rows = [dict({k: c.get(k) for k in ("id", "name", "kind", "status", "level", "last_ok_t", "expect_s", "restore_checked_t")},
@@ -384,7 +384,7 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
         for r in rows:
             if r["kind"] == "manual":
                 r["id"] = r["id"].split(":", 1)[1]            # the short name the run route takes
-        return {"summary": v["summary"], "chains": rows}
+        return {"summary": v["summary"], "chains": rows, "ignored": [c["id"] for c in v["ignored"]]}
 
     @api.op("POST", BASE + "/backups/{chain_id}/run", tag="backups", summary="A backup script reports that a declared chain just finished",
             description="Needs a token with the scope operate or admin. The chain has to be declared first (control room > Backups). With size and "

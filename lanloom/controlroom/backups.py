@@ -13,7 +13,12 @@ A **chain** is one thing that is backed up: a guest of a hypervisor, the backup 
 * ``unknown`` - never reported, or the source that tells has been silent for 15 minutes: Lanloom does not say ok then.
 
 "Restore last checked on" is a date a person sets (a backup nobody restored is a hope): it is only shown, with a hint when it is
-older than 180 days, and never changes a chain's level.
+older than 180 days, and never changes a chain's level. A person can take that date back (the chain is "never checked" again).
+
+A chain Lanloom found by itself (a guest, the backup of a hub, a timer) that a person does not use as a backup - because the thing is
+saved another way and reports it elsewhere - can be set to **not used**: it is kept in its own list (``ignored``), no longer counts
+in the summary, the points, the nightly report, the storage cards or the resilience grade, and it does not come back by itself. It
+is shown and can be used again at any time; the choice is stored per chain id, so it survives restarts and a source that falls silent.
 """
 from __future__ import annotations
 
@@ -41,6 +46,7 @@ CREATE TABLE IF NOT EXISTS backup_chains (id TEXT PRIMARY KEY, name TEXT NOT NUL
 CREATE TABLE IF NOT EXISTS backup_runs (chain TEXT NOT NULL, t REAL NOT NULL, ok INTEGER NOT NULL, bytes REAL, duration_s REAL);
 CREATE INDEX IF NOT EXISTS backup_runs_chain ON backup_runs(chain, t);
 CREATE TABLE IF NOT EXISTS backup_checks (chain TEXT PRIMARY KEY, t REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS backup_ignored (chain TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', t REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS backup_learn (chain TEXT PRIMARY KEY, bps REAL, dur_s REAL, size REAL, n INTEGER NOT NULL DEFAULT 0);
 """
 _DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -143,6 +149,7 @@ class BackupWatch:
         for t in ("backup_chains", "backup_runs", "backup_learn"):
             self.store.execute("DELETE FROM %s WHERE %s=?" % (t, "id" if t == "backup_chains" else "chain"), (chain_id,))
         self.store.execute("DELETE FROM backup_checks WHERE chain IN (?, ?)", (chain_id, "manual:" + chain_id))      # keyed by the id of the list
+        self.store.execute("DELETE FROM backup_ignored WHERE chain IN (?, ?)", (chain_id, "manual:" + chain_id))
         self.live.pop(chain_id, None)
         return True
 
@@ -167,6 +174,35 @@ class BackupWatch:
         p = num(pct)
         cur = self.live.get(chain_id) or {"since": now}
         self.live[chain_id] = {"since": cur["since"], "pct": None if p is None else max(0.0, min(99.0, p)), "reported": now}
+        return True
+
+    def clear_restore_checked(self, chain_id: str) -> bool:
+        """Take a restore date back (a click by mistake): the chain is "never checked" again. False when there was none."""
+        had = bool(self.store.one("SELECT chain FROM backup_checks WHERE chain=?", (chain_id,)))
+        self.store.execute("DELETE FROM backup_checks WHERE chain=?", (chain_id,))
+        return had
+
+    def ignored_ids(self) -> dict:
+        return {r["chain"]: r for r in self.store.query("SELECT chain, name, t FROM backup_ignored")}
+
+    def set_ignored(self, chain_id: str, flag: bool, now: Optional[float] = None) -> bool:
+        """Mark a chain "not used" (or use it again). Only chains found by Lanloom itself: a declared chain is deleted instead.
+        False when the id is unknown; ValueError("chain.err.declared") for a declared chain."""
+        now = self.clock() if now is None else now
+        cid = str(chain_id or "")[:120]
+        if cid.startswith("manual:"):
+            raise ValueError("chain.err.declared")
+        known = self.ignored_ids()
+        row = next((c for c in self._everything(now) if c["id"] == cid), None)
+        if flag:
+            if row is None and cid not in known:
+                return False
+            self.store.execute("INSERT INTO backup_ignored(chain, name, t) VALUES (?,?,?) ON CONFLICT(chain) DO UPDATE SET name=excluded.name",
+                               (cid, (row or {}).get("name") or known.get(cid, {}).get("name") or "", now))
+            return True
+        if cid not in known:
+            return False
+        self.store.execute("DELETE FROM backup_ignored WHERE chain=?", (cid,))
         return True
 
     def set_restore_checked(self, chain_id: str, t: Optional[float] = None, now: Optional[float] = None) -> None:
@@ -327,11 +363,25 @@ class BackupWatch:
         return out
 
     # ------------------------------------------------------------------ the answer
-    def chains(self, now: Optional[float] = None) -> list:
+    def _everything(self, now: float) -> list:
+        with self._lock:
+            return self._from_manual(now) + self._from_hypervisor(now) + self._from_hub(now) + self._from_agents(now)
+
+    def known_ids(self, now: Optional[float] = None) -> set:
+        """Every chain id there is right now, the ones that count and the ones set to "not used"."""
+        return {r["id"] for r in self._judged(self.clock() if now is None else now)}
+
+    def chains(self, now: Optional[float] = None, ignored: bool = False) -> list:
+        """The chains that count. ``ignored=True`` returns the ones a person set to "not used" instead (never in any total)."""
         now = self.clock() if now is None else now
+        rows = self._judged(now)
+        return [r for r in rows if bool(r["ignored"]) == ignored]
+
+    def _judged(self, now: float) -> list:
         with self._lock:
             self._expire_silent(now)
-            raw = self._from_manual(now) + self._from_hypervisor(now) + self._from_hub(now) + self._from_agents(now)
+            raw = self._everything(now)
+            skip = self.ignored_ids()
             checks = {r["chain"]: r["t"] for r in self.store.query("SELECT chain, t FROM backup_checks")}
             out = []
             for c in raw[:MAX_CHAINS]:
@@ -355,16 +405,19 @@ class BackupWatch:
                             "next_t": c.get("next_t"), "progress": self._progress(live_key, now) if status == "running" else None,
                             "restore_checked_t": rc, "restore_hint": "never" if rc is None else ("old" if now - rc > RESTORE_OLD_DAYS * 86400 else "ok"),
                             "device": c.get("device"), "editable": c["kind"] == "manual", "origin": c.get("origin") or "",
-                            "target_free_pct": c.get("target_free")})
+                            "target_free_pct": c.get("target_free"), "ignored": cid in skip and c["kind"] != "manual",
+                            "ignored_t": skip[cid]["t"] if cid in skip and c["kind"] != "manual" else None})
         order = {"danger": 0, "warn": 1, "unknown": 2, "ok": 3}
         out.sort(key=lambda r: (order.get(r["level"], 4), r["name"].lower()))
         return out
 
     def view(self, now: Optional[float] = None) -> dict:
         now = self.clock() if now is None else now
-        rows = self.chains(now)
+        every = self._judged(now)
+        rows = [r for r in every if not r["ignored"]]
+        off = [r for r in every if r["ignored"]]
         sm = {k: 0 for k in ("ok", "late", "failed", "running", "unknown", "none")}
         for r in rows:
             sm[r["status"]] = sm.get(r["status"], 0) + 1
         return {"t": now, "chains": rows, "summary": sm, "level": worst(r["level"] for r in rows) if rows else "none",
-                "restore_old_days": RESTORE_OLD_DAYS}
+                "restore_old_days": RESTORE_OLD_DAYS, "ignored": off}

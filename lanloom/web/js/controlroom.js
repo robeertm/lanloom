@@ -298,8 +298,14 @@
       try { await api('/api/backups/restore-check', { method: 'POST', body: { chain: c.id } }); LL.toast(t('cr.ui.bk.restore.noted'), 'ok'); reload(); }
       catch (e) { LL.toast(LL.errText(e), 'error'); ev.currentTarget.disabled = false; }
     } }, t('cr.ui.bk.restore.today')) : null;
+    const undo = LL.can('operate') && c.restore_checked_t != null ? h('button', { class: 'btn btn--ghost btn--sm cr-chain__undo', type: 'button', onclick: async ev => {
+      ev.currentTarget.disabled = true;
+      try { await api('/api/backups/restore-check/undo', { method: 'POST', body: { chain: c.id } }); LL.toast(t('cr.ui.bk.restore.undone'), 'ok'); reload(); }
+      catch (e) { LL.toast(LL.errText(e), 'error'); ev.currentTarget.disabled = false; }
+    } }, t('cr.ui.bk.restore.undo')) : null;
     return h('div', { class: 'cr-chain__restore cr-chain__restore--' + lv }, mark(lv),
-      h('span', { class: 'cr-chain__restore-text' }, h('span', {}, text), hint ? h('span', { class: 'muted' }, hint) : null), btn);
+      h('span', { class: 'cr-chain__restore-text' }, h('span', {}, text), hint ? h('span', { class: 'muted' }, hint) : null),
+      h('span', { class: 'cr-chain__restore-btns' }, btn, undo));
   }
   function chainRow(c, reload, opts) {
     const compact = !!(opts && opts.compact), oldDays = opts && opts.oldDays;
@@ -320,14 +326,29 @@
         try { await api('/api/backups/chains/' + encodeURIComponent(c.id.replace(/^manual:/, '')), { method: 'DELETE' }); LL.toast(t('cr.ui.bk.deleted'), 'ok'); reload(); }
         catch (e) { LL.toast(LL.errText(e), 'error'); ev.currentTarget.disabled = false; }
       } }, t('cr.ui.bk.delete'))) : null;
+    const setIgnored = async (ev, flag) => {
+      ev.currentTarget.disabled = true;
+      try { await api('/api/backups/ignore', { method: 'POST', body: { chain: c.id, ignored: flag } }); LL.toast(t(flag ? 'cr.ui.bk.ignored' : 'cr.ui.bk.unignored'), 'ok'); reload(); }
+      catch (e) { LL.toast(LL.errText(e), 'error'); ev.currentTarget.disabled = false; }
+    };
+    if (opts && opts.ignored) {
+      return h('li', { class: 'cr-chain cr-chain--ignored', dataset: { chain: c.id, status: 'ignored' } },
+        h('div', { class: 'cr-chain__head' }, h('strong', { class: 'cr-chain__name' }, c.name),
+          h('span', { class: 'cr-chain__side' }, LL.can('operate') ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: ev => setIgnored(ev, false) }, t('cr.ui.bk.unignore')) : null,
+            chip('unknown', t('cr.ui.bk.ignore')))),
+        meta ? h('div', { class: 'cr-chain__meta muted' }, meta) : null,
+        c.ignored_t ? h('div', { class: 'cr-chain__when' }, h('span', {}, t('cr.ui.bk.ignored.since', { date: LL.fmtDate(c.ignored_t) }))) : null);
+    }
+    const skip = LL.can('operate') && !c.editable && !compact ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', title: t('cr.ui.bk.ignore.hint'), onclick: ev => setIgnored(ev, true) }, t('cr.ui.bk.ignore')) : null;
     return h('li', { class: 'cr-chain cr-chain--' + cls(lv) + (compact ? ' cr-chain--compact' : ''), dataset: { chain: c.id, status: c.status } },
-      h('div', { class: 'cr-chain__head' }, h('strong', { class: 'cr-chain__name' }, c.name), h('span', { class: 'cr-chain__side' }, acts, chip(lv, t('cr.ui.bk.status.' + c.status)))),
+      h('div', { class: 'cr-chain__head' }, h('strong', { class: 'cr-chain__name' }, c.name), h('span', { class: 'cr-chain__side' }, acts, skip, chip(lv, t('cr.ui.bk.status.' + c.status)))),
       meta ? h('div', { class: 'cr-chain__meta muted' }, meta) : null,
       h('div', { class: 'cr-chain__when' }, lines.map(l => h('span', {}, l))), prog,
       compact ? null : restoreLine(c, reload, oldDays));
   }
   function backupsSection(b, reload) {
     const sm = b.summary || {};
+    const off = b.ignored || [];
     const chains = b.chains.slice().sort((a, c) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(c.status) || a.name.localeCompare(c.name));
     const counts = STATUS_ORDER.filter(s => sm[s]).map(s => h('span', { class: 'chip cr-chip chip--' + (cls(STATUS_LEVEL[s]) === 'unknown' ? 'muted' : cls(STATUS_LEVEL[s])) }, mark(STATUS_LEVEL[s]), t('cr.ui.bk.count', { n: sm[s], status: t('cr.ui.bk.status.' + s) })));
     const add = LL.can('operate') ? h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => chainEditor(null, reload) }, t('cr.ui.bk.add')) : null;
@@ -338,7 +359,9 @@
       h('div', { class: 'cr-sec__head' }, h('h2', { id: 'cr-h-backups' }, t('cr.ui.sec.backups')), add),
       h('p', { class: 'muted cr-lead' }, t('cr.ui.bk.lead')),
       counts.length ? h('div', { class: 'cr-counts' }, counts) : null,
-      chains.length ? h('ul', { class: 'cr-chains cr-chains--grid' }, chains.map(c => chainRow(c, reload, { oldDays: b.restore_old_days }))) : h('p', { class: 'cr-calm muted' }, t('cr.ui.bk.none')),
+      chains.length ? h('ul', { class: 'cr-chains cr-chains--grid' }, chains.map(c => chainRow(c, reload, { oldDays: b.restore_old_days }))) : h('p', { class: 'cr-calm muted' }, t(off.length ? 'cr.ui.bk.all_ignored' : 'cr.ui.bk.none')),
+      off.length ? LL.keepOpen.details('cr:ignored', false, t('cr.ui.bk.ignored.title', { n: off.length }),
+        h('div', { class: 'cr-ignored' }, h('p', { class: 'muted' }, t('cr.ui.bk.ignored.lead')), h('ul', { class: 'cr-chains cr-chains--grid' }, off.map(c => chainRow(c, reload, { ignored: true }))))) : null,
       howto);
   }
 

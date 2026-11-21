@@ -545,7 +545,7 @@ def test_agents_missing_or_broken_do_not_matter():
 def test_view_summary_and_overall_level():
     core, w = make()
     assert w.view(T0) == {"t": T0, "chains": [], "summary": {"ok": 0, "late": 0, "failed": 0, "running": 0, "unknown": 0, "none": 0},
-                          "level": "none", "restore_old_days": 180}
+                          "level": "none", "restore_old_days": 180, "ignored": []}
     chain(w, "a", name="A")
     chain(w, "b", name="B")
     chain(w, "c", name="C")
@@ -572,3 +572,83 @@ def test_chains_of_all_kinds_side_by_side_are_sorted_and_capped():
     many = [guest("g%d" % i, "g%d" % i, last_t=T0 - H, vmid=i) for i in range(350)]
     core, w = hv_core(hv_state(many))
     assert len(w.chains(T0)) == bk.MAX_CHAINS
+
+
+# ---------------------------------------------------------------------------------------------------- "not used" (lanloom#11)
+def hub_none_core():
+    """The hub reports a backup that never happened (nothing known): "none"/warn - the case that stood in the warnings for ever."""
+    return hub_core({"sensor.backup_manager_state": "idle"})
+
+
+def test_an_automatic_chain_can_be_set_to_not_used_and_leaves_every_total():
+    core, w = hub_core({"sensor.backup_manager_state": "idle", "sensor.backup_last_successful": iso(T0 - 5 * D)})
+    assert w.view(T0)["summary"]["late"] == 1 and w.view(T0)["level"] == "warn"
+    assert w.set_ignored("hub:1", True) is True
+    v = w.view(T0)
+    assert v["chains"] == [] and v["level"] == "none" and sum(v["summary"].values()) == 0
+    assert [c["id"] for c in v["ignored"]] == ["hub:1"] and v["ignored"][0]["ignored_t"] == T0 and v["ignored"][0]["status"] == "late"
+    assert w.chains(T0) == [] and [c["id"] for c in w.chains(T0, ignored=True)] == ["hub:1"]
+    assert "hub:1" in w.known_ids(T0)                                    # still reachable by id (restore date, use again)
+
+
+def test_not_used_is_permanent_visible_and_reversible():
+    core, w = hub_core({"sensor.backup_manager_state": "idle", "sensor.backup_last_successful": iso(T0 - 5 * D)})
+    w.set_ignored("hub:1", True)
+    w2 = BackupWatch(core, clock=lambda: T0)                              # a restart: the choice is in the store, not in memory
+    assert w2.view(T0)["chains"] == [] and len(w2.view(T0)["ignored"]) == 1
+    assert w2.set_ignored("hub:1", False) is True
+    v = w2.view(T0)
+    assert [c["id"] for c in v["chains"]] == ["hub:1"] and v["ignored"] == [] and v["summary"]["late"] == 1
+    assert w2.set_ignored("hub:1", False) is False                        # nothing to undo twice
+
+
+def test_not_used_survives_a_silent_source_and_a_new_state():
+    core, w = hub_none_core()
+    assert hub_chain(w)["status"] == "none"
+    w.set_ignored("hub:1", True)
+    core, _ = hub_core({"sensor.backup_manager_state": "idle", "sensor.backup_last_successful": iso(T0 - 3 * H)}, t=T0 - 5000)    # silent
+    w3 = BackupWatch(core, clock=lambda: T0)
+    w3.store = w.store
+    assert w3.view(T0)["chains"] == [] and w3.view(T0)["ignored"][0]["status"] == "unknown"
+
+
+def test_only_chains_lanloom_found_can_be_set_to_not_used():
+    core, w = hub_none_core()
+    w.save_chain("mine", {"name": "Mine", "expect_hours": 24})
+    with pytest.raises(ValueError, match="chain.err.declared"):
+        w.set_ignored("manual:mine", True)
+    assert w.set_ignored("hub:99", True) is False and w.set_ignored("", True) is False
+    assert w.ignored_ids() == {}
+    assert w.view(T0)["ignored"] == []
+
+
+def test_deleting_a_declared_chain_leaves_no_not_used_row_and_other_chains_are_untouched():
+    core, w = hub_none_core()
+    w.set_ignored("hub:1", True)
+    w.save_chain("mine", {"name": "Mine", "expect_hours": 24})
+    assert [c["id"] for c in w.chains(T0)] == ["manual:mine"]
+    w.delete_chain("mine")
+    assert list(w.ignored_ids()) == ["hub:1"]
+
+
+def test_the_warning_counters_of_the_control_room_ignore_it():
+    from lanloom.controlroom.room import ControlRoom
+    core, w = hub_none_core()
+    room = ControlRoom(core, clock=lambda: T0)
+    snap = room.snapshot(T0)
+    assert any(p["block"] == "backups" and p["key"] == "cr.bk.none" for p in snap["points"])
+    room.backups.set_ignored("hub:1", True)
+    snap = room.snapshot(T0)
+    assert not any(p["block"] == "backups" for p in snap["points"]) and all(b["id"] != "backups" for b in snap["blocks"])
+    assert [c["id"] for c in snap["backups"]["ignored"]] == ["hub:1"]
+
+
+def test_a_restore_date_can_be_taken_back():
+    core, w = hub_core({"sensor.backup_manager_state": "idle", "sensor.backup_last_successful": iso(T0 - H)})
+    assert w.clear_restore_checked("hub:1") is False
+    w.set_restore_checked("hub:1")
+    assert hub_chain(w)["restore_checked_t"] == T0 and hub_chain(w)["restore_hint"] == "ok"
+    assert w.clear_restore_checked("hub:1") is True
+    c = hub_chain(w)
+    assert c["restore_checked_t"] is None and c["restore_hint"] == "never"
+    assert w.clear_restore_checked("hub:1") is False

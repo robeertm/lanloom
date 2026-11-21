@@ -15,6 +15,9 @@ probe targets (the only traffic the control room makes by itself).
 * ``POST /api/backups/chains/{id}/run``          a script reports a run {ok, size?, duration_s?}
 * ``POST /api/backups/chains/{id}/progress``     a script reports progress {pct}
 * ``POST /api/backups/restore-check``            {chain, t?}: a person says "restored and checked on ..." (default now)
+* ``POST /api/backups/restore-check/undo``       {chain}: take that date back (the chain is "never checked" again)
+* ``POST /api/backups/ignore``                   {chain, ignored}: a chain Lanloom found itself is "not used" (kept, listed, out of every
+                                                 total, never comes back by itself) or used again; a declared chain is deleted instead
 """
 import asyncio
 from dataclasses import dataclass
@@ -117,11 +120,33 @@ def register(app: FastAPI, c: Ctx) -> None:
         data = await c.body(request)
         chain = str(data.get("chain") or "")[:120]
         c.note(request, target=chain)
-        known = {r["id"] for r in c.state.core.controlroom.backups.chains()}
-        if chain not in known:
+        if chain not in c.state.core.controlroom.backups.known_ids():
             return c.err("chain.err.missing", 404)
         try:
             c.state.core.controlroom.backups.set_restore_checked(chain, data.get("t"))
         except (ValueError, TypeError):
             return c.err("chain.err.date")
         return {"ok": True}
+
+    @app.post("/api/backups/restore-check/undo")
+    async def restore_check_undo(request: Request):
+        data = await c.body(request)
+        chain = str(data.get("chain") or "")[:120]
+        c.note(request, target=chain)
+        if not c.state.core.controlroom.backups.clear_restore_checked(chain):
+            return c.err("chain.err.nodate", 404)
+        return {"ok": True}
+
+    @app.post("/api/backups/ignore")
+    async def chain_ignore(request: Request):
+        data = await c.body(request)
+        chain = str(data.get("chain") or "")[:120]
+        flag = bool(data.get("ignored", True))
+        c.note(request, target=chain, detail={"ignored": flag})
+        try:
+            found = c.state.core.controlroom.backups.set_ignored(chain, flag)
+        except ValueError as exc:
+            return c.err(str(exc))
+        if not found:
+            return c.err("chain.err.missing", 404)
+        return {"ok": True, "ignored": flag}

@@ -273,6 +273,9 @@
 .cr-chain__restore--warn .cr-chain__restore-text > span:first-child { color: var(--ll-warn-text); font-weight: var(--ll-fw-medium); }
 .cr-chain__side { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
 .cr-chain__acts { display: inline-flex; gap: 2px; }
+.cr-chain__restore-btns { display: inline-flex; gap: 2px; flex-wrap: wrap; }
+.cr-chain--ignored { opacity: .85; }
+.cr-ignored { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .cr-howto { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; font-size: var(--ll-fs-sm); }
 .cr-howto p { margin: 0; }
 .cr-howto__cmd { display: block; padding: 10px 12px; border-radius: var(--ll-radius-sm); background: var(--ll-surface-3); font-family: var(--ll-font-mono); font-size: var(--ll-fs-xs); overflow-wrap: anywhere; white-space: pre-wrap; }
@@ -307,7 +310,7 @@
   .cr-ev__time { min-width: 0; width: 100%; }
   .cr-chain__progress { grid-template-columns: minmax(0, 1fr) auto; }
   .cr-chain__progress .chip { grid-column: 1 / -1; justify-self: start; }
-  .cr-chain__acts .btn, .cr-chain__restore .btn { min-height: 40px; }
+  .cr-chain__acts .btn, .cr-chain__restore .btn, .cr-chain--ignored .btn, .cr-chain__side .btn { min-height: 40px; }
   .cr-chain__side { margin-left: 0; justify-content: flex-start; }
   .cr-hist__stats { gap: 28px; }
   .cr-point a { flex-wrap: wrap; }

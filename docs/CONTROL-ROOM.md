@@ -77,7 +77,15 @@ A **chain** is one thing that is backed up: a guest of a hypervisor, the backup 
 **Progress** is exact when the script reports it (`POST /api/backups/chains/{id}/progress`), otherwise an estimate from the duration
 and throughput learned from earlier runs (never 100 % before the run ends; a run that goes silent stops counting as running after an
 hour). **Restore last checked on ...** is a date a person sets (a backup nobody restored is a hope); it is shown with a hint when it is
-missing or older than 180 days and never changes a chain's state.
+missing or older than 180 days and never changes a chain's state; a person can take the date back
+(`POST /api/backups/restore-check/undo {chain}`).
+
+**Not used.** A chain Lanloom found by itself (a hypervisor guest, the backup of a hub, a host-agent timer) can be set to *not used*
+(`POST /api/backups/ignore {chain, ignored}`; the id is in the body because hypervisor ids may contain a slash). It is kept in the
+list `ignored` of `GET /api/backups` (and `GET /api/v1/backups`), with its real state and the time it was set aside, and it is in no
+summary, no point of the page, no nightly report, no storage card and no resilience grade. The choice is stored per chain id: it
+survives a restart and a source that falls silent, and it never reverts by itself. Setting it back (`ignored: false`) counts the
+chain again. A declared chain is deleted instead (`chain.err.declared`).
 
 A script reports a run with one request (token scope *operate*, see [API.md](API.md)):
 
@@ -90,7 +98,7 @@ curl -X POST -H "Authorization: Bearer $LANLOOM_TOKEN" -H "Content-Type: applica
 
 Everybody who sees the map reads. Operators declare, change and delete chains, report runs and note restore checks; administrators
 pick the targets of the internet check. Every change is in the audit log (`chain.save`, `chain.delete`, `chain.report`,
-`chain.progress`, `chain.restore_check`, `wan.probe`).
+`chain.progress`, `chain.restore_check`, `chain.restore_uncheck`, `chain.ignore`, `wan.probe`).
 
 ## Nightly report
 

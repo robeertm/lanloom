@@ -105,7 +105,6 @@
   .link-box__row { flex-direction: column; }
   .audit-filters .select { flex: 1 1 45%; }
 }
-/* five sections in the settings: scroll sideways on a narrow phone instead of overflowing */
-.settings-subnav { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.settings-subnav::-webkit-scrollbar { display: none; }
+/* the sections of the settings break into a second line when they do not fit (no hidden scroll, no cut-off last tab: lanloom#10) */
+.settings-subnav { max-width: 100%; }
 .settings-subnav .seg__btn { white-space: nowrap; flex: none; }

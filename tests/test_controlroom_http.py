@@ -21,7 +21,9 @@ CHANGES = [("PUT", "/api/wan/probe", {"tcp": ["192.0.2.53:53"]}),
            ("DELETE", "/api/backups/chains/rt-chain", None),
            ("POST", "/api/backups/chains/rt-chain/run", {"ok": True}),
            ("POST", "/api/backups/chains/rt-chain/progress", {"pct": 10}),
-           ("POST", "/api/backups/restore-check", {"chain": "manual:rt-chain"})]
+           ("POST", "/api/backups/restore-check", {"chain": "manual:rt-chain"}),
+           ("POST", "/api/backups/restore-check/undo", {"chain": "manual:rt-chain"}),
+           ("POST", "/api/backups/ignore", {"chain": "hub:rt"})]
 
 
 @pytest.fixture(scope="module")
@@ -68,13 +70,14 @@ def call(c, method, path, body=None, role=None):
 
 # ---------------------------------------------------------------------------------------------------- who may do what
 def test_the_rights_table_names_every_route():
-    want = {("GET", p) for p in READS} | {(m, p.replace("rt-chain", "{chain_id}")) for m, p, _ in CHANGES if "rt-chain" in p}
+    want = {("GET", p) for p in READS} | {(m, p.replace("rt-chain", "{chain_id}")) for m, p, _ in CHANGES if "rt-chain" in p or p == "/api/backups/ignore"}
     want |= {("PUT", "/api/wan/probe"), ("POST", "/api/backups/restore-check"), ("GET", "/api/ups")}
     for key in want:
         assert key in access.RULES, key
     assert access.RULES[("PUT", "/api/wan/probe")].role == "admin"
     for key in (("PUT", "/api/backups/chains/{chain_id}"), ("DELETE", "/api/backups/chains/{chain_id}"), ("POST", "/api/backups/chains/{chain_id}/run"),
-                ("POST", "/api/backups/chains/{chain_id}/progress"), ("POST", "/api/backups/restore-check")):
+                ("POST", "/api/backups/chains/{chain_id}/progress"), ("POST", "/api/backups/restore-check"),
+                ("POST", "/api/backups/restore-check/undo"), ("POST", "/api/backups/ignore")):
         assert access.RULES[key].role == "operator" and access.RULES[key].audit, key
     assert access.RULES[("PUT", "/api/wan/probe")].audit == "wan.probe"
     assert all(access.RULES[("GET", p)].role == "viewer" for p in READS)
@@ -144,6 +147,57 @@ def test_a_chain_from_declaration_to_deletion_as_operator(client):
     assert call(client, "DELETE", base, role="operator").json() == {"ok": True}
     assert call(client, "DELETE", base, role="operator").status_code == 404
     assert not any(c["id"] == "manual:rt-life" for c in call(client, "GET", "/api/backups", role="viewer").json()["chains"])
+
+
+def test_a_restore_date_is_taken_back_over_http(client):
+    base = "/api/backups/chains/rt-undo"
+    call(client, "PUT", base, {"name": "Undo", "expect_hours": 24}, role="operator")
+
+    def chain():
+        return next(c for c in call(client, "GET", "/api/backups", role="viewer").json()["chains"] if c["id"] == "manual:rt-undo")
+    undo = "/api/backups/restore-check/undo"
+    assert call(client, "POST", undo, {"chain": "manual:rt-undo"}, role="operator").status_code == 404      # nothing noted yet
+    call(client, "POST", "/api/backups/restore-check", {"chain": "manual:rt-undo"}, role="operator")
+    assert chain()["restore_hint"] == "ok"
+    assert call(client, "POST", undo, {"chain": "manual:rt-undo"}, role="viewer").status_code == 403
+    assert call(client, "POST", undo, {"chain": "manual:rt-undo"}, role="operator").json() == {"ok": True}
+    assert chain()["restore_hint"] == "never" and chain()["restore_checked_t"] is None
+    call(client, "DELETE", base, role="operator")
+
+
+def test_an_automatic_chain_is_set_to_not_used_and_back_over_http(client):
+    st = client.st
+    ents = [{"entity_id": "sensor.backup_manager_state", "device_id": "d1", "name": "Backup Manager state", "unit": "", "dc": None, "domain": "sensor"}]
+    now = time.time()
+    st.core.hub = {1: {"snapshot": {"t": now, "devices": [{"id": "d1", "name": "Hub"}], "entities": ents},
+                       "states": {"sensor.backup_manager_state": ("idle", now)}}}
+    ig = "/api/backups/ignore"
+
+    def view():
+        return call(client, "GET", "/api/backups", role="viewer").json()
+    try:
+        assert [c["id"] for c in view()["chains"] if c["kind"] == "hub"] == ["hub:1"]
+
+        def none_count():
+            pts = call(client, "GET", "/api/controlroom", role="viewer").json()["points"]
+            return sum(p["vars"].get("n", 0) for p in pts if p["block"] == "backups" and p["key"] == "cr.bk.none")
+        before = none_count()                                               # the hub reports nothing yet: "no backup at all", plus the sample's own
+        assert before >= 1
+        assert call(client, "POST", ig, {"chain": "hub:1", "ignored": True}, role="viewer").status_code == 403
+        assert call(client, "POST", ig, {"chain": "hub:1", "ignored": True}, role="operator").json() == {"ok": True, "ignored": True}
+        v = view()
+        assert not any(c["kind"] == "hub" for c in v["chains"]) and [c["id"] for c in v["ignored"]] == ["hub:1"]
+        assert none_count() == before - 1
+        assert call(client, "POST", ig, {"chain": "hub:nope", "ignored": True}, role="operator").status_code == 404
+        r = call(client, "POST", ig, {"chain": "manual:x", "ignored": True}, role="operator")
+        assert r.status_code == 400 and r.json()["error"] == "chain.err.declared"
+        assert call(client, "POST", ig, {"chain": "hub:1", "ignored": False}, role="operator").json() == {"ok": True, "ignored": False}
+        assert [c["id"] for c in view()["chains"] if c["kind"] == "hub"] == ["hub:1"] and view()["ignored"] == []
+        done = [(a, t, d) for a, o, _w, t, d in audit_actions(client) if o == "ok" and a == "chain.ignore"]
+        assert ("chain.ignore", "hub:1", {"ignored": True}) in done and ("chain.ignore", "hub:1", {"ignored": False}) in done
+    finally:
+        call(client, "POST", ig, {"chain": "hub:1", "ignored": False}, role="operator")
+        st.core.hub = {}
 
 
 def test_a_script_reports_a_run_over_the_public_api(client):

@@ -3,7 +3,7 @@
 .sn-page { gap: 14px; }
 .sn-head { flex-wrap: wrap; }
 .sn-head__hub { margin-left: auto; }
-.sn-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--ll-radius-pill); background: var(--ll-surface-3); align-self: flex-start; max-width: 100%; overflow-x: auto; }
+.sn-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: min(var(--ll-radius-pill), 20px); background: var(--ll-surface-3); align-self: flex-start; max-width: 100%; flex-wrap: wrap; }
 .sn-seg__btn { border: 0; background: transparent; color: var(--ll-text-2); font: inherit; font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold);
   padding: 6px 14px; border-radius: var(--ll-radius-pill); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sn-seg__btn:hover { color: var(--ll-text); }
