@@ -118,10 +118,27 @@ From Lanloom's own rules, per automation:
 ## Nightly report
 
 The section **Automations** (one per hub connection) appears when there is something to judge - flows, integration
-states or unavailable entities. Points: automations naming a missing entity, conflicts of the night, integrations with
-errors, unavailable entities per domain from three on. Notes: fewer unavailable entities, automations that start
-themselves or drop starts, automations that have not run for 30 days. The summary has counts only; the AI features see
-the section only as its summary. See [NIGHTLY-REPORT.md](NIGHTLY-REPORT.md).
+states or unavailable entities. Points: automations naming a missing entity, conflicts of the night, runs that ended
+with an error during the night, integrations with errors, unavailable entities per domain from three on. Notes: fewer
+unavailable entities, automations that start themselves or drop starts, automations that have not run for 30 days. The
+summary has counts only; the AI features see the section only as its summary. See [NIGHTLY-REPORT.md](NIGHTLY-REPORT.md).
+
+**Only news.** A finding of the rules (missing entity, self trigger, `single` with waiting, bundle of unavailable
+entities, integration with an error) is a point the first time it shows. The next report only says, in one calm line,
+"still open since <date>: N findings". A finding that was gone for 36 hours is new again when it comes back; the first
+report after an update (and the first one of a hub) takes what it finds as known and says so in one line. The small
+register (finding, first and last seen) is stored with each report, per site, and goes with the archive. Events of the
+night - conflicts and failed runs - stay points every night.
+
+**Failed runs.** Once per report (admin mode only) the bridge asks the hub for the stored run summaries of all
+automations and scripts with one list per domain - never one request per automation - and counts the runs that ended
+with an error between the last report and this one. Each automation is a point with the number of runs, the time of
+the last one and a short error text; five are named, the rest is counted. The hub keeps only its last few runs per
+automation, so the number is "at least". Entity ids in the text are replaced by display names (an id of a hidden
+domain, an address, a link, a hardware address, an e-mail address or a long key becomes "…"); an error that came from a
+template is counted but its text is never kept. When the hub cannot be asked (budget used up, no answer, an older hub
+without the command) the section says so in one calm line; without admin mode nothing is asked. Each point links to the
+automation in this tab.
 
 ## Search and commands
 

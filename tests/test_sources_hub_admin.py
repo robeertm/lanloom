@@ -96,6 +96,21 @@ class AdminHub(FakeHub):
                 return await fail("unknown_error")
             return await ok({"entity": ["light.hall", "person.alice", "binary_sensor.motion"], "automation": [eid],
                              "area": ["hall"], "device": ["d1"]})
+        if t == "trace/list" and "item_id" not in msg:       # the summary of the night report: every item of the domain
+            self.asked.append((t, None))
+            if msg["domain"] != "automation":
+                return await ok([])
+            fin = {"start": T, "finish": T}
+            return await ok([
+                {"domain": "automation", "item_id": "1001", "run_id": "r1", "state": "stopped", "script_execution": "error",
+                 "error": "Unable to reach light.hall for person.alice at 192.168.1.50 via https://x.example/t?k=abcdefghij1234567890",
+                 "timestamp": fin},
+                {"domain": "automation", "item_id": "1001", "run_id": "r2", "state": "stopped", "script_execution": "finished",
+                 "timestamp": fin},
+                {"domain": "automation", "item_id": "1003", "run_id": "r3", "state": "stopped", "script_execution": "error",
+                 "error": "Error rendering template: {{ states('sensor.power') }} = 40", "timestamp": fin},
+                {"domain": "automation", "item_id": "9999", "run_id": "r4", "state": "stopped", "script_execution": "error",
+                 "error": "an item this bridge does not follow", "timestamp": fin}])
         if t == "trace/list":
             self.asked.append((t, msg["item_id"]))
             return await ok([{"run_id": "abc123", "state": "stopped", "script_execution": "finished", "last_step": "action/0",
@@ -451,3 +466,47 @@ def test_a_closed_connection_never_blocks_an_item():
             await hub._lookup_related(None, "automation.x", 1_800_000_000.0)
     run(go())
     assert hub._blocks.items == {}
+
+
+# ================================================================== failed runs for the night report (N2)
+def test_run_summary_reads_one_list_per_domain_and_keeps_only_harmless_texts():
+    async def go():
+        srv = await AdminHub().start()
+        hub = m.Hub("http://127.0.0.1:%d" % srv.port, TOKEN, admin_mode=True)
+        events = await _drive(srv, hub, lambda evs: any(e["type"] == "hub_runs" for e in evs),
+                              after_snapshot=lambda h: h.want_run_summary())
+        return srv, hub, events
+    srv, hub, events = run(go())
+    frame = [e for e in events if e["type"] == "hub_runs"][0]
+    assert [i for t, i in srv.asked if t == "trace/list"] == [None, None]          # one request per domain, never per item
+    assert not [t for t, _i in srv.asked if t == "trace/get"]
+    assert sorted(frame["items"]) == ["automation.broken", "automation.hall"]      # the unknown item and the finished run are not there
+    (hall,) = frame["items"]["automation.hall"]
+    assert hall["at"] and hall["text"] == "Unable to reach Hall for … at … via …"   # ids -> names, private id, address, link redacted
+    assert frame["items"]["automation.broken"][0]["text"] is None                  # a template error says nothing
+    assert frame["checked"] == 3 and "error" not in frame
+    blob = json.dumps(frame)
+    for word in ("alice", "192.168", "x.example", "abcdefghij", "states(", "rendering"):
+        assert word.lower() not in blob.lower()
+    assert hub.refused == 0
+
+
+def test_run_summary_needs_admin_mode_and_is_never_sent_without_it():
+    async def go():
+        srv = await AdminHub().start()
+        hub = m.Hub("http://127.0.0.1:%d" % srv.port, TOKEN)
+        assert hub.want_run_summary() is False
+        events = await _drive(srv, hub, lambda evs: any(e["type"] == "hub_state" and e["entity_id"] == "sensor.power" for e in evs))
+        return srv, hub, events
+    srv, hub, events = run(go())
+    assert not [e for e in events if e["type"] == "hub_runs"] and srv.received.count("trace/list") == 0
+
+
+def test_run_summary_goes_through_the_trace_budget_and_the_send_path():
+    hub = m.Hub("http://127.0.0.1:1", TOKEN, admin_mode=True)
+    hub._budgets["trace"].tokens = 0.0
+    assert hub.want_run_summary() is True and hub._runs_job["todo"] == ["automation", "script"]
+    assert hub._budgets["trace"].take(hub._clock()) is False          # nothing goes out while the budget is empty
+    with pytest.raises(m.ForbiddenMessage):                           # the optional field is the only one that may be left out
+        run(hub._send(None, "trace/list", item_id="1001"))
+    assert hub.refused == 1

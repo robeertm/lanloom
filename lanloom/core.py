@@ -1447,6 +1447,42 @@ class Core:
     def hub_traces(self, integ_id: int, entity_id: str) -> Optional[dict]:
         return hubbridge.traces_view(self.hub.get(integ_id) or {}, entity_id)
 
+    async def hub_collect_runs(self, wait_s: float = hubbridge.RUNS_WAIT_S) -> None:
+        """Before a nightly report: ask each hub connection in admin mode once for the stored run summaries (one
+        ``trace/list`` per domain, within the trace budget) and wait for the answer. The outcome per connection lands in
+        its entry as ``run_status`` (``ok`` or a key); without admin mode nothing is asked. Never raises."""
+        asked = {}
+        for integ in self.integrations():
+            iid = integ["id"]
+            entry = self.hub.get(iid)
+            if integ["kind"] != "hub" or not integ.get("enabled") or entry is None:
+                continue
+            if not (integ["config"].get("admin_mode") or self.demo):
+                entry.pop("run_status", None)
+                continue
+            t0 = time.time()
+            if self.demo:
+                frame = self.demo.hub_runs() if hasattr(self.demo, "hub_runs") else None
+                if frame:
+                    self.on_event("int:%d" % iid, iid, frame)
+                    entry["run_status"] = {"t": t0, "key": "ok"}
+                continue
+            src = self._hub_sources.get(iid)
+            if src is None or not getattr(src, "want_run_summary", lambda: False)():
+                entry["run_status"] = {"t": t0, "key": "offline" if src is None else "unsupported"}
+                continue
+            entry["run_status"] = {"t": t0, "key": "timeout"}
+            asked[iid] = t0
+        deadline = time.monotonic() + wait_s
+        while asked and time.monotonic() < deadline:
+            for iid, t0 in list(asked.items()):
+                summary = (self.hub.get(iid) or {}).get("run_summary") or {}
+                if summary.get("t", 0) >= t0:
+                    asked.pop(iid)
+                    self.hub[iid]["run_status"] = {"t": t0, "key": summary.get("error") or "ok"}
+            if asked:
+                await asyncio.sleep(0.25)
+
     def hub_want_traces(self, integ_id: int, entity_id: str) -> dict:
         """Ask the bridge for the last runs of one automation/script (admin mode only, within the trace budget)."""
         integ = next((i for i in self.integrations() if i["id"] == integ_id and i["kind"] == "hub"), None)
@@ -1741,7 +1777,7 @@ class Core:
                 self.self_iface[itf.get("name")] = [itf.get("tx") or 0, itf.get("rx") or 0]
                 if key == "host":
                     self.counters.feed("host_if", (itf.get("tx") or 0) + (itf.get("rx") or 0), now)
-        elif etype in ("hub_snapshot", "hub_state", "hub_triggers", "hub_deps", "hub_traces", "hub_bridge"):
+        elif etype in ("hub_snapshot", "hub_state", "hub_triggers", "hub_deps", "hub_traces", "hub_runs", "hub_bridge"):
             cad.tick(now)
             entry = self.hub.get(integ_id)
             if entry is None:

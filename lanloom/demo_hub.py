@@ -482,6 +482,16 @@ def traces(entity_id: str, now: float) -> dict | None:
     return {"type": "hub_traces", "source": "hub", "t": now, "entity_id": entity_id, "runs": runs, "steps": steps}
 
 
+def runs_frame(now: float, failed_at: list | None = None) -> dict:
+    """The summary of failed runs the bridge reports once per nightly report: the kitchen climate automation ended with an
+    error twice (a sample plug it names is gone). The error text went through ``hub_privacy.error_text`` like a real one."""
+    from . import hub_privacy
+    text = hub_privacy.error_text("Unable to find referenced entities switch.kitchen_gone", {"switch.kitchen_gone": "Kitchen plug (old)"}.get)
+    times = [now - 5.1 * 3600, now - 9.4 * 3600] if failed_at is None else failed_at
+    return {"type": "hub_runs", "source": "hub", "t": now, "checked": len(AUTOMATIONS) + len(SCRIPTS),
+            "items": {"automation.kitchen_climate": [{"at": t, "text": text} for t in times]} if times else {}}
+
+
 # who switches the sample entities in the live demo: one owner each, so the only conflict is the curated one (desk focus
 # switches the office plug on, the power saver off)
 OWNERS = {"light.hallway_2": {"on": "automation.hallway_light_on_motion", "off": "automation.hallway_light_on_motion"},

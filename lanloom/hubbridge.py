@@ -27,6 +27,9 @@ CHANGE_KEEP_S = 86400         # who switched what: state changes of the last 24 
 MAX_CHANGES = 20000
 MAX_RUN_LOG = 20000           # automation/script runs of the last 24 hours (the timeline)
 MAX_RUN_PENDING = 2000
+MAX_FAILED_RUNS = 5           # failed runs kept per automation in the nightly summary
+MAX_RUN_SUMMARY_ITEMS = 300
+RUNS_WAIT_S = 40.0            # the nightly report waits this long for the summary of failed runs
 
 
 def new_entry(live_cadence) -> dict:
@@ -94,8 +97,42 @@ def book(entry: dict, ev: dict, now: float | None = None) -> None:
             entry["traces"][eid] = ev
             while len(entry["traces"]) > MAX_TRACES:
                 entry["traces"].pop(next(iter(entry["traces"])))
+    elif etype == "hub_runs":
+        entry["run_summary"] = clean_run_summary(ev, now)
     elif etype == "hub_bridge":
         entry["bridge"] = ev
+
+
+def clean_run_summary(ev: dict, now: float) -> dict:
+    """The failed runs the bridge reported once for the nightly report: per automation/script entity the newest failed
+    runs (time, short error text or None). Kept in memory only, like everything of the hub."""
+    items = {}
+    for eid, runs in (ev.get("items") or {}).items() if isinstance(ev.get("items"), dict) else ():
+        if not privacy.valid_entity_id(eid) or privacy.domain_of(eid) not in ("automation", "script") or privacy.is_private(eid):
+            continue
+        clean = []
+        for r in runs if isinstance(runs, list) else []:
+            at = r.get("at") if isinstance(r, dict) else None
+            if isinstance(at, (int, float)) and not isinstance(at, bool):
+                text = r.get("text")
+                clean.append({"at": float(at), "text": text[:privacy.ERROR_MAX] if isinstance(text, str) and text else None})
+        if clean:
+            items[eid] = clean[:MAX_FAILED_RUNS]
+        if len(items) >= MAX_RUN_SUMMARY_ITEMS:
+            break
+    err = ev.get("error")
+    return {"t": float(ev.get("t") or now), "items": items, "checked": int(ev.get("checked") or 0),
+            "error": err if isinstance(err, str) and err.startswith("source.hub.") else None}
+
+
+def failed_runs(entry: dict, since: float, until: float) -> dict:
+    """{entity: [failed runs ended within (since, until]], newest first} from the reported summary."""
+    out = {}
+    for eid, runs in ((entry.get("run_summary") or {}).get("items") or {}).items():
+        hit = [r for r in runs if since < r["at"] <= until]
+        if hit:
+            out[eid] = sorted(hit, key=lambda r: -r["at"])
+    return out
 
 
 def events_per_integration(entry: dict, now: float) -> list:

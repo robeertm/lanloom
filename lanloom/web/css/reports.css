@@ -69,6 +69,7 @@
 .rp-check__input:disabled + .rp-check__box { opacity: .5; }
 .rp-item__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--ll-text); }
 .rp-item--point.is-done .rp-item__line { color: var(--ll-text-3); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ll-text-3) 60%, transparent); }
+.rp-item__open { font-size: var(--ll-fs-xs); align-self: flex-start; }
 .rp-item__when { color: var(--ll-text-3); font-size: var(--ll-fs-xs); }
 .rp-more { font-size: var(--ll-fs-xs); padding-left: 40px; }
 .rp-report__foot { border-top: 1px solid var(--ll-border); padding-top: 12px; font-size: var(--ll-fs-sm); display: flex; flex-direction: column; gap: 4px; }

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Nightly report, Automations: runs that ended with an error, and only what is new.** With *Admin mode* on the hub connection, the report now reads the stored run summaries of all automations and scripts once per report - one list request per domain within the existing trace budget, never one per automation, none without admin mode - and counts the runs that ended with an error between the last report and this one. Each automation is a point with the number of runs, the time of the last one, a short error text and a link *Open* to its page in the Automations tab; five are named, the rest is counted, and the summary line counts them. The text is cleaned in the bridge before anything is kept: entity ids become display names (ids of hidden domains, addresses, links, hardware and e-mail addresses and long keys become "…"), an error that came from a template is counted but its text is dropped, and the text is one line of at most 90 characters; the data stays in memory like everything of the hub. When the hub cannot be asked (budget used up, no answer in 40 s, a hub without the command) the section says so in one calm line, never as a failure. The findings of the rules (missing entity, self trigger, `single` with waiting, bundle of unavailable entities, integration with an error) are now a point only the first time; when the next report has the same finding it is counted in one calm line "still open since ...", and a finding that was gone for 36 hours is new again. The first report after the update takes what it finds as known and says so in one line. The small register (finding, first and last seen) is kept per site with the report and goes with the archive; conflicts and failed runs stay points every night. The sample network shows an automation with two failed runs and the standing findings as known. Translated into all six languages; manual and reference updated.
+
+
 ## [1.58.0] – 2026-11-21
 
 ### Added

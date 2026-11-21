@@ -37,6 +37,7 @@ exactly its fields, and checks every value:
 | `automation/config`, `script/config` | the entity id (only `automation.*` / `script.*`) | admin mode, within a budget |
 | `search/related` | item type `automation`/`script` and its entity id | admin mode, within a budget |
 | `trace/list`, `trace/get` | domain `automation`/`script`, item id, run id | admin mode, only on request |
+| `trace/list` (without an item) | domain `automation`/`script` only: the stored run summaries of every item of the domain | admin mode, once per nightly report, two requests within the trace budget |
 | `history/history_during_period` | start and end time, exactly one entity id (never a private one), `minimal_response`, `no_attributes`, `significant_changes_only` (all `true`) | only when someone opens 24 h, 7 days or 30 days on a sensor page, at most 12 per minute |
 | `recorder/statistics_during_period` | start and end time, exactly one entity id, period `5minute`/`hour`/`day`, types `mean`/`min`/`max`/`state` | the same, for numbers that have long-term statistics |
 
@@ -60,7 +61,9 @@ run – never variables, trigger descriptions or error texts (only "error: yes/n
 - Configuration reads at most 30 per minute, related-item lookups at most 20 per minute, one at a time. Answers stay
   fresh for an hour (configuration) or two (related items), longer for big installations, spread so that not everything
   falls due at once. A changed configuration is read again earlier.
-- Traces only when someone asks for the last runs of one automation, at most 6 lookups per minute.
+- Traces only when someone asks for the last runs of one automation, at most 6 lookups per minute. The nightly report
+  adds one list request per domain (two in all) per report, taken from the same budget; from the answer only the runs that ended
+  with an error stay in memory (time and a short, cleaned error text, see [AUTOMATIONS.md](AUTOMATIONS.md#nightly-report)).
 - History only when someone opens a longer range on a sensor page: one entity per request, at most 12 per minute, an
   answer stays fresh for 5 minutes (24 h) to an hour (30 days). The hour range comes from Lanloom's own memory.
 - **Scripts that call each other in a loop** (found with Tarjan's algorithm from the configurations) are never looked

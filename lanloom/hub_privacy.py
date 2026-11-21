@@ -136,3 +136,48 @@ def summary(shown: frozenset) -> dict:
     """What the filter does for one connection (for the bridge card and the nightly report)."""
     return {"hidden": sorted(PRIVATE_DOMAINS - set(shown)), "shown": sorted(shown),
             "groups": {g: all(d in shown for d in doms) for g, doms in GROUPS.items()}}
+
+
+# ---------------------------------------------------------------------- error texts of failed runs
+ERROR_MAX = 90                       # characters of one error text in the nightly report
+TEMPLATE_MARKS = ("{{", "{%", "template", "jinja")
+_ID_RX = re.compile(r"\b[a-z0-9_]{1,64}\.[a-z0-9_]{1,190}\b")
+_URL_RX = re.compile(r"\b[a-z][a-z0-9+.-]{1,12}://\S+", re.I)
+_MAIL_RX = re.compile(r"\b[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,}\b", re.I)
+_MAC_RX = re.compile(r"\b[0-9a-f]{2}(?:[:-][0-9a-f]{2}){5}\b", re.I)
+_IP_RX = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b|\b[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}\b", re.I)
+_TOKEN_RX = re.compile(r"\b[A-Za-z0-9_\-+/=]{20,}\b")
+_NUM_RX = re.compile(r"-?\d+(?:[.,]\d+)?")
+
+
+def error_text(text, name_of=None, shown: frozenset = frozenset()) -> str | None:
+    """A short, harmless version of the error text of a failed automation run, or None when nothing may be said.
+
+    The hub's error texts can carry values from templates, addresses and the like. Rules: a template error says nothing
+    (None - the run is still counted); entity ids become the entity's display name (``name_of``), an id of a private
+    domain or an unknown id becomes ``…``; addresses, links, hardware and e-mail addresses and long token-like strings
+    become ``…``; one line, control characters removed, at most ``ERROR_MAX`` characters."""
+    if not isinstance(text, str):
+        return None
+    low = text.lower()
+    if any(m in low for m in TEMPLATE_MARKS):
+        return None
+    out = "".join(ch if ch >= " " and ch != "\x7f" else " " for ch in text[:600])
+    out = _URL_RX.sub(REDACTED, out)
+    out = _MAIL_RX.sub(REDACTED, out)
+    out = _MAC_RX.sub(REDACTED, out)
+
+    def sub_id(m):
+        eid = m.group(0)
+        if not valid_entity_id(eid) or is_private(eid, shown):
+            return REDACTED
+        name = name_of(eid) if name_of else None
+        return str(name)[:40] if name else REDACTED
+
+    out = _IP_RX.sub(REDACTED, out)
+    out = _ID_RX.sub(sub_id, out)
+    out = _TOKEN_RX.sub(REDACTED, out)
+    out = re.sub(r"\s+", " ", out).strip()
+    if not out or out.replace(REDACTED, "").strip(" .:,;-") == "":
+        return None
+    return out if len(out) <= ERROR_MAX else out[:ERROR_MAX - 1].rstrip() + REDACTED

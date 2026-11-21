@@ -822,6 +822,15 @@ class Demo:
                 core.live_cfg[ids[home]] = {"state": home_states[i], "caps": home_capabilities(home), "family": home, "t": time.time()}
             if rt_states:
                 core.live_cfg[ids[rt]] = {"state": rt_states[i], "caps": router_capabilities(rt), "family": rt, "t": time.time()}
+            if "hub" in ids:                        # the automations section: a known standing finding, failed runs on two nights
+                from . import demo_hub, hubbridge, live as live_mod
+                until = planned[i] + 2
+                entry = core.hub.setdefault(ids["hub"], hubbridge.new_entry(live_mod.Cadence()))
+                hubbridge.book(entry, self._snapshot(until), until)
+                hubbridge.book(entry, demo_hub.deps_frame(until), until)
+                fails = [until - 5.1 * 3600, until - 9.4 * 3600][:i]
+                hubbridge.book(entry, demo_hub.runs_frame(until, fails), until)
+                entry["run_status"] = {"t": until, "key": "ok"}
             since = prev["until"] if prev else planned[0] - 86400
             report = rep.assemble(since, planned[i] + 2, prev, day.isoformat(), self.report_certs())
             report["created"] = planned[i] + 2
@@ -1058,6 +1067,11 @@ class Demo:
     def hub_traces(self, entity_id: str):
         from . import demo_hub
         return demo_hub.traces(entity_id, time.time())
+
+    def hub_runs(self):
+        """The summary of failed runs for the nightly report (live demo)."""
+        from . import demo_hub
+        return demo_hub.runs_frame(time.time())
 
     def hub_history(self, entity: dict, rng: str, numeric: bool, now: float) -> dict:
         from . import demo_hub

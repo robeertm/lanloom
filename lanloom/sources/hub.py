@@ -28,6 +28,9 @@ Emits:
 * ``hub_triggers`` every 10 seconds: how often each automation/script ran since the last frame;
 * ``hub_deps`` (admin mode): entity ids each automation/script names per role, related items, script loops, blocks;
 * ``hub_traces`` (admin mode, on request): the last runs of one automation/script and the step path of the newest;
+* ``hub_runs`` (admin mode, once per nightly report): one ``trace/list`` per domain without an item (the stored run
+  summaries of all automations and scripts, one reply each): per item the runs that ended with an error (time, a short
+  harmless error text from ``hub_privacy.error_text``); nothing else of a run leaves this module;
 * ``hub_bridge`` every minute: counters of the bridge (sent per type, refused, private entities dropped, budgets).
 
 The token is kept in a private attribute only; it never appears in logs, exception texts, events or ``repr()``.
@@ -81,6 +84,8 @@ ALLOWED_FIELDS = {
                                                 "no_attributes", "significant_changes_only"}),
     "recorder/statistics_during_period": frozenset({"start_time", "end_time", "statistic_ids", "period", "types"}),
 }
+# Fields that may be left out: ``trace/list`` without an item lists the stored runs of every item of the domain.
+OPTIONAL_FIELDS = {"trace/list": frozenset({"item_id"})}
 ALLOWED_EVENTS = frozenset({"state_changed", "automation_triggered", "script_started"})
 # Only with admin mode switched on for the connection (they need an administrator token on the hub anyway).
 ADMIN_TYPES = frozenset({"automation/config", "script/config", "trace/list", "trace/get", "search/related"})
@@ -110,6 +115,8 @@ CONTEXT_TTL_S = 600.0
 MAX_TRACE_WANTED = 20
 MAX_TRACE_RUNS = 20
 MAX_TRACE_STEPS = 100
+MAX_RUN_ITEMS = 300              # items with failed runs in one summary
+MAX_FAILED_RUNS = 5              # failed runs kept per item (newest first; the hub keeps about as many)
 # load protection of the admin-mode lookups
 CONFIG_PER_MIN = 30
 RELATED_PER_MIN = 20
@@ -317,6 +324,7 @@ class Hub:
         self._conn: _Conn | None = None       # the live connection (history on request goes over it)
         self._history: OrderedDict = OrderedDict()   # (entity, span) -> (monotonic time, result)
         self._trace_wanted: OrderedDict = OrderedDict()
+        self._runs_job: dict | None = None    # the summary of failed runs being read (one reply per domain)
         self._deps_dirty = False
         self._idle_until = 0.0
         self._first_pass = False          # every configuration read once (or not readable): loops are known
@@ -332,7 +340,8 @@ class Hub:
         if type_ not in ALLOWED_TYPES:
             self.refused += 1
             raise ForbiddenMessage(str(type_)[:60])
-        if set(fields) != ALLOWED_FIELDS.get(type_, frozenset()):      # exactly the fields of the type, all of them
+        allowed = ALLOWED_FIELDS.get(type_, frozenset())
+        if not (allowed - OPTIONAL_FIELDS.get(type_, frozenset())) <= set(fields) <= allowed:   # the fields of the type, no others
             self.refused += 1
             raise ForbiddenMessage(str(type_)[:60])
         if any(not _value_ok(type_, k, v) for k, v in fields.items()):
@@ -596,6 +605,66 @@ class Hub:
         self._trace_wanted[entity_id] = True
         return list(self._trace_wanted).index(entity_id) + 1
 
+    def want_run_summary(self) -> bool:
+        """Ask once for the failed runs of all automations and scripts (the nightly report). False without admin mode or
+        when the hub does not know the command. The two replies go out within the trace budget, one after the other."""
+        if not self.admin_mode or "trace/list" in self._dead_types:
+            return False
+        if self._runs_job is None:
+            self._runs_job = {"todo": list(ITEM_DOMAINS), "items": {}, "checked": 0, "error": None}
+        return True
+
+    def _name_of(self, eid: str):
+        st = self._states.get(eid)
+        return st[2] if st and st[2] else None
+
+    def _sum_runs(self, job: dict, domain: str, raw) -> None:
+        by_id = {it.get("id"): eid for eid, it in self._items.items() if it.get("id") and privacy.domain_of(eid) == domain}
+        for r in raw if isinstance(raw, list) else []:
+            if not isinstance(r, dict) or r.get("domain") not in (None, domain):
+                continue
+            eid = by_id.get(r.get("item_id"))
+            if not eid or privacy.is_private(eid, self.show):
+                continue
+            job["checked"] += 1
+            if not (r.get("error") or r.get("script_execution") == "error"):
+                continue
+            stamp = r.get("timestamp") if isinstance(r.get("timestamp"), dict) else {}
+            at = _ts(stamp.get("finish")) or _ts(stamp.get("start"))
+            if at is None or (eid not in job["items"] and len(job["items"]) >= MAX_RUN_ITEMS):
+                continue
+            text = privacy.error_text(r.get("error"), self._name_of, self.show)
+            job["items"].setdefault(eid, []).append({"at": at, "text": text})
+
+    async def _run_summary_step(self, conn: _Conn, emit, mono: float) -> bool:
+        """One reply of the summary within the trace budget; when both domains are read, the frame goes out."""
+        job = self._runs_job
+        if job is None:
+            return False
+        if "trace/list" in self._dead_types and job["todo"]:
+            job["error"], job["todo"] = "source.hub.unknown_command", []
+        if job["todo"]:
+            if not self._budgets["trace"].take(mono):
+                return False
+            domain = job["todo"].pop(0)
+            try:
+                raw = await self._request(conn, "trace/list", domain=domain)
+            except SourceError as exc:
+                if exc.key == "source.hub.closed":
+                    job["todo"].insert(0, domain)
+                    raise
+                job["error"], job["todo"] = exc.key, []
+            else:
+                self._sum_runs(job, domain, raw)
+            return True
+        self._runs_job = None
+        items = {eid: sorted(runs, key=lambda x: -x["at"])[:MAX_FAILED_RUNS] for eid, runs in job["items"].items()}
+        frame = {"type": "hub_runs", "source": SOURCE, "t": now(), "items": items, "checked": job["checked"]}
+        if job["error"]:
+            frame["error"] = job["error"]
+        await emit_event(emit, frame)
+        return True
+
     def _known(self) -> set:
         return set(self._states)
 
@@ -745,6 +814,8 @@ class Hub:
                          "error": exc.key}
             if frame:
                 await emit_event(emit, frame)
+            return True
+        if self._runs_job is not None and await self._run_summary_step(conn, emit, mono):
             return True
         cfg_ready = self._budgets["config"].ready(mono)
         rel_ready = self._first_pass and self._budgets["related"].ready(mono)

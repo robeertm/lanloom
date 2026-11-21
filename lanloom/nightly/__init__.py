@@ -302,6 +302,14 @@ class Reports:
     async def build(self, since: float, until: float, prev: Optional[dict], day: str, catch_up: bool = False,
                     planned: Optional[float] = None, preview: bool = False) -> dict:
         certs = await self.check_certs()
+        collect = None if preview else getattr(self.core, "hub_collect_runs", None)
+        if collect is not None:                  # once per report: failed runs of the hub's automations (admin mode only)
+            try:
+                await collect()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("nightly report: reading the failed runs failed")
         if self.on_certs is not None and not preview:
             try:
                 self.on_certs(certs)

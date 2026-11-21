@@ -18,6 +18,14 @@ service is involved in making it.
   availability, early warnings (host values that reach their limit within 72 hours), switch ports (links that dropped or counted errors, devices that moved between access points), wireless networks (new, gone, renamed or changed SSIDs and blocked devices), sign-ins, counter check, data paths, home automation, controller configuration, changes written,
   device families, certificates, API, AI, storage, inventory, backup, notifications, access, and Lanloom itself. The table of
   sections with what makes each one "need a look" is in [NIGHTLY-REPORT.md](../NIGHTLY-REPORT.md#what-is-in-it).
+- **Automations: only news, and the failed runs.** With a home-automation hub connected the *Automations* section lists
+  a finding (a missing entity, an automation that starts itself, an integration with an error ...) as a point only the
+  first time. When the next report has the same finding it appears only in one calm line, "still open since ...", and
+  after 36 hours without it the finding counts as new again. Automations whose runs ended with an error during the night
+  are points too (with *admin mode* on the connection): the number of runs, the time of the last one and a short error
+  text with the names of the things instead of technical ids, and a link *Open* to the automation in the Automations tab.
+  The report asks the hub once for this, never per automation; if it cannot, one calm line says so. See
+  [Automations](automations.md) and [AUTOMATIONS.md](../AUTOMATIONS.md#nightly-report).
 - **Points to tick off.** Things that need a look can be ticked; the mark is stored with the report and shown with the
   time.
 - **Archive** of older reports (kept for 30 days by default; 7, 14, 30, 90 or 365 days), each with its own address
