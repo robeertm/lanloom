@@ -187,6 +187,14 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .tab__short { display: none; }
 .tab.is-active .tab__icon { color: var(--ll-accent); }
 .topbar__right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+/* the header tightens itself when it would scroll sideways (fitTopbar in js/views.js), one step at a time */
+.topbar--fit1 .cmdk-pill { padding: 0 9px; }
+.topbar--fit1 .cmdk-pill__label, .topbar--fit1 .cmdk-pill__keys { display: none; }
+.topbar--fit2 .ask-pill { padding: 0 9px; }
+.topbar--fit2 .ask-pill__label { display: none; }
+.topbar--fit3 .grade-pill__text { display: none; }
+.topbar--fit3 .grade-pill { padding: 0 11px; }
+.topbar--fit4 .brand-name { display: none; }
 .grade-pill { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: var(--ll-radius-pill); border: 1px solid var(--ll-border); background: var(--ll-surface-2); color: var(--ll-text-2); font: inherit; font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-medium); cursor: pointer; white-space: nowrap; }
 .grade-pill__dot, .grade-chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--ll-grade-unknown); display: inline-block; flex: none; }
 [data-grade="realtime"] > i, [data-grade="realtime"] .grade-pill__dot { background: var(--ll-grade-realtime); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ll-grade-realtime) 22%, transparent); }

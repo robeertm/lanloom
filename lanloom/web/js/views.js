@@ -79,6 +79,27 @@
   };
 
   // ------------------------------------------------------------------ app frame (header + nav)
+  // The header never scrolls sideways: the width steps in CSS cover the usual case, but a longer language, a wider font, a badge
+  // on a tab or the site switcher can still add a few pixels. Then the header tightens itself one step at a time (search and ask
+  // as icons, the live text as its dot, the product name as its logo) and loosens again as soon as the room is back.
+  const FIT_STEPS = ['topbar--fit1', 'topbar--fit2', 'topbar--fit3', 'topbar--fit4'];
+  function fitTopbar(header) {
+    if (typeof ResizeObserver === 'undefined') return;
+    const over = () => header.scrollWidth > header.clientWidth + 1;
+    const fit = () => {
+      if (!header.isConnected || !header.clientWidth) return;
+      let n = FIT_STEPS.filter(c => header.classList.contains(c)).length;
+      while (n > 0) {                                          // loosen first: a step comes back only if it fits again
+        header.classList.remove(FIT_STEPS[n - 1]);
+        if (over()) { header.classList.add(FIT_STEPS[n - 1]); break; }
+        n--;
+      }
+      while (n < FIT_STEPS.length && over()) header.classList.add(FIT_STEPS[n++]);
+    };
+    const ro = new ResizeObserver(() => { if (!header.isConnected) { ro.disconnect(); return; } fit(); });
+    ro.observe(header);
+    header.querySelectorAll(':scope > *').forEach(el => ro.observe(el));   // a badge, the update pill or a longer live text change a part's width
+  }
   function frame(app, active, content) {
     const tabs = [['overview', 'nav.overview'], ['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports'], ['settings', 'nav.settings']];
     if (LL.state && (LL.state.hubs || []).length) tabs.splice(5, 0, ['sensors', 'nav.sensors'], ['automations', 'nav.automations']);   // the hub's sensors and automations, only with a hub connection
@@ -113,6 +134,7 @@
       nav, h('div', { class: 'topbar__right' }, LL.paletteButton ? LL.paletteButton() : null, LL.aiAskButton && (!LL.atHome || LL.atHome()) ? LL.aiAskButton() : null, updateBtn, reconnectBtn, gradePill,
         LL.railButtons ? LL.railButtons() : null, themeBtn));
     themeBtn.classList.add('theme-btn');
+    fitTopbar(header);
     const main = h('main', { class: 'main main--' + active, id: 'll-main', tabindex: '-1', 'aria-label': t('nav.' + active) }, content);
     const skip = h('a', { class: 'skip-link', href: '#ll-main', onclick: ev => { ev.preventDefault(); main.focus(); } }, t('a11y.skip'));
     const siteNow = LL.site ? LL.site() : null;
