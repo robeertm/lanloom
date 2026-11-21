@@ -636,7 +636,7 @@
     const rc = LL.pathsRoutes ? LL.pathsRoutes.card(Object.assign({ home_cc: home() }, d), { cls: 'pw', h: 'h2', title: 'routes.title_all', id: 'pw-routes', max: 10 }) : null;
     if (rc) kids.push(rc);
     kids.push(attribution(d));
-    page.replaceChildren(...kids);
+    page.replaceChildren(...kids.filter(Boolean));
     rescale(built.svg);
     if (!S.full) requestAnimationFrame(() => { if (stage.isConnected && !S.full) startAny(stage, built.svg, built); });
     if (S.full) renderFull();

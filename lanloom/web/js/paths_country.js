@@ -279,7 +279,7 @@
       shown++;
     }
     void m;
-    box.replaceChildren(...kids);
+    box.replaceChildren(...kids.filter(Boolean));
   }
 
   // ------------------------------------------------------------------ pieces of the sheet

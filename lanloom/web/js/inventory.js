@@ -44,8 +44,8 @@
         [t('inventory.col.eol'), it.eol ? h('span', { class: 'inv-val' }, day(it.eol.until), eolChip(it)) : ''],
         [t('inventory.f.owner'), it.owner], [t('inventory.col.state'), h('span', { class: 'inv-val' }, stateChip(it), it.provisional ? autoChip() : null)]];
       const blank = !it.purpose && !it.room && !it.owner && !it.purchase_date && !it.warranty;
-      box.replaceChildren(blank ? h('p', { class: 'muted inv-mini__empty' }, t('inventory.section.empty')) : null, LL.facts(rows),
-        h('p', { class: 'inv-mini__link' }, h('a', { href: '#/inventory/' + enc(it.id) }, t('inventory.section.edit'))));
+      box.replaceChildren(...[blank ? h('p', { class: 'muted inv-mini__empty' }, t('inventory.section.empty')) : null, LL.facts(rows),
+        h('p', { class: 'inv-mini__link' }, h('a', { href: '#/inventory/' + enc(it.id) }, t('inventory.section.edit')))].filter(Boolean));
     }).catch(() => box.replaceChildren());
     return h('section', { class: 'detail__sec' }, h('h3', {}, t('inventory.title')), box);
   };

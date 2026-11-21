@@ -141,16 +141,23 @@
   });
 
   // ------------------------------------------------------------------ tooltip (hover, focus, tap)
+  /* The lines of a cable's tip. A missing operator (null, undefined, empty or the text "null") drops its line: replaceChildren turns a
+     null child into the text "null" (lanloom#12), so only real nodes are returned. */
+  function tipNodes(e) {
+    const op = typeof e.op === 'string' ? e.op.trim() : '';
+    return [h('b', {}, e.n || t('cables.unnamed')),
+      h('span', {}, t('cables.tip.meta', { km: LL.fmtNum(e.km || 0, 0) })),
+      op && !/^(null|undefined|none|nan)$/i.test(op) ? h('span', {}, t('cables.tip.operator', { operator: op })) : null,
+      h('small', {}, t('cables.tip.source'))].filter(Boolean);
+  }
+  C.tipNodes = tipNodes;
   function hideTip() { if (S.tip) { S.tip.remove(); S.tip = null; } }
   function showTip(path, x, y) {
     const e = S.data && S.data.sea[Number(path.dataset.cb)];
     const stage = path.closest('.pw-stage, .pc-stage');
     if (!e || !stage) return;
     if (!S.tip || S.tip.parentNode !== stage) { hideTip(); S.tip = h('div', { class: 'cb-tip', role: 'tooltip' }); stage.appendChild(S.tip); }
-    S.tip.replaceChildren(h('b', {}, e.n || t('cables.unnamed')),
-      h('span', {}, t('cables.tip.meta', { km: LL.fmtNum(e.km || 0, 0) })),
-      e.op ? h('span', {}, t('cables.tip.operator', { operator: e.op })) : null,
-      h('small', {}, t('cables.tip.source')));
+    S.tip.replaceChildren(...tipNodes(e));
     const r = stage.getBoundingClientRect(), s = S.tip;
     s.style.left = Math.max(4, Math.min(x - r.left + 12, r.width - s.offsetWidth - 4)) + 'px';
     s.style.top = Math.max(4, Math.min(y - r.top + 14, r.height - s.offsetHeight - 4)) + 'px';
