@@ -17,6 +17,14 @@ malformed or hostile packets are only counted and never raise, template tables a
 128 fields per template). A data record whose template has not arrived yet cannot be read; it is counted as ``waiting``
 (per data set) and the exporter's next template packet fixes that.
 
+Templates per exporter: v9 and IPFIX describe their records in templates, kept per (exporter, version, observation domain,
+template id), so two exporters with the same template id never mix. Over UDP an exporter repeats its templates now and then;
+a template that is not repeated expires (RFC 7011 section 8.4): after one hour at first, then after three times the longest
+gap between two repeats seen for it (at most six hours). Its records then wait for the next template instead of being read
+with a layout that may have changed. A NetFlow v9 exporter whose uptime jumps back has restarted: its templates of that
+observation domain are dropped before the packet is read. Options templates and their records (they describe the exporter,
+not flows) are skipped; only a sampling rate announced in them is used.
+
 Sampling: an exporter that looks at only 1 of N packets says so (v5 header, the v9/IPFIX sampling interval in a record
 or in options data, IPFIX packet interval/space); its byte counts are scaled up by that rate.
 """
@@ -42,6 +50,14 @@ MAX_FIELDS = 128
 MAX_FLOW_BYTES = 1 << 40            # one record never books more than 1 TiB (keeps sums far below the SQLite integer limit)
 DROP_LOG_EVERY = 600.0              # at most one summary line about dropped packets per 10 minutes
 MAX_LOGGED_SENDERS = 64
+MAX_REFUSED_SHOWN = 8                # senders that are not allowed, shown with "Allow" in the settings (flow packets only)
+REFUSED_SHOWN_FOR = 24 * 3600.0
+TEMPLATE_LIFE = 3600.0               # a template not repeated for this long expires (until a repeat gap is known)
+TEMPLATE_LIFE_MAX = 6 * 3600.0       # learned lifetime: 3 x the longest repeat gap, never longer than this
+SAMPLING_LIFE = TEMPLATE_LIFE_MAX    # a sampling rate from options data is forgotten when it is not announced again
+SWEEP_EVERY = 60.0                   # expired templates are swept at most once a minute
+V9_RESTART_BACK_MS = 60_000          # v9 uptime that goes back by more than this: the exporter restarted
+_V9_WRAP_MS = 1 << 32
 BIND_FAILED = "settings.netflow.bind_failed"
 
 _IE_IN_BYTES, _IE_OUT_BYTES = 1, 23
@@ -58,15 +74,18 @@ _V5_HEADER, _V5_RECORD, _V5_MAX = 24, 48, 30
 # ---------------------------------------------------------------------- templates
 class Template:
     """Field list of a data set: ((information element or 0 = ignore, length or None = variable), ...)."""
-    __slots__ = ("fields", "minlen", "options")
+    __slots__ = ("fields", "minlen", "options", "seen", "gap", "life")
 
     def __init__(self, fields: tuple, options: bool = False):
         self.fields = fields
         self.minlen = sum(1 if ln is None else ln for _ie, ln in fields)
         self.options = options          # options data describes the exporter, never flows
+        self.seen = None                # when the exporter last sent (or repeated) this template
+        self.gap = 0.0                  # longest gap between two repeats seen
+        self.life = TEMPLATE_LIFE
 
-
-_OPTIONS_MARK = Template((), options=True)
+    def expired(self, now) -> bool:
+        return now is not None and self.seen is not None and now - self.seen > self.life
 
 
 def _rate(vals: dict):
@@ -81,25 +100,84 @@ def _rate(vals: dict):
 
 
 class TemplateCache:
-    """Templates per (exporter, protocol version, observation domain, template id); capped per exporter."""
+    """Templates per (exporter, protocol version, observation domain, template id); capped per exporter, with a lifetime.
+
+    ``now`` is optional everywhere: without it (direct parser calls) templates never expire."""
 
     def __init__(self):
         self._by_exporter: dict = {}
-        self.sampling: dict = {}            # (exporter, version, domain) -> rate announced in options data
+        self.sampling: dict = {}            # (exporter, version, domain) -> (rate announced in options data, when)
+        self.uptime: dict = {}              # (exporter, 9, domain) -> last v9 sysUptime in ms (restart detection)
+        self.expired: dict = {}             # exporter -> templates that expired
+        self.restarts: dict = {}            # exporter -> restarts detected
 
-    def get(self, exporter: str, version: int, domain: int, tid: int) -> Optional[Template]:
-        return self._by_exporter.get(exporter, {}).get((version, domain, tid))
+    def get(self, exporter: str, version: int, domain: int, tid: int, now=None) -> Optional[Template]:
+        table = self._by_exporter.get(exporter)
+        if not table:
+            return None
+        key = (version, domain, tid)
+        tpl = table.get(key)
+        if tpl is not None and tpl.expired(now):
+            del table[key]
+            self.expired[exporter] = self.expired.get(exporter, 0) + 1
+            return None
+        return tpl
 
-    def put(self, exporter: str, version: int, domain: int, tid: int, tpl: Template) -> bool:
+    def put(self, exporter: str, version: int, domain: int, tid: int, tpl: Template, now=None) -> bool:
         table = self._by_exporter.setdefault(exporter, {})
         key = (version, domain, tid)
-        if key not in table and len(table) >= MAX_TEMPLATES:
-            return False
+        old = table.get(key)
+        if old is not None and old.expired(now):
+            del table[key]
+            self.expired[exporter] = self.expired.get(exporter, 0) + 1
+            old = None
+        if old is None and len(table) >= MAX_TEMPLATES:
+            if not self.sweep(now, exporter) or len(table) >= MAX_TEMPLATES:
+                return False
+        if now is not None:
+            tpl.seen = now
+            if old is not None and old.seen is not None:
+                tpl.gap = max(old.gap, now - old.seen)
+                tpl.life = min(TEMPLATE_LIFE_MAX, max(TEMPLATE_LIFE, 3 * tpl.gap))
         table[key] = tpl
         return True
 
     def drop(self, exporter: str, version: int, domain: int, tid: int) -> None:
         self._by_exporter.get(exporter, {}).pop((version, domain, tid), None)
+
+    def drop_domain(self, exporter: str, version: int, domain: int) -> int:
+        """All templates and the sampling rate of one observation domain (the exporter restarted); returns how many."""
+        table = self._by_exporter.get(exporter, {})
+        gone = [k for k in table if k[0] == version and k[1] == domain]
+        for k in gone:
+            del table[k]
+        self.sampling.pop((exporter, version, domain), None)
+        return len(gone)
+
+    def sweep(self, now, exporter: Optional[str] = None) -> int:
+        """Remove expired templates and forgotten sampling rates (of one exporter or all); returns the number of templates."""
+        if now is None:
+            return 0
+        n = 0
+        for ex in ([exporter] if exporter is not None else list(self._by_exporter)):
+            table = self._by_exporter.get(ex, {})
+            gone = [k for k, t in table.items() if t.expired(now)]
+            for k in gone:
+                del table[k]
+            if gone:
+                self.expired[ex] = self.expired.get(ex, 0) + len(gone)
+                n += len(gone)
+        self.sampling = {k: v for k, v in self.sampling.items() if now - v[1] <= SAMPLING_LIFE}
+        return n
+
+    def rate(self, skey, now=None):
+        hit = self.sampling.get(skey)
+        if hit is None or (now is not None and now - hit[1] > SAMPLING_LIFE):
+            return None
+        return hit[0]
+
+    def set_rate(self, skey, rate, now=None) -> None:
+        self.sampling[skey] = (rate, now if now is not None else 0.0)
 
     def count(self, exporter: str) -> int:
         return len(self._by_exporter.get(exporter, {}))
@@ -107,10 +185,18 @@ class TemplateCache:
     def forget(self, exporter: str) -> None:
         self._by_exporter.pop(exporter, None)
         self.sampling = {k: v for k, v in self.sampling.items() if k[0] != exporter}
+        self.uptime = {k: v for k, v in self.uptime.items() if k[0] != exporter}
+        self.expired.pop(exporter, None)
+        self.restarts.pop(exporter, None)
 
 
 def new_counters() -> dict:
     return {"malformed": 0, "waiting": 0, "refused": 0}
+
+
+def _new_exporter() -> dict:
+    """Figures of one allowed exporter (shown per exporter in the settings)."""
+    return {"packets": 0, "flows": 0, "booked": 0, "bytes": 0, "first": None, "last": None, "version": None, **new_counters()}
 
 
 # ---------------------------------------------------------------------- parser
@@ -188,7 +274,7 @@ def _read_record(tpl: Template, buf: bytes, off: int, end: int):
 
 
 def _read_data(tpl: Template, buf: bytes, off: int, end: int, flows: list, counters: dict,
-               sampling: Optional[dict] = None, skey=None) -> None:
+               cache: Optional[TemplateCache] = None, skey=None, now=None) -> None:
     """All records of one data set; trailing padding (shorter than a record) is ignored. Options records only update
     the sampling rate of their exporter; flow records are scaled up by their own or the announced rate."""
     if tpl.minlen <= 0:
@@ -200,12 +286,12 @@ def _read_data(tpl: Template, buf: bytes, off: int, end: int, flows: list, count
             return
         off, src, dst, b_in, b_out, rate = rec
         if tpl.options:
-            if rate and sampling is not None:
-                sampling[skey] = rate
+            if rate and cache is not None:
+                cache.set_rate(skey, rate, now)
             continue
         nbytes = b_in if b_in is not None else b_out
-        if rate is None and sampling is not None:
-            rate = sampling.get(skey)
+        if rate is None and cache is not None:
+            rate = cache.rate(skey, now)
         if nbytes is not None and rate and rate > 1:
             nbytes = int(nbytes * rate)
         if src is not None and dst is not None and nbytes is not None:
@@ -231,7 +317,7 @@ def parse_v5(data: bytes, counters: dict) -> list:
     return flows
 
 
-def _parse_template_set(buf, off, end, exporter, ver, domain, cache: TemplateCache, counters, ipfix: bool) -> None:
+def _parse_template_set(buf, off, end, exporter, ver, domain, cache: TemplateCache, counters, ipfix: bool, now=None) -> None:
     while end - off >= 4:
         tid, count = struct.unpack_from(">HH", buf, off)
         off += 4
@@ -254,11 +340,11 @@ def _parse_template_set(buf, off, end, exporter, ver, domain, cache: TemplateCac
             return
         fields, off = got
         tpl = Template(fields)
-        if tpl.minlen <= 0 or not cache.put(exporter, ver, domain, tid, tpl):
+        if tpl.minlen <= 0 or not cache.put(exporter, ver, domain, tid, tpl, now):
             counters["refused"] += 1
 
 
-def _parse_options_set(buf, off, end, exporter, ver, domain, cache: TemplateCache, counters, ipfix: bool) -> None:
+def _parse_options_set(buf, off, end, exporter, ver, domain, cache: TemplateCache, counters, ipfix: bool, now=None) -> None:
     """Options templates: only skipped safely; their id is remembered so their data sets are not 'waiting'."""
     while end - off >= 6:
         tid, a, b = struct.unpack_from(">HHH", buf, off)
@@ -287,12 +373,12 @@ def _parse_options_set(buf, off, end, exporter, ver, domain, cache: TemplateCach
                 return
             fields = tuple((0, ln) for _ie, ln in scope[0]) + opts[0]
             off += a + b
-        tpl = Template(fields, options=True) if fields else _OPTIONS_MARK
-        if tid >= 256 and not cache.put(exporter, ver, domain, tid, tpl):
+        tpl = Template(fields, options=True)        # without fields: only a mark, so its data sets are not 'waiting'
+        if tid >= 256 and not cache.put(exporter, ver, domain, tid, tpl, now):
             counters["refused"] += 1
 
 
-def _parse_sets(buf, off, end, exporter, ver, domain, cache, counters, ipfix: bool) -> list:
+def _parse_sets(buf, off, end, exporter, ver, domain, cache, counters, ipfix: bool, now=None) -> list:
     flows: list = []
     tpl_id, opt_id = (2, 3) if ipfix else (0, 1)
     while end - off >= 4:
@@ -302,29 +388,46 @@ def _parse_sets(buf, off, end, exporter, ver, domain, cache, counters, ipfix: bo
             break
         body, stop = off + 4, off + length
         if sid == tpl_id:
-            _parse_template_set(buf, body, stop, exporter, ver, domain, cache, counters, ipfix)
+            _parse_template_set(buf, body, stop, exporter, ver, domain, cache, counters, ipfix, now)
         elif sid == opt_id:
-            _parse_options_set(buf, body, stop, exporter, ver, domain, cache, counters, ipfix)
+            _parse_options_set(buf, body, stop, exporter, ver, domain, cache, counters, ipfix, now)
         elif sid >= 256:
-            tpl = cache.get(exporter, ver, domain, sid)
+            tpl = cache.get(exporter, ver, domain, sid, now)
             if tpl is None:
                 counters["waiting"] += 1
             else:
-                _read_data(tpl, buf, body, stop, flows, counters, cache.sampling, (exporter, ver, domain))
+                _read_data(tpl, buf, body, stop, flows, counters, cache, (exporter, ver, domain), now)
         off = stop
     return flows
 
 
-def parse_v9(data: bytes, exporter: str, cache: TemplateCache, counters: dict) -> list:
+def _v9_restarted(cache: TemplateCache, exporter: str, domain: int, uptime: int) -> bool:
+    """Remember the v9 uptime of (exporter, domain); True when it went back by more than a minute (not a 49.7-day wrap)."""
+    key = (exporter, 9, domain)
+    last = cache.uptime.get(key)
+    if last is not None and uptime + V9_RESTART_BACK_MS < last:
+        if not (last > _V9_WRAP_MS - 3_600_000 and uptime < 3_600_000):
+            cache.uptime[key] = uptime
+            return True
+    elif last is not None and uptime < last:
+        return False                                # a late packet: keep the newer uptime
+    cache.uptime[key] = uptime
+    return False
+
+
+def parse_v9(data: bytes, exporter: str, cache: TemplateCache, counters: dict, now=None) -> list:
     """NetFlow v9 (RFC 3954) -> [(src, dst, bytes)]; learns templates into `cache`."""
     if len(data) < 20:
         counters["malformed"] += 1
         return []
-    domain = struct.unpack_from(">I", data, 16)[0]
-    return _parse_sets(data, 20, len(data), exporter, 9, domain, cache, counters, False)
+    uptime, domain = struct.unpack_from(">I", data, 4)[0], struct.unpack_from(">I", data, 16)[0]
+    if _v9_restarted(cache, exporter, domain, uptime):
+        cache.drop_domain(exporter, 9, domain)      # before this packet's sets: it usually brings the new templates
+        cache.restarts[exporter] = cache.restarts.get(exporter, 0) + 1
+    return _parse_sets(data, 20, len(data), exporter, 9, domain, cache, counters, False, now)
 
 
-def parse_ipfix(data: bytes, exporter: str, cache: TemplateCache, counters: dict) -> list:
+def parse_ipfix(data: bytes, exporter: str, cache: TemplateCache, counters: dict, now=None) -> list:
     """IPFIX (RFC 7011) -> [(src, dst, bytes)]; learns templates into `cache`."""
     if len(data) < 16:
         counters["malformed"] += 1
@@ -333,10 +436,10 @@ def parse_ipfix(data: bytes, exporter: str, cache: TemplateCache, counters: dict
     if length < 16 or length > len(data):
         counters["malformed"] += 1
         return []
-    return _parse_sets(data, 16, length, exporter, 10, domain, cache, counters, True)
+    return _parse_sets(data, 16, length, exporter, 10, domain, cache, counters, True, now)
 
 
-def parse_packet(data: bytes, exporter: str, cache: TemplateCache, counters: dict):
+def parse_packet(data: bytes, exporter: str, cache: TemplateCache, counters: dict, now=None):
     """Any supported datagram -> (version or None, [(src, dst, bytes)]). Never raises."""
     try:
         if len(data) < 2:
@@ -346,9 +449,9 @@ def parse_packet(data: bytes, exporter: str, cache: TemplateCache, counters: dic
         if ver == 5:
             return 5, parse_v5(data, counters)
         if ver == 9:
-            return 9, parse_v9(data, exporter, cache, counters)
+            return 9, parse_v9(data, exporter, cache, counters, now)
         if ver == 10:
-            return 10, parse_ipfix(data, exporter, cache, counters)
+            return 10, parse_ipfix(data, exporter, cache, counters, now)
     except Exception:
         log.debug("netflow parser error", exc_info=True)
     counters["malformed"] += 1
@@ -432,6 +535,8 @@ class Collector:
         self._drop_seen: set = set()
         self._drop_pending = 0
         self._drop_logged = None
+        self._refused: dict = {}            # sender -> {"packets", "last", "version"}: flow packets from senders not allowed
+        self._swept = None
 
     # -- configuration
     def configure(self, exporters: list, port: int) -> None:
@@ -441,7 +546,8 @@ class Collector:
                 self._cache.forget(gone)
                 self._ex.pop(gone, None)
             for ip in allowed:
-                self._ex.setdefault(ip, {"packets": 0, "flows": 0, "last": None, "version": None})
+                self._ex.setdefault(ip, _new_exporter())
+                self._refused.pop(ip, None)         # allowed now: no longer offered
             self._allowed = allowed
             if isinstance(port, int) and not isinstance(port, bool):
                 self._port = port
@@ -516,14 +622,20 @@ class Collector:
             if known:
                 self._c["packets"] += 1
                 self._last_packet = now
+                if self._swept is None or not 0 <= now - self._swept < SWEEP_EVERY:
+                    self._swept = now
+                    self._cache.sweep(now)
                 counters = new_counters()
-                ver, flows = parse_packet(bytes(data), exporter, self._cache, counters)
+                ver, flows = parse_packet(bytes(data), exporter, self._cache, counters, now)
+                ex = self._ex[exporter]
                 for k, v in counters.items():
                     self._c[k] += v
-                ex = self._ex[exporter]
+                    ex[k] += v
                 ex["packets"] += 1
                 ex["flows"] += len(flows)
                 ex["last"] = now
+                if ex["first"] is None:
+                    ex["first"] = now
                 if ver:
                     ex["version"] = ver
                 self._c["flows"] += len(flows)
@@ -532,12 +644,21 @@ class Collector:
             else:
                 self._c["dropped_foreign"] += 1
         if not known:
-            self._note_drop(exporter or str(sender_ip)[:64], now)
+            self._note_drop(exporter or str(sender_ip)[:64], now, data, exporter is not None)
             return 0
-        return self._book(flows, now) if flows else 0
+        return self._book(flows, now, exporter) if flows else 0
 
-    def _note_drop(self, sender: str, now: float) -> None:
+    def _note_drop(self, sender: str, now: float, data: bytes = b"", is_ip: bool = False) -> None:
+        ver = ((data[0] << 8) | data[1]) if len(data) >= 2 else None
         with self._lock:
+            if is_ip and ver in (5, 9, 10):         # looks like flow export: offered in the settings ("Allow")
+                hit = self._refused.get(sender)
+                if hit is None:
+                    if len(self._refused) >= MAX_REFUSED_SHOWN:
+                        del self._refused[min(self._refused, key=lambda k: self._refused[k]["last"])]
+                    hit = self._refused[sender] = {"packets": 0, "last": now, "version": ver}
+                hit["packets"] += 1
+                hit["last"], hit["version"] = now, ver
             self._drop_pending += 1
             if sender not in self._drop_seen and len(self._drop_seen) < MAX_LOGGED_SENDERS:
                 self._drop_seen.add(sender)
@@ -551,7 +672,7 @@ class Collector:
         log.warning(*line)
 
     # -- booking
-    def _book(self, flows: list, now: float) -> int:
+    def _book(self, flows: list, now: float, exporter: Optional[str] = None) -> int:
         try:
             nets = [n if not isinstance(n, str) else ipaddress.ip_network(n, strict=False) for n in self._lan_networks()]
         except Exception:
@@ -596,6 +717,10 @@ class Collector:
             self._c["skipped_local"] += local
             self._c["skipped_self"] += own
             self._c["lan_pairs"] += pairs
+            ex = self._ex.get(exporter)
+            if ex is not None:
+                ex["booked"] += booked
+                ex["bytes"] += nbytes
         return booked
 
     def _kind(self, ip, nets: list, memo: dict):
@@ -630,14 +755,21 @@ class Collector:
 
     # -- status
     def stats(self) -> dict:
+        now = self._clock()
         with self._lock:
             c = self._c
+            exporters = {}
+            for ip, v in self._ex.items():
+                exporters[ip] = dict(v, templates=self._cache.count(ip), expired=self._cache.expired.get(ip, 0),
+                                     restarts=self._cache.restarts.get(ip, 0))
+            refused = sorted(({"ip": ip, **v} for ip, v in self._refused.items() if now - v["last"] <= REFUSED_SHOWN_FOR),
+                             key=lambda r: -r["last"])
             return {
                 "packets": c["packets"], "flows": c["flows"], "booked": c["booked"], "bytes": c["bytes"],
                 "dropped_foreign": c["dropped_foreign"], "malformed": c["malformed"], "waiting": c["waiting"],
                 "refused": c["refused"], "skipped_local": c["skipped_local"], "skipped_self": c["skipped_self"],
                 "lan_pairs": c["lan_pairs"],
                 "last_packet": self._last_packet, "last_flow": self._last_flow,
-                "exporters": {ip: dict(v) for ip, v in self._ex.items()},
+                "exporters": exporters, "refused_senders": refused,
                 "listening": self._transport is not None, "port": self._port, "error": self._error,
             }

@@ -224,7 +224,9 @@ See [DATA-PATHS.md](DATA-PATHS.md#setting-up-netflow--ipfix).
 | No flows arrive | the router must export to the Lanloom host's address and the port (UDP 2055 by default); allow the port in a host firewall; with a bridge network publish `2055:2055/udp` |
 | Every device looks like the router | the router exports after address translation; export from the LAN side, before translation |
 | Long downloads appear late and in one piece | set the router's active timeout to about 60 seconds |
-| "Records wait for a template" | NetFlow v9 and IPFIX send the record description every few minutes; until it arrives, records cannot be read |
+| "Records wait for a template" | NetFlow v9 and IPFIX send the record description every few minutes; until it arrives, records cannot be read. If the count keeps growing, the router repeats its templates less than once in six hours or not at all: set its template refresh (timeout or packet count) shorter |
+| The exporter's block stays at *Nothing received yet*, packets are dropped | the router sends from another of its addresses; the card lists it under *Flow packets from addresses that are not allowed*, press **Allow** |
+| *Restarts* counts up in an exporter's block | the router restarted (its NetFlow v9 uptime went back); its templates were dropped and come again with its next packets |
 
 ## Scanning and devices
 

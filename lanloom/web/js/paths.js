@@ -834,7 +834,48 @@
         [t('settings.netflow.flows'), t('settings.netflow.flows_value', { flows: LL.fmtNum(st.flows, 0), booked: LL.fmtNum(st.booked, 0), bytes: LL.fmtBytes(st.bytes) })],
         [t('settings.netflow.dropped'), LL.fmtNum(st.dropped_foreign, 0)],
         st.waiting ? [t('settings.netflow.waiting'), LL.fmtNum(st.waiting, 0)] : null,
-        st.malformed ? [t('settings.netflow.malformed'), LL.fmtNum(st.malformed, 0)] : null]));
+        st.malformed ? [t('settings.netflow.malformed'), LL.fmtNum(st.malformed, 0)] : null]), exporterList(st, now), refusedList(st, now));
+    }
+    // per exporter: protocol, state, last packet, flows, templates (v9/IPFIX), records waiting, unreadable packets
+    function exporterList(st, now) {
+      const ips = Object.keys(st.exporters || {}).sort();
+      if (!ips.length) return null;
+      const rows = ips.map(ip => {
+        const x = st.exporters[ip];
+        const age = x.last ? now - x.last : null;
+        const state = age == null ? h('span', { class: 'chip chip--muted' }, t('settings.netflow.ex.never'))
+          : age < 600 ? h('span', { class: 'chip chip--ok' }, t('settings.netflow.ex.sending'))
+            : h('span', { class: 'chip chip--warn' }, t('settings.netflow.ex.quiet', { age: LL.fmtAge(age) }));
+        const proto = x.version ? h('span', { class: 'chip chip--muted' }, t('settings.netflow.proto.' + x.version)) : null;
+        const tplText = x.version && x.version !== 5 ? t('settings.netflow.ex.templates_value', { n: LL.fmtNum(x.templates || 0, 0) }) +
+          (x.expired ? ' · ' + t('settings.netflow.ex.expired', { n: x.expired }) : '') +
+          (x.restarts ? ' · ' + t('settings.netflow.ex.restarts', { n: x.restarts }) : '') : null;
+        return h('li', { class: 'nf-ex__row', 'data-exporter': ip },
+          h('div', { class: 'nf-ex__head' }, h('span', { class: 'mono nf-ex__ip' }, ip), proto, state),
+          LL.facts([
+            [t('settings.netflow.last_packet'), x.last ? t('settings.netflow.ago', { age: LL.fmtAge(age) }) : t('settings.netflow.none_yet')],
+            x.packets ? [t('settings.netflow.flows'), t('settings.netflow.flows_value', { flows: LL.fmtNum(x.flows || 0, 0), booked: LL.fmtNum(x.booked || 0, 0), bytes: LL.fmtBytes(x.bytes || 0) })] : null,
+            tplText ? [t('settings.netflow.ex.templates'), tplText] : null,
+            x.waiting ? [t('settings.netflow.waiting'), LL.fmtNum(x.waiting, 0)] : null,
+            x.malformed ? [t('settings.netflow.malformed'), LL.fmtNum(x.malformed, 0)] : null]));
+      });
+      return h('div', { class: 'nf-ex-wrap' }, h('h3', { class: 'nf-ex-h' }, t('settings.netflow.ex.title')), h('ul', { class: 'nf-ex' }, rows),
+        h('p', { class: 'muted fineprint' }, t('settings.netflow.ex.templates_hint')));
+    }
+    // flow packets from addresses that are not allowed (often the router sends from another of its addresses): offered, never added silently
+    function refusedList(st, now) {
+      const list = st.refused_senders || [];
+      if (!list.length || !LL.can('admin')) return null;
+      return h('div', { class: 'callout callout--warn nf-refused' }, h('strong', {}, t('settings.netflow.refused.title')),
+        h('p', {}, t('settings.netflow.refused.text')),
+        h('ul', { class: 'nf-refused__list' }, list.map(r => h('li', { class: 'nf-refused__row' },
+          h('span', { class: 'nf-refused__lead' }, h('span', { class: 'mono' }, r.ip),
+            h('span', { class: 'muted fineprint' }, t('settings.netflow.refused.value', { n: r.packets, age: LL.fmtAge(now - r.last), proto: t('settings.netflow.proto.' + r.version) }))),
+          h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => {
+            const have = lines(ex.value);
+            if (!have.includes(r.ip)) ex.value = have.concat([r.ip]).join('\n');
+            save.click();
+          } }, t('settings.netflow.refused.allow'))))));
     }
     const save = h('button', { class: 'btn btn--ghost', type: 'button', onclick: async () => {
       LL.msg(msg, '');

@@ -427,12 +427,18 @@ class Demo:
         now = time.time()
         up = max(1, int(now - self.started)) if getattr(self, "started", None) else 3600
         flows = 1200 + up // 2
-        ex = {ip: {"packets": flows // 24, "flows": flows, "last": now - 4, "version": 9}
-              for ip in settings.get("netflow_exporters") or []}
+        ex = {}
+        for i, ip in enumerate(settings.get("netflow_exporters") or []):
+            ver = (9, 10, 5)[i % 3]
+            part = flows // (1 + 2 * i)
+            ex[ip] = {"packets": part // 24, "flows": part, "booked": int(part * 0.8), "bytes": part * 52000,
+                      "first": now - up, "last": now - 4 - 7 * i, "version": ver, "templates": 0 if ver == 5 else 3 + i,
+                      "expired": 0, "restarts": 0, "waiting": 1 if i == 0 else 0, "malformed": 0, "refused": 0}
         return {"listening": True, "port": settings.get("netflow_port") or 2055, "packets": flows // 24, "flows": flows,
                 "booked": int(flows * 0.8), "bytes": flows * 52000, "dropped_foreign": 3, "malformed": 0, "waiting": 1,
                 "refused": 0, "skipped_local": flows // 7, "skipped_self": flows // 30, "last_packet": now - 4,
-                "last_flow": now - 4, "exporters": ex, "error": None}
+                "last_flow": now - 4, "exporters": ex, "error": None,
+                "refused_senders": [] if "192.168.50.250" in ex else [{"ip": "192.168.50.250", "packets": 3, "last": now - 95, "version": 9}]}
 
     # ------------------------------------------------------------------ overview (start page, "Right now" rail)
     def overview_history(self, now: float, step: float, length: int) -> list:

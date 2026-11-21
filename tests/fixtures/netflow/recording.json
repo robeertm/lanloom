@@ -1,0 +1,146 @@
+{
+ "about": "Made-up NetFlow v5/v9/IPFIX packets for the receiver tests; see tests/netflow_samples.py.",
+ "devices": {
+  "192.168.50.10": "dev-tv",
+  "192.168.50.11": "dev-laptop",
+  "192.168.50.12": "dev-phone",
+  "192.168.50.13": "dev-printer",
+  "2001:db8:50::11": "dev-laptop"
+ },
+ "expect": {
+  "devices": {
+   "dev-laptop": {
+    "rx": 6000000,
+    "tx": 2564000
+   },
+   "dev-phone": {
+    "rx": 30000,
+    "tx": 50000
+   },
+   "dev-printer": {
+    "rx": 0,
+    "tx": 3500
+   },
+   "dev-tv": {
+    "rx": 900000,
+    "tx": 131000
+   }
+  },
+  "dropped_foreign": 1,
+  "exporters": {
+   "192.0.2.1": {
+    "booked": 6,
+    "bytes": 8711000,
+    "flows": 8,
+    "malformed": 1,
+    "packets": 7,
+    "restarts": 1,
+    "templates": 1,
+    "version": 9,
+    "waiting": 2
+   },
+   "192.0.2.2": {
+    "booked": 3,
+    "bytes": 965500,
+    "flows": 3,
+    "malformed": 0,
+    "packets": 3,
+    "restarts": 0,
+    "templates": 2,
+    "version": 10,
+    "waiting": 1
+   },
+   "192.0.2.3": {
+    "booked": 1,
+    "bytes": 2000,
+    "flows": 2,
+    "malformed": 0,
+    "packets": 1,
+    "restarts": 0,
+    "templates": 0,
+    "version": 5,
+    "waiting": 0
+   }
+  },
+  "refused_senders": [
+   "192.0.2.99"
+  ],
+  "skipped_self": 1
+ },
+ "lan": "192.168.50.0/24",
+ "packets": [
+  {
+   "file": "01-v9-data-before-template.bin",
+   "second": 0.0,
+   "sender": "192.0.2.1",
+   "size": 49
+  },
+  {
+   "file": "11-ipfix-templates-and-data.bin",
+   "second": 0.5,
+   "sender": "192.0.2.2",
+   "size": 446
+  },
+  {
+   "file": "02-v9-templates-and-data.bin",
+   "second": 1.0,
+   "sender": "192.0.2.1",
+   "size": 293
+  },
+  {
+   "file": "21-v5.bin",
+   "second": 1.2,
+   "sender": "192.0.2.3",
+   "size": 120
+  },
+  {
+   "file": "12-ipfix-options.bin",
+   "second": 1.5,
+   "sender": "192.0.2.2",
+   "size": 64
+  },
+  {
+   "file": "03-v9-options-sampling.bin",
+   "second": 2.0,
+   "sender": "192.0.2.1",
+   "size": 60
+  },
+  {
+   "file": "31-v9-not-allowed.bin",
+   "second": 2.2,
+   "sender": "192.0.2.99",
+   "size": 64
+  },
+  {
+   "file": "13-ipfix-withdrawal.bin",
+   "second": 2.5,
+   "sender": "192.0.2.2",
+   "size": 40
+  },
+  {
+   "file": "04-v9-sampled-data.bin",
+   "second": 3.0,
+   "sender": "192.0.2.1",
+   "size": 49
+  },
+  {
+   "file": "05-v9-restart-old-template.bin",
+   "second": 4.0,
+   "sender": "192.0.2.1",
+   "size": 49
+  },
+  {
+   "file": "06-v9-restart-new-template.bin",
+   "second": 5.0,
+   "sender": "192.0.2.1",
+   "size": 93
+  },
+  {
+   "file": "07-v9-truncated.bin",
+   "second": 6.0,
+   "sender": "192.0.2.1",
+   "size": 58
+  }
+ ],
+ "self": "192.168.50.2"
+}

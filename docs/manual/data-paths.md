@@ -113,7 +113,7 @@ Details (how a sea crossing and a fitting cable are found, the data file, its li
   whole world; on a phone, pinch with two fingers. With the keyboard, Tab to the map, then `+`, `-` and `0`.
 - **Per-device figures.** The default source is the connections of the Lanloom host itself. For every device of the
   network, set up NetFlow / IPFIX export on your router and switch on the receiver under *Settings > General > NetFlow /
-  IPFIX from your router* (administrators); see [DATA-PATHS.md](../DATA-PATHS.md#setting-up-netflow--ipfix).
+  IPFIX from your router* (administrators); see [NetFlow / IPFIX](netflow.md).
 - **Where does it talk to?** Every device card has this section: the countries it talks to (EU or outside) and the devices
   of your network it talks to, with the bytes in each direction and a period switch. The card of the *Internet* tile lists
   which devices talk to the internet and how much.
@@ -160,6 +160,7 @@ Details (how a sea crossing and a fitting cable are found, the data file, its li
 
 ## See also
 
+- [NetFlow / IPFIX](netflow.md) - the receiver, allowed exporters, one block per exporter, templates
 - [DATA-PATHS.md](../DATA-PATHS.md) - buckets, hints, NetFlow set-up, privacy, country data and map
 - [PERFORMANCE.md](../PERFORMANCE.md#counter-check) - the counter check against the router's uplink
 - [NIGHTLY-REPORT.md](../NIGHTLY-REPORT.md) - the *Data paths* section

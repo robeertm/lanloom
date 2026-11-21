@@ -67,6 +67,20 @@
 .pw-map:focus { outline: none; }
 .pw-map:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 2px; border-radius: var(--ll-radius-sm, 6px); }
 .nf-suggest { margin-top: 6px; justify-content: flex-start; }
+/* NetFlow: one block per allowed exporter, and senders that are not allowed (W58) */
+.nf-ex-wrap { margin-top: 14px; }
+.nf-ex-h { font-size: var(--ll-fs-sm); font-weight: var(--ll-fw-semibold); margin: 0 0 6px; }
+.nf-ex { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.nf-ex__row { border: 1px solid var(--ll-border); border-radius: var(--ll-radius-sm); padding: 8px 12px; min-width: 0; }
+.nf-ex__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+.nf-ex__ip { font-weight: var(--ll-fw-semibold); overflow-wrap: anywhere; }
+.nf-ex__row .facts { margin-top: 6px; }
+.nf-ex-wrap > .fineprint { margin-top: 8px; }
+.nf-refused { margin-top: 12px; }
+.nf-refused p { margin: 4px 0 8px; }
+.nf-refused__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.nf-refused__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; min-width: 0; }
+.nf-refused__lead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
 .nf-suggest[hidden] { display: none; }
 
 /* legend + selection */

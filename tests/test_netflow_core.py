@@ -75,6 +75,11 @@ def test_valid_settings_and_status(client):
     st = client.get("/api/netflow").json()
     assert st["enabled"] is True and st["port"] == 9995 and set(st["exporters"]) == {"192.0.2.1", "2001:db8::1"}
     assert client.anon.get("/api/netflow").status_code == 401
+    # per exporter (W58): what the settings card draws, and the senders that are not allowed with their protocol
+    keys = {"version", "packets", "flows", "booked", "bytes", "first", "last", "templates", "expired", "restarts", "waiting", "malformed"}
+    for ex in st["exporters"].values():
+        assert keys <= set(ex), sorted(keys - set(ex))
+    assert all({"ip", "packets", "last", "version"} <= set(r) for r in st["refused_senders"])
 
 
 def test_demo_names_netflow_as_a_source(client):

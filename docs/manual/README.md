@@ -15,6 +15,7 @@ guides in [docs/](../)). The *About this view* rail of the app (key `I`) links t
 | Vulnerabilities | [vulnerabilities.md](vulnerabilities.md) | Published vulnerabilities that match a device's maker, model and firmware, from an offline feed, with what to do. |
 | Firewall | [firewall.md](firewall.md) | Zones, networks and rules read from the controller; drafts with a dry run. |
 | Data paths | [data-paths.md](data-paths.md) | Which countries your devices exchange data with, on a world map. |
+| NetFlow / IPFIX | [netflow.md](netflow.md) | The router reports the traffic of every device: receiver, allowed exporters, one block per exporter, templates. |
 | Nightly report | [nightly-reports.md](nightly-reports.md) | A short report of every night with points to tick off. |
 | Failure chain | [failure-chain.md](failure-chain.md) | What fails if a part fails, what it depends on, simulated maintenance, and the outage automatic with dashed affected parts. |
 | Rewind and incidents | [incidents.md](incidents.md) | The last 24 hours or 7 days played back on the map; faults bundled into incident files with root, kind, what changed before; 90-day calendar and timeline & data state. |

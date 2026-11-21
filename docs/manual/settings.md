@@ -53,7 +53,7 @@ Administrators additionally:
   ![Settings on a phone in Italian](../screenshots/language-it-settings-phone-dark.png)
 - **Data paths**, **Cities and network operators** and **NetFlow / IPFIX from your router** - home country, own networks
   and tunnels, networks without internet, the optional city data (off by default, fetches two public files; check now,
-  delete) and the NetFlow receiver (see [Data paths](data-paths.md)).
+  delete) and the NetFlow receiver (see [NetFlow / IPFIX](netflow.md)).
 - **Network routes** (under *Data paths*, off by default) - the switch *Measure network routes*, *Destinations* (1 to 20,
   default 5), *Interval (hours)* (1 to 168, default 6), the separate switch *Exchange points from PeeringDB* with its state,
   and the read-only *State* (off, on with the method, measuring, or *Not possible here* with the reason), *Methods*, *Last

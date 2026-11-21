@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **NetFlow / IPFIX: one block per exporter.** *Settings > NetFlow / IPFIX from your router* now shows every allowed exporter on its own: protocol (NetFlow v5, v9 or IPFIX), *Sending* / *Quiet for* / *Nothing received yet*, last packet, flows and bytes to the internet, the templates it sent (known, expired, restarts seen) and its own waiting and unreadable counts. `GET /api/netflow` carries these figures per exporter.
+- **Flow packets from an address that is not allowed are offered, never taken.** A router often sends from another of its addresses than the gateway; the card lists such senders (flow packets only, the last 8 of the past 24 hours, with packet count, last packet and protocol) with an **Allow** button that adds the address to the allowed exporters and saves. Packets from them stay dropped until then. `GET /api/netflow` carries `refused_senders` (administrators only, memory only).
+- **Recorded sample packets for the receiver.** Made-up NetFlow v5, v9 and IPFIX packets (`tests/fixtures/netflow/`, written by `tests/netflow_samples.py`, documentation and loopback addresses only) are replayed into the receiver and through a real UDP socket into the core: data before its template, IPv4 and IPv6 templates, options records with a sampling rate, a v9 restart, a cut-off packet, IPFIX variable-length and vendor fields, an options template, a template withdrawal, and a sender that is not allowed. A manual page *NetFlow / IPFIX* describes the receiver.
+
+### Changed
+- **Templates expire when the exporter stops repeating them.** NetFlow v9 and IPFIX templates are kept per exporter, protocol, observation domain and template id as before, and now have a lifetime: one hour at first, then three times the longest gap seen between two repeats (at most six hours). Records of an expired template wait for the next one instead of being read with a layout that may have changed; a full template table makes room from expired templates first. A sampling rate announced in options data is forgotten after six hours without a repeat.
+- **A NetFlow v9 exporter that restarts starts clean.** When the uptime in its header jumps back by more than a minute (not the 49.7-day counter wrap, not a late packet), its templates and sampling rate of that observation domain are dropped before the packet is read, and the restart is counted in its block.
+
 ## [1.59.2] – 2026-11-21
 
 1.59.1 below was not released on its own; it is part of this release.

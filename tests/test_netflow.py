@@ -525,3 +525,176 @@ def test_ipfix_packet_interval_and_space_in_options_data():
     col.handle(ipfix_packet([opt, data_set(600, [struct.pack(">III", 1, 1, 9)])]), EXP)     # 1 selected, 9 skipped -> x10
     col.handle(ipfix_packet([ipfix_template(256, V4_FIELDS), data_set(256, [v4_record("192.0.2.10", "203.0.113.5", 40)])]), EXP)
     assert paths.calls[0][2] == 400 and col.stats()["malformed"] == 0
+
+
+# ---------------------------------------------------------------------- template lifetime, exporter restart (W58)
+class Clock:
+    def __init__(self, t=T0):
+        self.t = t
+
+    def __call__(self):
+        return self.t
+
+
+def make_clocked(exporters=(EXP,)):
+    paths, clock = FakePaths(), Clock()
+    col = Collector(paths, {}.get, lambda: LAN, clock=clock, outside=is_out)
+    col.configure(list(exporters), 2055)
+    return col, paths, clock
+
+
+def v9_at(sets, uptime_ms, source=1):
+    return struct.pack(">HHIIII", 9, len(sets), uptime_ms, 0, 0, source) + b"".join(sets)
+
+
+REC = v4_record("192.0.2.10", "203.0.113.5", 100)
+
+
+def test_template_expires_when_not_repeated():
+    col, paths, clock = make_clocked()
+    assert col.handle(v9_packet([v9_template(256, V4_FIELDS), data_set(256, [REC])]), EXP) == 1
+    clock.t += netflow.TEMPLATE_LIFE - 1
+    assert col.handle(v9_packet([data_set(256, [REC])]), EXP) == 1            # still alive
+    clock.t += 2
+    assert col.handle(v9_packet([data_set(256, [REC])]), EXP) == 0            # one hour without a repeat: gone
+    st = col.stats()
+    assert st["waiting"] == 1 and st["exporters"][EXP]["expired"] == 1 and st["exporters"][EXP]["templates"] == 0
+    assert col.handle(v9_packet([v9_template(256, V4_FIELDS), data_set(256, [REC])]), EXP) == 1   # the repeat fixes it
+
+
+def test_lifetime_learns_three_times_the_longest_repeat_gap():
+    col, paths, clock = make_clocked()
+    tpl = v9_template(256, V4_FIELDS)
+    col.handle(v9_packet([tpl]), EXP)
+    clock.t += 50 * 60                                                        # the exporter repeats every 50 minutes
+    col.handle(v9_packet([tpl]), EXP)
+    clock.t += 50 * 60 + 30 * 60                                              # a late repeat is still in time (3 x 50 min)
+    assert col.handle(v9_packet([data_set(256, [REC])]), EXP) == 1
+    clock.t += 71 * 60                                                        # 151 minutes after the last repeat
+    assert col.handle(v9_packet([data_set(256, [REC])]), EXP) == 0
+    assert col.stats()["exporters"][EXP]["expired"] == 1
+
+
+def test_learned_lifetime_is_capped():
+    cache = netflow.TemplateCache()
+    t = T0
+    for gap in (0, 50 * 60, 140 * 60):                                         # repeats after 50 min, then 140 min (3 x is 7 h)
+        t += gap
+        tpl = netflow.Template(((1, 4),))
+        cache.put(EXP, 9, 1, 256, tpl, now=t)
+    assert tpl.life == netflow.TEMPLATE_LIFE_MAX
+    assert cache.get(EXP, 9, 1, 256, now=t + netflow.TEMPLATE_LIFE_MAX - 1) is tpl
+    assert cache.get(EXP, 9, 1, 256, now=t + netflow.TEMPLATE_LIFE_MAX + 1) is None
+    first = netflow.Template(((1, 4),))
+    cache.put(EXP, 9, 1, 257, first, now=T0)
+    late = netflow.Template(((1, 4),))
+    cache.put(EXP, 9, 1, 257, late, now=T0 + 5 * 3600)                         # after expiry: a new start, nothing learned
+    assert late.life == netflow.TEMPLATE_LIFE and late.gap == 0
+
+
+def test_frequent_repeats_keep_the_floor_of_one_hour():
+    cache = netflow.TemplateCache()
+    for i in range(5):
+        tpl = netflow.Template(((1, 4),))
+        cache.put(EXP, 9, 1, 256, tpl, now=T0 + i)                            # in every packet
+    assert tpl.life == netflow.TEMPLATE_LIFE
+
+
+def test_options_templates_expire_too_and_sampling_is_forgotten():
+    col, paths, clock = make_clocked()
+    opt_body = struct.pack(">HHH", 300, 4, 4) + struct.pack(">HHHH", 1, 4, 34, 4)
+    opt = struct.pack(">HH", 1, 4 + len(opt_body)) + opt_body
+    col.handle(v9_packet([opt, data_set(300, [struct.pack(">II", 7, 10)])]), EXP)
+    tpl = v9_template(256, V4_FIELDS)
+    col.handle(v9_packet([tpl, data_set(256, [REC])]), EXP)
+    assert paths.calls[-1][2] == 1000
+    for _ in range(7):                                                        # the flow template is repeated, the options are not
+        clock.t += 3000
+        col.handle(v9_packet([tpl]), EXP)
+    assert col.handle(v9_packet([data_set(300, [struct.pack(">II", 7, 10)])]), EXP) == 0
+    assert col.stats()["waiting"] == 1                                        # options template expired
+    clock.t += netflow.SAMPLING_LIFE
+    col.handle(v9_packet([tpl, data_set(256, [REC])]), EXP)
+    assert paths.calls[-1][2] == 100                                          # the old rate is not applied for ever
+
+
+def test_sweep_frees_the_table_of_an_exporter_that_went_quiet():
+    col, paths, clock = make_clocked(exporters=(EXP, "192.0.2.2"))
+    col.handle(v9_packet([v9_template(256 + i, V4_FIELDS) for i in range(5)]), EXP)
+    assert col.stats()["exporters"][EXP]["templates"] == 5
+    clock.t += netflow.TEMPLATE_LIFE + netflow.SWEEP_EVERY + 1
+    col.handle(v5_packet([("192.0.2.10", "203.0.113.5", 1)]), "192.0.2.2")   # any packet triggers the sweep
+    st = col.stats()["exporters"]
+    assert st[EXP]["templates"] == 0 and st[EXP]["expired"] == 5
+
+
+def test_full_table_makes_room_from_expired_templates():
+    cache = netflow.TemplateCache()
+    for i in range(netflow.MAX_TEMPLATES):
+        assert cache.put(EXP, 10, 1, 256 + i, netflow.Template(((1, 4),)), now=T0)
+    assert not cache.put(EXP, 10, 1, 9999, netflow.Template(((1, 4),)), now=T0 + 10)
+    assert cache.put(EXP, 10, 1, 9999, netflow.Template(((1, 4),)), now=T0 + netflow.TEMPLATE_LIFE + 1)
+    assert cache.count(EXP) == 1
+
+
+def test_v9_uptime_going_back_drops_templates_of_that_domain():
+    col, paths, clock = make_clocked()
+    col.handle(v9_at([v9_template(256, V4_FIELDS)], 5_000_000), EXP)
+    col.handle(v9_at([v9_template(256, V4_FIELDS)], 5_000_000, source=2), EXP)
+    assert col.handle(v9_at([data_set(256, [REC])], 5_100_000), EXP) == 1
+    # the exporter restarted (uptime 2 s): the old template of domain 1 is not used for its new records
+    assert col.handle(v9_at([data_set(256, [REC])], 2_000), EXP) == 0
+    st = col.stats()
+    assert st["exporters"][EXP]["restarts"] == 1 and st["waiting"] == 1 and st["exporters"][EXP]["templates"] == 1
+    assert col.handle(v9_at([data_set(256, [REC])], 5_200_000, source=2), EXP) == 1      # domain 2 is untouched
+    # the restart packet that brings the new template is read with it
+    assert col.handle(v9_at([v9_template(256, V4_FIELDS), data_set(256, [REC])], 3_000), EXP) == 1
+
+
+def test_v9_late_packet_and_counter_wrap_are_no_restart():
+    col, paths, clock = make_clocked()
+    col.handle(v9_at([v9_template(256, V4_FIELDS)], 5_000_000), EXP)
+    assert col.handle(v9_at([data_set(256, [REC])], 4_990_000), EXP) == 1    # 10 s late: reordered, not restarted
+    assert col.handle(v9_at([data_set(256, [REC])], 5_010_000), EXP) == 1
+    near = (1 << 32) - 1_000
+    col.handle(v9_at([v9_template(256, V4_FIELDS)], near), EXP)
+    assert col.handle(v9_at([data_set(256, [REC])], 500), EXP) == 1         # 49.7-day wrap
+    assert col.stats()["exporters"][EXP]["restarts"] == 0
+
+
+# ---------------------------------------------------------------------- per exporter figures, senders that are not allowed
+def test_figures_per_exporter():
+    col, paths, clock = make_clocked(exporters=(EXP, "192.0.2.2"))
+    col.handle(v5_packet([("192.0.2.10", "203.0.113.5", 300), ("192.0.2.10", "192.0.2.11", 5)]), EXP)
+    clock.t += 5
+    col.handle(ipfix_packet([ipfix_template(256, V4_FIELDS), data_set(256, [v4_record("203.0.113.7", "192.0.2.12", 70)])]), "192.0.2.2")
+    col.handle(ipfix_packet([data_set(257, [REC])]), "192.0.2.2")
+    st = col.stats()["exporters"]
+    a, b = st[EXP], st["192.0.2.2"]
+    assert (a["version"], a["packets"], a["flows"], a["booked"], a["bytes"], a["templates"]) == (5, 1, 2, 1, 300, 0)
+    assert (b["version"], b["packets"], b["flows"], b["booked"], b["bytes"], b["templates"], b["waiting"]) == (10, 2, 1, 1, 70, 1, 1)
+    assert a["first"] == a["last"] == T0 and b["first"] == T0 + 5
+
+
+def test_refused_senders_are_offered_only_for_flow_packets():
+    col, paths, clock = make_clocked()
+    col.handle(v9_packet([v9_template(256, V4_FIELDS)]), "192.0.2.77")      # the router sends from another address
+    col.handle(v9_packet([v9_template(256, V4_FIELDS)]), "192.0.2.77")
+    col.handle(b"hello there", "192.0.2.78")                                  # not flow export: counted, not offered
+    st = col.stats()
+    assert st["dropped_foreign"] == 3
+    assert [(r["ip"], r["packets"], r["version"]) for r in st["refused_senders"]] == [("192.0.2.77", 2, 9)]
+    col.configure([EXP, "192.0.2.77"], 2055)                                  # allowed now: no longer offered
+    assert col.stats()["refused_senders"] == []
+    assert col.handle(v9_packet([v9_template(256, V4_FIELDS), data_set(256, [REC])]), "192.0.2.77") == 1
+
+
+def test_refused_senders_are_capped_and_age_out():
+    col, paths, clock = make_clocked()
+    for i in range(netflow.MAX_REFUSED_SHOWN + 4):
+        clock.t += 1
+        col.handle(v5_packet([("192.0.2.10", "203.0.113.5", 1)]), "198.51.100.%d" % (i + 1))
+    shown = col.stats()["refused_senders"]
+    assert len(shown) == netflow.MAX_REFUSED_SHOWN and shown[0]["ip"] == "198.51.100.%d" % (netflow.MAX_REFUSED_SHOWN + 4)
+    clock.t += netflow.REFUSED_SHOWN_FOR + 1
+    assert col.stats()["refused_senders"] == []

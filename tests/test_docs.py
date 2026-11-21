@@ -124,7 +124,7 @@ VIEW_PAGES = {"overview": "overview.md", "map": "map.md", "network": "network.md
               "devices": "devices.md", "firewall": "firewall.md", "reports": "nightly-reports.md", "automations": "automations.md",
               "running": "running.md", "settings": "settings.md", "sites": "sites.md", "incidents": "incidents.md", "controlroom": "controlroom.md",
               "now": "now.md", "focus": "now.md", "energy": "energy.md"}
-EXTRA_PAGES = ("inventory.md", "export.md", "ai.md", "views.md", "README.md")
+EXTRA_PAGES = ("inventory.md", "export.md", "ai.md", "views.md", "netflow.md", "README.md")
 SECTIONS = ["Purpose", "What you see", "How to use it", "Limits", "Privacy", "See also"]
 
 
@@ -139,7 +139,7 @@ def test_the_about_rail_points_to_a_page_for_every_view():
         assert (ROOT / "docs" / "manual" / page).is_file(), page
 
 
-@pytest.mark.parametrize("page", sorted(set(VIEW_PAGES.values()) | {"inventory.md", "export.md", "ai.md"}))
+@pytest.mark.parametrize("page", sorted(set(VIEW_PAGES.values()) | {"inventory.md", "export.md", "ai.md", "netflow.md"}))
 def test_a_manual_page_has_the_common_structure(page):
     text = (ROOT / "docs" / "manual" / page).read_text(encoding="utf-8")
     h2 = [m.group(2) for m in (HEADING.match(l) for l in prose_lines(text)) if m and m.group(1) == "##"]
