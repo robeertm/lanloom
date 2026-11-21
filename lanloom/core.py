@@ -129,6 +129,7 @@ class Core:
         self.clients: set = set()
         self.ip_to_device: dict = {}
         self.self_ip: Optional[str] = None
+        self.self_device: Optional[str] = None      # id of this host's own entry (flows of the host are booked on it)
         self.gateway_ip: Optional[str] = None
         self.presence: dict = {}           # device id -> last confirmed alive (ts)
         self.flow_seen: dict = {}          # device id -> last ts with host flow bytes
@@ -221,6 +222,44 @@ class Core:
         from .vulns import Vulns
         self.vulns = Vulns(self)                        # vulnerability hints from the offline feed
         self._refresh_index()
+        try:
+            self.rekey_stale_paths()
+        except Exception:
+            log.exception("data paths of former device ids could not be moved (kept as they are)")
+
+    REKEY_BACKUP = "paths_rekey_backup"
+    REKEY_KEEP = 5                  # moves whose copy is kept
+    REKEY_ROWS = 2000               # rows per table and move in that copy
+
+    def rekey_stale_paths(self) -> int:
+        """Data paths stored under an id no device has any more move to the device that owns that id now (lanloom#13):
+        an address id ("d-ip-<address>") to the entry with that address - the device got its hardware-address id before
+        the move was done on the spot - and the "self" placeholder to this host's own entry. Ids that match no device stay
+        as they are. Before anything moves, a copy of the rows is kept in the settings (the last few moves). Idempotent:
+        a second run finds nothing to do. Returns the rows moved."""
+        known = {d["id"] for d in self.store.devices()}
+        plan = []
+        for old in self.paths.stale_devices(known):
+            if old == "self":
+                target = self.self_device
+            else:
+                ip = datapaths.ip_of_id(old)
+                target = (self.ip_to_device.get(ip) or self.ip6_to_device.get(ip)) if ip else None
+            if target and target != old and target in known:
+                plan.append((old, target))
+        if not plan:
+            return 0
+        copy = self.store.get_setting(self.REKEY_BACKUP, [])
+        copy = copy if isinstance(copy, list) else []
+        for old, new in plan:
+            copy.append({"t": round(time.time(), 1), "old": old, "new": new,
+                         "rows": self.paths.snapshot_device(old, self.REKEY_ROWS)})
+        self.store.set_setting(self.REKEY_BACKUP, copy[-self.REKEY_KEEP:])
+        moved = 0
+        for old, new in plan:
+            moved += self.paths.rename_device(old, new)
+        log.info("data paths: moved %d rows of %d former device ids onto their current entries", moved, len(plan))
+        return moved
 
     def _after_report_chronicle(self, report) -> None:
         """After every nightly report: incidents and the chronicle are collected in the background (never in the loop)."""
@@ -433,9 +472,12 @@ class Core:
     def _refresh_index(self) -> None:
         self.ip_to_device = {}
         ip6 = {}
+        self_dev = None
         for dev in self.store.devices():
             if dev["ip"]:                  # a device only an adapter knows may have no address yet
                 self.ip_to_device[dev["ip"]] = dev["id"]
+            if dev["data"].get("is_self") and (self_dev is None or self_dev.startswith("d-ip-")):
+                self_dev = dev["id"]       # the entry with the hardware address wins over an address-only leftover
             data = dev["data"]
             for a in (data.get("ipv6") or [])[:16]:
                 try:
@@ -447,6 +489,7 @@ class Core:
             if data.get("is_gateway"):
                 self.gateway_ip = dev["ip"]
         self.ip6_to_device = ip6
+        self.self_device = self_dev
         self.structure_version += 1
 
     def devices(self) -> list:
@@ -1067,30 +1110,37 @@ class Core:
         """Classify every host of a ScanResult and store it; returns the number of hosts. Each host is stored on its
         own savepoint: a host that cannot be stored is logged and skipped, it never costs the rest of the scan."""
         hosts = result.get("hosts") or []
-        merged = []
+        moved = []
+        had_self = self.self_device
         with self.store.transaction():
             for host in hosts:
                 self.store.execute("SAVEPOINT ingest_host")
                 try:
-                    gone = self._ingest_host(host, scan_id)
+                    change = self._ingest_host(host, scan_id)
                 except Exception:
                     self.store.execute("ROLLBACK TO ingest_host")
                     log.exception("could not store a scanned host, skipped (the rest of the scan is kept)")
-                    gone = None
+                    change = None
                 self.store.execute("RELEASE ingest_host")
-                if gone:
-                    merged.append(gone)
-        for old_id in merged:       # outside the transaction: these take their own locks
-            self.paths.forget_device(old_id)
-            self.availability.forget("dev:" + old_id)
-            self.hosthealth.forget(old_id)
-            self.vulns.forget_device(old_id)
+                if change:
+                    moved.append(change)
+        # the index first: from here on flows are booked on the new ids; what was booked on an old id meanwhile is still
+        # pending and moves along below (lanloom#13: this host's flows stayed on its address id after it got its hardware id)
         self._refresh_index()
+        for old_id, new_id, merged in moved:       # outside the transaction: these take their own locks
+            self.paths.rename_device(old_id, new_id)
+            if merged:
+                self.availability.forget("dev:" + old_id)
+                self.hosthealth.forget(old_id)
+                self.vulns.forget_device(old_id)
+        if self.self_device and self.self_device != had_self:
+            self.paths.rename_device("self", self.self_device)    # booked before this host had an entry
         return len(hosts)
 
-    def _ingest_host(self, host: dict, scan_id: Optional[int]) -> Optional[str]:
-        """Store one scanned host. Returns the id of an address-only row that was merged into an existing row with
-        the hardware address (its leftovers elsewhere are dropped after the transaction), else None."""
+    def _ingest_host(self, host: dict, scan_id: Optional[int]) -> Optional[tuple]:
+        """Store one scanned host. Returns (old id, new id, merged) when an address-only row took the id of its hardware
+        address - renamed, or merged into a row that had it already (the data paths of the old id move to the new one after
+        the transaction, other leftovers of a merged row are dropped) - else None."""
         if not host.get("ip") and classify.device_id(host).startswith("d-ip-"):
             return None               # neither an address nor a hardware address: nothing to identify it by
         verdict = classify.classify(host, vendor=self.registry().lookup(host.get("mac")))
@@ -1103,7 +1153,7 @@ class Core:
             old_adapter = json.loads(old_row["data"]).get("adapter") if old_row else None
             if old_adapter:
                 data["adapter"] = old_adapter
-        gone = None
+        gone = change = None
         # a device first seen by IP and now with a MAC keeps its user edits
         if dev_id.startswith("d-") and not dev_id.startswith("d-ip-") and host.get("ip"):
             old = self.store.one("SELECT id, user_title, user_kind, first_seen FROM devices WHERE id=?",
@@ -1132,11 +1182,12 @@ class Core:
                 if gone:
                     self.inventory.forget(old_id)       # entries the hardware-address row had already win
                 self._manual_ver += 1
+                change = (old_id, dev_id, bool(gone))
         self.store.upsert_device({"id": dev_id, "ip": host.get("ip") or "", "mac": host.get("mac"), "data": data,
                                   "kind": verdict["kind"], "confidence": verdict["confidence"],
                                   "title": verdict["title"]}, scan_id)
         self.presence[dev_id] = time.time()
-        return gone
+        return change
 
     async def _rescan_loop(self) -> None:
         while True:
@@ -2189,10 +2240,12 @@ class Core:
         acc[0] += max(0, int(b0 or 0))
         acc[1] += max(0, int(b1 or 0))
 
+    def _own_id(self) -> Optional[str]:
+        """Id of this host's own entry: the entry marked as this host, else the one with its address."""
+        return self.self_device or (self.ip_to_device.get(self.self_ip) if self.self_ip else None)
+
     def _book_flows(self, flows: list, now: float) -> None:
-        self_id = self.ip_to_device.get(self.self_ip) if self.self_ip else None
-        if not self_id:
-            self_id = "self"
+        self_id = self._own_id() or "self"
         router_id = self.ip_to_device.get(self.gateway_ip) if self.gateway_ip else None
         for fl in flows:
             tx, rx = fl.get("tx"), fl.get("rx")
@@ -2437,7 +2490,7 @@ class Core:
         peers = self.outside_list(now)
         if peers and router_id:
             frame["peers"] = {"internet": peers}
-        self_id = self.ip_to_device.get(self.self_ip) if self.self_ip else None
+        self_id = self._own_id()
         ports = self.seen_ports(now)
         if ports:
             frame["ports"] = {flow_trace(self_id or "self", dev_id): p for dev_id, p in ports.items()}

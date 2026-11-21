@@ -17,7 +17,20 @@ Power sensors are entities with the device class *power* or the unit W, kW or MW
 | consumer | everything else | one lane per sensor, at most 24 |
 
 Several sensors of one role add up (phases); a sensor named *total* wins over its parts. The home draws `grid + solar + battery`; without
-a grid sensor it is a house-total sensor or the sum of the consumers. The flows add up: solar covers the home first, the surplus charges
+a grid sensor it is a house-total sensor or the sum of the consumers.
+
+**Sums, means and doubles among the consumers** (none of them is added on top of another):
+
+- A sensor that names itself a sum (*total*, *gesamt*, *sum*, *whole home* ...), has no device of its own and reads at least as much as
+  every single consumer is the home figure when there is no grid sensor (`home_source` in the answer); other sums and its mean over a
+  window (*1m*, *5min*, *avg*, *mean* ...) are left out.
+- A device's own total (for example of a power strip) stands for that device; its channels are left out. Two sensors of one device
+  that read the same power (within 3 W or 2 %) count once; different channels of one device all count.
+- A mean next to the plain reading of the same device or name is left out.
+- A circuit sensor (no device, *circuit*, *breaker*, *phase*, *sub* ... in its name) sums the plugs below it: next to device sensors it
+  never counts (left out as *circuit*, or *duplicate* when it reads like one plug); without device sensors it is a lane of its own.
+- Everything left out is listed in `skipped` (`id`, `label`, `w`, `why`: `total`, `average`, `duplicate`, `circuit`, `hidden`) and on
+  the page under *Not counted*. A lane's `label` is the device's name when the sensor's own name is generic (*Power*). The flows add up: solar covers the home first, the surplus charges
 the battery and then goes to the grid; what is missing comes from the battery and then from the grid. *Rest* is what no sensor measures.
 
 **Price and CO2.** A price entity (`EUR/kWh`, `ct/kWh`, `$/kWh` ...) and a CO2 entity (`gCO2eq/kWh`) are found by themselves. A named entity
@@ -34,7 +47,9 @@ the day change).
 ## Settings and rights
 
 `PUT /api/energy/settings` (operator; audit action `energy.settings`) takes any of `price`, `feed_in` (0..10 per kWh), `co2_g_kwh`
-(0..2000), `currency` (three capital letters) and `price_entity`, `co2_entity` (an entity found among the hub's sensors, or `null`).
+(0..2000), `currency` (three capital letters) and `price_entity`, `co2_entity` (an entity found among the hub's sensors, or `null`),
+`home_entity` (a power sensor that is the whole home; it wins over the grid reading and every rule above, `null` = automatic) and
+`hidden` (a list of at most 200 entity ids left out everywhere on the page).
 `GET /api/energy` is open to everybody who sees the map.
 
 ## Control room and nightly report

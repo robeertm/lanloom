@@ -58,7 +58,8 @@
 
   const home = () => (S.d && S.d.home) || browserRegion();
   LL.pathsHomeCc = () => home();
-  const devTitle = d => d ? (d.title || (d.self ? t('paths.this_host') : d.id === '~unknown' ? t('paths.unknown_device') : d.id)) : '';
+  // a device no entry has any more (its id changed) shows its address or "Unknown device", never the raw id (lanloom#13)
+  const devTitle = d => d ? (d.title || (d.self ? t('paths.this_host') : d.id === '~unknown' ? t('paths.unknown_device') : d.gone ? (d.ip || t('paths.unknown_device')) : (d.ip || t('kind.' + (d.kind || 'unknown'))))) : '';
   const deviceById = id => (S.d && S.d.devices.find(d => d.id === id)) || null;
   const countryRow = cc => (S.d && S.d.countries.find(c => c.cc === cc)) || null;
   const isEU = cc => !!(countryRow(cc) && countryRow(cc).eu);
@@ -525,7 +526,7 @@
     return h('span', { class: 'pw-bar' }, h('i', { class: out ? 'pw-out' : 'pw-eu', style: 'width:' + Math.max(2, Math.round(share * 100)) + '%' }));
   }
   function unusualText(u) {
-    const dev = devTitle(deviceById(u.device)) || u.device;
+    const dev = devTitle(deviceById(u.device)) || t('paths.unknown_device');
     if (u.kind === 'new_country') return t('paths.unusual.new_country', { device: dev, country: countryName(u.cc), bytes: LL.fmtBytes(u.bytes) });
     if (u.kind === 'heavy') return t('paths.unusual.heavy', { device: dev, bytes: LL.fmtBytes(u.bytes), factor: u.typical ? Math.round(u.bytes / u.typical) : '>3', typical: LL.fmtBytes(u.typical) });
     return t('paths.unusual.offline_net', { device: dev, network: u.network, bytes: LL.fmtBytes(u.bytes) });
@@ -574,7 +575,7 @@
     return h('section', { class: 'card pw-card' }, h('header', { class: 'pw-card__head' }, h('h2', {}, title)),
       rows.length ? h('ul', { class: 'pw-list' }, rows.slice(0, 40).map(r => h('li', {}, h('button', { type: 'button',
         class: 'pw-row pw-row--device' + (selDev === r.id ? ' is-selected' : ''), onclick: () => select({ type: 'device', id: r.id }) },
-      h('span', { class: 'pw-row__name' }, devTitle(r.dev) || r.id),
+      h('span', { class: 'pw-row__name' }, devTitle(r.dev) || t('paths.unknown_device')),
       h('span', { class: 'pw-row__meta muted' }, r.n != null ? t('paths.n_countries', { n: r.n }) : (r.dev && r.dev.ip) || ''),
       h('span', { class: 'pw-row__value' }, LL.fmtBytes(r.b)),
       bar(r.b / max, false))))) : h('p', { class: 'muted pw-empty' }, t('paths.empty.list')));
@@ -868,8 +869,8 @@
     const sec = h('section', { class: 'detail__sec talk', 'data-sec': 'talk' }, h('h3', {}, t(isNet ? 'talk.title_net' : 'talk.title')), sw, body);
     const bytes = (tx, rx) => h('span', { class: 'talk__bytes mono' }, h('span', {}, '↑ ' + LL.fmtBytes(tx)), h('span', {}, '↓ ' + LL.fmtBytes(rx)));
     const row = (label, tx, rx, extra) => h('li', { class: 'talk__row' + (extra ? ' ' + extra : '') }, label, bytes(tx, rx));
-    const who = (r, link) => link ? h('a', { class: 'talk__name', href: '#/devices/' + encodeURIComponent(r.id) }, r.title || (r.self ? t('paths.this_host') : t('kind.' + (r.kind || 'unknown')))) :
-      h('span', { class: 'talk__name' }, r.title || (r.self ? t('paths.this_host') : t('kind.' + (r.kind || 'unknown'))));
+    const who = (r, link) => link && !r.gone ? h('a', { class: 'talk__name', href: '#/devices/' + encodeURIComponent(r.id) }, devTitle(r)) :
+      h('span', { class: 'talk__name' }, devTitle(r));
     function drawSwitch() {
       sw.replaceChildren(...PERIODS.map(p => h('button', { class: 'mf-chip' + (p === win ? ' is-on' : ''), type: 'button', 'aria-pressed': p === win ? 'true' : 'false',
         onclick: () => { win = p; try { localStorage.setItem('lanloom-paths-window', p); } catch (e) { /* private mode */ } drawSwitch(); load(); } }, t('paths.window.' + p))));

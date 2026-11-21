@@ -140,6 +140,19 @@ def _in(addr, nets) -> bool:
     return any(addr.version == n.version and addr in n for n in nets)
 
 
+def ip_of_id(device: str) -> Optional[str]:
+    """The address of an address-based device id ("d-ip-192-168-0-28" -> "192.168.0.28"), else None."""
+    if not isinstance(device, str) or not device.startswith("d-ip-"):
+        return None
+    raw = device[5:]
+    for cand in (raw.replace("-", "."), raw.replace("-", ":")):
+        try:
+            return str(ipaddress.ip_address(cand))
+        except ValueError:
+            continue
+    return None
+
+
 def _with_sat(entry: dict) -> dict:
     """Operator entry {asn, name, bytes, ...} plus ``sat`` ("leo" or "geo") when it is a satellite network (AS number table or the
     neutral words in the name); the field is absent otherwise."""
@@ -406,6 +419,94 @@ class DataPaths:
         self._pair_cache.clear()
         self._country_cache.clear()
 
+    def rename_device(self, old: str, new: str) -> int:
+        """Book everything stored under ``old`` onto ``new`` (a device that moved from an address id to its hardware address,
+        or the "self" placeholder that became the host's own entry). Sums are added where ``new`` already has a row, a
+        conversation of the two ids with each other is dropped. Idempotent: a second call finds nothing. Returns the rows moved."""
+        if not old or not new or old == new:
+            return 0
+        with self._lock:
+            def rekey(table: dict, pos: int) -> None:
+                for k in [k for k in table if k[pos] == old]:
+                    acc = table.pop(k)
+                    nk = k[:pos] + (new,) + k[pos + 1:]
+                    cur = table.setdefault(nk, [0, 0])
+                    cur[0] += acc[0]
+                    cur[1] += acc[1]
+            rekey(self.pending, 1)
+            rekey(self.detail_pending, 1)
+            for k in [k for k in self.seen_pending if k[0] == old]:
+                ts = self.seen_pending.pop(k)
+                nk = (new, k[1])
+                self.seen_pending[nk] = max(self.seen_pending.get(nk, 0.0), ts)
+            for k in [k for k in self.pair_pending if old in k[1:]]:
+                ab, ba = self.pair_pending.pop(k)
+                self._repair(self.pair_pending, k[0], k[1], k[2], ab, ba, old, new)
+        moved = 0
+        with self.store.transaction() as st:
+            db = st._db
+            for table, key in (("paths_hour", "hour"), ("paths_day", "day")):
+                moved += db.execute("INSERT INTO %s(%s, device, cc, tx, rx) SELECT %s, ?, cc, tx, rx FROM %s WHERE device=?"
+                                    " ON CONFLICT(%s, device, cc) DO UPDATE SET tx=tx+excluded.tx, rx=rx+excluded.rx"
+                                    % (table, key, key, table, key), (new, old)).rowcount
+                db.execute("DELETE FROM %s WHERE device=?" % table, (old,))
+            for table, key in (("paths_city_hour", "hour"), ("paths_city_day", "day")):
+                moved += db.execute("INSERT INTO %s(%s, device, cc, city, asn, tx, rx) SELECT %s, ?, cc, city, asn, tx, rx FROM %s"
+                                    " WHERE device=? ON CONFLICT(%s, device, cc, city, asn) DO UPDATE SET tx=tx+excluded.tx,"
+                                    " rx=rx+excluded.rx" % (table, key, key, table, key), (new, old)).rowcount
+                db.execute("DELETE FROM %s WHERE device=?" % table, (old,))
+            moved += db.execute("INSERT INTO paths_seen(device, cc, first, last) SELECT ?, cc, first, last FROM paths_seen"
+                                " WHERE device=? ON CONFLICT(device, cc) DO UPDATE SET first=MIN(first, excluded.first),"
+                                " last=MAX(last, excluded.last)", (new, old)).rowcount
+            db.execute("DELETE FROM paths_seen WHERE device=?", (old,))
+            for table, key in (("paths_pair_hour", "hour"), ("paths_pair_day", "day")):
+                rows = db.execute("SELECT %s AS k, a, b, ab, ba FROM %s WHERE a=? OR b=?" % (key, table), (old, old)).fetchall()
+                db.execute("DELETE FROM %s WHERE a=? OR b=?" % table, (old, old))
+                sums: dict = {}
+                for r in rows:
+                    self._repair(sums, r["k"], r["a"], r["b"], int(r["ab"]), int(r["ba"]), old, new)
+                for (k, a, b), (ab, ba) in sums.items():
+                    db.execute("INSERT INTO %s(%s, a, b, ab, ba) VALUES(?,?,?,?,?) ON CONFLICT(%s, a, b) DO UPDATE SET"
+                               " ab=ab+excluded.ab, ba=ba+excluded.ba" % (table, key, key), (k, a, b, ab, ba))
+                    moved += 1
+        self._cache.clear()
+        self._pair_cache.clear()
+        self._country_cache.clear()
+        if moved:
+            self.version += 1
+        return moved
+
+    @staticmethod
+    def _repair(target: dict, k, a: str, b: str, ab: int, ba: int, old: str, new: str) -> None:
+        """Add one conversation sum (a < b) to ``target`` with ``old`` replaced by ``new``; the order of the pair and with
+        it the direction of the two sums follow the new ids. A conversation of ``new`` with itself is dropped."""
+        a2, b2 = (new if a == old else a), (new if b == old else b)
+        if a2 == b2:
+            return
+        if a2 > b2:
+            a2, b2, ab, ba = b2, a2, ba, ab
+        cur = target.setdefault((k, a2, b2), [0, 0])
+        cur[0] += ab
+        cur[1] += ba
+
+    def stale_devices(self, known) -> list:
+        """Device ids with stored data paths that no device has any more (``known``: the ids of the inventory)."""
+        known = set(known)
+        rows = self.store.query("SELECT device FROM paths_day UNION SELECT device FROM paths_hour UNION SELECT device FROM paths_seen")
+        with self._lock:
+            pend = {k[1] for k in self.pending}
+        return sorted(({r["device"] for r in rows} | pend) - known)
+
+    def snapshot_device(self, device: str, limit: int = 5000) -> dict:
+        """The stored rows of one device id (a copy kept before they are booked onto another id)."""
+        out = {}
+        for table in ("paths_hour", "paths_day", "paths_seen", "paths_city_hour", "paths_city_day"):
+            out[table] = [list(r.values()) for r in self.store.query("SELECT * FROM %s WHERE device=? LIMIT ?" % table, (device, limit))]
+        for table in ("paths_pair_hour", "paths_pair_day"):
+            out[table] = [list(r.values()) for r in self.store.query("SELECT * FROM %s WHERE a=? OR b=? LIMIT ?" % table,
+                                                                     (device, device, limit))]
+        return out
+
     # ------------------------------------------------------------------ reading
     def _rows(self, window: str, now: float) -> list:
         unit, n = PERIODS[window]
@@ -457,9 +558,11 @@ class DataPaths:
         for d in devs.values():
             info = devices.get(d["id"]) or {}
             d["title"] = info.get("title") or ""
-            d["ip"] = info.get("ip")
+            d["ip"] = info.get("ip") or (None if info else ip_of_id(d["id"]))
             d["kind"] = info.get("kind") or ""
             d["self"] = bool(info.get("self"))
+            if not info:
+                d["gone"] = True          # no device has this id any more: the view never shows the raw id
         matrix.sort(key=lambda m: -(m[2] + m[3]))
         out = {
             "window": window, "t": round(now, 1),
@@ -515,8 +618,11 @@ class DataPaths:
             window = "24h"
         now = self.clock() if now is None else now
         s = self.summary(window, devices, now)
-        meta = lambda i: {"title": (devices.get(i) or {}).get("title") or "", "kind": (devices.get(i) or {}).get("kind") or "",
-                          "self": bool((devices.get(i) or {}).get("self"))}
+        def meta(i):
+            info = devices.get(i)
+            if not info:          # no device has this id any more: an address if the id carries one, never the raw id
+                return {"title": "", "kind": "", "self": False, "ip": ip_of_id(i), "gone": True}
+            return {"title": info.get("title") or "", "kind": info.get("kind") or "", "self": bool(info.get("self"))}
         out = {"window": window, "t": round(now, 1), "device": device, "geo": s["geo"], "home": s["home"]}
         if device == "internet":
             devs = [{"id": d["id"], "tx": d["tx"], "rx": d["rx"], "countries": d["countries"], **meta(d["id"])} for d in s["devices"]]

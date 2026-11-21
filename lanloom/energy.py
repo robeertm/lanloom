@@ -40,7 +40,19 @@ ENERGY_UNITS = {"kwh": 1.0, "wh": 0.001, "mwh": 1000.0}
 CURRENCIES = {"eur": "EUR", "€": "EUR", "usd": "USD", "$": "USD", "gbp": "GBP", "£": "GBP", "chf": "CHF"}
 PRICE_RE = re.compile(r"\A(eur|€|usd|\$|gbp|£|chf|ct|cent|c)\s*/\s*kwh\Z")
 CO2_RE = re.compile(r"co2.*?/\s*(k?wh)")
-DEFAULTS = {"price": None, "currency": "EUR", "feed_in": None, "co2_g_kwh": None, "price_entity": None, "co2_entity": None}
+DEFAULTS = {"price": None, "currency": "EUR", "feed_in": None, "co2_g_kwh": None, "price_entity": None, "co2_entity": None,
+            "home_entity": None, "hidden": []}
+MAX_HIDDEN = 200
+ENTITY_RE = re.compile(r"\A[a-z0-9_]+\.[a-z0-9_]+\Z")
+# Names that say "this is a sum" / "this is a mean over a window" / "this collects a circuit" (folded tokens of name + entity id)
+TOTAL_WORDS = frozenset(("total", "gesamt", "gesamtverbrauch", "sum", "summe", "whole", "overall", "insgesamt"))
+TOTAL_PHRASES = ("whole home", "whole house", "all power", "power all", "all circuits", "all devices", "alle verbraucher")
+AVG_WORDS = frozenset(("avg", "average", "mean", "mittel", "mittelwert", "durchschnitt", "smoothed"))
+AVG_RE = re.compile(r"\A\d+(s|m|min|h)\Z")
+CIRCUIT_WORDS = frozenset(("circuit", "kreis", "stromkreis", "breaker", "phase", "sub", "subpanel", "branch", "sicherung"))
+GENERIC_NAMES = frozenset(("", "power", "leistung", "energy", "energie", "current power", "consumption", "puissance", "potencia",
+                           "vermogen", "potenza", "watt", "watts", "w"))
+NEAR_ABS_W, NEAR_REL = 3.0, 0.02    # two readings this close are the same power
 TODAY_WORDS = ("today", "daily", "heute", "day", "tag", "taglich")
 ROLE_WORDS = {
     "export": (("export", "return", "einspeis"), ("feed in", "feedin", "einspeis")),
@@ -100,6 +112,43 @@ def num(v) -> Optional[float]:
     return hubfacts.as_number(v)
 
 
+def _tokens(row: dict) -> set:
+    return set(row["text"].split())
+
+
+def is_total(row: dict) -> bool:
+    return bool(_tokens(row) & TOTAL_WORDS) or any(p in row["text"] for p in TOTAL_PHRASES)
+
+
+def is_average(row: dict) -> bool:
+    return any(t in AVG_WORDS or AVG_RE.match(t) for t in _tokens(row))
+
+
+def is_circuit(row: dict) -> bool:
+    return not row["device"] and bool(_tokens(row) & CIRCUIT_WORDS)
+
+
+def _stem(row: dict) -> str:
+    return " ".join(t for t in row["text"].split() if t not in AVG_WORDS and not AVG_RE.match(t))
+
+
+def near(a: float, b: float) -> bool:
+    return abs(a - b) <= max(NEAR_ABS_W, NEAR_REL * max(abs(a), abs(b)))
+
+
+def label_of(row: dict) -> str:
+    """A name a person recognises: the device's name when the sensor's own name is generic ("Power"), both when they add up."""
+    name, dev = (row["name"] or "").strip(), (row.get("device_name") or "").strip()
+    f_name, f_dev = hubfacts.fold(name), hubfacts.fold(dev)
+    if not dev:
+        return name or row["entity_id"]
+    if f_name in GENERIC_NAMES or f_name == f_dev:
+        return dev
+    if f_dev and f_dev in f_name:
+        return name
+    return dev + " \u00b7 " + name
+
+
 class EnergyBook:
     def __init__(self, core, clock=time.time):
         self.core = core
@@ -118,6 +167,9 @@ class EnergyBook:
             for k in DEFAULTS:
                 if k in raw:
                     out[k] = raw[k]
+        out["hidden"] = [x for x in out["hidden"] if isinstance(x, str)][:MAX_HIDDEN] if isinstance(out["hidden"], list) else []
+        if not isinstance(out["home_entity"], str):
+            out["home_entity"] = None
         return out
 
     def set_settings(self, patch) -> dict:
@@ -156,6 +208,22 @@ class EnergyBook:
                     cur[key] = v
                 else:
                     raise ValueError("energy.err.entity")
+        if "home_entity" in patch:
+            v = patch["home_entity"]
+            pool = {r["entity_id"] for rows in cl["power"].values() for r in rows}
+            if v in (None, ""):
+                cur["home_entity"] = None
+            elif isinstance(v, str) and v in pool:
+                cur["home_entity"] = v
+            else:
+                raise ValueError("energy.err.entity")
+        if "hidden" in patch:
+            v = patch["hidden"]
+            if v is None:
+                v = []
+            if not isinstance(v, list) or len(v) > MAX_HIDDEN or not all(isinstance(x, str) and ENTITY_RE.match(x) for x in v):
+                raise ValueError("energy.err.hidden")
+            cur["hidden"] = list(dict.fromkeys(v))
         self.core.store.set_setting(SETTING, cur)
         return cur
 
@@ -264,9 +332,81 @@ class EnergyBook:
                 out.append({"id": fid, "from": a, "to": b, "w": round(w, 1)})
         return out
 
-    def _reading(self, cl: dict) -> dict:
+    def _consumers(self, rows: list):
+        """(lanes, circuits, skipped, total_row) from the consumer sensors (lanloom#14).
+
+        * A sensor that names itself a sum ("Total Power") is the whole home when it reads at least as much as every single
+          consumer and has no device of its own (a device's own total, e.g. of a power strip, never is); its mean over a window
+          ("Total Power 1m") and other sums are left out. A device's own total stands for that device: its channels are left out.
+        * A mean over a window is left out next to the plain reading of the same device or name.
+        * Two sensors of one device that read the same power are one; different channels of one device all count.
+        * A circuit sensor (no device, "circuit" in its name) sums the plugs below it: next to device sensors it never counts on
+          top of them (left out as "circuit", or "duplicate" when it reads like one plug); without device sensors it is a lane.
+        ``total_row`` is the sum free to be the home figure, ``circuits`` the circuit sensors that are lanes of their own."""
+        skipped = []
+
+        def skip(r, why):
+            skipped.append({"id": r["entity_id"], "label": label_of(r), "w": round(r["value"], 1), "why": why})
+        rows = [r for r in rows if r["value"] is not None]
+        tot = [r for r in rows if is_total(r)]
+        singles = [r for r in rows if not is_total(r)]
+        top = max((r["value"] for r in singles), default=0.0)
+        home_pool = [r for r in tot if not r["device"] and (r["value"] >= top or near(r["value"], top))]
+        pool = [r for r in home_pool if not is_average(r)] or home_pool
+        total = min(pool, key=lambda r: (-r["value"], r["entity_id"])) if pool else None
+        dev_tot = {}
+        for r in tot:
+            if r is total:
+                continue
+            if r["device"] and not is_average(r) and (r["integ"], r["device"]) not in dev_tot:
+                dev_tot[(r["integ"], r["device"])] = r       # a device's own total: the lane of that device
+            else:
+                skip(r, "average" if is_average(r) else "total")
+        plain = [r for r in singles if not is_average(r)]
+        keep = list(dev_tot.values())
+        for r in singles:
+            if (r["integ"], r["device"]) in dev_tot:
+                skip(r, "duplicate")                          # a channel of a device whose total is a lane
+            elif is_average(r) and any((p["device"] and p["device"] == r["device"] and p["integ"] == r["integ"])
+                                       or _stem(p) == _stem(r) for p in plain):
+                skip(r, "average")
+            else:
+                keep.append(r)
+        # two sensors of one device that read the same power are the same reading; different channels are not
+        by_dev = {}
+        for r in keep:
+            if r["device"]:
+                by_dev.setdefault((r["integ"], r["device"]), []).append(r)
+        drop = set()
+        for group in by_dev.values():
+            group.sort(key=lambda r: (is_average(r), -r["value"], r["entity_id"]))
+            for i, r in enumerate(group):
+                if any(near(r["value"], q["value"]) for q in group[:i] if q["entity_id"] not in drop):
+                    drop.add(r["entity_id"])
+                    skip(r, "duplicate")
+        keep = [r for r in keep if r["entity_id"] not in drop]
+        devs = [r for r in keep if not is_circuit(r)]
+        circuits = []
+        for c in (r for r in keep if is_circuit(r)):
+            if any(near(c["value"], d["value"]) for d in devs):
+                skip(c, "duplicate")
+            elif devs:
+                skip(c, "circuit")
+            else:
+                circuits.append(c)
+        lanes = [r for r in devs + circuits if r["value"] >= MIN_FLOW_W]
+        lanes.sort(key=lambda r: (-r["value"], r["entity_id"]))
+        return lanes, skipped, total
+
+    def _reading(self, cl: dict, st: Optional[dict] = None) -> dict:
         """The instantaneous figures in watts (None when a part has no reading)."""
-        pw = cl["power"]
+        st = st or self.settings()
+        hidden = set(st["hidden"])
+        everyone = {r["entity_id"]: r for rows in cl["power"].values() for r in rows}
+        marked = everyone.get(st["home_entity"]) if st["home_entity"] else None
+        if marked is not None and (marked["value"] is None or marked["entity_id"] in hidden):
+            marked = None
+        pw = {k: [r for r in rows if r["entity_id"] not in hidden and r is not marked] for k, rows in cl["power"].items()}
         grid, _ = self._sum(pw["grid"])
         exp, _ = self._sum(pw["export"])
         if grid is not None and exp is not None:
@@ -277,19 +417,39 @@ class EnergyBook:
         if solar is not None:
             solar = max(0.0, solar)             # an inverter on standby reports a few negative watts at night: no solar is 0, never a load
         batt, _ = self._sum(pw["battery"])
-        hrow, _ = self._sum(pw["home"])
-        lanes = [r for r in pw[None] if r["value"] is not None and r["value"] >= MIN_FLOW_W]
-        lanes.sort(key=lambda r: (-r["value"], r["entity_id"]))
+        hrow, hused = self._sum(pw["home"])
+        lanes, skipped, total = self._consumers(pw[None])
         lane_sum = sum(r["value"] for r in lanes)
-        if grid is not None:
+        src = {"kind": "lanes", "id": None, "label": None}
+        if marked is not None:
+            home = marked["value"]
+            src = {"kind": "sensor", "id": marked["entity_id"], "label": label_of(marked), "marked": True}
+        elif grid is not None:
             home = grid + (solar or 0.0) + (batt or 0.0)
+            src = {"kind": "grid", "id": None, "label": None}
         elif hrow is not None:
             home = hrow
+            src = {"kind": "sensor", "id": hused[0]["entity_id"], "label": label_of(hused[0]), "marked": False}
+        elif total is not None:
+            home = total["value"]
+            src = {"kind": "sensor", "id": total["entity_id"], "label": label_of(total), "marked": False}
         else:
             home = lane_sum if lanes else None
+        if total is not None and src["id"] != total["entity_id"]:
+            skipped.append({"id": total["entity_id"], "label": label_of(total), "w": round(total["value"], 1), "why": "total"})
+        for r in everyone.values():
+            if r["entity_id"] in hidden:
+                skipped.append({"id": r["entity_id"], "label": label_of(r), "w": None if r["value"] is None else round(r["value"], 1),
+                                "why": "hidden"})
+        seen = {x["id"] for x in skipped if x["why"] == "hidden"}
+        for eid in st["hidden"]:
+            if eid not in seen:
+                seen.add(eid)
+                skipped.append({"id": eid, "label": eid, "w": None, "why": "hidden"})
         if home is not None:
             home = max(0.0, home)
-        return {"grid": grid, "solar": solar, "battery": batt, "home": home, "lanes": lanes, "lane_sum": lane_sum}
+        return {"grid": grid, "solar": solar, "battery": batt, "home": home, "lanes": lanes, "lane_sum": lane_sum,
+                "home_source": src, "skipped": skipped}
 
     def _net_id(self, merge: dict, row: dict) -> Optional[str]:
         if not row["device"]:
@@ -314,12 +474,13 @@ class EnergyBook:
                "settings": dict(st),
                "price": price, "co2": co2,
                "now": {"grid_w": None, "solar_w": None, "battery_w": None, "home_w": None},
-               "flows": [], "lanes": [], "rest_w": None,
+               "flows": [], "lanes": [], "rest_w": None, "skipped": [], "home_source": {"kind": "lanes", "id": None, "label": None},
                "today": {"kwh": None, "source": None, "cost": None, "co2_kg": None, "solar_kwh": None, "export_kwh": None, "since": None},
                "fresh": {"age_s": None, "level": "none"}}
         if not available:
             return out
-        rd = self._reading(cl)
+        rd = self._reading(cl, st)
+        out["skipped"], out["home_source"] = rd["skipped"], rd["home_source"]
         r1 = lambda v: None if v is None else round(v, 1)  # noqa: E731
         out["now"] = {"grid_w": r1(rd["grid"]), "solar_w": r1(rd["solar"]), "battery_w": r1(rd["battery"]), "home_w": r1(rd["home"])}
         home = rd["home"]
@@ -338,7 +499,7 @@ class EnergyBook:
             share = max(0.0, min(1.0, max(0.0, rd["grid"]) / home))
         out["grid_share"] = round(share, 4)
         for r in rd["lanes"][:MAX_LANES]:
-            out["lanes"].append({"id": r["entity_id"], "name": r["name"] or r["entity_id"], "area": r["area_name"] or None,
+            out["lanes"].append({"id": r["entity_id"], "name": r["name"] or r["entity_id"], "label": label_of(r), "area": r["area_name"] or None,
                                  "device": r["device"], "net_id": self._net_id(merge, r), "w": round(r["value"], 1),
                                  "cost_h": None if pv is None else round(r["value"] / 1000.0 * pv * share, 4),
                                  "co2_h_g": round(r["value"] / 1000.0 * co2["g_kwh"] * share, 2),
@@ -424,7 +585,7 @@ class EnergyBook:
                     self._last = None
                     self._save(now, changed_day)
                     return
-                rd = self._reading(cl)
+                rd = self._reading(cl, st)
                 if rd["home"] is None:
                     self._last = None
                     return

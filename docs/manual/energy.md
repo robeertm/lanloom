@@ -21,7 +21,11 @@ sensors; without one, nothing in Lanloom shows energy.
 - **Consumers**: every power sensor that is not grid, solar, battery or the home total, with its area, share of the
   home, watts, cost per hour and CO₂ per hour (only the share the grid supplies right now: power from the roof or the
   battery costs nothing); a consumer that is also a network device links to its device card.
-  *Everything else* is the power no sensor of its own explains.
+  *Everything else* is the power no sensor of its own explains. A consumer is named after its device when the sensor itself
+  is only called "Power".
+- **Not counted**: sensors that would count power twice - a total of the home (it becomes *Home now*, "from ..." under the
+  figure), its mean over a minute, a circuit sensor next to the plugs below it, a second sensor of a device with the same
+  reading - each with the reason.
 - **Control room**: a block *Energy* with the power now, solar, the cost and the CO₂ of today.
 - **Nightly report**: a section with yesterday's energy, cost, CO₂ and the solar share.
 
@@ -38,6 +42,9 @@ On a phone the sources sit in a row above the home, and the consumers follow as 
 - Sensors are sorted by their name and unit: a sensor whose name says grid, mains or import is the grid (negative values
   are feeding in), solar, PV or inverter is solar, battery or storage with watts is the battery. Rename a sensor in the
   hub if it lands in the wrong place.
+- **Whole home and hiding** (operators): *Use as whole home* on a consumer makes that sensor *Home now* (it wins over
+  everything else; *Detect automatically* undoes it), *Hide* leaves a sensor out of the page, and *Show again* under
+  *Not counted* brings it back. On a computer the two actions appear when the pointer is over a row.
 - The command palette has *Go to Energy* (only with power sensors).
 
 ## Limits
@@ -52,7 +59,8 @@ On a phone the sources sit in a row above the home, and the consumers follow as 
 - Lanloom reads the power, energy, price and CO₂ sensors the hub connection already lets through; nothing is asked from
   the hub for this page alone.
 - Nothing leaves this device: there is no price or CO₂ service on the internet behind this page.
-- Changing price and CO₂ needs the operator role and is written to the audit log; everybody who sees the map reads.
+- Changing price and CO₂, the whole-home sensor and the hidden sensors needs the operator role and is written to the
+  audit log; everybody who sees the map reads.
 
 ## See also
 

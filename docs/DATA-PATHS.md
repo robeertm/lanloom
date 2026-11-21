@@ -101,6 +101,8 @@ The share outside the EU therefore only refers to traffic with a known country; 
 
 Without loaded country data nothing is booked at all, so a start-up race can never turn real traffic into "without a country".
 
+**A device whose id changes keeps its data paths.** A device first known only by its address (`d-ip-…`) gets the id of its hardware address as soon as a scan learns it (this host since 1.57.3: its own interface tells it). Its hours, days, first-seen dates, cities and conversations move to the new id, also when the address entry is merged into an entry that already had the hardware address; this host's own flows are always booked on the entry marked as this host. Leftovers of older versions move once at start to the entry that owns the address now (a copy of the moved rows is kept in the settings, `paths_rekey_backup`, the last five moves). An id no device has any more is never shown raw: the list shows its address or *Unknown device*.
+
 ## Hints
 
 Hints are calm and never change anything. Lanloom never creates a firewall rule from them.

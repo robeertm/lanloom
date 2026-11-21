@@ -4,7 +4,9 @@
    nothing else shows energy.
 
    Data: GET /api/energy (lanloom/energy.py: now, flows, lanes, today, price and CO2 with their source, freshness).
-   Writes: PUT /api/energy/settings {price, currency, feed_in, co2_g_kwh, price_entity, co2_entity} (operators; audit log).
+   Writes: PUT /api/energy/settings {price, currency, feed_in, co2_g_kwh, price_entity, co2_entity, home_entity, hidden} (operators; audit log).
+   Lane names are the server's label (device name when the sensor's own name is generic); a lane can be hidden or marked as the whole
+   home, and what the server left out (sums, means, doubles, hidden) is listed under "Not counted".
    Also here: the card on the start page, the card on "Now", the palette entry. A dot's number on a trace follows its watts
    (one dot per DOT_W, at most DOTS_MAX on a trace), all dots move at the same pace; with "reduce motion" they stand still. */
 (function () {
@@ -148,9 +150,9 @@
       const y = laneY(i);
       trace(curve(homeX + 36, homeY, laneX - 8, y, true), l.w, 'lane');
       pads.appendChild(svg('a', { href: l.net_id ? '#/devices/' + encodeURIComponent(l.net_id) : '#/energy', class: 'en-lane-pad', 'data-lane': l.id },
-        svg('title', {}, l.name),
+        svg('title', {}, l.label || l.name),
         svg('rect', { class: 'en-pad', x: fx(laneX - 8), y: fx(y - 15), width: 10, height: 30, rx: 3 }),
-        svg('text', { class: 'en-pad__name', x: fx(laneX + 10), y: fx(y - 3) }, l.name.length > 26 ? l.name.slice(0, 25) + '…' : l.name),
+        svg('text', { class: 'en-pad__name', x: fx(laneX + 10), y: fx(y - 3) }, (l.label || l.name).length > 26 ? (l.label || l.name).slice(0, 25) + '…' : (l.label || l.name)),
         svg('text', { class: 'en-pad__meta', x: fx(laneX + 10), y: fx(y + 12) }, LL.fmtW(l.w) + ' · ' + costH(d, l.cost_h) + ' · ' + co2h(l.co2_h_g))));
     });
     if (wide && d.rest_w) {
@@ -185,15 +187,20 @@
   };
 
   // ------------------------------------------------------------------ the list of lanes (the same in words, each with its trace)
-  function laneRow(d, l, max) {
+  function laneRow(d, l, max, act) {
     const tr = svg('svg', { class: 'en-mini', viewBox: '0 0 80 10', preserveAspectRatio: 'none', 'aria-hidden': 'true' });
     const p = svg('path', { class: 'en-trace en-trace--lane is-on', d: 'M2 5H78' });
     const dg = svg('g', {});
     tr.append(p, dg);
     addDots(dg, p, l.w, 'en-dot--lane');
-    const name = l.net_id ? h('a', { href: '#/devices/' + encodeURIComponent(l.net_id) }, l.name) : l.name;
+    const lname = l.label || l.name;
+    const name = l.net_id ? h('a', { href: '#/devices/' + encodeURIComponent(l.net_id) }, lname) : lname;
+    const acts = act ? h('span', { class: 'en-row__acts' },
+      h('button', { class: 'en-act', type: 'button', 'aria-label': t('energy.row.use_home') + ': ' + lname, onclick: () => act({ home_entity: l.id }) }, t('energy.row.use_home')),
+      h('button', { class: 'en-act', type: 'button', 'aria-label': t('energy.row.hide') + ': ' + lname, onclick: () => act({ hidden: [...act.hidden, l.id] }) }, t('energy.row.hide'))) : null;
     return h('li', { class: 'en-row', dataset: { lane: l.id } },
-      h('span', { class: 'en-row__main' }, h('span', { class: 'en-row__name' }, name), h('span', { class: 'en-row__sub muted' }, [l.area, l.share != null ? t('energy.share', { pct: LL.fmtNum(l.share * 100, 0) }) : null].filter(Boolean).join(' · '))),
+      h('span', { class: 'en-row__main' }, h('span', { class: 'en-row__name' }, name),
+        h('span', { class: 'en-row__subline' }, h('span', { class: 'en-row__sub muted' }, [l.area, l.share != null ? t('energy.share', { pct: LL.fmtNum(l.share * 100, 0) }) : null].filter(Boolean).join(' · ')), acts)),
       tr,
       h('span', { class: 'en-row__bar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + fx(max ? Math.max(2, l.w / max * 100) : 0) + '%' })),
       h('span', { class: 'en-row__w' }, LL.fmtW(l.w)),
@@ -203,15 +210,27 @@
 
   // ------------------------------------------------------------------ key figures
   function kpis(d) {
-    const n = d.now, td = d.today || {};
+    const n = d.now, td = d.today || {}, hs = d.home_source || {};
     const cur = d.price ? d.price.currency : null;
     const tile = (id, label, value, sub) => h('div', { class: 'en-kpi', dataset: { kpi: id } }, h('span', { class: 'en-kpi__label' }, label), h('b', { class: 'en-kpi__value' }, value), sub ? h('span', { class: 'en-kpi__sub muted' }, sub) : null);
     const nowCost = d.price && n.grid_w != null ? Math.max(0, n.grid_w) / 1000 * d.price.value : null;
     return h('div', { class: 'en-kpis' },
-      tile('home', t('energy.kpi.home'), LL.fmtW(n.home_w), n.solar_w > 1 ? t('energy.kpi.solar_now', { w: LL.fmtW(n.solar_w) }) : null),
+      tile('home', t('energy.kpi.home'), LL.fmtW(n.home_w), [hs.kind === 'sensor' && hs.label ? t('energy.home.from', { name: hs.label }) : null, n.solar_w > 1 ? t('energy.kpi.solar_now', { w: LL.fmtW(n.solar_w) }) : null].filter(Boolean).join(' · ') || null),
       tile('cost', t('energy.kpi.cost_now'), d.price ? perHour(money(nowCost, cur, 2)) : '—', d.price ? t('energy.kpi.price', { price: money(d.price.value, cur, 2) }) : t('energy.kpi.no_price')),
       tile('today', t('energy.kpi.today'), kwh(td.kwh), td.cost != null ? money(td.cost, cur, 2) : null),
       tile('co2', t('energy.kpi.co2_today'), co2kg(td.co2_kg), t('energy.kpi.co2_rate', { g: LL.fmtNum(d.co2.g_kwh, 0) })));
+  }
+
+  // ------------------------------------------------------------------ what was left out (sums, means, doubles, hidden by a person)
+  function skippedCard(d, act) {
+    const list = d.skipped || [];
+    if (!list.length) return null;
+    const row = x => h('li', { class: 'en-skip__row', dataset: { skipped: x.id } },
+      h('span', { class: 'en-skip__main' }, h('span', { class: 'en-row__name' }, x.label || x.id), h('span', { class: 'en-row__sub muted' }, t('energy.skipped.why.' + x.why))),
+      h('span', { class: 'en-skip__w' }, x.w == null ? '—' : LL.fmtW(x.w)),
+      x.why === 'hidden' && act ? h('button', { class: 'en-act', type: 'button', onclick: () => act({ hidden: act.hidden.filter(i => i !== x.id) }) }, t('energy.skipped.show')) : h('span', {}));
+    return LL.keepOpen.details('en:skipped', false, h('span', { class: 'en-set__sum' }, t('energy.skipped.title', { n: LL.fmtNum(list.length, 0) })),
+      h('div', { class: 'en-skip' }, h('p', { class: 'muted en-skip__lead' }, t('energy.skipped.lead')), h('ul', { class: 'en-list' }, list.map(row))));
   }
 
   // ------------------------------------------------------------------ settings (operators)
@@ -252,6 +271,14 @@
     const body = h('div', { class: 'en-body' }, h('div', { class: 'skeleton' }));
     page.append(h('header', { class: 'page__head en-head' }, h('div', {}, h('h1', {}, t('nav.energy')), h('p', { class: 'muted en-lead' }, t('energy.lead'))), fresh), body);
     let seq = 0, timer = 0, first = true;
+    const actMsg = h('p', { class: 'msg msg--error en-act-msg', role: 'status', hidden: true });
+    let cur = null;                                  // the last picture (the hidden list a change starts from)
+    let reloadNow = () => {};
+    const act = async patch => {
+      actMsg.hidden = true;
+      try { await api('/api/energy/settings', { method: 'PUT', body: patch }); reloadNow(); } catch (e) { actMsg.textContent = LL.errText(e); actMsg.hidden = false; }
+    };
+    Object.defineProperty(act, 'hidden', { get: () => (cur && cur.settings && cur.settings.hidden) || [] });
     const wide = () => window.innerWidth > 860;
     async function load() {
       const my = ++seq;
@@ -259,6 +286,7 @@
       try { d = await api('/api/energy'); } catch (e) { if (first) body.replaceChildren(h('p', { class: 'msg msg--error' }, LL.errText(e))); return; }
       if (my !== seq || !page.isConnected) return;
       LL.energyPeek = d;
+      cur = d;
       const ae = document.activeElement;
       if (!first && ae && body.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;     // never redraw under a typing hand
       const y = fr.main.scrollTop;
@@ -274,6 +302,7 @@
       const fl = d.fresh || {};
       fresh.textContent = fl.age_s == null ? t('energy.fresh.none') : t('energy.fresh.' + (fl.level === 'fresh' ? 'fresh' : 'late'), { age: LL.fmtAge(fl.age_s) });
       fresh.dataset.level = fl.level || 'none';
+      const skip = skippedCard(d, LL.can('operate') ? act : null);
       body.replaceChildren(
         kpis(d),
         h('section', { class: 'card en-flow', 'aria-labelledby': 'en-h-flow', dataset: { level: fl.level || 'none' } },
@@ -282,12 +311,17 @@
         h('section', { class: 'card en-lanes', 'aria-labelledby': 'en-h-lanes' },
           h('header', { class: 'en-card__head' }, h('h2', { id: 'en-h-lanes' }, t('energy.lanes.title')), h('span', { class: 'now-card__n' }, LL.fmtNum((d.lanes || []).length, 0))),
           d.grid_share != null && d.grid_share < 0.995 ? h('p', { class: 'muted en-share-hint' }, t('energy.lanes.share_hint', { pct: LL.fmtNum(d.grid_share * 100, 0) })) : null,
-          (d.lanes || []).length ? h('ul', { class: 'en-list' }, d.lanes.map(l => laneRow(d, l, max))) : h('p', { class: 'muted' }, t('energy.lanes.none')),
+          (d.lanes || []).length ? h('ul', { class: 'en-list' }, d.lanes.map(l => laneRow(d, l, max, LL.can('operate') ? act : null))) : h('p', { class: 'muted' }, t('energy.lanes.none')),
+          actMsg,
+          LL.can('operate') && d.home_source && d.home_source.marked ? h('p', { class: 'muted en-rest' }, t('energy.home.from', { name: d.home_source.label }), ' ',
+            h('button', { class: 'en-act', type: 'button', onclick: () => act({ home_entity: null }) }, t('energy.home.auto'))) : null,
           d.rest_w ? h('p', { class: 'muted en-rest' }, t('energy.rest_text', { w: LL.fmtW(d.rest_w) })) : null),
+        ...(skip ? [h('section', { class: 'card en-settings en-skipped' }, skip)] : []),
         h('section', { class: 'card en-settings' }, settingsCard(d, load)));
       fr.main.scrollTop = y;
       startDots();
     }
+    reloadNow = load;
     await load();
     timer = setInterval(() => { if (!page.isConnected) { clearInterval(timer); return; } if (!document.hidden) load(); }, REFRESH_MS);
     const onResize = () => { if (page.isConnected && LL.energyPeek) load(); };
@@ -319,7 +353,7 @@
         h('span', { class: 'en-small__fig' }, h('b', {}, LL.fmtW(d.now.home_w)), h('span', { class: 'muted' }, t('energy.kpi.home'))),
         d.now.solar_w != null ? h('span', { class: 'en-small__fig' }, h('b', {}, LL.fmtW(d.now.solar_w)), h('span', { class: 'muted' }, t('energy.src.solar'))) : null,
         h('span', { class: 'en-small__fig' }, h('b', {}, td.cost != null ? money(td.cost, cur, 2) : kwh(td.kwh)), h('span', { class: 'muted' }, t('energy.kpi.today')))),
-      (d.lanes || []).length ? h('p', { class: 'muted en-small__top' }, t('energy.small.top', { name: d.lanes[0].name, w: LL.fmtW(d.lanes[0].w) })) : null,
+      (d.lanes || []).length ? h('p', { class: 'muted en-small__top' }, t('energy.small.top', { name: d.lanes[0].label || d.lanes[0].name, w: LL.fmtW(d.lanes[0].w) })) : null,
       h('a', { class: 'btn btn--ghost btn--sm', href: '#/energy' }, t('energy.open')));
   }
   if (LL.registerOverviewCard) {
