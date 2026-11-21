@@ -312,7 +312,7 @@ def test_the_summary_booking_keeps_only_valid_items():
     ("Unable to find referenced entities light.kitchen", {"light.kitchen": "Kitchen light"}, "Unable to find referenced entities Kitchen light"),
     ("Service light.turn_on failed for person.sam", {}, "Service … failed for …"),
     ("No reply from 192.168.1.4 (aa:bb:cc:dd:ee:ff) at https://hub.example/x?token=abc", {}, "No reply from … (…) at …"),
-    ("mail sam@example.org token abcdefghijklmnopqrstuvwxyz123456", {}, "mail … token …"),
+    ("mail sam@example.org token " + "ab12" * 8, {}, "mail … token …"),
     ("Error rendering template: {{ states('sensor.x') }}", {}, None),
     ("Jinja2 problem", {}, None),
     ("   ", {}, None), ("…", {}, None), (None, {}, None), (42, {}, None),

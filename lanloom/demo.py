@@ -804,6 +804,7 @@ class Demo:
             demo_dns.seed_history(core, ids[dns], time.time())
             core.dns[ids[dns]] = {"state": dnsfilter.clean(demo_dns.reading(time.time(), dns)), "t": time.time()}
         prev = None
+        seeded_hub = "hub" in ids and ids["hub"] not in core.hub
         for i, day in enumerate(days):
             if fam and fam in ids:
                 core.live_cfg[ids[fam]] = {"state": sample if i < 2 else changed, "caps": live_capabilities(fam), "family": fam,
@@ -845,6 +846,8 @@ class Demo:
                     report["plain"] = plain
                     rep.set_plain(report["day"], plain)
             prev = report
+        if seeded_hub:                      # only the reports needed the hub data: the live demo feeds it again (and the map stays as before)
+            core.hub.pop(ids["hub"], None)
         core.live_cfg.pop(ids.get(fam), None)
         core.live_cfg.pop(ids.get(hv), None)
         core.live_cfg.pop(ids.get(fw), None)

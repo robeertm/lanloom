@@ -27,6 +27,10 @@ Six views sit under the title (`#/automations?view=list|who|timeline|plan|rooms|
 - **Day plan.** The day with a now line: times, sun events and rhythms.
 - **Rooms** and **Hub health.** Devices per room with live state; integrations with errors, unavailable entities and
   silent radio devices.
+- **In the nightly report.** The *Automations* section of the [nightly report](nightly-reports.md) says only what is new: a
+  finding is a point the first time and a calm "still open since ..." line afterwards. With admin mode it also names the
+  automations whose runs ended with an error during the night, each with a link back to its page here. Nothing is asked
+  per automation: the hub is asked once per report.
 
 ## How to use it
 
@@ -39,13 +43,6 @@ Six views sit under the title (`#/automations?view=list|who|timeline|plan|rooms|
    fix is made in the hub.
 4. `Ctrl K` has *Go to Automations* and the typed commands *Who switches what*, *Timeline*, *Day plan*, *Rooms*,
    *Hub health* and *Show automations with findings*.
-
-## In the nightly report
-
-The *Automations* section of the [nightly report](nightly-reports.md) says only what is new: a finding is a point the
-first time and a calm "still open since ..." line afterwards. With admin mode it also names the automations whose runs
-ended with an error during the night, each with a link back to its page here. Nothing is asked per automation: the hub
-is asked once per report.
 
 ## Limits
 
