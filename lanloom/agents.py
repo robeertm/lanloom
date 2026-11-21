@@ -435,7 +435,7 @@ class AgentHub:
             peer = core.ip_to_device.get(rip) or getattr(core, "ip6_to_device", {}).get(rip)
             if peer and peer != dev:
                 if agent_devs is None:
-                    agent_devs = {self.device_of(a) for a in self.live if a != aid and self._online(a, now)}
+                    agent_devs = {self.device_of(a) for a in list(self.live) if a != aid and self._online(a, now)}
                 if peer in agent_devs and peer < dev:
                     continue                  # the other end runs an agent too and books this conversation
                 self._talk(dev, peer, tx, rx, t, now)
@@ -543,7 +543,7 @@ class AgentHub:
         """device id -> [(agent id, container)] of visible containers, for the map's sub-parts of a host."""
         now = self.clock() if now is None else now
         out: dict = {}
-        for aid, st in self.live.items():
+        for aid, st in list(self.live.items()):          # the demo and the ingest threads add agents meanwhile
             dev = self.device_of(aid)
             if not dev:
                 continue
@@ -569,7 +569,7 @@ class AgentHub:
 
     def device_detail(self, dev_id: str, now: Optional[float] = None) -> Optional[dict]:
         """What the agents know about one device, for its card: one entry of the Running view."""
-        ids = [aid for aid in self.live if self.device_of(aid) == dev_id]
+        ids = [aid for aid in list(self.live) if self.device_of(aid) == dev_id]
         if not ids:
             return None
         run = self.running(now)

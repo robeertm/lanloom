@@ -70,6 +70,31 @@ def test_an_unreadable_list_is_a_problem(tmp_path, monkeypatch):
     assert pins.problems(have={})[0].startswith("package list unreadable")
 
 
+def test_the_installed_list_matches_the_standard_library_view():
+    """pins.installed() reads the installer's metadata folders itself (the package may not use the import machinery,
+    see test_integrations.test_no_plugin_mechanism); here it is checked against importlib.metadata."""
+    from importlib import metadata
+    std = {}
+    for dist in metadata.distributions():
+        if dist.metadata and dist.metadata.get("Name"):
+            std.setdefault(pins.norm(dist.metadata["Name"]), dist.version)
+    assert pins.installed() == std
+
+
+def test_metadata_folders_are_read_directly(tmp_path):
+    site = tmp_path / "site"
+    (site / "Foo_Bar-1.2.dist-info").mkdir(parents=True)
+    (site / "Foo_Bar-1.2.dist-info" / "METADATA").write_text("Metadata-Version: 2.1\nName: Foo_Bar\nVersion: 1.2\n\nName: not-this\n")
+    (site / "old.egg-info").mkdir()
+    (site / "old.egg-info" / "PKG-INFO").write_text("Name: Old\nVersion: 0.9\n")
+    (site / "broken-1.dist-info").mkdir()                            # no METADATA: not a distribution
+    shadow = tmp_path / "shadow" / "foo-bar-9.dist-info"
+    shadow.mkdir(parents=True)
+    (shadow / "METADATA").write_text("Name: foo-bar\nVersion: 9\n")
+    assert pins.installed([str(site), str(tmp_path / "missing")]) == {"foo-bar": "1.2", "old": "0.9"}
+    assert pins.installed([str(site), str(tmp_path / "shadow")])["foo-bar"] == "1.2"     # first on the path wins
+
+
 def test_the_pinned_versions_are_the_installed_ones_here():
     diff = pins.compare(pins.pinned(), pins.installed())
     assert diff["missing"] == [] and diff["wrong"] == [], diff

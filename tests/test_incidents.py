@@ -320,31 +320,33 @@ GARDEN_AP, SWITCH = "d-024c4c000004", "d-024c4c000002"
 @pytest.fixture(scope="module")
 def demo(tmp_path_factory):
     mp = pytest.MonkeyPatch()
-    mp.setenv("LANLOOM_DATA", str(tmp_path_factory.mktemp("incidents")))
-    mp.setenv("LANLOOM_DEMO", "1")
-    mp.setenv("LANLOOM_DEMO_SEED", "1")
-    mp.setenv("LANLOOM_UPDATE_CHECK", "0")
-    from lanloom import auth
-    from lanloom.main import create_app
-    app = create_app(config_mod.load())
-    with TestClient(app, base_url="http://lanloom.test") as c:
-        ll = app.state.ll
-        users = {role: ll.accounts.create(role + "1", "a-long-test-password", role=role) for role in ("viewer", "operator")}
-        cookies = {role: ll.sessions.create(uid, ip="127.0.0.1", agent="test") for role, uid in users.items()}
+    try:  # a failed set-up must not leave LANLOOM_DEMO behind for the next module of this worker
+        mp.setenv("LANLOOM_DATA", str(tmp_path_factory.mktemp("incidents")))
+        mp.setenv("LANLOOM_DEMO", "1")
+        mp.setenv("LANLOOM_DEMO_SEED", "1")
+        mp.setenv("LANLOOM_UPDATE_CHECK", "0")
+        from lanloom import auth
+        from lanloom.main import create_app
+        app = create_app(config_mod.load())
+        with TestClient(app, base_url="http://lanloom.test") as c:
+            ll = app.state.ll
+            users = {role: ll.accounts.create(role + "1", "a-long-test-password", role=role) for role in ("viewer", "operator")}
+            cookies = {role: ll.sessions.create(uid, ip="127.0.0.1", agent="test") for role, uid in users.items()}
 
-        def as_(role):
-            c.cookies.set(auth.SESSION_COOKIE, cookies[role])
-            return c
-        deadline = time.time() + 40
-        while time.time() < deadline:           # the topology of the demo arrives with its first controller readings
-            r = ll.core.failure.chain(SWITCH, "down")
-            if ll.core.availability.has_data() and r and r["counts"]["devices"] >= 10:
-                break
-            time.sleep(0.5)
-        ll.core.store.set_setting(incidents.STATE, {})
-        ll.core.incidents.collect(force=True)
-        yield app, as_
-    mp.undo()
+            def as_(role):
+                c.cookies.set(auth.SESSION_COOKIE, cookies[role])
+                return c
+            deadline = time.time() + 40
+            while time.time() < deadline:           # the topology of the demo arrives with its first controller readings
+                r = ll.core.failure.chain(SWITCH, "down")
+                if ll.core.availability.has_data() and r and r["counts"]["devices"] >= 10:
+                    break
+                time.sleep(0.5)
+            ll.core.store.set_setting(incidents.STATE, {})
+            ll.core.incidents.collect(force=True)
+            yield app, as_
+    finally:
+        mp.undo()
 
 
 def test_sample_network_has_bundled_incidents_and_a_calendar(demo):

@@ -10,7 +10,7 @@ Outside the image (a development checkout, the test runner) extra packages such 
 the "missing" and "wrong version" directions are meaningful there (see tests/test_pins.py)."""
 import os
 import re
-from importlib import metadata
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -47,13 +47,44 @@ def pinned(path: Optional[Path] = None) -> dict:
     return out
 
 
-def installed() -> dict:
-    """{normalised name: version} of every distribution Python can see."""
+def _headers(path: Path) -> dict:
+    """Name and Version from the header block of a METADATA / PKG-INFO file."""
     out = {}
-    for dist in metadata.distributions():
-        name = dist.metadata.get("Name") if dist.metadata else None
-        if name:
-            out.setdefault(norm(name), dist.version)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if not line.strip():
+                    break                              # the description starts after the first empty line
+                key, sep, value = line.partition(":")
+                if sep and key in ("Name", "Version") and key not in out:
+                    out[key] = value.strip()
+    except OSError:
+        pass
+    return out
+
+
+def installed(paths=None) -> dict:
+    """{normalised name: version} of every distribution on the import path: the ``*.dist-info`` (and old
+    ``*.egg-info``) folders the installer leaves, read directly (no import machinery). The first one on the path
+    wins, as for imports."""
+    out = {}
+    for entry in (sys.path if paths is None else paths):
+        folder = Path(entry or ".")
+        if not folder.is_dir():
+            continue
+        try:
+            found = sorted(folder.iterdir())
+        except OSError:
+            continue
+        for item in found:
+            if item.suffix == ".dist-info":
+                head = _headers(item / "METADATA")
+            elif item.suffix == ".egg-info":
+                head = _headers(item / "PKG-INFO" if item.is_dir() else item)
+            else:
+                continue
+            if head.get("Name") and head.get("Version"):
+                out.setdefault(norm(head["Name"]), head["Version"])
     return out
 
 
