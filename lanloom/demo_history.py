@@ -52,6 +52,7 @@ def seed(core, now: float = None) -> None:
     seed_traffic(core, now)
     seed_incidents(core, now)
     seed_chronicle(core, now)
+    seed_firewall_changes(core, now)
     core.availability.version += 1                 # the rows were written directly: readers must not keep an older answer
     core.availability._cache.clear()
 
@@ -181,6 +182,24 @@ def _row(incidents, did, title, dkind, start, dur, kind) -> list:
                     "tiles": [did], "from": start, "to": start + dur},
            "members": [], "counts": {"members": 0, "sure": 0, "likely": 0}}
     return [iid, start, start + dur, kind, did, inc]
+
+
+# rule changes made outside Lanloom (W3): (hours ago, level, sub, names). Three of them fall into the day before the core switch's
+# outage (74 hours ago) (the demo's change list adds a recent one of its own, see ``Demo.overview_changes``)
+FW_CHANGES = [
+    (92.0, "danger", "pair_open_in", {"from": "Internet", "to": "Internal"}),
+    (91.6, "warn", "rule_new", {"name": "Temporary access", "action": "allow", "from": "Internet", "to": "Internal"}),
+    (88.0, "warn", "fwd_on", {"name": "Photo sharing", "port": "8443"}),
+    (86.5, "info", "rule_off", {"name": "Old test rule", "action": "allow", "from": "Work", "to": "Cameras"}),
+]
+
+
+def seed_firewall_changes(core, now: float) -> None:
+    """Rule changes of the sample gateway in the journal (kind ``fw_drift``): the incident file of the core switch lists them under
+    "changed before", the change list of the overview shows the recent one."""
+    for ago, level, sub, data in FW_CHANGES:
+        core.reports.journal.add("fw_drift", dict(data, sub=sub, level=level, controller="Gateway", integ="int:demo", family="demo"),
+                                 t=now - ago * 3600)
 
 
 def seed_chronicle(core, now: float) -> None:

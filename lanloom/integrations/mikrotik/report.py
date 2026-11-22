@@ -20,6 +20,7 @@ Items, most important first:
 
 Product names are used only to identify compatible products; no affiliation or endorsement.
 """
+REPORTS_RULES = True        # its night section lists rule changes itself: the section "Changed outside Lanloom" leaves them out
 from .model import CONTROLLER_CLASS
 
 LEVELS = {"alert": 0, "warn": 1, "info": 2}

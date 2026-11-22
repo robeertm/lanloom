@@ -94,7 +94,7 @@
   // ------------------------------------------------------------------ changes
   function changeRow(c) {
     const link = LL.changeLink ? LL.changeLink(c) : null;
-    const lv = LL.changeLevel ? LL.changeLevel(c.kind) : 'ok';
+    const lv = LL.changeLevel ? LL.changeLevel(c.kind, c) : 'ok';
     const inner = [h('i', { class: 'change__dot change__dot--' + lv, 'aria-hidden': 'true' }), h('span', { class: 'change__text' }, LL.changeText(c)), h('span', { class: 'change__when muted' }, ago(c.t))];
     return h('li', { class: 'change' }, link ? h('a', { class: 'change__link', href: link }, inner) : h('span', { class: 'change__link' }, inner));
   }

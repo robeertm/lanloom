@@ -5,6 +5,8 @@ finished). Rehearsals on the sample network are not changes and never appear. Th
 executor is configured or when the window holds a change; otherwise it is left out. A change that was rolled back on
 its own or failed is a point; a finished change and a refused plan are plain notes. Names only - no addresses.
 """
+import hashlib
+import json
 import os
 
 from ..nightly.contrib import Contribution, item, register, section
@@ -50,6 +52,57 @@ def _build(ctx) -> dict:
 
 
 register(Contribution("changes", 52, "report.sec.changes", _available, _build))
+
+
+# Section "Changed outside Lanloom": rule changes made on the device or in the controller itself, from the event journal
+# (``fw_drift``, written by ``drift.py`` once a new state arrived in two reads in a row). What another section of the same
+# report already says is left out: zone pairs belong to "Zone matrix", rules of the families that compare their rules
+# themselves belong to the family's own section. Names only - no addresses.
+SKIP_SUBS = ("pair_open_in", "pair_open", "pair_partial", "pair_closed", "pair_narrowed")
+
+
+def own_rule_families() -> set:
+    """Families whose own night section lists rule changes (their report module says so with ``REPORTS_RULES``)."""
+    import sys
+    from .. import integrations
+    out = set()
+    for family, fn in integrations.night_sections():
+        if getattr(sys.modules.get(getattr(fn, "__module__", "")), "REPORTS_RULES", False):
+            out.add(family)
+    return out
+
+
+def _drift_events(ctx) -> list:
+    own = own_rule_families()
+    out = []
+    for ev in ctx.events("fw_drift"):
+        d = ev.get("data") or {}
+        sub = str(d.get("sub") or "")
+        if sub in SKIP_SUBS or (sub.startswith("rule_") and d.get("family") in own):
+            continue
+        out.append(ev)
+    return out
+
+
+def _drift_available(ctx) -> bool:
+    return bool(_drift_events(ctx))
+
+
+def _drift_build(ctx) -> dict:
+    from . import drift
+    items = []
+    for ev in _drift_events(ctx):
+        d = ev.get("data") or {}
+        desc = drift.describe(d)
+        level = d.get("level") if d.get("level") in drift.LEVELS else "info"
+        iid = "fwd:" + hashlib.sha1(("%s|%s|%s" % (d.get("integ"), ev["t"], json.dumps(desc["vars"], sort_keys=True))).encode()).hexdigest()[:12]
+        items.append(item(iid, desc["key"], level, level in ("danger", "warn"), **desc["vars"]))
+    bad = len([i for i in items if i["point"]])
+    key = "report.ruledrift.summary_trouble" if bad else "report.ruledrift.summary"
+    return section("ruledrift", "report.sec.ruledrift", key, items, n=len(items), bad=bad)
+
+
+register(Contribution("ruledrift", 54, "report.sec.ruledrift", _drift_available, _drift_build))
 
 
 # Section "Network plan": how far the segmentation plan has come (Lanloom's own note of the target network per device;

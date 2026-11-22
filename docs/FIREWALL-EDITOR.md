@@ -97,6 +97,14 @@ When the executor's adapter can change zones and rules (the simulation can; for 
 
 **Roles.** Viewers may use *May one reach the other?*; drafting needs the **Operator** role, building and approving a plan an **Admin** with a passkey. Changes are in the audit log. The command palette has *Zones of the firewall* and *New firewall rule* (deep links `#/firewall/zones`, `#/firewall/rules/new`); *May one reach the other?* opens the editor's card (`#/firewall/ask`) when no firewall is read. The nightly report has a section **Zone matrix**.
 
+### Changes made outside Lanloom
+
+The editor writes `fw_change` for what it wrote itself. Rules changed directly on the device or in the controller are noticed
+from the configuration the connection reads: a small state without addresses, compared after two equal reads in a row, becomes
+journal events (`fw_drift`) shown in the change list, the nightly report and the incident files (*What changed before*, a day
+back). A change the editor wrote or was writing is not told twice. See the
+[manual page](manual/incidents.md#rule-changes-made-outside-lanloom).
+
 ### Switch ports
 
 When the editor's source can change ports (the simulation can; for real writes see the family guide listed in [COMPATIBILITY.md](COMPATIBILITY.md)), **Change** mode adds a **Switch ports** card: every switch of the controller as its faceplate (the same front view as the read-only *Switch front panels*). A port opens its panel (link, untagged network with VLAN, tagged networks, power over Ethernet, devices behind it, last 24 hours); in Change mode the panel has **Change port ...** and a port with a change in the draft carries an accent ring and the note *Planned*. Real writes still go only through the executor, every plan is signed with a passkey, and backup, rollback and watch work as for every other change.

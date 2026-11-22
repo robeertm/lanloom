@@ -11,6 +11,8 @@ overnight, so a gentle watcher compares the live state once a minute and writes 
     dev_gone                   {id, title, since}    offline for a day (once per absence)
     src_fail / src_ok          {id, name, key}       a connection (integration) failed / recovered
     app_start / app_stop       {version, prev?}      Lanloom itself (maintenance, never a fault)
+    fw_change                  {plan, status, n, ...} a change the firewall editor wrote
+    fw_drift                   {sub, level, controller, ...}  a rule change made outside Lanloom (firewall/drift.py)
 
 Rows carry titles, never secrets. Nothing here talks to the network.
 """

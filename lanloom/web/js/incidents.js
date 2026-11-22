@@ -275,9 +275,9 @@
   function section(key, ...kids) { return h('section', { class: 'card inc-sec', 'aria-label': t(key) }, h('h2', { class: 'inc-sec__title' }, t(key)), ...kids); }
   function beforeList(items) {
     if (!items.length) return h('p', { class: 'muted' }, t('inc.before.none'));
-    return h('ul', { class: 'inc-evs' }, items.map(b => h('li', { class: 'inc-ev' + (b.near ? ' is-near' : '') },
+    return h('ul', { class: 'inc-evs' }, items.map(b => h('li', { class: 'inc-ev' + (b.near ? ' is-near' : '') + (b.check && (b.level === 'danger' || b.level === 'warn') ? ' inc-ev--' + b.level : '') },
       h('span', { class: 'inc-ev__time' }, when(b.t, { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })), h('span', { class: 'inc-ev__dot', 'aria-hidden': 'true' }),
-      h('span', { class: 'inc-ev__text' }, fill(b.key, b.vars)))));
+      h('span', { class: 'inc-ev__text' }, fill(b.key, b.vars), b.where ? h('span', { class: 'muted' }, ' · ' + b.where) : null))));
   }
   async function fileView(app, id) {
     const fr = LL.frame(app, 'incidents', h('div', { class: 'page inc-file' }));

@@ -476,6 +476,8 @@ class Demo:
         if names.get("mqtt"):
             rows.append({"t": now - 2100, "kind": "src_ok", "data": {"id": "int:demo", "name": names["mqtt"]}})
             rows.append({"t": now - 2160, "kind": "src_fail", "data": {"id": "int:demo", "name": names["mqtt"], "key": "source.mqtt.timeout"}})
+        rows.append({"t": now - 1100, "kind": "fw_drift", "data": {"sub": "rule_moved", "level": "info", "name": "Cameras to recorder only",       # a rule change made outside Lanloom (W3)
+                                                                   "action": "allow", "from": "Cameras", "to": "Internal"}})
         return rows
 
     def networks(self) -> list:

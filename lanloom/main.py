@@ -114,6 +114,8 @@ class App:
         self.firewall = Editor(cfg, store)
         self.firewall.live = self.core.live_configs
         self.firewall.journal = self.real_core.reports.journal       # finished real changes -> nightly report
+        from .firewall import drift as _fw_drift
+        self.real_core.fwdrift.own_change = _fw_drift.own_change_probe(self.firewall, lambda: self.real_core.reports.journal)
         self.firewall.notify = self.real_core.notify                  # a change put back -> notification rules
         from .guest_protect import app_identity as _app_identity
         self.firewall.identity = lambda: _app_identity(self.core)      # guests that keep the network running

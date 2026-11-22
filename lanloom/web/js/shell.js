@@ -155,14 +155,24 @@
         h('span', { class: 'note-row__main' }, h('span', { class: 'note-row__title' }, tx.title), tx.sub ? h('span', { class: 'note-row__sub' }, tx.sub) : null)));
   };
   const nameOf = e => (e.kind === 'self' ? t('kind.self') : e.kind === 'internet' ? t('kind.internet') : (e.title || t('kind.' + (e.kind || 'unknown'))));
+  // a rule change made outside Lanloom (journal kind fw_drift): the sentence of its sub-kind, with the words of the action and mode translated
+  LL.fwDriftText = function (d) {
+    const v = Object.assign({}, d);
+    if (d.action) v.action = t('fwd.act.' + d.action);
+    if (d.sub === 'rule_action' && d.was) v.was = t('fwd.act.' + d.was);
+    if (d.sub === 'ids') { v.mode = t('fwd.ids.' + (d.mode || 'off')); v.was = t('fwd.ids.' + (d.was || 'off')); }
+    return t('fwd.sub.' + d.sub, v);
+  };
   LL.changeText = function (c) {
     const d = c.data || {};
+    if (c.kind === 'fw_drift') return LL.fwDriftText(d);
     const name = d.title || d.name || (d.kind ? t('kind.' + d.kind) : '');
     return t('change.' + c.kind, { name, reason: d.key ? t(d.key) : '', version: d.version || '', from: d.from || '', to: d.to || '' });
   };
   const changeLink = c => (c.data && c.data.id && /^d-/.test(c.data.id) && c.kind.startsWith('dev_') ? '#/devices/' + encodeURIComponent(c.data.id)
-    : c.kind.startsWith('src_') ? '#/settings' : c.kind.startsWith('wan_') ? '#/map/internet' : null);
-  const changeLevel = k => ({ dev_offline: 'warn', dev_gone: 'warn', src_fail: 'warn', wan_down: 'danger', dev_new: 'info' }[k] || 'ok');
+    : c.kind.startsWith('src_') ? '#/settings' : c.kind.startsWith('wan_') ? '#/map/internet' : c.kind === 'fw_drift' ? '#/firewall' : null);
+  const changeLevel = (k, c) => k === 'fw_drift' ? (c && c.data && (c.data.level === 'danger' || c.data.level === 'warn') ? c.data.level : 'info')
+    : ({ dev_offline: 'warn', dev_gone: 'warn', src_fail: 'warn', wan_down: 'danger', dev_new: 'info' }[k] || 'ok');
   LL.changeLink = changeLink; LL.changeLevel = changeLevel;        // the phone's "Now" (js/now.js) shows the same rows
   function section(id, title, count, body, empty) {
     return LL.keepOpen.details('now:' + id, true, h('span', { class: 'rail-sec__title' }, title, count != null ? h('span', { class: 'rail-sec__n' }, String(count)) : null),
@@ -180,7 +190,7 @@
         h('span', { class: 'talk__rate' }, LL.fmtRate(tk.r0 + tk.r1))))));
     const changes = h('ul', { class: 'change-list' }, d.changes.map(c => {
       const link = changeLink(c);
-      const inner = [h('i', { class: 'change__dot change__dot--' + changeLevel(c.kind), 'aria-hidden': 'true' }), h('span', { class: 'change__text' }, LL.changeText(c)),
+      const inner = [h('i', { class: 'change__dot change__dot--' + changeLevel(c.kind, c), 'aria-hidden': 'true' }), h('span', { class: 'change__text' }, LL.changeText(c)),
         h('span', { class: 'change__when muted' }, t('time.ago', { age: LL.fmtAge(Date.now() / 1000 - c.t) }))];
       return h('li', { class: 'change' }, link ? h('a', { class: 'change__link', href: link }, inner) : h('span', { class: 'change__link' }, inner));
     }));

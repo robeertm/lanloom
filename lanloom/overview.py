@@ -41,7 +41,7 @@ PATHS_CACHE_S = 60.0
 INFRA_KINDS = ("router", "switch", "ap", "nas", "server", "hub", "broker", "firewall")
 LEVELS = ("ok", "info", "warn", "danger")
 CHANGE_KINDS = ("dev_new", "dev_offline", "dev_back", "dev_gone", "src_fail", "src_ok", "wan_down", "wan_up", "wan_switch",
-                "app_start")
+                "app_start", "fw_drift")
 
 NOTES: list = []
 
@@ -407,5 +407,6 @@ class Overview:
 
 def _public(data: dict) -> dict:
     """Journal rows carry titles and ids only; keep the fields the rail shows."""
-    keep = ("id", "title", "kind", "name", "key", "ip", "vendor", "origin", "from", "to", "version", "prev")
+    keep = ("id", "title", "kind", "name", "key", "ip", "vendor", "origin", "from", "to", "version", "prev",
+            "sub", "level", "zone", "was", "port", "mode", "action", "n")
     return {k: data[k] for k in keep if k in data and isinstance(data[k], (str, int, float))}

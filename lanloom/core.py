@@ -198,6 +198,8 @@ class Core:
         from .energy import EnergyBook
         self.energy = EnergyBook(self)                  # energy flow from the hub's power sensors, price, CO2, day totals (S17)
         self.reports.journal.listeners.append(self.notify.on_journal)
+        from .firewall.drift import Drift
+        self.fwdrift = Drift(store, lambda: self.reports.journal)    # rule changes made outside Lanloom -> event journal (W3)
         self.reports.on_certs = self.notify.on_certs
         from .failure import Failure
         self.failure = Failure(self)                    # failure chain, manual dependencies, outage automatic (S5)
@@ -1910,6 +1912,12 @@ class Core:
         if st.get("hosts") is not None:
             st = dict(st, findings=list(st.get("findings") or []) + self._vlan_chain(integ_id, ev.get("family"), st))
         self.live_cfg[integ_id] = {"state": st, "caps": caps, "family": ev.get("family"), "t": now}
+        try:
+            integs = self.integrations()
+            self.fwdrift.feed("int:%d" % integ_id, next((i["name"] for i in integs if i["id"] == integ_id), ""), ev.get("family"), st, now,
+                              keep={"int:%d" % i["id"] for i in integs})
+        except Exception:
+            log.exception("comparing the firewall configuration failed")
         try:
             if st.get("wan_events"):
                 self.controlroom.wan.ingest_gateway_events(st["wan_events"])

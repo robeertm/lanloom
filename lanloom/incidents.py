@@ -46,7 +46,8 @@ REFINE_AFTER_S = 2 * SLOT
 KEEP_DAYS = 120                 # rows kept (the calendar shows 90 days)
 CALENDAR_DAYS = 90
 BEFORE_S = 2 * 3600             # "what changed before": the time looked back
-BEFORE_FW_S = 24 * 3600         # firmware jumps are looked for a day back
+BEFORE_FW_S = 24 * 3600         # firmware jumps and rule changes made outside Lanloom are looked for a day back
+BEFORE_RULES_MAX = 6            # rule changes shown (danger first)
 CACHE_S = 60.0
 MAX_LIST = 400
 MAX_MEMBERS = 60
@@ -593,6 +594,7 @@ class Incidents:
                 if ev["kind"] == "fw_change":
                     vars_ = {"n": int(d.get("n") or 1)}
                 out.append({"t": ev["t"], "key": "inc.before." + ev["kind"], "vars": vars_, "id": d.get("id") or ""})
+            out.extend(self._before_rules(j, t))
         ch = getattr(self.core, "chronicle", None)
         if ch is not None:
             for r in ch.between(t - BEFORE_FW_S, t, ("firmware",)):
@@ -611,6 +613,25 @@ class Incidents:
                 pass
         out.sort(key=lambda e: -e["t"])
         return out[:20]
+
+    def _before_rules(self, journal, t: float) -> list:
+        """Rule changes of this site in the day before ``t`` (made on the device or in the controller, not by the editor):
+        the most serious first, at most ``BEFORE_RULES_MAX``. A hint to check, not a cause."""
+        from .firewall import drift
+        rows = journal.between(t - BEFORE_FW_S, t, (drift.KIND,))
+        rank = {name: i for i, name in enumerate(drift.LEVELS)}
+        rows.sort(key=lambda r: (rank.get((r.get("data") or {}).get("level"), 2), -r["t"]))
+        out = []
+        multi = len({(r.get("data") or {}).get("integ") for r in rows}) > 1
+        for r in rows[:BEFORE_RULES_MAX]:
+            d = r.get("data") or {}
+            desc = drift.describe(d)
+            item = {"t": r["t"], "key": desc["key"], "vars": desc["vars"], "id": "", "level": d.get("level") if d.get("level") in drift.LEVELS else "info",
+                    "check": True}
+            if multi and d.get("controller"):
+                item["where"] = str(d["controller"])[:40]
+            out.append(item)
+        return out
 
     def what_happened(self, ident: str, now: Optional[float] = None) -> Optional[dict]:
         """For one part: the incident it is in (open, else the latest of the last 24 hours), the probable root, since when,

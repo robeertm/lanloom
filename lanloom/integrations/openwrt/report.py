@@ -17,6 +17,7 @@ Changes of the wireless networks are reported once for every connection in the s
 
 Product names are used only to identify compatible products; no affiliation or endorsement.
 """
+REPORTS_RULES = True        # its night section lists rule changes itself: the section "Changed outside Lanloom" leaves them out
 
 LEVELS = {"alert": 0, "warn": 1, "info": 2}
 MAX_ITEMS = 40

@@ -36,7 +36,7 @@ and nothing is switched.
   point upstairs"), when it started, how long it lasted, how many more parts went with it, and whether it is still going.
 - **An incident file** (`#/incidents/<id>`): the **probable root** with its certainty and reason, **what changed before**
   (new devices, own updates, changes written to a controller, a connection that failed, a changed internet line in the two
-  hours before, and firmware jumps of the day before), the **timeline** (parts that went down or came back together are one
+  hours before, and firmware jumps and [rule changes made outside Lanloom](#rule-changes-made-outside-lanloom) of the day before), the **timeline** (parts that went down or came back together are one
   line), the **measurements** (the availability of the root from two hours before to two hours after) and the **affected
   parts** with how each hangs on the root.
 
@@ -104,3 +104,32 @@ operator role and lands in the [audit log](settings.md) (action `incident.mark`)
 - [Nightly report](../NIGHTLY-REPORT.md) - the section *Incidents of the night*
 - [Notifications](../NOTIFICATIONS.md) - planning a maintenance window
 - [Command palette](../PALETTE.md) - *Rewind to …*
+
+## Rule changes made outside Lanloom
+
+Whoever changes a rule on the device, or in the controller's own interface, does not tell Lanloom. So Lanloom compares: every
+time a connection reads the configuration of a controller it keeps a small state - the zones, which network lies in which
+zone, the rules (name, action, from and to as zones, on or off, position, and a fingerprint of what the rule does), the port
+forwards (name, outside port, on or off), the zone pairs that may talk and the mode of the intrusion detection. **No address
+is ever in it**: of what a rule does only a fingerprint stays, a forward's destination is not kept, and a name that contains
+an address is made unreadable.
+
+- **Two reads in a row.** A new state counts only when two reads in a row agree, so a configuration that was read halfway
+  does not show up as "rule gone" and a moment later as "rule new". The first state of a connection is the base state and
+  says nothing. Hit counters and times never change the state.
+- **Your own changes are not told twice.** A change the [firewall editor](../FIREWALL-EDITOR.md) wrote - or was writing at that
+  moment - is already in the journal as *written to the controller*; a hand change in the same few minutes goes along with it.
+- **What is noted** (event kind `fw_drift`): a zone pair now open (danger when from the internet to the inside or the
+  gateway), partly open or closed; a rule new, removed, switched off or on, moved or acting differently (new action
+  against the old); a port forward new, removed, switched or on another port; the intrusion detection switched (a controller
+  that does not tell is never "off"); a network in another zone; a zone new or removed. A rule that moved is one line, not
+  one for every rule that moved down. The rules a controller makes itself count only ("2 automatic rules changed").
+- **Where it shows.** In the list of recent changes of the overview and the phone's *Now*, in the *Events* tab, in the
+  [nightly report](nightly-reports.md) (section *Changed outside Lanloom*; what *Zone matrix* or the device family's own rule
+  section already says is left out), and in an incident file: the rule changes of the site in the 24 hours before the start,
+  danger first, at most six, with the controller named when the site has several - as something to check, not necessarily the
+  cause.
+
+![What changed before an outage of the core switch: a zone pair opened from the internet, a new rule, a port forward switched on, a rule switched off and the firmware jump](../screenshots/incident-rule-changes-light.png)
+
+Each site keeps its own state and its own events. Nothing is sent anywhere and nothing is written to a controller.

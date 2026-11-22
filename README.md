@@ -670,7 +670,9 @@ minute, the tiles show what was down; `Space` pauses, `1`-`4` set 60x to 3600x, 
 to live, and the palette understands *rewind to 14:30*. Faults are bundled into **incident files**: devices that went down
 together are listed under the part they hang on in the failure chain (sure or probably), with the kind (outage, flapping,
 blip, maintenance - Lanloom's own updates and a maintenance window never count as faults), what changed before, the
-timeline, the measurements and how it healed. A 90-day calendar, a 7-day heatmap by hour, the event chronicle and a
+timeline, the measurements and how it healed. Rule changes made outside Lanloom - on the device or in the controller's own
+interface - are noticed as soon as two reads in a row agree and listed under *What changed before* for a whole day back
+(danger first, as something to check, not necessarily the cause). A 90-day calendar, a 7-day heatmap by hour, the event chronicle and a
 *Timeline & data state* (firmware jumps, own updates, new devices, long outages) answer "when does this happen?". The
 nightly report has a section *Incidents of the night*. See the [manual page](docs/manual/incidents.md).
 
@@ -686,6 +688,10 @@ nightly report has a section *Incidents of the night*. See the [manual page](doc
 <tr>
 <td width="50%"><img src="docs/screenshots/rewind-phone-dark.png" width="300" alt="The rewind on a phone"><br><sub>The rewind on the phone</sub></td>
 <td width="50%"><img src="docs/screenshots/incident-file-phone-dark.png" width="300" alt="An incident file on a phone"><br><sub>An incident file on the phone</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/incident-rule-changes-light.png" width="100%" alt="What changed before an outage: a zone pair opened from the internet, a new rule, a port forward switched on and a firmware jump"><br><sub>Rule changes made outside Lanloom in the day before an outage</sub></td>
+<td width="50%"><img src="docs/screenshots/now-rule-change-phone-light.png" width="300" alt="The change list on a phone with a rule that was moved"><br><sub>The same kind of change in the list of recent changes</sub></td>
 </tr>
 </table>
 

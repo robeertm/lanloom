@@ -415,3 +415,53 @@ def test_demo_flapping_dropouts_do_not_depend_on_the_minute_it_starts():
             cells[s - base] = 1
         cells = [(c if c else 5 << 4) for c in cells]
         assert len(incidents.runs_of(cells)) == 1 and incidents.runs_of(cells)[0][2] == 3, second
+
+
+def _drift(core, ago_s, level, sub, integ="int:1", controller="Gateway", **data):
+    core.reports.journal.add("fw_drift", dict(data, sub=sub, level=level, integ=integ, controller=controller, family="fam-a"), NOW - ago_s)
+
+
+def test_the_file_lists_rule_changes_of_the_day_before_danger_first_at_most_six(core):
+    _book(core, "gw", 0, 0)
+    for n in ("sw", "ap"):
+        _book(core, n, 3 * 3600, 3 * 3600 - 20 * 60)
+    start = NOW - 3 * 3600 + 30
+    h = 3600
+    _drift(core, 3 * h + 20 * h, "warn", "fwd_on", name="Photos", port="8443")                         # 20 h before the start: in
+    _drift(core, 3 * h + 21 * h, "danger", "pair_open_in", **{"from": "Internet", "to": "Internal"})   # danger first
+    for k in range(6):                                                                               # more than six: the rest is cut
+        _drift(core, 3 * h + (1 + k) * h, "info", "rule_off", name="Rule %d" % k, action="allow", **{"from": "A", "to": "B"})
+    _drift(core, 3 * h + 30 * h, "danger", "pair_open_in", **{"from": "Old", "to": "Old"})            # 30 h before: out
+    _drift(core, 3 * h - 600, "warn", "rule_new", name="After", action="allow", **{"from": "A", "to": "B"})    # after the start: out
+    d = core.incidents.list(1)
+    f = core.incidents.get(d["items"][0]["id"])
+    rules = [b for b in f["before"] if b.get("check")]
+    assert len(rules) == incidents.BEFORE_RULES_MAX == 6
+    by_level = sorted(rules, key=lambda b: ("danger", "warn", "info").index(b["level"]))
+    assert [b["level"] for b in by_level] == ["danger", "warn", "info", "info", "info", "info"]     # danger and warn are never the ones cut
+    assert by_level[0]["key"] == "fwd.sub.pair_open_in" and by_level[0]["vars"]["from"] == "Internet"
+    assert by_level[1]["key"] == "fwd.sub.fwd_on"
+    assert {b["vars"].get("name") for b in by_level[2:]} == {"Rule 0", "Rule 1", "Rule 2", "Rule 3"}   # the newest of the plain ones
+    assert not any(b["vars"].get("name") == "After" for b in rules)
+    assert not any(b["vars"].get("from") == "Old" for b in f["before"])
+    assert all("where" not in b for b in rules)                 # one controller: no need to name it
+    assert by_level[2]["vars"]["action_key"] == "fwd.act.allow"
+
+
+def test_the_file_names_the_controller_when_there_are_several(core):
+    _book(core, "gw", 0, 0)
+    _book(core, "sw", 3 * 3600, 3 * 3600 - 20 * 60)
+    _drift(core, 3 * 3600 + 3600, "warn", "fwd_on", integ="int:1", controller="Gateway A", name="Photos", port="8443")
+    _drift(core, 3 * 3600 + 7200, "warn", "fwd_on", integ="int:2", controller="Gateway B", name="Games", port="27015")
+    f = core.incidents.get(core.incidents.list(1)["items"][0]["id"])
+    assert sorted(b.get("where") for b in f["before"] if b.get("check")) == ["Gateway A", "Gateway B"]
+
+
+def test_a_fw_change_of_the_editor_and_a_rule_change_both_show(core):
+    _book(core, "gw", 0, 0)
+    _book(core, "sw", 3 * 3600, 3 * 3600 - 20 * 60)
+    core.reports.journal.add("fw_change", {"plan": "p1", "n": 2, "status": "done"}, NOW - 3 * 3600 - 1800)
+    _drift(core, 3 * 3600 + 3600 * 5, "warn", "rule_new", name="Visitors", action="allow", **{"from": "A", "to": "B"})
+    f = core.incidents.get(core.incidents.list(1)["items"][0]["id"])
+    keys = [b["key"] for b in f["before"]]
+    assert "inc.before.fw_change" in keys and "fwd.sub.rule_new" in keys
