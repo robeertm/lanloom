@@ -15,8 +15,8 @@ need the updater sidecar (notice, one-click update, channels, hold, going back) 
 ## What you see
 
 - **Update notice.** When a newer version exists, an *Update* button appears (administrators) with the release notes.
-  The check is optional and runs at most every 6 hours (Settings > General > Updates).
-- **Updates card** in *Settings > General* (administrators): installed version, update channel, *Hold this version*,
+  The check is optional and runs at most every 6 hours (Settings > Updates).
+- **Updates page** at *Settings > Updates* (`#/settings/updates`, administrators): installed version, update channel, *Hold this version*,
   *Check now*, the signature check state and, when there is one, *Back to X.Y.Z*. The *One-click updater* line names the
   version of the updater sidecar and says "renews itself after each update" when it does; below it a quiet line says
   when it last renewed itself.
@@ -140,6 +140,6 @@ when and the version.
 
 ## See also
 
-- [Settings](settings.md#general) · [Nightly report](nightly-reports.md)
+- [Settings](settings.md#updates) · [Nightly report](nightly-reports.md)
 - [Installation](../INSTALL.md) · [Backup](../BACKUP.md) · [Search and commands](../PALETTE.md)
 - [SECURITY.md](../../SECURITY.md#verifying-an-image) · [Troubleshooting](../TROUBLESHOOTING.md)

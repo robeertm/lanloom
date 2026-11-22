@@ -299,7 +299,7 @@ def test_commands_and_actions_name_texts_that_exist():
     keys = set(re.findall(r"""['"]((?:cmdk|theme|nav|settings|backup|ai|reports|update)\.[a-z_.]*[a-z_])['"]""", src))
     missing = sorted(k for k in keys if k not in en)
     assert not missing, missing
-    for k in ("map", "network", "paths", "devices", "firewall", "reports", "settings", "account", "users", "security", "backup", "ai", "report_settings", "theme", "unit", "update", "recent"):
+    for k in ("map", "network", "paths", "devices", "firewall", "reports", "settings", "account", "users", "security", "backup", "ai", "report_settings", "theme", "unit", "update", "updates", "recent"):
         assert "cmdk.kw." + k in en, k                                                 # every command has search words in every language
 
 

@@ -970,7 +970,13 @@
       olderBtn.hidden = !wn.more;
     };
     olderBtn.onclick = async () => { olderBtn.disabled = true; await wnLoad(200); olderBtn.disabled = false; draw(); };
-    dialog(t('whatsnew.title'), h('div', { class: 'wn' }, h('p', { class: 'muted wn-source' }, t('whatsnew.source')), list, h('div', { class: 'wn-more' }, olderBtn)));
+    // admins get a way from the release notes to the update itself: Settings > Updates, and the update dialog when a newer version is waiting
+    const u = LL.updateInfo && LL.updateInfo();
+    const canUpdate = !!(u && u.available && u.mode !== 'addon');
+    const foot = LL.can('admin') ? h('div', { class: 'btn-row wn-foot' },
+      h('button', { class: 'btn ' + (canUpdate ? 'btn--ghost' : 'btn--primary'), type: 'button', onclick: () => { d.close(); LL.go('#/settings/updates'); } }, t('whatsnew.to_updates')),
+      canUpdate ? h('button', { class: 'btn btn--primary', type: 'button', onclick: () => { d.close(); openUpdate(); } }, t('whatsnew.update_now')) : null) : null;
+    const d = dialog(t('whatsnew.title'), h('div', { class: 'wn' }, h('p', { class: 'muted wn-source' }, t('whatsnew.source')), list, h('div', { class: 'wn-more' }, olderBtn)), foot);
     const first = await wnLoad();
     draw();
     if (first && first.unseen && first.current) {
@@ -1101,6 +1107,7 @@
     ['notifications', 'notifications', 'notify.tab', 'viewer'],
     ['users', 'users', 'settings.tab.users', 'admin'], ['security', 'security', 'settings.tab.security', 'admin'], ['backup', 'backup', 'backup.tab', 'admin'],
     ['storage', 'storage', 'storage.tab', 'admin'], ['network', 'network', 'settings.tab.network', 'viewer'], ['agents', 'agents', 'agents.tab', 'viewer'], ['api', 'api', 'api.tab', 'viewer'], ['ai', 'ai', 'ai.tab', 'admin'],
+    ['updates', 'updates', 'settings.updates', 'admin'],   // Updates has a page of its own; on General it sank lower with every new card
     ['sites', 'sites', 'nav.sites', 'admin']];   // the sites have a page of their own (#/sites, M1)
   LL.settingsPages = SETTINGS_PAGES;      // the lowest role of each page also decides whether a remembered deep link may lead there (app.js)
   function settingsSubnav(active) {
@@ -1113,7 +1120,7 @@
   async function settingsView(app, rest) {
     const fr = frame(app, 'settings');
     const sub = rest && rest[0];
-    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, notifications: LL.notifyPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage, network: LL.networkPage, agents: LL.agentsPage, api: LL.apiPage }[sub];
+    const subPage = { ai: LL.can('admin') && LL.aiSettingsPage, account: LL.accountPage, notifications: LL.notifyPage, users: LL.can('admin') && LL.usersPage, security: LL.can('admin') && LL.securityPage, backup: LL.can('admin') && LL.backupPage, storage: LL.can('admin') && LL.storagePage, network: LL.networkPage, agents: LL.agentsPage, api: LL.apiPage, updates: LL.can('admin') && updatesPage }[sub];
     if (subPage) {
       const pg = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav(sub)));
       fr.main.append(pg);
@@ -1123,7 +1130,7 @@
       return fr;
     }
     if (!LL.can('admin')) return generalForEveryone(fr);
-    const [s, scan, nets, upd] = await Promise.all([api('/api/settings'), api('/api/scan'), api('/api/networks'), api('/api/update')]);
+    const [s, scan, nets] = await Promise.all([api('/api/settings'), api('/api/scan'), api('/api/networks')]);
     const page = h('div', { class: 'page page--narrow' }, h('div', { class: 'page__head settings-head' }, h('h1', {}, t('nav.settings')), settingsSubnav('general')));
     // scanning
     const cidrs = new Set((s.rescan_cidrs && s.rescan_cidrs.length ? s.rescan_cidrs : nets.networks.filter(n => n.allowed && n.gateway).map(n => n.cidr)));
@@ -1208,12 +1215,24 @@
     if (LL.netflowSettingsCard) page.append(LL.netflowSettingsCard(s));
     const mqttCard = LL.mqttOutCard ? LL.mqttOutCard() : null;
     if (mqttCard) page.append(mqttCard);
-    // updates + about
-    const updToggle = h('input', { type: 'checkbox', checked: !!s.update_check, onchange: () => api('/api/settings', { method: 'PUT', body: { update_check: updToggle.checked } }).then(() => LL.toast(t('settings.saved'), 'ok')) });
-    const updMsg = h('div', { class: 'msg' });
+    // nightly report, diagnostics, about (the updates live on Settings > Updates)
     const reportCard = LL.reportSettingsCard ? await LL.reportSettingsCard() : null;
     if (reportCard) page.append(reportCard);
-    setUpdateState(upd);
+    page.append(diagnosticsCard());
+    page.append(card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy')), h('p', { class: 'muted' }, t('settings.about.license'))]));
+    fr.main.append(page);
+    if (rest && rest[0] === 'reports' && reportCard) setTimeout(() => reportCard.scrollIntoView({ block: 'start' }), 30);
+    if (rest && rest[0] === 'mqtt' && mqttCard) setTimeout(() => mqttCard.scrollIntoView({ block: 'start' }), 400);
+    if (rest && rest[0] === 'routes' && routesCard) setTimeout(() => routesCard.scrollIntoView({ block: 'start' }), 400);
+    if (rest && rest[0] === 'cables' && cablesCard) setTimeout(() => cablesCard.scrollIntoView({ block: 'start' }), 400);
+    return fr;
+  }
+  // Settings > Updates (admins): version, channel, hold, rollback and the update check on a page of their own
+  async function updatesPage(pg) {
+    const [s, upd] = await Promise.all([api('/api/settings'), api('/api/update')]);
+    let updSection = null;
+    const updToggle = h('input', { type: 'checkbox', checked: !!s.update_check, onchange: () => api('/api/settings', { method: 'PUT', body: { update_check: updToggle.checked } }).then(() => LL.toast(t('settings.saved'), 'ok')) });
+    const updMsg = h('div', { class: 'msg' });
     const updCard = u => {
       const sig = u.signature || {};
       const flash = (text, kind) => LL.msg(updMsg, text, kind);
@@ -1256,16 +1275,8 @@
           catch (e) { flash(LL.errText(e), 'error'); }
         } }, t('update.check_now')), h('button', { class: 'btn btn--ghost', type: 'button', onclick: openWhatsNew }, t('whatsnew.btn'))));
     };
-    let updSection = null;
-    page.append(updCard(upd));
-    page.append(diagnosticsCard());
-    page.append(card(t('settings.about'), [h('p', {}, t('settings.about.text')), h('p', { class: 'muted' }, t('settings.about.privacy')), h('p', { class: 'muted' }, t('settings.about.license'))]));
-    fr.main.append(page);
-    if (rest && rest[0] === 'reports' && reportCard) setTimeout(() => reportCard.scrollIntoView({ block: 'start' }), 30);
-    if (rest && rest[0] === 'mqtt' && mqttCard) setTimeout(() => mqttCard.scrollIntoView({ block: 'start' }), 400);
-    if (rest && rest[0] === 'routes' && routesCard) setTimeout(() => routesCard.scrollIntoView({ block: 'start' }), 400);
-    if (rest && rest[0] === 'cables' && cablesCard) setTimeout(() => cablesCard.scrollIntoView({ block: 'start' }), 400);
-    return fr;
+    setUpdateState(upd);
+    pg.append(updCard(upd));
   }
   // Settings > General > Diagnostic export: one redacted JSON file for an issue (lanloom/diagnostics.py); the download is audited
   function diagnosticsCard() {

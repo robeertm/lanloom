@@ -89,7 +89,8 @@
     run: () => LL.setAllUnfolded(on) }));
   // settings pages: [id, route part, label key, lowest role]
   const SETTINGS = [['settings', '', 'nav.settings', 'viewer'], ['account', '/account', 'settings.tab.account', 'viewer'], ['users', '/users', 'settings.tab.users', 'admin'],
-    ['security', '/security', 'settings.tab.security', 'admin'], ['backup', '/backup', 'backup.tab', 'admin'], ['network', '/network', 'settings.tab.network', 'viewer'], ['agents', '/agents', 'agents.tab', 'viewer'], ['api', '/api', 'api.tab', 'viewer'], ['ai', '/ai', 'ai.tab', 'admin']];
+    ['security', '/security', 'settings.tab.security', 'admin'], ['backup', '/backup', 'backup.tab', 'admin'], ['network', '/network', 'settings.tab.network', 'viewer'], ['agents', '/agents', 'agents.tab', 'viewer'], ['api', '/api', 'api.tab', 'viewer'], ['ai', '/ai', 'ai.tab', 'admin'],
+    ['updates', '/updates', 'settings.updates', 'admin']];
   SETTINGS.forEach(([k, sub, label, role], i) => LL.registerCommand({
     id: 'go.settings.' + k, group: 'views', order: 20 + i, typedOnly: k !== 'settings', available: () => role === 'viewer' || LL.can(role === 'admin' ? 'admin' : 'operate'),
     label: () => (k === 'settings' ? t('cmdk.go', { name: t(label) }) : t('cmdk.go', { name: t('nav.settings') + ' › ' + t(label) })),
@@ -120,7 +121,7 @@
       try {
         const s = await api('/api/update/check', { method: 'POST', body: {} });
         LL.toast(s.available ? t('update.available', { v: s.latest }) : (s.error ? t('update.check_failed') : t('update.current')), s.available ? 'ok' : 'info');
-        if (s.available) LL.go('#/settings');
+        if (s.available) LL.go('#/settings/updates');
       } catch (e) { LL.toast(LL.errText(e), 'error'); }
     } });
   LL.registerCommand({ id: 'whatsnew', group: 'commands', order: 19, label: 'cmdk.whatsnew', keywords: () => t('cmdk.kw.whatsnew'),

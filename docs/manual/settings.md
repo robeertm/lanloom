@@ -27,6 +27,7 @@ Something not working? *Settings > General > Diagnostic export* downloads a reda
 | [Network](#network) | `#/settings/network` | every role (operators and administrators may change things) |
 | [API](#api) | `#/settings/api` | every role makes its own tokens; administrators also manage webhooks and see all tokens |
 | [AI](#ai) | `#/settings/ai` | administrators |
+| [Updates](#updates) | `#/settings/updates` | administrators |
 
 ### General
 
@@ -64,8 +65,6 @@ Administrators additionally:
   the broker, the topics, the sensors and their current value and the state of the connection. Only counts, a level, a
   flag and a time are published (see [Add-on and MQTT output](add-on.md)).
 - **Nightly report** - time, time zone, retention and the delivery channels (see [Nightly report](nightly-reports.md)).
-- **Updates** - version, the optional update check (the only outgoing connection of its own, at most every 6 hours; turn
-  it off here) and the one-click updater where the updater sidecar runs. Channels, holding a version, going back and the signature check: [Updating](updating.md).
 - **Diagnostic export** - one redacted JSON file (version, kind of installation, counts, the state and reason of every connection; no addresses, names or credentials) to attach to an issue. The download is written to the audit log; see [Troubleshooting](../TROUBLESHOOTING.md#the-diagnostic-export).
 
 ![Diagnostic export card](../screenshots/diagnostics-light.png)
@@ -150,6 +149,14 @@ Needs the administrator role. The *Local AI* and *Cloud AI* cards, the order, th
 limit for cloud requests. Off by default. See [AI](ai.md).
 
 ![AI settings](../screenshots/ai-settings-light.png)
+
+### Updates
+
+Needs the administrator role. The installed version, the optional update check (the only outgoing connection of its
+own, at most every 6 hours; turn it off here) and the one-click updater where the updater sidecar runs. Channels,
+holding a version, going back and the signature check: [Updating](updating.md). Two shortcuts lead here: the button
+*Go to Updates* at the bottom of *What's new* (the version badge), with *Update now* beside it when a newer version is
+waiting, and `Ctrl K` → *Open Settings › Updates*.
 
 ## How to use it
 
