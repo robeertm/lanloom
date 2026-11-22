@@ -95,7 +95,9 @@ def map_client(c):
         elif isinstance(channel, int) and not isinstance(channel, bool):
             out["band"] = "2.4ghz" if 1 <= channel <= 14 else "5ghz" if 36 <= channel <= 165 else None
         out["ssid"] = name_str(c.get("essid"))
-        out["signal"] = wifisignal.clean(c.get("signal"))
+        sig = wifisignal.clean(c.get("signal"))
+        if sig is not None:
+            out["signal"] = sig
     return out if out["parent_mac"] else None
 
 

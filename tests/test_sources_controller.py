@@ -676,5 +676,5 @@ def test_the_signal_of_a_wireless_client_is_whole_dbm_or_none():
     assert map_client(dict(base, signal=-67))["signal"] == -67
     assert map_client(dict(base, signal=-67.4))["signal"] == -67
     for bad in (None, "x", 0, 45, -3, -130, True, float("nan")):
-        assert map_client(dict(base, signal=bad))["signal"] is None
+        assert "signal" not in map_client(dict(base, signal=bad))
     assert "signal" not in map_client({"is_wired": True, "sw_mac": "02:00:00:00:00:bb", "mac": "02:00:00:00:02:98", "signal": -50})

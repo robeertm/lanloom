@@ -32,6 +32,10 @@ in?".
   nothing can cling. Signal, moves and the clinging state live in memory only: Lanloom never keeps who was at which access
   point when (that would be a movement profile), and sites stay apart. Controllers that do not report a signal
   simply show no bars. See also [the nightly report](nightly-reports.md).
+
+  ![Signal of the wireless devices of an access point, with a device clinging to it](../screenshots/ap-signal-light.png)
+
+  ![The same in the dark theme](../screenshots/ap-signal-dark.png)
 - **Exact traffic on cables.** Where one device sits alone on a switch port, the dots on its cable follow the counters of
   that port instead of the host's own flows. Optional: *Settings > General > Appearance* can take the background noise out
   of these counters (what every device of one network receives anyway - broadcasts and multicast - is subtracted when at

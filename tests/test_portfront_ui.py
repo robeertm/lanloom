@@ -84,3 +84,12 @@ def test_accessible_and_themed():
     assert len(re.findall(r"--pf-plate\s*:", css)) == 1                   # one mapping for every mode
     # the health mark is a symbol, not only a colour
     assert ".pf-health" in css and "levelMark(lv)" in pf
+
+
+def test_signal_block_is_drawn_for_access_points_only_and_reads_without_colour_alone():
+    pf, css = read("js", "portfront.js"), read("css", "portfront.css")
+    assert "if (isAp && front.signal) root.append(signalBlock(front.signal))" in pf
+    # a bar carries a spoken summary and the counts as digits; a clinging device is a sentence with a mark, not only a colour
+    assert "role: 'img', 'aria-label': label" in pf and "role: 'note'" in pf and "t('pf.sig.stuck'" in pf
+    for sel in (".pf-sig__seg--good", ".pf-sig__seg--fair", ".pf-sig__seg--weak", ".pf-sig__stuck"):
+        assert sel in css

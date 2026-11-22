@@ -143,4 +143,4 @@
 .pf-sig__dbm { white-space: nowrap; }
 .pf-sig__stuck { margin: 0; padding: 8px 10px; border-radius: var(--ll-radius-md); background: var(--ll-warn-soft); color: var(--ll-warn-text); font-size: var(--ll-fs-sm); }
 .pf-sig__stuck b { display: inline-block; min-width: 16px; text-align: center; }
-@media (max-width: 480px) { .pf-sig__band { grid-template-columns: 48px 1fr; } .pf-sig__sum { grid-column: 1 / -1; } }
+@media (max-width: 480px) { .pf-sig__band { grid-template-columns: 64px 1fr; } .pf-sig__sum { grid-column: 1 / -1; } }
