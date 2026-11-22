@@ -3,7 +3,9 @@
 * Event ``port_unstable``: a port had three or more link drops or error episodes in 24 hours (the red level of the
   faceplate). Announced once while the condition lasts, with an all-clear when the port is calm again.
 * Nightly section "Switch ports": the ports with events in the period of the report (three or more is a point to look
-  at, one or two is a plain note) and how often wireless clients moved between access points.
+  at, one or two is a plain note) and how often wireless clients moved between access points during the period -
+  plus, only when there are any, the wireless devices that cling to a far access point at -80 dBm or weaker (W2; a
+  hint, no push, nothing about them is stored).
 """
 from . import portfront
 from .nightly.contrib import Contribution, Ctx, item, register, section
@@ -11,6 +13,7 @@ from .notify import events as ev
 
 ID = "ports"
 MAX_PORTS = 8
+MAX_STUCK = 5
 
 ev.register(ev.make("port_unstable", "connections", 33, "warning", recovery=True,
                     available=lambda core: bool(getattr(getattr(core, "portwatch", None), "last", None))))
@@ -54,7 +57,8 @@ def check(core, now: float) -> None:
 
 def _available(ctx: Ctx) -> bool:
     w = ctx.core.portwatch
-    return bool(w.last or w.events)
+    r = ctx.core.roamwatch
+    return bool(w.last or w.events or r.air or r.moves)
 
 
 def _build(ctx: Ctx) -> dict:
@@ -73,7 +77,13 @@ def _build(ctx: Ctx) -> dict:
         items.append(item("port:%s" % pid, "report.ports.port", "danger" if bad else "warn", bad, name=eq, port=port, flaps=flaps, errors=errors))
     if len(rows) > MAX_PORTS:
         items.append(item("ports:more", "report.ports.more", "info", False, n=len(rows) - MAX_PORTS))
-    moves = roam.total(ctx.until)
+    stuck = ctx.core.sticky_clients(ctx.until)
+    for s in stuck[:MAX_STUCK]:
+        items.append(item("stuck:%s" % s["name"], "report.ports.stuck", "info", False, name=s["name"], ap=s["ap"], dbm=s["signal"],
+                          min=s["since_s"] // 60))
+    if len(stuck) > MAX_STUCK:
+        items.append(item("stuck:more", "report.ports.stuck_more", "info", False, n=len(stuck) - MAX_STUCK))
+    moves = roam.total(ctx.until, since=ctx.since)
     if moves:
         items.append(item("ports:roam", "report.ports.roam", "info", False, n=moves))
     if not rows:

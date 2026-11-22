@@ -668,3 +668,13 @@ def test_repr_shows_host_and_site_only():
     c = m.Controller("https://192.168.50.2:8443", USER, PW, site="lab")
     assert repr(c) == "Controller(host='192.168.50.2:8443', site='lab')"
     assert USER not in repr(c)
+
+
+def test_the_signal_of_a_wireless_client_is_whole_dbm_or_none():
+    from lanloom.sources._ctlmap import map_client
+    base = {"is_wired": False, "ap_mac": "02:00:00:00:00:aa", "mac": "02:00:00:00:02:99"}
+    assert map_client(dict(base, signal=-67))["signal"] == -67
+    assert map_client(dict(base, signal=-67.4))["signal"] == -67
+    for bad in (None, "x", 0, 45, -3, -130, True, float("nan")):
+        assert map_client(dict(base, signal=bad))["signal"] is None
+    assert "signal" not in map_client({"is_wired": True, "sw_mac": "02:00:00:00:00:bb", "mac": "02:00:00:00:02:98", "signal": -50})

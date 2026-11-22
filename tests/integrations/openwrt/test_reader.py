@@ -217,3 +217,8 @@ def test_unreachable_router_is_a_reason_key():
     with pytest.raises(SourceError) as e:
         r.collect()
     assert e.value.key == "source.family.unreachable"
+
+
+def test_topology_clients_carry_the_signal_of_the_association_list(fw4):
+    topo = asyncio.run(reader(fw4).poll())[1]
+    assert {c["mac"]: c["signal"] for c in topo["clients"]} == {fx.PHONE_MAC: -52, fx.PLUG_MAC: -52}

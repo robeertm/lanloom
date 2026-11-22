@@ -165,6 +165,33 @@
       r.clients != null ? h('span', { class: 'muted' }, t('pf.clients', { n: r.clients })) : null)));
   }
 
+  // Signal of the wireless clients of an access point (W2): one bar per band (good / fair / weak), the weakest devices, and the
+  // devices that cling to this access point at -80 dBm or weaker. Hints, not errors; the wording says what, the colour only helps.
+  function signalBlock(sig) {
+    if (!sig || !sig.bands) return null;
+    const GRADES = ['good', 'fair', 'weak'];
+    const bands = Object.keys(sig.bands).sort((a, b) => (parseFloat(a) || 0) - (parseFloat(b) || 0));
+    const rows = bands.map(b => {
+      const c = sig.bands[b], total = GRADES.reduce((n, g) => n + (c[g] || 0), 0) || 1;
+      const label = t('pf.sig.band_summary', { band: parseFloat(b) ? t('pf.band', { n: fmt(parseFloat(b)) }) : '?', good: c.good || 0, fair: c.fair || 0, weak: c.weak || 0 });
+      return h('li', { class: 'pf-sig__band' },
+        h('strong', {}, parseFloat(b) ? t('pf.band', { n: fmt(parseFloat(b)) }) : '?'),
+        h('span', { class: 'pf-sig__bar', role: 'img', 'aria-label': label },
+          GRADES.filter(g => c[g]).map(g => h('span', { class: 'pf-sig__seg pf-sig__seg--' + g, style: 'flex-grow:' + c[g] }, String(c[g])))),
+        h('span', { class: 'muted pf-sig__sum' }, GRADES.map(g => t('pf.sig.' + g) + ' ' + (c[g] || 0)).join(' · ')));
+    });
+    const out = [h('h4', { class: 'pf-sig__title' }, t('pf.sig.title')), h('ul', { class: 'pf-sig__bands' }, rows)];
+    const weak = (sig.weakest || []).filter(w => w.signal != null);
+    if (weak.length) {
+      out.push(h('p', { class: 'pf-sig__label muted' }, t('pf.sig.weakest')),
+        h('ul', { class: 'pf-sig__weakest' }, weak.map(w => h('li', {}, h('span', { class: 'pf-sig__name' }, w.name || '?'),
+          h('span', { class: 'mono pf-sig__dbm' }, t('pf.sig.dbm', { n: w.signal }))))));
+    }
+    (sig.stuck || []).forEach(s => out.push(h('p', { class: 'pf-sig__stuck', role: 'note' }, h('b', { 'aria-hidden': 'true' }, '!'), ' ',
+      t('pf.sig.stuck', { name: s.name || '?', dbm: s.signal, min: Math.max(1, Math.round((s.since_s || 0) / 60)) }))));
+    return h('div', { class: 'pf-sig' }, out);
+  }
+
   function head(front) {
     const kind = front.kind === 'ap' ? 'ap' : front.kind === 'router' ? 'router' : 'switch';
     const lv = level(front.level);
@@ -271,6 +298,7 @@
     if (front.roams && (front.roams.in != null || front.roams.out != null)) {
       root.append(h('p', { class: 'pf-roams muted' }, t('pf.roams', { n_in: front.roams.in || 0, n_out: front.roams.out || 0 })));
     }
+    if (isAp && front.signal) root.append(signalBlock(front.signal));
     if (!ports.length && !isAp) root.append(h('p', { class: 'muted pf-none' }, t('pf.none')));
     return root;
   };

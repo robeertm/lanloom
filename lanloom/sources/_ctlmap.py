@@ -6,6 +6,7 @@ classic API returns the same lists, so both feed the topology resolver with exac
 import ipaddress
 import re
 
+from .. import wifisignal
 from ._common import clip
 
 MAC_RE = re.compile(r"\A[0-9a-f]{2}(?::[0-9a-f]{2}){5}\Z")
@@ -94,6 +95,7 @@ def map_client(c):
         elif isinstance(channel, int) and not isinstance(channel, bool):
             out["band"] = "2.4ghz" if 1 <= channel <= 14 else "5ghz" if 36 <= channel <= 165 else None
         out["ssid"] = name_str(c.get("essid"))
+        out["signal"] = wifisignal.clean(c.get("signal"))
     return out if out["parent_mac"] else None
 
 

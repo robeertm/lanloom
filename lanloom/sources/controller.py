@@ -28,7 +28,8 @@ Emits ``{"type": "topology", "source": "controller", "t", "devices": [...], "cli
 * client: ``mac``, ``ip``, ``name`` (or ``hostname``); ``is_wired`` true -> ``medium`` wired, ``parent_mac`` =
   ``sw_mac`` (else ``last_uplink_mac``), ``port`` = ``sw_port``; ``is_wired`` false -> ``medium`` radio,
   ``parent_mac`` = ``ap_mac``, ``band`` from ``radio`` (ng 2.4ghz, na 5ghz, 6e 6ghz; only when ``radio`` is
-  missing the ``channel`` is used: up to 14 -> 2.4ghz, 36..165 -> 5ghz), ``ssid`` = ``essid``.
+  missing the ``channel`` is used: up to 14 -> 2.4ghz, 36..165 -> 5ghz), ``ssid`` = ``essid``, ``signal`` = ``signal``
+  (whole dBm, -100..-10, anything else ``None``; W2).
   Clients without a parent are skipped. Unknown values are ``None``, never guessed.
 
 Password, cookies and CSRF token are kept in private attributes only; they never appear in logs, exception

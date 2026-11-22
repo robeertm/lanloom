@@ -2028,15 +2028,33 @@ class Core:
         return out
 
     def book_roaming(self, ev: dict, now: float) -> None:
-        wireless = [{"id": c.get("mac"), "ap": c.get("parent_mac"), "band": c.get("band")} for c in ev.get("clients") or []
+        wireless = [{"id": c.get("mac"), "ap": c.get("parent_mac"), "band": c.get("band"), "signal": c.get("signal"),
+                     "name": c.get("name") or c.get("ip")} for c in ev.get("clients") or []
                 if c.get("medium") == "radio" and c.get("mac") and c.get("parent_mac")]
         if wireless or any(c.get("medium") == "radio" for c in ev.get("clients") or []):
             self.roamwatch.feed(wireless, now)
+
+    def ap_names(self) -> dict:
+        """{access point key (hardware address): name} of the access points this site's controller adapters read and
+        that are online - the places a wireless device could go instead of the one it clings to."""
+        mac_of = {e.get("id"): e.get("mac") for o in self.topo_obs.values() for e in (o.get("ev") or {}).get("equipment") or []}
+        out = {}
+        for entry in self.live_configs():
+            for e in entry["state"].get("equipment") or []:
+                if (e.get("kind") == "ap" or e.get("radios")) and e.get("online") is not False and mac_of.get(e.get("id")):
+                    out[mac_of[e["id"]]] = e.get("name") or "?"
+        return out
+
+    def sticky_clients(self, now: float = None) -> list:
+        """Wireless devices that sit at -80 dBm or weaker on one access point for ten minutes although the site has another
+        (memory only, see ``portfront.RoamWatch.stuck``)."""
+        return self.roamwatch.stuck(self.ap_names(), time.time() if now is None else now)
 
     def port_fronts(self, now: float = None) -> list:
         """Faceplates of every switch and access point the controller adapters read (see ``portfront``)."""
         now = time.time() if now is None else now
         out = []
+        ap_total = len(self.ap_names()) if self.live_cfg else 0
         topo = self.topology() if self.live_cfg else {"links": {}, "nodes": {}}
         dev_by_id = {d["id"]: d for d in self.devices()} if self.live_cfg else {}
         for entry in self.live_configs():
@@ -2056,7 +2074,7 @@ class Core:
                             behind.setdefault(e["id"], {}).setdefault(int(link["port"]), []).append(
                                 {"name": dev.get("title") or dev.get("name") or dev.get("ip") or "?", "kind": dev.get("kind") or "other",
                                  "wired": True, "ip": dev.get("ip")})
-            for f in portfront.fronts(st, self.portwatch, self.roamwatch, now, behind=behind, ap_keys=ap_keys):
+            for f in portfront.fronts(st, self.portwatch, self.roamwatch, now, behind=behind, ap_keys=ap_keys, ap_total=ap_total):
                 out.append(dict(f, source=entry["key"]))
         return out
 

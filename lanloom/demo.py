@@ -122,6 +122,10 @@ TOPICS = [("sensors/climate", 6.0, 180), ("energy/meter", 4.0, 220), ("home/pres
 
 # Physical layout of the demo network: who hangs on which switch port or access point (host number -> link).
 SWITCH, AP_1, AP_2, GATEWAY = 2, 3, 4, 1
+# signal of the demo's wireless devices in dBm (W2); the kitchen tablet clings to the garden access point at -86 dBm
+SIGNAL = {20: -48, 22: -52, 31: -61, 32: -58, 60: -55, 61: -63, 62: -70, 63: -72, 23: -86, 50: -57, 51: -66, 64: -68, 65: -77,
+          66: -60, 67: -74}
+STUCK_DEMO = 23
 WIRED = {AP_1: "2", 10: "3", 11: "4", 12: "5", 15: "6", 13: "6", 14: "6", 21: "7", 30: "8", 40: "10"}
 RADIO = {20: (AP_1, "5ghz"), 22: (AP_1, "5ghz"), 31: (AP_1, "5ghz"), 32: (AP_1, "5ghz"), 60: (AP_1, "2.4ghz"),
          61: (AP_1, "2.4ghz"), 62: (AP_1, "2.4ghz"), 63: (AP_1, "2.4ghz"), 23: (AP_2, "5ghz"), 50: (AP_2, "2.4ghz"),
@@ -370,8 +374,8 @@ def controller_event(now: float) -> dict:
     for n, (ap, band) in RADIO.items():
         if n in (20, 22) and int(now // 1500) % 2:        # two phones walk between the access points while the demo runs
             ap = AP_2 if ap == AP_1 else AP_1
-        clients.append({"mac": _hmac(n), "ip": _host(n)["ip"], "name": None, "medium": "radio", "parent_mac": _mac(ap),
-                        "port": None, "band": band, "ssid": SSID})
+        clients.append({"mac": _hmac(n), "ip": _host(n)["ip"], "name": "Kitchen tablet" if n == STUCK_DEMO else None, "medium": "radio",
+                        "parent_mac": _mac(ap), "port": None, "band": band, "ssid": SSID, "signal": SIGNAL.get(n)})
     for mac, ip, name, medium, parent, where, _maker in ADAPTER_CLIENTS:
         radio = medium == "radio"
         clients.append({"mac": mac, "ip": ip, "name": name, "medium": medium, "parent_mac": _mac(parent),
@@ -878,6 +882,7 @@ class Demo:
         topo_sent = 0
         live_sent = 0
         fw_history_seeded = False
+        signal_seeded = False
         paths_sent = time.time()
         history_seeded = False
         while True:
@@ -1006,6 +1011,10 @@ class Demo:
                         core.presence[row["id"]] = now
                 if "controller" in ids:
                     core.on_event("int:%d" % ids["controller"], ids["controller"], controller_event(now))
+                    if not signal_seeded:                          # the tablet has already been weak for a quarter of an hour
+                        a = core.roamwatch.air.get(_hmac(STUCK_DEMO))
+                        if a:
+                            signal_seeded, a["weak_since"] = True, now - 900
                 if "snmp" in ids:
                     core.on_event("int:%d" % ids["snmp"], ids["snmp"], router_topology_event(now))
             if "mqtt" in ids:

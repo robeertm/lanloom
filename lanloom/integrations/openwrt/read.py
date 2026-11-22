@@ -27,6 +27,7 @@ from . import READ_CAPABILITIES, model
 from .. import capabilities
 from ..credentials import Secret
 from ..transport import Forbidden, Transport, TransportError, read_allowlist
+from ... import wifisignal
 from ...sources._common import SourceError, StatusTracker, emit_event, now, run_with_backoff, short_test
 
 MODULE = "family"
@@ -268,7 +269,7 @@ class OpenwrtReader:
         for m, w in model._wireless_clients(raw).items():
             ip, name = known.get(m, (None, None))
             clients.append({"mac": m, "ip": ip, "name": name, "medium": "radio", "parent_mac": mac, "port": None,
-                            "band": w["band"], "ssid": w["ssid"]})
+                            "band": w["band"], "ssid": w["ssid"], "signal": wifisignal.clean(w.get("signal"))})
         dev = {"mac": mac, "ip": e.get("mgmt_ip"), "name": e.get("name"), "role": e.get("kind") or "router",
                "model": e.get("model"), "uplink": None}
         return {"type": "topology", "source": "controller", "t": t, "devices": [dev], "clients": clients[:model.MAX_ITEMS]}

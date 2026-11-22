@@ -64,9 +64,9 @@ CLIENTS = [
     _cl("3C-00-5E-30-00-02", "Printer", "192.168.10.30", True, switchMac=CORE, connectDevType="switch", port=6, networkName="LAN"),
     _cl("3C-00-5E-30-00-03", "Camera", "192.168.20.40", True, switchMac=CORE, connectDevType="switch", port=6, networkName="IoT"),
     _cl("3C-00-5E-30-00-04", "Wired at gateway", "192.168.10.60", True, gatewayMac=GW, connectDevType="gateway", port=3, networkName="LAN"),
-    _cl("02-00-5E-30-00-05", "Phone", "192.168.10.50", False, apMac=HALL, connectDevType="ap", ssid="Home", radioId=1),
+    _cl("02-00-5E-30-00-05", "Phone", "192.168.10.50", False, apMac=HALL, connectDevType="ap", ssid="Home", radioId=1, rssi=-58, signalLevel=80),
     _cl("3C-00-5E-30-00-06", "Guest laptop", "192.168.30.10", False, apMac=HALL, connectDevType="ap", ssid="Guests", radioId=0,
-        connectType=0, guest=True),
+        connectType=0, guest=True, rssi=-104),
     _cl("3C-00-5E-30-00-07", "Blocked tablet", "192.168.10.70", False, apMac=HALL, connectDevType="ap", ssid="Home", radioId=3, blocked=True),
 ]
 

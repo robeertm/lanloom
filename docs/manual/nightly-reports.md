@@ -15,7 +15,7 @@ service is involved in making it.
 
 - **The headline:** "All quiet", or "N things need a look".
 - **One section per source**, shown only when the source exists: internet outages, devices (new, gone, back), connections,
-  availability, early warnings (host values that reach their limit within 72 hours), switch ports (links that dropped or counted errors, devices that moved between access points), wireless networks (new, gone, renamed or changed SSIDs and blocked devices), sign-ins, counter check, data paths, home automation, controller configuration, changes written,
+  availability, early warnings (host values that reach their limit within 72 hours), switch ports (links that dropped or counted errors, devices that moved between access points during the night, and - only when there are any - devices clinging to a far access point at -80 dBm or weaker for ten minutes), wireless networks (new, gone, renamed or changed SSIDs and blocked devices), sign-ins, counter check, data paths, home automation, controller configuration, changes written,
   device families, certificates, API, AI, storage, inventory, backup, notifications, access, and Lanloom itself. The table of
   sections with what makes each one "need a look" is in [NIGHTLY-REPORT.md](../NIGHTLY-REPORT.md#what-is-in-it).
 - **Automations: only news, and the failed runs.** With a home-automation hub connected the *Automations* section lists

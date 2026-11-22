@@ -385,3 +385,14 @@ def test_topology_event_without_a_router_address_has_no_clients():
     t = model.topology_event({"interfaces": [], "bridge_hosts": raw_of()["bridge_hosts"]}, 1.0)
     assert t["devices"] == [] and t["clients"] == []
     assert model.topology_event(None, 1.0)["clients"] == []
+
+
+def test_signal_is_read_from_both_registration_tables_and_cleaned():
+    t = model.topology_event(raw_of(), 1.0)
+    macs = {c["mac"]: c for c in t["clients"]}
+    assert macs[fx.PHONE_MAC.lower()]["signal"] == -55 and macs[fx.TABLET_MAC.lower()]["signal"] == -60
+    raw = raw_of()
+    raw["wifi_reg"][0].pop("signal"); raw["wifi_reg"][0]["signal-strength"] = "-71@5GHz"        # the older package names it differently
+    raw["wireless_reg"][0]["signal"] = "12"                                                      # not a dBm reading
+    macs = {c["mac"]: c for c in model.topology_event(raw, 1.0)["clients"]}
+    assert macs[fx.PHONE_MAC.lower()]["signal"] == -71 and macs[fx.TABLET_MAC.lower()]["signal"] is None

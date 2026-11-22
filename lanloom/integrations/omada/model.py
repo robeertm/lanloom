@@ -40,6 +40,7 @@ import ipaddress
 import json
 import re
 
+from ... import wifisignal
 from ...sources._ctlmap import _unique, ip_str, name_str, norm_mac, port_str
 
 SALT = "lanloom-omada:"
@@ -427,10 +428,13 @@ def topology_event(raw: dict, t: float) -> dict:
         wired, parent = _client_parent(c)
         if not mac or not parent:
             continue
-        clients.append({"mac": mac, "ip": _ip(c.get("ip")), "name": name_str(c.get("name"), c.get("hostName")),
-                        "medium": "wired" if wired else "radio", "parent_mac": parent,
-                        "port": port_str(c.get("port")) if wired else None,
-                        "band": None if wired else RADIO_BANDS.get(num(c.get("radioId"))),
-                        "ssid": None if wired else name_str(c.get("ssid"))})
+        row = {"mac": mac, "ip": _ip(c.get("ip")), "name": name_str(c.get("name"), c.get("hostName")),
+               "medium": "wired" if wired else "radio", "parent_mac": parent,
+               "port": port_str(c.get("port")) if wired else None,
+               "band": None if wired else RADIO_BANDS.get(num(c.get("radioId"))),
+               "ssid": None if wired else name_str(c.get("ssid"))}
+        if not wired:
+            row["signal"] = wifisignal.clean(c.get("rssi"))        # whole dBm; the percentage ``signalLevel`` is not read
+        clients.append(row)
     return {"type": "topology", "source": "controller", "t": t, "devices": _unique(devices, 1000),
             "clients": _unique(clients, MAX_ITEMS)}

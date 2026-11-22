@@ -25,6 +25,13 @@ in?".
   colour). A port opens a detail line with the live rate. An access point shows its radios with channel and clients now,
   and how often devices moved to or from it in 24 hours. The same panels are in the equipment card of the
   [Firewall](firewall.md) tab.
+- **Signal of wireless devices.** When the controller reports it, an access point also shows the signal of its devices:
+  one bar per band split into *good* (-65 dBm and stronger), *fair* (down to -75 dBm) and *weak*, and the weakest few
+  devices with their value. A device that stays at -80 dBm or weaker on the same access point for ten minutes although
+  the site has another one is marked as **clinging** with how long - a hint, never an error; with only one access point
+  nothing can cling. Signal, moves and the clinging state live in memory only: Lanloom never keeps who was at which access
+  point when (that would be a movement profile), and sites stay apart. Controllers that do not report a signal
+  simply show no bars. See also [the nightly report](nightly-reports.md).
 - **Exact traffic on cables.** Where one device sits alone on a switch port, the dots on its cable follow the counters of
   that port instead of the host's own flows. Optional: *Settings > General > Appearance* can take the background noise out
   of these counters (what every device of one network receives anyway - broadcasts and multicast - is subtracted when at

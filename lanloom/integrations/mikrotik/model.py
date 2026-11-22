@@ -39,6 +39,7 @@ import ipaddress
 import json
 import re
 
+from ... import wifisignal
 from ...sources._ctlmap import _unique, ip_str, name_str, norm_mac
 
 SALT = "lanloom-mikrotik:"
@@ -637,6 +638,7 @@ def topology_event(raw: dict, t: float) -> dict:
         for m, r in wireless.items():
             ip, nm = names.get(m, (None, None))
             clients.append({"mac": m, "ip": ip, "name": nm, "medium": "radio", "parent_mac": router_mac, "port": None,
-                            "band": _band(r.get("band")), "ssid": name_str(r.get("ssid"))})
+                            "band": _band(r.get("band")), "ssid": name_str(r.get("ssid")),
+                            "signal": wifisignal.clean(r.get("signal") if r.get("signal") is not None else r.get("signal-strength"))})
     return {"type": "topology", "source": "controller", "t": t, "devices": _unique(devices, 1000),
             "clients": _unique(clients, 5000)}

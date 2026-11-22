@@ -192,3 +192,11 @@ def test_topology_skips_clients_without_a_parent_and_unknown_uplinks():
     ev = model.topology_event(raw, 1.0)
     assert all(c["name"] != "Orphan" for c in ev["clients"])
     assert next(d for d in ev["devices"] if d["name"] == "Hall AP")["uplink"] is None
+
+
+def test_signal_of_wireless_clients_comes_from_the_client_list_in_whole_dbm():
+    ev = model.topology_event(raw_of(), 1.0)
+    by = {c["name"]: c for c in ev["clients"]}
+    assert by["Phone"]["signal"] == -58                       # ``rssi`` in dBm; the percentage ``signalLevel`` is never used
+    assert by["Guest laptop"]["signal"] is None                # -104 is no plausible reading and is dropped
+    assert "signal" not in by["NAS"]                           # a wired client has none

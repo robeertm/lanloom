@@ -7,11 +7,15 @@ light topology events of the same adapter (ports with counters, every minute). N
 
 * ``PortWatch``  - keeps link drops and error episodes per port (24 hours, in the store) and turns byte counters into
   rates and deltas (the exact counters of a cable device on its own port).
-* ``RoamWatch``  - remembers which access point a wireless client was on and counts moves (24 hours, in memory).
+* ``RoamWatch``  - remembers which access point a wireless client was on, its signal and counts moves (24 hours, in
+  memory only: who sat where and when is never stored). Names a device that stays 10 minutes at -80 dBm or weaker on
+  an access point although another one exists (W2) - a hint, never an error.
 * ``fronts``     - the data of the view.
 """
 import threading
 import time
+
+from . import wifisignal
 
 WINDOW_S = 24 * 3600
 STORE_KEY = "portwatch"
@@ -124,18 +128,23 @@ class PortWatch:
 
 
 class RoamWatch:
-    """Which access point each wireless client sits on, and the moves between access points (24 hours, in memory)."""
+    """Which access point each wireless client sits on, its signal, and the moves between access points. Everything
+    lives in memory (moves for 24 hours); nothing here reaches the store - a record of who was where is a movement profile."""
+
+    WEAKEST = 3                       # devices named in the view of an access point
 
     def __init__(self):
         self._lock = threading.Lock()
         self.where = {}                # client key -> access point key
         self.moves = []                # [t, from ap, to ap]
         self.clients = {}              # access point key -> {band: n}
+        self.air = {}                  # client key -> {"ap", "band", "name", "signal", "weak_since"}
 
     def feed(self, clients, now: float = None) -> None:
-        """``clients``: [{"id", "ap", "band"}] of the wireless clients now (``ap`` and ``id`` opaque text)."""
+        """``clients``: [{"id", "ap", "band", "signal", "name"}] of the wireless clients now (``ap`` and ``id`` opaque
+        text; ``signal`` whole dBm or None, ``name`` for the view only)."""
         now = time.time() if now is None else now
-        seen, per_ap = {}, {}
+        seen, per_ap, air = {}, {}, {}
         for c in clients or []:
             if not c.get("id") or not c.get("ap"):
                 continue
@@ -143,13 +152,21 @@ class RoamWatch:
             per_ap.setdefault(c["ap"], {})
             band = c.get("band") or "?"
             per_ap[c["ap"]][band] = per_ap[c["ap"]].get(band, 0) + 1
+            sig = wifisignal.clean(c.get("signal"))
+            air[c["id"]] = {"ap": c["ap"], "band": band, "name": c.get("name"), "signal": sig, "weak_since": None}
         with self._lock:
             for cid, ap in seen.items():
                 before = self.where.get(cid)
                 if before is not None and before != ap:
                     self.moves.append([now, before, ap])
+                prev = self.air.get(cid)
+                a = air[cid]
+                if a["signal"] is not None and a["signal"] <= wifisignal.STICK_DBM:
+                    # weak without a break on the same access point; a move, a missing or a better reading starts over
+                    a["weak_since"] = prev["weak_since"] if prev and prev["ap"] == ap and prev["weak_since"] is not None else now
             self.where = seen                       # a client gone for a poll starts fresh when it comes back
             self.clients = per_ap
+            self.air = air
             self.moves = [m for m in self.moves if now - m[0] <= WINDOW_S][-2000:]
 
     def counts(self, ap: str, now: float = None) -> dict:
@@ -162,10 +179,48 @@ class RoamWatch:
         with self._lock:
             return dict(self.clients.get(ap) or {})
 
-    def total(self, now: float = None) -> int:
+    def total(self, now: float = None, since: float = None) -> int:
+        """Moves in the 24 hours up to ``now`` (or only since ``since``)."""
         now = time.time() if now is None else now
         with self._lock:
-            return sum(1 for m in self.moves if now - m[0] <= WINDOW_S)
+            return sum(1 for m in self.moves if now - m[0] <= WINDOW_S and (since is None or m[0] >= since))
+
+    def signal_view(self, ap: str, others: bool, now: float = None) -> dict:
+        """What the view of one access point shows about the signal of its clients now: ``bands`` {band: {"good",
+        "fair", "weak"}}, ``weakest`` (the weakest few with a reading) and ``stuck`` (those that clung to this access
+        point for 10 minutes at -80 dBm or weaker). ``others``: another access point exists in the site - without one
+        nothing can be stuck, there is nowhere to go. Empty when no client has a reading."""
+        now = time.time() if now is None else now
+        with self._lock:
+            mine = [dict(a) for a in self.air.values() if a["ap"] == ap and a["signal"] is not None]
+        if not mine:
+            return {}
+        bands = {}
+        for a in mine:
+            row = bands.setdefault(a["band"], {"good": 0, "fair": 0, "weak": 0})
+            row[wifisignal.grade(a["signal"])] += 1
+        out = {"bands": bands, "weakest": [], "stuck": []}
+        for a in sorted(mine, key=lambda x: x["signal"])[:self.WEAKEST]:
+            out["weakest"].append({"name": a["name"] or "?", "signal": a["signal"], "band": a["band"]})
+        if others:
+            for a in sorted(mine, key=lambda x: x["weak_since"] or now):
+                if a["weak_since"] is not None and now - a["weak_since"] >= wifisignal.STICK_S:
+                    out["stuck"].append({"name": a["name"] or "?", "signal": a["signal"], "band": a["band"],
+                                         "since_s": int(now - a["weak_since"])})
+        return out
+
+    def stuck(self, aps: dict, now: float = None) -> list:
+        """The stuck devices of all access points in ``aps`` {access point key: name}: [{"name", "ap", "signal",
+        "band", "since_s"}], longest first. The caller says which access points exist (``len(aps) >= 2``)."""
+        if len(aps) < 2:
+            return []
+        now = time.time() if now is None else now
+        with self._lock:
+            rows = [dict(a) for a in self.air.values() if a["weak_since"] is not None and a["ap"] in aps
+                    and now - a["weak_since"] >= wifisignal.STICK_S]
+        rows.sort(key=lambda a: a["weak_since"])
+        return [{"name": a["name"] or "?", "ap": aps[a["ap"]], "signal": a["signal"], "band": a["band"],
+                 "since_s": int(now - a["weak_since"])} for a in rows]
 
 
 def _sfp(p: dict) -> bool:
@@ -173,11 +228,13 @@ def _sfp(p: dict) -> bool:
     return media.startswith("SFP") or "SFP" in str(p.get("name") or "").upper()
 
 
-def fronts(state: dict, watch: PortWatch, roam: RoamWatch, now: float = None, behind: dict = None, ap_keys: dict = None) -> list:
+def fronts(state: dict, watch: PortWatch, roam: RoamWatch, now: float = None, behind: dict = None, ap_keys: dict = None,
+           ap_total: int = None) -> list:
     """The faceplates of every switch and access point of a neutral state, router first.
 
     ``behind``: {equipment id: {port idx: [{"name", "kind", "wired"}]}} what the topology knows besides the clients of
-    the state. ``ap_keys``: {equipment id: access point key as used by RoamWatch}."""
+    the state. ``ap_keys``: {equipment id: access point key as used by RoamWatch}. ``ap_total``: how many access points the
+    site has in all (default: those of this state) - a device can only be stuck where there is another one."""
     now = time.time() if now is None else now
     behind = behind or {}
     ap_keys = ap_keys or {}
@@ -191,6 +248,8 @@ def fronts(state: dict, watch: PortWatch, roam: RoamWatch, now: float = None, be
             by_dev.setdefault(d["parent"], {}).setdefault(int(d["port"]), []).append(
                 {"name": d.get("name") or "?", "kind": d.get("kind") or "client", "wired": True, "ip": d.get("ip")})
     out = []
+    if ap_total is None:
+        ap_total = sum(1 for e in eq.values() if (e.get("kind") == "ap" or e.get("radios")) and e.get("online") is not False)
     order = {"router": 0, "switch": 1, "ap": 2}
     for e in sorted(eq.values(), key=lambda x: (order.get(x.get("kind"), 3), x.get("name") or "")):
         ports = sorted((p for p in state.get("ports") or [] if p.get("device") == e["id"]), key=lambda p: p.get("idx") or 0)
@@ -230,6 +289,9 @@ def fronts(state: dict, watch: PortWatch, roam: RoamWatch, now: float = None, be
                                        "clients": n if n is not None else r.get("clients")})
             if key:
                 item["roams"] = roam.counts(key, now)
+                sig = roam.signal_view(key, ap_total >= 2 and e.get("online") is not False, now)
+                if sig:
+                    item["signal"] = sig
         if rows or item["radios"]:
             out.append(item)
     return out
