@@ -19,7 +19,8 @@
   .ll-legend__item { min-height: 40px; }
   .sn-seg__btn { min-height: 42px; }
   .icon-btn { min-width: 40px; min-height: 40px; }
-  .btn, .btn--icon { min-width: 44px; }
+  .btn, .btn--icon, .fc-outage__tools .btn--icon, .fc-outage__tools .btn--ghost, .rw-transport .btn--icon, .link-btn { min-width: 44px; }
+  .ll-legend.is-inline .ll-legend__flt, .ll-legend.is-inline .ll-legend__all { margin-top: 0; margin-bottom: 0; }
   .btn-row { flex-wrap: wrap; }                      /* two buttons that do not fit side by side wrap, they never run out of the card */
   .link-btn, .ver-foot__link { min-height: 44px; display: inline-flex; align-items: center; }
   .pf-row { grid-template-columns: repeat(var(--pf-cols, 8), 44px); overflow-x: auto; padding-bottom: 2px; }      /* a port is 44 px wide; a long row scrolls sideways like the switch front does */
