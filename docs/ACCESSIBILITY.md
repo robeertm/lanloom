@@ -75,8 +75,8 @@ The animation of the tree follows the system setting *Reduce motion*.
 Everything can be used with a finger. The rules, checked by a walk over every view and every layer in a phone browser (390 px wide, light and dark, administrator and read-only role):
 
 - **Hit areas of 44 × 44 px.** A control that looks smaller (chips, icon buttons, close crosses, filters, small links) gets an invisible, larger hit area. Nothing looks different; the area never reaches further than half the gap to the next control, so two neighbours never fight over one fingertip. It is measured again for every control that appears later. Where the gap is too small, the layout itself makes room (taller buttons and filter chips, a port of a switch front is 44 px wide and a long row scrolls sideways).
-- **Fields have at least 16 px of text.** Below that Safari on the iPhone zooms into the page when a field is tapped.
-- **The keyboard hides nothing.** The iPhone shrinks only the visible part of the window when the keyboard opens. A layer that fills the screen (Ask, search, sheets, dialogs) follows the visible part, a focused field stays in sight, and in the Ask panel at least 120 px of the conversation stay above the field. An empty "Send" puts the cursor into the field instead of doing nothing.
+- **Fields have at least 16 px of text.** Below that a phone browser zooms into the page when a field is tapped.
+- **The keyboard hides nothing.** A phone shrinks only the visible part of the window when the keyboard opens. A layer that fills the screen (Ask, search, sheets, dialogs) follows the visible part, a focused field stays in sight, and in the Ask panel at least 120 px of the conversation stay above the field. An empty "Send" puts the cursor into the field instead of doing nothing.
 - **Every tap does something visible, every layer has a way back.** A menu closes with a tap beside it.
 - Controls that draw their own hit logic (the pan and zoom board of the map) are the one exception; every device on it is also a full-size row in the device list.
 

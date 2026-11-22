@@ -6,7 +6,7 @@
 .ll-tz-a::after, .ll-tz-b::before { content: ""; position: absolute; top: calc(-1 * var(--tz-t, 0px)); right: calc(-1 * var(--tz-r, 0px)); bottom: calc(-1 * var(--tz-b, 0px)); left: calc(-1 * var(--tz-l, 0px)); }
 
 @media (max-width: 700px) {
-  /* inputs: 16 px at least, or Safari zooms into the page when a field is tapped */
+  /* inputs: 16 px at least, or the phone browser zooms into the page when a field is tapped */
   input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=file]):not([type=color]):not([type=hidden]),
   textarea, select, [contenteditable=""], [contenteditable="true"] { font-size: 16px !important; }
 

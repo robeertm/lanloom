@@ -4,8 +4,8 @@ The behaviour in a real browser (hit areas >= 44 px, nothing covered, every tap 
 (shots/phone_usable.py, a step of the overflow test of the gate). What belongs to the product itself is pinned here:
 - the page loads css/handy.css last and js/handy.js after the palette, and the self-test knows both files;
 - the script has no way out of the page (no request, no storage) and parses;
-- fields have 16 px on a phone (Safari zooms in below), the layer around a focused field follows the visual viewport, the Ask panel makes room for its history;
-- an empty "Send" leads into the field, the site menu closes on a pointer (a touch on a non-clickable place sends no mouse event on iOS)."""
+- fields have 16 px on a phone (phone browsers zoom in below), the layer around a focused field follows the visual viewport, the Ask panel makes room for its history;
+- an empty "Send" leads into the field, the site menu closes on a pointer (a touch on a non-clickable place sends no mouse event on many phones)."""
 import re
 import shutil
 import subprocess
@@ -44,7 +44,7 @@ def test_handy_script_stays_in_the_page_and_parses():
 def test_phone_rules_in_css():
     css = read("css", "handy.css")
     phone = css[css.index("@media (max-width: 700px)"):]
-    assert re.search(r"textarea,\s*select,[^{]*\{\s*font-size:\s*16px\s*!important", phone), "fields need 16 px on a phone, else Safari zooms in"
+    assert re.search(r"textarea,\s*select,[^{]*\{\s*font-size:\s*16px\s*!important", phone), "fields need 16 px on a phone, else the phone browser zooms in"
     assert "var(--ll-vvh" in phone and "var(--ll-vvt" in phone, "the layer around a field follows the visual viewport"
     assert "html.ll-kb-open .ask__tools" in phone, "the Ask history keeps its room while the keyboard is up"
     assert ".ll-tz-a::after" in css and ".ll-tz-b::before" in css

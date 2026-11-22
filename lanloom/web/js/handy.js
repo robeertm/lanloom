@@ -5,7 +5,7 @@
       the next control and never through a clipping parent, so two neighbours never fight over the same fingertip. It is measured again for every
       node that appears later (live redraws, new sheets), and dropped when the window becomes wide. Where the gap is too small for 44 px the
       design has to make room (css/handy.css, the page's own rules); the phone walk of the test bench (shots/phone_usable.py) names those cases.
-   2. Keyboard guard. iOS shrinks only the VISUAL viewport when the keyboard opens; a layer that fills the screen keeps the full height and
+   2. Keyboard guard. A phone shrinks only the VISUAL viewport when the keyboard opens; a layer that fills the screen keeps the full height and
       its lower part, with the field in it, lies behind the keyboard. While the keyboard is up, the nearest screen-filling fixed layer around the
       focused field follows height and position of window.visualViewport (class ll-kb-layer, variables --ll-vvh / --ll-vvt on <html>), the
       page carries html.ll-kb-open (the page's own rules may make room for the history above the field), and a field outside the visible
@@ -15,7 +15,7 @@
 (function () {
   'use strict';
   const PHONE = 700;                 // px: up to here the phone layout applies (the same limit as the CSS and the sheets)
-  const MIN = 44;                    // px: Apple HIG fingertip size
+  const MIN = 44;                    // px: fingertip size of the platform guidelines
   const KEYBOARD_MIN = 120;          // px: a smaller difference between window and visible area is a bar, not a keyboard
   const SEL = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [role=tab], [role=link], [role=switch], [role=menuitem], [role=menuitemradio], [role=option], [tabindex="0"]';
   const root = document.documentElement;
@@ -155,7 +155,7 @@
     const l = layerOf(field);
     if (l !== layer) { if (layer) layer.classList.remove('ll-kb-layer'); layer = l; }
     if (layer) layer.classList.add('ll-kb-layer');
-    // a field outside the visible part comes into view (iOS does that for the page itself, not for a layer that follows the viewport)
+    // a field outside the visible part comes into view (the phone does that for the page itself, not for a layer that follows the viewport)
     window.requestAnimationFrame(() => {
       const f = fieldOf(document.activeElement); if (!f) return;
       const r = f.getBoundingClientRect(), top = vv.offsetTop + 8, bottom = vv.offsetTop + vv.height - 8;
