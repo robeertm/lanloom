@@ -9,6 +9,9 @@ end of the report window:
 * automations and scripts with runs that ended with an error during the night (admin mode; a point each, five at most
   by name, the rest counted; the short error text has entity ids replaced by display names, see
   ``hub_privacy.error_text``; one summary read from the hub per report, never per automation);
+* automations whose runs the hub dropped, stopped or queued out because of their mode during the night (admin mode, from
+  the same summary; a point each: ``single`` dropped a start while a run went on, ``restart`` stopped runs three times
+  within an hour, ``queued``/``parallel`` hit the maximum number of runs; with the count, the last time and the mode);
 * integrations that fail to start or keep retrying (a point);
 * unavailable entities, bundled per domain (a point from three on, otherwise a note);
 * automations that switch what starts them, and ``single`` automations that drop starts while they wait (notes);
@@ -31,12 +34,15 @@ import copy
 import hashlib
 from urllib.parse import quote
 
-from .. import hubauto, hubbridge
+from .. import hubauto, hubbridge, hubchain
 from .contrib import Contribution, Ctx, _short, item, register, section
 
 ID = "auto"
 MAX_NAMES = 3
 MAX_RUN_NAMED = 5               # automations named with failed runs; the rest is counted
+MODE_KEYS = {"single": "report.auto.mode_single", "restart": "report.auto.mode_restart", "max_runs": "report.auto.mode_max_runs"}
+MODE_MORE = "report.auto.mode_more"
+MAX_MODE_NAMED = 5              # automations named with mode conflicts; the rest is counted
 MAX_NOTES = 4                   # notes of new self triggers / waiting singles per hub
 KNOWN_FOR_S = 36 * 3600         # a finding that was not seen for this long is new again
 FRESH_S = 1800                  # the summary of failed runs must have been read this close to the end of the window
@@ -151,6 +157,7 @@ def _run_items(ctx: Ctx, a, entry: dict, iid: int, rows: list) -> tuple[list, in
     if not fresh:
         return items, 0
     names = {r["id"]: r["name"] for r in rows}
+    items.extend(_mode_items(ctx, a, iid, names))
     failed = hubbridge.failed_runs(entry, ctx.since, ctx.until)
     order = sorted(failed, key=lambda e: (-len(failed[e]), -failed[e][0]["at"], e))
     for eid in order[:MAX_RUN_NAMED]:
@@ -168,6 +175,23 @@ def _run_items(ctx: Ctx, a, entry: dict, iid: int, rows: list) -> tuple[list, in
     return items, len(order)
 
 
+def _mode_items(ctx: Ctx, a, iid: int, names: dict) -> list:
+    """Runs dropped, stopped or queued out because of the mode: a point per automation (five by name), the rest in one
+    point. Read from the summary of runs that was read for the failed runs (no extra request)."""
+    events = hubchain.mode_events(a, ctx.since, ctx.until)
+    items = []
+    for ev in events[:MAX_MODE_NAMED]:
+        it = item("auto:%d:mode:%s:%s" % (iid, ev["kind"], ev["entity"]), MODE_KEYS[ev["kind"]], "warn", True,
+                  name=_short(names.get(ev["entity"]) or ev["name"]), n=ev["n"], last_at=ev["last"])
+        it["href"] = _href(iid, ev["entity"])
+        items.append(it)
+    rest = events[MAX_MODE_NAMED:]
+    if rest:
+        items.append(item("auto:%d:mode_more" % iid, MODE_MORE, "warn", True, n=len(rest),
+                          names=_names(names.get(e["entity"]) or e["name"] for e in rest)))
+    return items
+
+
 def _section(ctx: Ctx, integ: dict) -> dict | None:
     a = _ctx(ctx, integ)
     if not _has_source(a):
@@ -183,6 +207,7 @@ def _section(ctx: Ctx, integ: dict) -> dict | None:
         items.append(item("auto:%d:conflict:%s:%s:%s" % (iid, c["entity"], c["a"], c["b"]), "report.auto.conflict", "warn", True,
                           entity=_short(c["name"]), a=_short(c["a_name"]), b=_short(c["b_name"]), n=c["n"], last_at=c["last"]))
     run_items, run_autos = _run_items(ctx, a, entry, iid, rows)
+    mode_n = sum(i["vars"]["n"] if i["key"] == MODE_MORE else 1 for i in run_items if i["key"] in MODE_KEYS.values() or i["key"] == MODE_MORE)
     items.extend(run_items)
     if never:
         items.append(item("auto:%d:never" % iid, "report.auto.never", "info", False, n=len(never), names=_names(never),
@@ -192,7 +217,7 @@ def _section(ctx: Ctx, integ: dict) -> dict | None:
     if baseline:
         items.append(item("auto:%d:baseline" % iid, "report.auto.baseline", "info", False, n=baseline))
     parts = [{"key": "report.auto.part." + k, "vars": {"n": v}} for k, v in (
-        ("findings", sum(1 for r in rows if r["findings"])), ("conflicts", len(conflicts)), ("failed_runs", run_autos),
+        ("findings", sum(1 for r in rows if r["findings"])), ("conflicts", len(conflicts)), ("failed_runs", run_autos), ("mode_conflicts", mode_n),
         ("integrations", len(health["integrations"]["problems"])), ("unavailable", health["unavailable_total"])) if v]
     autos = sum(1 for r in rows if r["kind"] == "automation")
     if not a.flows:

@@ -126,7 +126,7 @@
   function findingText(f) {
     const v = { n: f.n, names: list(f.names || [], 'conjunction', 3), other: f.other_name, days: f.days };
     if (f.last) v.last = LL.fmtDate(f.last);
-    return t('auto.f.' + f.code + '.text', v);
+    return t('auto.f.' + f.code + '.text' + (f.code === 'mode' ? '.' + f.kind : ''), v);
   }
   const findingChip = f => chip(LEVEL_CHIP[f.level] || 'muted', t('auto.f.' + f.code), findingText(f));
   const stateChip = (kind, st) => kind === 'script' ? chip(st === 'on' ? 'ok' : 'muted', st === 'on' ? t('auto.state.running') : t('auto.kind.script'))
@@ -317,7 +317,9 @@
       }
       s.addEventListener('input', draw);
       draw();
-      return h('div', { class: 'au-stack' }, adminNote(data), confCard, h('p', { class: 'muted au-note' }, t('auto.who.note')), h('div', { class: 'toolbar au-tools' }, s), rowsBox);
+      const chainCardWho = h('div', { class: 'card au-chaincard' }, h('h2', { class: 'au-card__title' }, t('auto.chain.title_who')),
+        h('p', { class: 'muted au-note' }, t('auto.chain.lead')), chainSection(integ, {}, { bare: true, max: 8 }));
+      return h('div', { class: 'au-stack' }, adminNote(data), confCard, chainCardWho, h('p', { class: 'muted au-note' }, t('auto.who.note')), h('div', { class: 'toolbar au-tools' }, s), rowsBox);
     }
 
     // timeline
@@ -509,6 +511,68 @@
   }
 
   // ------------------------------------------------------------------ one automation
+
+  // ------------------------------------------------------------------ effect chains: sensor -> automation -> ... -> device
+  // from the runs the hub stored (one summary, read by the bridge; nothing is asked per automation). Every link is a link:
+  // automations and scripts open their page, entities the dependency board.
+  function chainLink(integ, n) {
+    const href = n.kind === 'entity' ? '#/automations/' + integ + '/board/' + enc(n.id) : '#/automations/' + integ + '/item/' + enc(n.id);
+    return h('a', { class: 'au-chain__name', href }, n.name);
+  }
+  function chainEl(integ, c) {
+    const last = c.links.length - 1;
+    const total = c.links.length;
+    const steps = c.links.map((n, i) => {
+      const tag = i === last ? t('auto.chain.k.device') : (i === 0 && c.origin) ? t('auto.chain.k.trigger') : t('auto.kind.' + n.kind);
+      const meta = [];
+      if (i === last && n.state != null) meta.push(LL.hubValue(n.state));
+      if (n.at) meta.push(clock(n.at));
+      return h('li', { class: 'au-chain__step au-chain__step--' + (i === last ? 'device' : n.kind), 'aria-label': t('auto.chain.step', { n: i + 1, total, name: n.name }) },
+        h('span', { class: 'au-chain__tag' }, tag), chainLink(integ, n), meta.length ? h('span', { class: 'au-chain__meta muted' }, meta.join(' · ')) : null);
+    });
+    return h('div', { class: 'au-chain' }, h('ol', { class: 'au-chain__steps' }, steps),
+      !c.origin ? h('p', { class: 'muted au-chain__note' }, t('auto.chain.unknown_start')) : null,
+      c.cut ? h('p', { class: 'muted au-chain__note' }, t('auto.chain.cut', { n: c.depth })) : null,
+      c.cycle ? h('p', { class: 'muted au-chain__note' }, t('auto.chain.cycle')) : null);
+  }
+  // one card; q = { entity | device | item }; opts.title = i18n key of the heading, opts.bare = no card frame (inside a device card)
+  function chainSection(integ, q, opts) {
+    opts = opts || {};
+    const body = h('div', { class: 'au-chains__body' }, h('div', { class: 'skeleton' }));
+    const el = h('div', { class: 'au-chains' + (opts.bare ? '' : ' card') }, body);
+    let alive = true;
+    function note(key) { return h('p', { class: 'muted au-note' }, t(key)); }
+    function draw(d) {
+      const st = (d.runs_summary || {}).state;
+      const kids = [];
+      if (st === 'no_hub') { el.hidden = true; return; }
+      el.hidden = false;
+      if (st === 'admin_off') kids.push(note('auto.chain.admin'));
+      else if (st === 'waiting') kids.push(note(d.asked ? 'auto.chain.asking' : 'auto.chain.waiting'));
+      else if (st === 'error') kids.push(note('auto.chain.error'));
+      else {
+        if (!d.chains.length) kids.push(note('auto.chain.none'));
+        else {
+          kids.push(h('p', { class: 'muted au-note au-chains__count' }, t('auto.chain.count', { n: d.chains.length })));
+          d.chains.slice(0, opts.max || 12).forEach(c => kids.push(chainEl(integ, c)));
+        }
+        const sm = d.runs_summary;
+        kids.push(h('p', { class: 'muted au-note au-chains__read' }, t('auto.chain.read', { ago: t('time.ago', { age: LL.fmtAge(sm.age_s) }) }) + (sm.stale ? ' ' + t('auto.chain.stale') : '')));
+      }
+      body.replaceChildren(...kids);
+    }
+    async function load() {
+      const qs = new URLSearchParams(q || {}).toString();
+      try { const d = await api('/api/hub/' + integ + '/auto/chain' + (qs ? '?' + qs : '')); if (alive) { draw(d); if (opts.onload) opts.onload(d); } }
+      catch (e) { if (alive && !body.querySelector('.au-chain')) body.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); }
+    }
+    el.__load = load;
+    el.__destroy = () => { alive = false; };
+    load();
+    return el;
+  }
+  LL.autoChain = { section: chainSection, el: chainEl };
+
   async function itemPage(fr, page, integ, eid) {
     page.classList.add('au-item');
     let alive = true, d = null;
@@ -517,6 +581,7 @@
     const grid = h('div', { class: 'au-item__grid' });
     const runsBox = h('div', { class: 'card au-runs' });
     const boardBox = h('div', { class: 'card au-boardcard' });
+    let chainBox = null;
     page.append(back, head, grid);
     let traces = null, traceWait = null, board = null, fw = null;
     async function load() {
@@ -525,6 +590,7 @@
       if (!alive) return;
       if (fw) fw.ok();
       draw();
+      if (chainBox) chainBox.querySelector('.au-chains').__load();
     }
     function draw() {
       const r = d.row;
@@ -539,9 +605,14 @@
           f.ids && f.ids.length && f.code !== 'dead' ? h('span', { class: 'au-findings__links' }, f.ids.slice(0, 3).map(x => h('a', { href: '#/automations/' + integ + '/board/' + enc(x) }, t('auto.board.short')))) : null))) :
           h('p', { class: 'muted' }, d.explain.exact ? t('auto.findings.none') : t('auto.findings.limited')));
       grid.replaceChildren(h('div', { class: 'au-item__main' }, adminNote({ admin: d.admin, exact: d.explain.exact ? 1 : 0 }), plainWords(d.explain, r), flowCard(), boardBox),
-        h('div', { class: 'au-item__side' }, fnd, runsBox, related()));
+        h('div', { class: 'au-item__side' }, fnd, chainCard(), runsBox, related()));
       drawRuns();
       drawBoard();
+    }
+    function chainCard() {          // built once, so the 15 s refresh redraws it in place instead of flashing
+      if (!chainBox) chainBox = h('div', { class: 'card au-chaincard' }, h('h2', { class: 'au-card__title' }, t('auto.chain.title')),
+        h('p', { class: 'muted au-note' }, t('auto.chain.lead')), chainSection(integ, { item: eid }, { bare: true }));
+      return chainBox;
     }
     const fact = (label, value) => h('div', { class: 'au-fact' }, h('span', { class: 'au-fact__label' }, label), h('span', { class: 'au-fact__value' }, value));
     function flowCard() {
@@ -747,6 +818,8 @@
       keywords: () => t('cmdk.kw.automations'), run: goMode('list') });
     MODES.filter(m => m !== 'list').forEach((m, i) => LL.registerCommand({ id: 'go.automations.' + m, group: 'views', order: 4.6 + i / 100, typedOnly: true, available: hasHub,
       label: () => t('cmdk.go', { name: t('nav.automations') + ' › ' + t('auto.mode.' + m) }), keywords: () => t(MODE_KW[m]), run: goMode(m) }));
+    LL.registerCommand({ id: 'go.automations.chains', group: 'views', order: 4.71, typedOnly: true, available: hasHub, label: () => t('cmdk.auto_chains'),
+      keywords: () => t('cmdk.kw.auto_chains'), run: goMode('who') });
     LL.registerCommand({ id: 'auto.findings', group: 'views', order: 4.7, typedOnly: true, available: hasHub, label: () => t('cmdk.auto_findings'),
       keywords: () => t('cmdk.kw.auto_findings'), run: () => { store('ll-auto-mode', 'list'); LL.go('#/automations?finding=any'); } });
   }

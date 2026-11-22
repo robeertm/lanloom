@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.routing import APIRoute
 from starlette.routing import Match
 
-from . import __version__, access, agents as agents_mod, api_v1, apitokens, auth, config as config_mod, demoview, flood, mapmodel, palette, setup_assist, textfmt
+from . import __version__, access, hub_privacy, agents as agents_mod, api_v1, apitokens, auth, config as config_mod, demoview, flood, mapmodel, palette, setup_assist, textfmt
 from . import sites as sites_mod
 from .audit import AuditLog
 from .core import Core
@@ -1070,6 +1070,16 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
     async def hub_auto_board(integ_id: int, entity_id: str):
         view = state.core.hub_auto(integ_id, "board", entity_id)
         return view if view is not None else err("hub.err.entity", 404)
+
+    @app.get("/api/hub/{integ_id}/auto/chain")
+    async def hub_auto_chain(integ_id: int, entity: str = "", device: str = "", item: str = ""):
+        for value in (entity, item):
+            if value and not hub_privacy.valid_entity_id(value):
+                return err("hub.err.entity", 400)
+        if len(device) > 200:
+            return err("hub.err.entity", 400)
+        view = state.core.hub_chain(integ_id, entity or None, device or None, item or None)
+        return view if view is not None else err("hub.err.missing", 404)
 
     def _auto_part(part):
         async def handler(integ_id: int):

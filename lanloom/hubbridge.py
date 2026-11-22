@@ -28,8 +28,12 @@ MAX_CHANGES = 20000
 MAX_RUN_LOG = 20000           # automation/script runs of the last 24 hours (the timeline)
 MAX_RUN_PENDING = 2000
 MAX_FAILED_RUNS = 5           # failed runs kept per automation in the nightly summary
-MAX_RUN_SUMMARY_ITEMS = 300
+MAX_RUN_SUMMARY_ITEMS = 500
 RUNS_WAIT_S = 40.0            # the nightly report waits this long for the summary of failed runs
+RUNS_REFRESH_S = 300.0        # the effect chains / mode conflicts ask the hub for a fresh summary at most this often
+RUNS_STALE_S = 3600.0         # a summary older than this says "may be out of date" in the views
+MAX_RUN_KEPT = 10             # runs kept per automation/script from the summary (effect chains, mode conflicts)
+RUN_WORDS = frozenset(("ok", "error", "single", "max_runs", "cancelled", "conditions", "aborted", "other"))
 
 
 def new_entry(live_cadence) -> dict:
@@ -121,8 +125,40 @@ def clean_run_summary(ev: dict, now: float) -> dict:
         if len(items) >= MAX_RUN_SUMMARY_ITEMS:
             break
     err = ev.get("error")
-    return {"t": float(ev.get("t") or now), "items": items, "checked": int(ev.get("checked") or 0),
-            "error": err if isinstance(err, str) and err.startswith("source.hub.") else None}
+    return {"t": float(ev.get("t") or now), "items": items, "runs": clean_runs(ev.get("runs")),
+            "checked": int(ev.get("checked") or 0), "error": err if isinstance(err, str) and err.startswith("source.hub.") else None}
+
+
+def _num(v):
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v else None
+
+
+def _item_id(v, kinds=("automation", "script")):
+    return v if privacy.valid_entity_id(v) and privacy.domain_of(v) in kinds and not privacy.is_private(v) else None
+
+
+def clean_runs(raw) -> dict:
+    """The newest runs per automation/script as the bridge reported them: ``{entity: [{at, end, r, trig, by}]}`` newest
+    first. ``at``/``end`` are Unix seconds, ``r`` a result word, ``trig`` the entity that started the run (a state, not
+    private), ``by`` the automation/script whose run called this one. Anything else is dropped; memory only."""
+    out = {}
+    for eid, runs in raw.items() if isinstance(raw, dict) else ():
+        if not _item_id(eid) or not isinstance(runs, list):
+            continue
+        keep = []
+        for r in runs:
+            at = _num(r.get("at")) if isinstance(r, dict) else None
+            if at is None:
+                continue
+            word = r.get("r") if r.get("r") in RUN_WORDS else "other"
+            trig = r.get("trig") if privacy.valid_entity_id(r.get("trig")) and not privacy.is_private(r.get("trig")) else None
+            by = _item_id(r.get("by"))
+            keep.append({"at": at, "end": _num(r.get("end")), "r": word, "trig": trig, "by": by if by != eid else None})
+        if keep:
+            out[eid] = sorted(keep, key=lambda x: -x["at"])[:MAX_RUN_KEPT]
+        if len(out) >= MAX_RUN_SUMMARY_ITEMS:
+            break
+    return out
 
 
 def failed_runs(entry: dict, since: float, until: float) -> dict:

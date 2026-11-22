@@ -243,6 +243,7 @@ RULES = {
     ("GET", "/api/hub/{integ_id}/auto"): R(V),                     # the Automations tab: everything read only
     ("GET", "/api/hub/{integ_id}/auto/item/{entity_id}"): R(V),
     ("GET", "/api/hub/{integ_id}/auto/board/{entity_id}"): R(V),
+    ("GET", "/api/hub/{integ_id}/auto/chain"): R(V),                # effect chains from the stored runs; one summary, never per item
     ("GET", "/api/hub/{integ_id}/auto/who"): R(V),
     ("GET", "/api/hub/{integ_id}/auto/timeline"): R(V),
     ("GET", "/api/hub/{integ_id}/auto/plan"): R(V),

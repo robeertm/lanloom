@@ -20,6 +20,9 @@ Findings (``FINDINGS``) per automation, from its own rules:
 * ``single_wait``  mode ``single`` with a wait or delay: starts that come while it waits are dropped
 * ``self_trigger`` switches an entity that also starts it
 * ``conflict``     another automation set the same entity to the opposite state within ``CONFLICT_S`` seconds
+* ``mode``         runs the hub dropped, stopped or queued out because of the automation's mode (from the stored runs,
+                   see ``hubchain``): ``single`` dropped a start, ``restart`` stopped runs three times within an hour,
+                   ``queued``/``parallel`` hit the maximum number of runs
 * ``loop``         a script loop (from the bridge)
 * ``blocked``      the bridge pauses its lookups (the hub answered with an error)
 """
@@ -28,13 +31,13 @@ from __future__ import annotations
 import time
 
 from . import hub_privacy as privacy
-from . import hubbridge
+from . import hubbridge, hubchain
 from .sources import hub_flow
 
 NEVER_DAYS = 30
 CONFLICT_S = 60.0                 # two automations setting one entity to opposite states within this window: a conflict
-FINDINGS = ("dead", "unavailable", "runaway", "conflict", "self_trigger", "loop", "single_wait", "never", "blocked")
-LEVEL = {"dead": "warn", "unavailable": "warn", "runaway": "warn", "conflict": "warn", "self_trigger": "info",
+FINDINGS = ("dead", "unavailable", "runaway", "conflict", "mode", "self_trigger", "loop", "single_wait", "never", "blocked")
+LEVEL = {"dead": "warn", "unavailable": "warn", "runaway": "warn", "conflict": "warn", "mode": "warn", "self_trigger": "info",
          "loop": "warn", "single_wait": "info", "never": "info", "blocked": "info"}
 MAX_NAMES = 6
 MAX_WHO = 200
@@ -446,6 +449,8 @@ def findings(ctx: Ctx, eid: str, row: dict, conflicts: dict) -> list:
     for c in conflicts.get(eid) or []:
         out.append({"code": "conflict", "ids": [c["entity"]], "names": [c["name"]], "other": c["other"],
                     "other_name": c["other_name"], "n": c["n"], "last": c["last"]})
+    for ev in hubchain.modes_by_item(ctx).get(eid) or []:
+        out.append({"code": "mode", "kind": ev["kind"], "mode": ev["mode"], "n": ev["n"], "last": ev["last"]})
     if row.get("loop"):
         out.append({"code": "loop"})
     if row["kind"] == "automation" and row.get("state") == "on" and (
@@ -822,6 +827,17 @@ def rows(ctx: Ctx, only: str | None = None) -> list:
     return out
 
 
+def chain_view(ctx: Ctx, entity: str | None = None, device: str | None = None, item: str | None = None) -> dict:
+    """Effect chains of the last 24 hours for one entity, one hub device (all its entities) or one automation/script."""
+    ents = None
+    if entity:
+        ents = [entity]
+    elif device:
+        ents = [e for e, info in ctx.ents.items() if info.get("device_id") == device]
+    return {"chains": hubchain.chains(ctx, entities=ents, item=item), "runs_summary": hubchain.summary(ctx.entry, ctx.now),
+            "window_s": hubchain.WINDOW_S, "max_depth": hubchain.MAX_DEPTH}
+
+
 def tab(ctx: Ctx, radio: dict | None = None) -> dict:
     """The list page with its counts and filters."""
     rs = rows(ctx)
@@ -857,6 +873,7 @@ def detail(ctx: Ctx, eid: str) -> dict | None:
     for b, c in (rec.get("hours") or {}).items():
         hours[int(b) * hubbridge.HOUR] = c
     return {"row": row, "explain": explain(ctx, flow), "flow": parts, "cut": bool((flow or {}).get("cut")),
+            "chains": hubchain.chains(ctx, item=eid)[:20], "runs_summary": hubchain.summary(ctx.entry, ctx.now),
             "related": [ctx.ent_info(e) for e in (refs.get("related") or [])[:40]],
             "hours": sorted(([t, n] for t, n in hours.items() if t >= ctx.now - 86400 - hubbridge.HOUR), key=lambda x: x[0]),
             "admin": ctx.admin}

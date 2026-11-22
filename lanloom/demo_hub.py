@@ -33,7 +33,7 @@ CONFIGS = {
         "alias": "Hallway light on motion", "description": "dim at night",
         "triggers": [_state("binary_sensor.hallway_4", "on")],
         "conditions": [{"condition": "numeric_state", "entity_id": "sensor.hallway_1", "below": 20}],
-        "actions": [_call("light.turn_on", "light.hallway_2", brightness_pct=40), {"delay": "0:02:00"},
+        "actions": [{"action": "script.hallway_scene"}, {"delay": "0:02:00"},
                     _call("light.turn_off", "light.hallway_2")]},
     "automation.garden_irrigation": {
         "triggers": [{"trigger": "sun", "event": "sunrise", "offset": "-00:30:00"}],
@@ -101,6 +101,8 @@ CONFIGS = {
                      {"action": "script.irrigation_check"}]},
     "script.irrigation_check": {
         "sequence": [{"condition": "numeric_state", "entity_id": "sensor.garden_1", "below": 30}, {"action": "script.irrigation_cycle"}]},
+    "script.hallway_scene": {
+        "sequence": [_call("light.turn_on", "light.hallway_2", "light.mesh_switch_hall", brightness_pct=40)]},
     "script.good_night": {
         "sequence": [_call("light.turn_off", "light.living_room_2", "light.kitchen_2"), _call("switch.turn_off", "switch.office_3"),
                      {"repeat": {"count": 2, "sequence": [_call("light.toggle", "light.hallway_2"), {"delay": 1}]}}]},
@@ -144,6 +146,7 @@ SCRIPTS = [
     ("script.irrigation_cycle", "Irrigation cycle", "single", _refs("script.irrigation_cycle")),
     ("script.irrigation_check", "Irrigation check", "single", _refs("script.irrigation_check")),
     ("script.good_night", "Good night", "single", _refs("script.good_night")),
+    ("script.hallway_scene", "Hallway scene", "single", _refs("script.hallway_scene")),
 ]
 LOOP = ["script.irrigation_check", "script.irrigation_cycle"]
 BLOCKED = "automation.garage_door_reminder"
@@ -155,7 +158,8 @@ ENTRIES = [("sample_hub", "loaded", 1), ("sample_wlan", "loaded", 4), ("sample_m
 # desk focus switch the office plug in opposite directions a few seconds apart (a conflict)
 CHANGE_PATTERN = [
     ("switch.office_3", "automation.desk_focus", "on", 600), ("switch.office_3", "automation.office_power_saver", "off", 640),
-    ("light.hallway_2", "automation.hallway_light_on_motion", "on", 900), ("light.hallway_2", "automation.hallway_light_on_motion", "off", 1020),
+    ("light.hallway_2", "script.hallway_scene", "on", 903), ("light.mesh_switch_hall", "script.hallway_scene", "on", 904),
+    ("light.hallway_2", "automation.hallway_light_on_motion", "off", 1020),
     ("light.living_room_2", "user", "on", 1500), ("light.living_room_6", "automation.living_room_scene_sync", "on", 1501),
     ("switch.kitchen_3", "automation.kitchen_climate", "on", 2100), ("switch.kitchen_3", None, "off", 2700),
     ("binary_sensor.hallway_4", None, "on", 899), ("binary_sensor.office_4", None, "off", 3000),
@@ -482,13 +486,36 @@ def traces(entity_id: str, now: float) -> dict | None:
     return {"type": "hub_traces", "source": "hub", "t": now, "entity_id": entity_id, "runs": runs, "steps": steps}
 
 
+def _hour_bases(now: float, hours: int = 24) -> list:
+    """The start of each of the last clock hours the change pattern covers (newest first), as ``change_frames`` uses them."""
+    return [(int(now // 3600) - h) * 3600 for h in range(1, hours + 1)]
+
+
 def runs_frame(now: float, failed_at: list | None = None) -> dict:
-    """The summary of failed runs the bridge reports once per nightly report: the kitchen climate automation ended with an
-    error twice (a sample plug it names is gone). The error text went through ``hub_privacy.error_text`` like a real one."""
+    """The summary of runs the bridge reports once per nightly report and on demand: the kitchen climate automation ended
+    with an error twice (a sample plug it names is gone; the error text went through ``hub_privacy.error_text`` like a real
+    one), and the stored runs behind the sample's effect chain and mode conflicts:
+
+    * the hallway motion sensor starts the hallway light automation, which calls the hallway scene (a script) that
+      switches the hallway lamp - one chain every evening hour, as the change pattern has it;
+    * the garden light automation (mode single) dropped two starts while its run went on;
+    * the desk focus automation (mode restart) was stopped three times within an hour;
+    * the kitchen climate automation (mode queued) found its queue full twice."""
     from . import hub_privacy
     text = hub_privacy.error_text("Unable to find referenced entities switch.kitchen_gone", {"switch.kitchen_gone": "Kitchen plug (old)"}.get)
     times = [now - 5.1 * 3600, now - 9.4 * 3600] if failed_at is None else failed_at
-    return {"type": "hub_runs", "source": "hub", "t": now, "checked": len(AUTOMATIONS) + len(SCRIPTS),
+    runs = {"automation.hallway_light_on_motion": [], "script.hallway_scene": []}
+    for base in _hour_bases(now):
+        if 1 <= time.localtime(base).tm_hour <= 5:
+            continue
+        runs["automation.hallway_light_on_motion"].append({"at": base + 900, "end": base + 1020, "r": "ok", "trig": "binary_sensor.hallway_4", "by": None})
+        runs["script.hallway_scene"].append({"at": base + 901, "end": base + 903, "r": "ok", "trig": None, "by": "automation.hallway_light_on_motion"})
+    runs["automation.garden_light_on_motion"] = [{"at": now - t, "end": now - t, "r": "single", "trig": "binary_sensor.garden_4", "by": None}
+                                                 for t in (3.2 * 3600, 7.0 * 3600)]
+    runs["automation.desk_focus"] = [{"at": now - t - 60, "end": now - t, "r": "cancelled", "trig": "binary_sensor.office_4", "by": None}
+                                     for t in (3000, 2300, 1100)] + [{"at": now - 400, "end": now - 300, "r": "ok", "trig": "binary_sensor.office_4", "by": None}]
+    runs["automation.kitchen_climate"] = [{"at": now - t, "end": now - t, "r": "max_runs", "trig": None, "by": None} for t in (2.0 * 3600, 2.1 * 3600)]
+    return {"type": "hub_runs", "source": "hub", "t": now, "checked": len(AUTOMATIONS) + len(SCRIPTS), "runs": runs,
             "items": {"automation.kitchen_climate": [{"at": t, "text": text} for t in times]} if times else {}}
 
 

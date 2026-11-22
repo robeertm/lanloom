@@ -341,3 +341,25 @@ a.au-plan__name:hover { color: var(--ll-accent-text); }
   .au-rooms, .au-sides { grid-template-columns: minmax(0, 1fr); }
   .au-boardcard--page { padding: 12px; }
 }
+
+/* effect chains (H6): a vertical stepper per chain - what started it, the automations and scripts, the device */
+.au-chaincard { padding: 16px 18px; }
+.au-chaincard > .au-note { margin: 4px 0 12px; }
+.au-chains__body { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; align-items: start; }
+.au-chains__body > .au-note, .au-chains__body > .msg, .au-chains__body > .skeleton { grid-column: 1 / -1; margin: 0; }
+.au-chain { min-width: 0; padding: 10px 12px; border: 1px solid var(--ll-border); border-radius: var(--ll-radius-md, 10px); background: var(--ll-surface-2); }
+.au-chain__steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.au-chain__step { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; padding: 4px 0 4px 20px; font-size: var(--ll-fs-sm); }
+.au-chain__step::before { content: ''; position: absolute; left: 4px; top: 11px; width: 9px; height: 9px; border-radius: 50%; background: var(--ll-accent); box-shadow: 0 0 0 3px var(--ll-surface-2); z-index: 1; }
+.au-chain__step::after { content: ''; position: absolute; left: 8px; top: 20px; bottom: -11px; width: 1px; background: var(--ll-border-strong); }
+.au-chain__step:last-child::after { display: none; }
+.au-chain__step--entity::before { background: var(--ll-text-3); }
+.au-chain__step--device::before { background: var(--ll-ok, var(--ll-accent)); }
+.au-chain__tag { grid-column: 1 / -1; font-size: var(--ll-fs-xs); color: var(--ll-text-3); text-transform: uppercase; letter-spacing: .05em; }
+.au-chain__name { min-width: 0; overflow-wrap: anywhere; font-weight: var(--ll-fw-semibold); color: var(--ll-text); text-decoration: none; }
+.au-chain__name:hover, .au-chain__name:focus-visible { text-decoration: underline; }
+.au-chain__meta { white-space: nowrap; font-size: var(--ll-fs-xs); font-variant-numeric: tabular-nums; }
+.au-chain__note { margin: 6px 0 0 20px; font-size: var(--ll-fs-xs); }
+.au-chains__read { font-size: var(--ll-fs-xs); }
+.hub-sub .au-chains { padding: 0; }
+.au-chains__count { margin: 0; }

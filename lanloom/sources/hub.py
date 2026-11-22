@@ -28,9 +28,12 @@ Emits:
 * ``hub_triggers`` every 10 seconds: how often each automation/script ran since the last frame;
 * ``hub_deps`` (admin mode): entity ids each automation/script names per role, related items, script loops, blocks;
 * ``hub_traces`` (admin mode, on request): the last runs of one automation/script and the step path of the newest;
-* ``hub_runs`` (admin mode, once per nightly report): one ``trace/list`` per domain without an item (the stored run
-  summaries of all automations and scripts, one reply each): per item the runs that ended with an error (time, a short
-  harmless error text from ``hub_privacy.error_text``); nothing else of a run leaves this module;
+* ``hub_runs`` (admin mode, once per nightly report and on demand, at most every few minutes): one ``trace/list`` per
+  domain without an item (the stored run summaries of all automations and scripts, one reply each): per item the runs
+  that ended with an error (time, a short harmless error text from ``hub_privacy.error_text``) and, per item, its newest
+  runs as ``{"at", "end", "r" (result word), "trig" (the entity that started it, only a known one), "by" (the
+  automation/script whose run called it)}`` for the effect chains and the mode conflicts; context ids are resolved here
+  into ``by`` and never leave this module; nothing else of a run leaves it;
 * ``hub_bridge`` every minute: counters of the bridge (sent per type, refused, private entities dropped, budgets).
 
 The token is kept in a private attribute only; it never appears in logs, exception texts, events or ``repr()``.
@@ -115,8 +118,13 @@ CONTEXT_TTL_S = 600.0
 MAX_TRACE_WANTED = 20
 MAX_TRACE_RUNS = 20
 MAX_TRACE_STEPS = 100
-MAX_RUN_ITEMS = 300              # items with failed runs in one summary
+MAX_RUN_ITEMS = 500              # items with runs (or failed runs) in one summary
 MAX_FAILED_RUNS = 5              # failed runs kept per item (newest first; the hub keeps about as many)
+MAX_KEPT_RUNS = 10               # runs kept per item for the effect chains (the hub stores about five by default)
+# the result word of a stored run (``script_execution``) -> what the core calls it
+RUN_RESULTS = {"finished": "ok", "error": "error", "failed_single": "single", "failed_max_runs": "max_runs",
+               "cancelled": "cancelled", "failed_conditions": "conditions", "aborted": "aborted"}
+_TRIG_RX = re.compile(r"\b([a-z][a-z0-9_]{0,63}\.[a-z0-9_]{1,190})\b")
 # load protection of the admin-mode lookups
 CONFIG_PER_MIN = 30
 RELATED_PER_MIN = 20
@@ -611,12 +619,23 @@ class Hub:
         if not self.admin_mode or "trace/list" in self._dead_types:
             return False
         if self._runs_job is None:
-            self._runs_job = {"todo": list(ITEM_DOMAINS), "items": {}, "checked": 0, "error": None}
+            self._runs_job = {"todo": list(ITEM_DOMAINS), "items": {}, "runs": {}, "checked": 0, "error": None}
         return True
 
     def _name_of(self, eid: str):
         st = self._states.get(eid)
         return st[2] if st and st[2] else None
+
+    def _trigger_entity(self, text) -> str | None:
+        """The entity named by a run's trigger description ("state of binary_sensor.motion"): only one the bridge knows
+        and may show, else None."""
+        if not isinstance(text, str):
+            return None
+        for m_ in _TRIG_RX.finditer(text[:200]):
+            eid = m_.group(1)
+            if eid in self._states and not privacy.is_private(eid, self.show):
+                return eid
+        return None
 
     def _sum_runs(self, job: dict, domain: str, raw) -> None:
         by_id = {it.get("id"): eid for eid, it in self._items.items() if it.get("id") and privacy.domain_of(eid) == domain}
@@ -627,14 +646,39 @@ class Hub:
             if not eid or privacy.is_private(eid, self.show):
                 continue
             job["checked"] += 1
-            if not (r.get("error") or r.get("script_execution") == "error"):
-                continue
             stamp = r.get("timestamp") if isinstance(r.get("timestamp"), dict) else {}
-            at = _ts(stamp.get("finish")) or _ts(stamp.get("start"))
+            start, finish = _ts(stamp.get("start")), _ts(stamp.get("finish"))
+            at = finish or start
+            word = "error" if (r.get("error") or r.get("script_execution") == "error") else RUN_RESULTS.get(r.get("script_execution"), "other")
+            ctx = r.get("context") if isinstance(r.get("context"), dict) else {}
+            if start is not None and (eid in job["runs"] or len(job["runs"]) < MAX_RUN_ITEMS):
+                job["runs"].setdefault(eid, []).append({
+                    "at": start, "end": finish, "r": word, "trig": self._trigger_entity(r.get("trigger")),
+                    "_id": ctx.get("id") if isinstance(ctx.get("id"), str) else None,
+                    "_parent": ctx.get("parent_id") if isinstance(ctx.get("parent_id"), str) else None})
+            if word != "error":
+                continue
             if at is None or (eid not in job["items"] and len(job["items"]) >= MAX_RUN_ITEMS):
                 continue
             text = privacy.error_text(r.get("error"), self._name_of, self.show)
             job["items"].setdefault(eid, []).append({"at": at, "text": text})
+
+    @staticmethod
+    def _resolve_runs(runs: dict) -> dict:
+        """The runs of the summary with the context ids turned into ``by`` (the entity of the run that called this one)."""
+        owner = {}
+        for eid, lst in runs.items():
+            for r in lst:
+                if r["_id"]:
+                    owner[r["_id"]] = eid
+        out = {}
+        for eid, lst in runs.items():
+            keep = []
+            for r in sorted(lst, key=lambda x: -x["at"])[:MAX_KEPT_RUNS]:
+                by = owner.get(r["_parent"]) if r["_parent"] else None
+                keep.append({"at": r["at"], "end": r["end"], "r": r["r"], "trig": r["trig"], "by": by if by != eid else None})
+            out[eid] = keep
+        return out
 
     async def _run_summary_step(self, conn: _Conn, emit, mono: float) -> bool:
         """One reply of the summary within the trace budget; when both domains are read, the frame goes out."""
@@ -659,7 +703,8 @@ class Hub:
             return True
         self._runs_job = None
         items = {eid: sorted(runs, key=lambda x: -x["at"])[:MAX_FAILED_RUNS] for eid, runs in job["items"].items()}
-        frame = {"type": "hub_runs", "source": SOURCE, "t": now(), "items": items, "checked": job["checked"]}
+        frame = {"type": "hub_runs", "source": SOURCE, "t": now(), "items": items, "runs": self._resolve_runs(job["runs"]),
+                 "checked": job["checked"]}
         if job["error"]:
             frame["error"] = job["error"]
         await emit_event(emit, frame)

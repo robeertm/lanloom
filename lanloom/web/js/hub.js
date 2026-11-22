@@ -117,6 +117,10 @@
       h('span', { class: 'hub-ents__val' + (e.state === 'unavailable' ? ' is-down' : '') }, LL.hubValue ? LL.hubValue(e.state, e.unit) : String(e.state)))),
       v.entities_total > 12 ? h('li', { class: 'muted' }, h('a', { href: '#/sensors/' + v.integ }, t('hub.side.more', { n: v.entities_total - 12 }))) : null);
   }
+  function chainBlock(v) {          // the effect chains behind this device's switches (js/automations.js); also the phone sheet
+    if (!LL.autoChain || !v.integ || !v.device_id) return null;
+    return sub(t('auto.chain.title'), LL.autoChain.section(v.integ, { device: v.device_id }, { bare: true, max: 3 }));
+  }
   function deviceBlock(v, extra) {
     return [factsOf([
       [t('hub.side.name'), v.name],
@@ -127,7 +131,7 @@
       [t('hub.side.network'), v.network && v.network.coordinator ? t('radio.coordinator', { name: v.network.coordinator }) : null],
       [t('hub.side.integration'), (v.domains || []).length ? h('span', { class: 'mono' }, v.domains.join(', ')) : null],
       ...freshFacts(v.radio ? v.fresh : null),
-      ...(extra || [])]), entityList(v)];
+      ...(extra || [])]), entityList(v), chainBlock(v)];
   }
   async function setMatch(compId, v, action) {
     try {

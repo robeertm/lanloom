@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from lanloom import demo_hub, hub_privacy as hp, hubauto, hubbridge as hb, textfmt
+from lanloom import demo_hub, hub_privacy as hp, hubauto, hubbridge as hb, hubchain, textfmt
 from lanloom.nightly import render
 from lanloom.sources import hub as hub_src
 from lanloom.sources import hub_flow
@@ -355,8 +355,11 @@ def test_every_sentence_key_the_rules_can_build_exists_in_both_languages():
 def test_finding_and_health_texts_exist_with_their_values():
     for code in hubauto.FINDINGS:
         for strings in (EN, DE):
-            assert "auto.f." + code in strings and "auto.f." + code + ".text" in strings
-            assert textfmt.placeholders(strings["auto.f." + code + ".text"]) <= {"n", "names", "other", "days", "last"}
+            texts = ["auto.f.%s.text.%s" % (code, k) for k in hubchain.KINDS] if code == "mode" else ["auto.f.%s.text" % code]
+            assert "auto.f." + code in strings
+            for key in texts:                                       # the mode finding has one text per kind (H6)
+                assert key in strings
+                assert textfmt.placeholders(strings[key]) <= {"n", "names", "other", "days", "last"}
     for code in ("integration", "unavailable", "radio_silent", "limited"):
         assert "auto.health.f." + code in EN and "auto.health.f." + code in DE
     for state in hubauto.PROBLEM_ENTRY_STATES + ("not_loaded", "loaded"):
@@ -438,14 +441,15 @@ def demo_entry():
     for f in demo_hub.history_frames(now, random.Random(3)) + demo_hub.change_frames(now):
         hb.book(e, f, now)
     hb.book(e, demo_hub.deps_frame(now), now)
+    hb.book(e, demo_hub.runs_frame(now), now)
     return e
 
 
 def test_demo_shows_every_part_of_the_tab():
     c = hubauto.Ctx(demo_entry(), NOW)
     tab = hubauto.tab(c)
-    assert all(tab["counts"][code] for code in ("dead", "unavailable", "runaway", "conflict", "self_trigger", "loop", "single_wait", "never", "blocked"))
-    assert tab["totals"]["off"] == 1 and tab["totals"]["scripts"] == 3
+    assert all(tab["counts"][code] for code in ("dead", "unavailable", "runaway", "conflict", "self_trigger", "loop", "single_wait", "never", "blocked", "mode"))
+    assert tab["totals"]["off"] == 1 and tab["totals"]["scripts"] == 4
     plan = hubauto.dayplan(c)
     kinds = {m["kind"] for i in plan["items"] for m in i["marks"]}
     assert kinds == {"time", "sun"} and plan["rhythm"] and any(i["spans"] for i in plan["items"])

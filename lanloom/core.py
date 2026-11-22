@@ -1536,6 +1536,46 @@ class Core:
             if asked:
                 await asyncio.sleep(0.25)
 
+    def hub_refresh_runs(self, integ_id: int, now: Optional[float] = None) -> str:
+        """Ask the bridge for a fresh run summary when the views of the effect chains need one: admin mode only, at most
+        every ``RUNS_REFRESH_S`` seconds per connection, never one request per automation (the two ``trace/list`` replies
+        go out within the bridge's trace budget). Returns ``asked``, ``fresh``, ``admin_off`` or ``offline``."""
+        now = time.time() if now is None else now
+        integ = next((i for i in self.integrations() if i["id"] == integ_id and i["kind"] == "hub"), None)
+        entry = self.hub.get(integ_id)
+        if not integ or entry is None or not entry.get("snapshot"):
+            return "offline"
+        if not (integ["config"].get("admin_mode") or self.demo):
+            return "admin_off"
+        last = max((entry.get("run_summary") or {}).get("t", 0), entry.get("run_asked", 0))
+        if now - last < hubbridge.RUNS_REFRESH_S:
+            return "fresh"
+        entry["run_asked"] = now
+        if self.demo:
+            frame = self.demo.hub_runs() if hasattr(self.demo, "hub_runs") else None
+            if frame:
+                self.on_event("int:%d" % integ_id, integ_id, frame)
+                entry["run_status"] = {"t": now, "key": "ok"}
+            return "asked"
+        src = self._hub_sources.get(integ_id)
+        if src is None or not getattr(src, "want_run_summary", lambda: False)():
+            return "offline"
+        return "asked"
+
+    def hub_chain(self, integ_id: int, entity: Optional[str] = None, device: Optional[str] = None,
+                  item: Optional[str] = None) -> Optional[dict]:
+        """Effect chains (sensor -> automation -> ... -> device) of the last 24 hours for one entity, one hub device or one
+        automation/script, from the stored runs (see hubchain). None when the connection does not exist."""
+        if integ_id not in self.hub_ids():
+            return None
+        now = time.time()
+        asked = self.hub_refresh_runs(integ_id, now)
+        entry = self.hub.get(integ_id) or {}
+        ctx = hubauto.Ctx(entry, now)
+        head = {"integration": integ_id, "name": next((i["name"] for i in self.integrations() if i["id"] == integ_id), ""),
+                "connected": bool(ctx.snap), "admin": ctx.admin, "t": ctx.snap.get("t"), "now": now, "asked": asked == "asked"}
+        return dict(head, **hubauto.chain_view(ctx, entity, device, item))
+
     def hub_want_traces(self, integ_id: int, entity_id: str) -> dict:
         """Ask the bridge for the last runs of one automation/script (admin mode only, within the trace budget)."""
         integ = next((i for i in self.integrations() if i["id"] == integ_id and i["kind"] == "hub"), None)
