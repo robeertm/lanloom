@@ -88,7 +88,7 @@ def test_accessible_and_themed():
 
 def test_signal_block_is_drawn_for_access_points_only_and_reads_without_colour_alone():
     pf, css = read("js", "portfront.js"), read("css", "portfront.css")
-    assert "if (isAp && front.signal) root.append(signalBlock(front.signal))" in pf
+    assert "if (sigBox) root.append(sigBox)" in pf and "isAp && front.signal ? signalBlock(front.signal) : null" in pf
     # a bar carries a spoken summary and the counts as digits; a clinging device is a sentence with a mark, not only a colour
     assert "role: 'img', 'aria-label': label" in pf and "role: 'note'" in pf and "t('pf.sig.stuck'" in pf
     for sel in (".pf-sig__seg--good", ".pf-sig__seg--fair", ".pf-sig__seg--weak", ".pf-sig__stuck"):

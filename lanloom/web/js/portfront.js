@@ -298,7 +298,8 @@
     if (front.roams && (front.roams.in != null || front.roams.out != null)) {
       root.append(h('p', { class: 'pf-roams muted' }, t('pf.roams', { n_in: front.roams.in || 0, n_out: front.roams.out || 0 })));
     }
-    if (isAp && front.signal) root.append(signalBlock(front.signal));
+    const sigBox = isAp && front.signal ? signalBlock(front.signal) : null;      // no readings, no block
+    if (sigBox) root.append(sigBox);
     if (!ports.length && !isAp) root.append(h('p', { class: 'muted pf-none' }, t('pf.none')));
     return root;
   };
