@@ -81,7 +81,7 @@ two addresses. Lanloom puts them together when the evidence is strong:
 | same NetBIOS computer name (both seen in the latest scan) | medium |
 | same mDNS host name (both seen in the latest scan) | medium |
 | neighbouring hardware addresses of the same registered block | weak; stronger with the same switch port, and with first sightings within ten minutes |
-| an address a wireless repeater rewrote: last three bytes equal, first three replaced by a private prefix, plus the same IP address or the other address inside an announced name | at most 50 %, so only ever a suggestion |
+| an address a wireless repeater rewrote: last three bytes equal, first three replaced by a private prefix, plus the same IP address or the other address inside an announced name | one of the two facts: at most 50 %, a suggestion; both facts together: about 63 %, one device |
 
 At 60 % or more the second interface is drawn as part of the first device: the map shows one component, its card
 lists the interface with the reasons. Between 30 % and 60 % the card shows a suggestion with *Same device* and
@@ -91,11 +91,17 @@ mistaken for its successor. Private (random) addresses never count as neighbours
 
 Many wireless repeaters replace the first three bytes of a client's hardware address with a private prefix and keep the
 last three. The device then shows up as a new entry next to its old one. Lanloom offers *Same device* for such a pair
-when a second fact fits (the same IP address, or the original address inside the device's host or mDNS name); it never
-merges them on its own. A hidden entry never becomes the main entry of a group, so joining does not hide the device.
+when a second fact fits (the same IP address, or the original address inside the device's host or mDNS name); when both
+facts fit it draws the two as one device on its own (the rewritten entry stays listed inside it as an interface), and
+the Devices list shows them as one row; you can always undo it with *Show separately*. A hidden entry never becomes the main entry of a group, so joining does not hide the device.
 Old entries that are no longer needed can be removed with *Forget device* on their card (see below).
 
 Changing a grouping needs the operator role and is written to the audit log.
+
+A device that nothing could classify, but whose hardware address (or the address behind its configuration page) a
+smart-home hub names with enough confidence (60 % or more), takes the class of that hub device - from the words of its
+model and name, else *smart device* - and the card says why (*the smart-home hub lists this hardware address*). A class
+the scan found, or one you chose, is never replaced.
 
 ## New devices in the nightly report
 

@@ -30,6 +30,7 @@ import datetime
 import re
 import time
 
+from . import classify
 from .sources.hub_radio import KINDS as RADIO_KINDS
 
 AUTO = 0.6
@@ -134,6 +135,23 @@ def match(net_devices: list, hubs: dict, rules: dict | None = None) -> dict:
     for lst in list(by_net.values()) + list(suggest.values()):
         lst.sort(key=lambda m: (-m["confidence"], m["device_id"]))
     return {"by_net": by_net, "by_hub": by_hub, "suggest": suggest}
+
+
+# ---------------------------------------------------------------------- class of a matched hub device
+def kind_of(hub_device: dict | None) -> str | None:
+    """The device class a hub device stands for, for a network device that nothing else could classify: the words
+    of its model and name through the classifier, else a smart-home device (a hub registers devices it integrates).
+    Services and anything without a model or name give None."""
+    d = hub_device or {}
+    if d.get("service"):
+        return None
+    words = [w for w in (d.get("model"), d.get("name")) if isinstance(w, str) and w]
+    if not words and not d.get("radio"):
+        return None
+    res = classify.classify({"hostnames": words})
+    if res["kind"] not in ("unknown", "self", "internet") and res["confidence"] >= classify.UNSURE:
+        return res["kind"]
+    return "iot"
 
 
 # ---------------------------------------------------------------------- freshness of one hub device

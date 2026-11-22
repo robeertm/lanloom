@@ -15,7 +15,7 @@ Deterministic and offline. Two parts:
     and object id, same NetBIOS computer name, same DNS-SD host name, neighbouring hardware addresses of the same
     registered block together with a shared name, port or first sighting within a few minutes, and a hardware address
     a wireless repeater rewrote (first three bytes replaced by a private prefix, last three kept) together with the
-    same network address or the real address inside an announced name (only ever a suggestion). Name-based
+    same network address or the real address inside an announced name (one fact: a suggestion, both: one device). Name-based
     evidence counts only while both devices are current, so a replaced device is not merged with its successor.
     Pairs at or above SURE are merged automatically; probable pairs become suggestions. A user's split always
     wins, a user's join always merges. Merging only changes how the map shows the devices: nothing is deleted.
@@ -244,7 +244,7 @@ def pair_evidence(ka: dict, kb: dict) -> tuple:
             if ka["first"] and kb["first"] and abs(ka["first"] - kb["first"]) <= FIRST_SEEN_WINDOW_S:
                 conf, why = _combine(conf, 0.2), why + ["first_seen_together"]
     # a repeater rewrote the address: only with a second fact (same address on the network, or the other hardware
-    # address inside an announced name); at most 0.5, so it stays a suggestion and is never merged on its own
+    # address inside an announced name); one fact stays a suggestion (at most 0.5), both facts together are sure
     if _translated(ma, mb):
         same_ip = bool(ka["ip"]) and ka["ip"] == kb["ip"]
         in_name = _mac_hex(ma) in kb["names"] or _mac_hex(mb) in ka["names"]
@@ -254,6 +254,8 @@ def pair_evidence(ka: dict, kb: dict) -> tuple:
                 conf, why = _combine(conf, 0.10), why + ["same_ip"]
             if in_name:
                 conf, why = _combine(conf, 0.15), why + ["mac_in_name"]
+            if same_ip and in_name:
+                conf = _combine(conf, 0.25)          # two independent facts on top of the same last three bytes
     # an address-only device next to a device with an address: same registered block, same port, first seen together
     if ma and mb and ka["noip"] != kb["noip"] and not oui.is_random(ma) and not oui.is_random(mb) \
             and ma[:8] == mb[:8] and ka["port"] and ka["port"] == kb["port"] \

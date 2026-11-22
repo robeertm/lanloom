@@ -606,7 +606,7 @@
       if (kind === 'word') v = t('kind.' + v);
       if (kind === 'role') v = t('role.' + v);
       if (kind === 'vendor') v = t('kind.' + v);
-      if (kind === 'snmp' || kind === 'netbios') return t('reason.' + kind + '.' + v);
+      if (kind === 'snmp' || kind === 'netbios' || kind === 'hub') return t('reason.' + kind + '.' + v);
       return t('reason.' + kind, { v });
     };
     const reasons = (dev.reasons || []).map(reasonText).join(' · ');
@@ -1048,13 +1048,14 @@
     const openRow = id => { placeCard(); LL.deepLink(here(id)); openDetail(panel, cardOf(id), () => LL.deepLink(here(null))); };
     let render = function () {
       const s = q.value.toLowerCase();
-      const rows = data.devices.filter(d => keep(d) && keepNet(d) && (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' ')].join(' ').toLowerCase().includes(s)));
+      // a second interface of a device is one row with that device (its addresses are searchable there), not a row of its own
+      const rows = data.devices.filter(d => !d.merged_into && keep(d) && keepNet(d) && (showHidden.checked || !d.hidden) && (!s || [d.title, d.ip, d.mac, t('kind.' + d.kind), (d.hostnames || []).join(' '), d.services.join(' '), (d.aliases || []).map(a => (a.ip || '') + ' ' + (a.mac || '')).join(' ')].join(' ').toLowerCase().includes(s)));
       list.replaceChildren(...rows.map(d => h('button', { class: 'device-row' + (d.hidden ? ' is-hidden' : ''), type: 'button', onclick: () => openRow(d.id) },
         LL.kindIcon(d.kind), h('span', { class: 'device-row__main' }, h('span', { class: 'device-row__title' }, d.is_self ? t('kind.self') : (d.title || t('kind.' + d.kind))), h('span', { class: 'device-row__line' }, h('span', { class: 'device-row__sub mono' }, d.ip || d.mac || ''), LL.deviceTags ? LL.deviceTags(d) : null)),
         h('span', { class: 'device-row__kind' }, t('kind.' + d.kind)), h('span', { class: 'device-row__svc' }, d.services.slice(0, 3).map(s => h('span', { class: 'll-badge' }, s))),
         h('span', { class: 'status-dot status-dot--' + d.status, title: t('board.status.' + d.status) }))));
       if (!rows.length) list.replaceChildren(h('div', { class: 'empty-note' }, t('devices.none')));
-      count.textContent = t('devices.count', { n: rows.length, total: data.devices.length });
+      count.textContent = t('devices.count', { n: rows.length, total: data.devices.filter(d => !d.merged_into).length });
     };
     const count = h('span', { class: 'muted' });
     // catalogue switch: the list of devices, the stability of each over 35 days (js/history.js), the web interfaces with their probe (js/services.js)

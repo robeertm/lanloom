@@ -304,22 +304,25 @@ def test_snmp_public_is_off_unless_chosen():
 
 
 # ---------------------------------------------------------------------- repeater rewrites the hardware address
-def test_repeater_rewritten_address_is_a_suggestion_never_a_merge():
+def test_repeater_rewritten_address_with_both_facts_is_one_device_one_fact_a_suggestion():
     a = dev("d-a", "4c:4c:00:11:22:33", scan=1, ip="192.168.1.9")                                   # the old entry
     b = dev("d-b", "52:c7:be:11:22:33", scan=5, ip="192.168.1.9", hostnames=["plug-4c4c00112233.local"])
-    g = identity.groups([a, b])
-    assert g["members"] == {}
-    assert len(g["suggestions"]) == 1
-    sg = g["suggestions"][0]
-    assert sg["reasons"] == ["translated_mac", "same_ip", "mac_in_name"]
-    assert identity.PROBABLE <= sg["confidence"] < identity.SURE
-    only_ip = identity.groups([dict(b, data=dict(b["data"], hostnames=[])), a])["suggestions"]
-    assert [s["reasons"] for s in only_ip] == [["translated_mac", "same_ip"]]
-    only_name = identity.groups([a, dict(b, ip="192.168.1.77")])["suggestions"]
-    assert [s["reasons"] for s in only_name] == [["translated_mac", "mac_in_name"]]
+    g = identity.groups([a, b])                       # same IP and the real address in the name: two facts, merged
+    assert g["suggestions"] == [] and set(g["members"]) | {m["primary"] for m in g["members"].values()} == {"d-a", "d-b"}
+    only_ip = identity.groups([dict(b, data=dict(b["data"], hostnames=[])), a])
+    assert only_ip["members"] == {}
+    assert [s["reasons"] for s in only_ip["suggestions"]] == [["translated_mac", "same_ip"]]
+    assert identity.PROBABLE <= only_ip["suggestions"][0]["confidence"] < identity.SURE
+    only_name = identity.groups([a, dict(b, ip="192.168.1.77")])
+    assert only_name["members"] == {}
+    assert [s["reasons"] for s in only_name["suggestions"]] == [["translated_mac", "mac_in_name"]]
     # the real address can also be in a DNS-SD instance name
     c = dev("d-c", "52:c7:be:11:22:33", scan=5, ip="192.168.1.78", mdns=[{"type": "_http._tcp", "name": "plug-4c4c00112233"}])
     assert [s["reasons"] for s in identity.groups([a, c])["suggestions"]] == [["translated_mac", "mac_in_name"]]
+    # both facts via the DNS-SD name: merged, and the reasons name both
+    d = dev("d-d", "52:c7:be:11:22:33", scan=5, ip="192.168.1.9", mdns=[{"type": "_http._tcp", "name": "plug-4c4c00112233"}])
+    g = identity.groups([a, d])
+    assert g["suggestions"] == [] and list(g["members"].values())[0]["reasons"] == ["translated_mac", "same_ip", "mac_in_name"]
 
 
 def test_repeater_pattern_needs_a_second_fact_and_a_private_address():

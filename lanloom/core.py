@@ -513,7 +513,9 @@ class Core:
                 cache[r["id"]] = (sig, static)
                 view = dict(static)
             view["status"] = self.device_status(r, last)
-            out.append(self._with_hint(view))
+            out.append(view)
+        self._apply_hub_kinds(out)
+        out = [self._with_hint(v) for v in out]
         if len(cache) > len(out) + 64:
             keep = {v["id"] for v in out}
             self._view_cache = {k: v for k, v in cache.items() if k in keep}
@@ -624,7 +626,29 @@ class Core:
     def device_view(self, dev: dict, last_scan=False) -> dict:
         view = self._static_view(dev)
         view["status"] = self.device_status(dev, last_scan)
+        if view["kind"] == "unknown" and self.hub:
+            self._apply_hub_kinds([view], self.hub_merge())
         return self._with_hint(view)
+
+    def _apply_hub_kinds(self, views: list, merge: Optional[dict] = None) -> None:
+        """A device nobody could classify (no scan evidence, no choice of the user) that a hub identifies by its
+        hardware address with enough confidence takes the class of that hub device (see hubmerge.kind_of); the
+        reason says so. A choice of the user and a class the scan found always win."""
+        if not self.hub or not any(v["kind"] == "unknown" and not v.get("merged_into") for v in views):
+            return
+        merge = merge if merge is not None else self.hub_merge(views)
+        snaps = {i: (e.get("snapshot") or {}) for i, e in self.hub.items()}
+        for v in views:
+            if v["kind"] != "unknown" or v.get("merged_into"):
+                continue
+            for m in merge["by_net"].get(v["id"]) or []:
+                hd = next((d for d in snaps.get(m["integ"], {}).get("devices") or [] if d.get("id") == m["device_id"]), None)
+                kind = hubmerge.kind_of(hd) if hd else None
+                if kind:
+                    v["kind"] = kind
+                    v["kind_source"] = "hub"
+                    v["reasons"] = list(v.get("reasons") or []) + ["hub:" + m["how"]]
+                    break
 
     def _with_hint(self, view: dict) -> dict:
         ai = getattr(self, "ai", None)
