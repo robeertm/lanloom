@@ -216,7 +216,7 @@
     const nowCost = d.price && n.grid_w != null ? Math.max(0, n.grid_w) / 1000 * d.price.value : null;
     return h('div', { class: 'en-kpis' },
       tile('home', t('energy.kpi.home'), LL.fmtW(n.home_w), [hs.kind === 'sensor' && hs.label ? t('energy.home.from', { name: hs.label }) : null, n.solar_w > 1 ? t('energy.kpi.solar_now', { w: LL.fmtW(n.solar_w) }) : null].filter(Boolean).join(' · ') || null),
-      tile('cost', t('energy.kpi.cost_now'), d.price ? perHour(money(nowCost, cur, 2)) : '—', d.price ? t('energy.kpi.price', { price: money(d.price.value, cur, 2) }) : t('energy.kpi.no_price')),
+      tile('cost', t('energy.kpi.cost_now'), d.price ? perHour(money(nowCost, cur, 2)) : '—', d.price ? t('energy.kpi.price', { price: money(d.price.value, cur, 2, 4) }) : t('energy.kpi.no_price')),
       tile('today', t('energy.kpi.today'), kwh(td.kwh), td.cost != null ? money(td.cost, cur, 2) : null),
       tile('co2', t('energy.kpi.co2_today'), co2kg(td.co2_kg), t('energy.kpi.co2_rate', { g: LL.fmtNum(d.co2.g_kwh, 0) })));
   }
@@ -238,7 +238,8 @@
     const s = d.settings || {};
     const can = LL.can('operate');
     const num = (v, step) => h('input', { class: 'input', type: 'number', inputmode: 'decimal', min: '0', step, value: v == null ? '' : String(v), disabled: !can });
-    const price = num(s.price, '0.001'), feed = num(s.feed_in, '0.001'), co2 = num(s.co2_g_kwh, '1');
+    // step 'any': a tariff such as 0.2916 per kWh must pass the browser's own check (the server takes 0..10, six places)
+    const price = num(s.price, 'any'), feed = num(s.feed_in, 'any'), co2 = num(s.co2_g_kwh, '1');
     const cur = h('input', { class: 'input', type: 'text', maxlength: '3', autocapitalize: 'characters', value: s.currency || 'EUR', disabled: !can, 'aria-label': t('energy.set.currency') });
     const msg = h('div', { class: 'msg', role: 'status' });
     const val = el => (el.value.trim() === '' ? null : Number(el.value.replace(',', '.')));

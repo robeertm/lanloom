@@ -180,6 +180,19 @@ def test_settings_validation():
     assert b.set_settings({"price_entity": ""})["price_entity"] is None
 
 
+def test_tariff_with_four_decimals_is_kept_and_the_form_does_not_block_it():
+    # lanloom#16: a contract price such as 0.2916 per kWh was refused by the browser (step 0.001), the server never was the limit
+    core, b = book_of([("sensor.g", "Grid power", "W", 100)])
+    cur = b.set_settings({"price": 0.2916, "feed_in": "0.0825"})
+    assert (cur["price"], cur["feed_in"]) == (0.2916, 0.0825)
+    assert core.store.get_setting("energy")["price"] == 0.2916
+    assert b.view(T0)["price"]["value"] == 0.2916
+    js = (Path(__file__).resolve().parent.parent / "lanloom/web/js/energy.js").read_text(encoding="utf-8")
+    assert "num(s.price, 'any')" in js and "num(s.feed_in, 'any')" in js     # no raster the browser could reject
+    assert "step: '0.001'" not in js and "num(s.price, '0.001')" not in js
+    assert "money(d.price.value, cur, 2, 4)" in js                            # the unit price shows its four places
+
+
 def test_price_precedence_entity_choice_beats_number_beats_auto_entity():
     core, b = book_of([("sensor.g", "Grid power", "W", 100), ("sensor.p", "Spot price", "EUR/kWh", 0.2)])
     assert b.view(T0)["price"]["source"] == "entity"                                      # found by itself
