@@ -71,7 +71,9 @@
     for (const { el, r } of rects) {
       if (!pending.has(el)) continue;
       if (el.matches('input[type=checkbox], input[type=radio]') && el.labels && el.labels.length) continue;     // the label is the target
-      const nx = Math.max(0, (MIN + 1 - r.width) / 2), ny = Math.max(0, (MIN + 1 - r.height) / 2);      // one px over: layout rounds to device pixels
+      // one px over where a side is short: layout rounds to device pixels. A side that is a full fingertip already gets nothing: an area
+      // beside a control counts as content sticking out of it (a capsule 44 px wide would read as cut text otherwise)
+      const nx = r.width >= MIN ? 0 : Math.max(0, (MIN + 1 - r.width) / 2), ny = r.height >= MIN ? 0 : Math.max(0, (MIN + 1 - r.height) / 2);
       if (r.width >= MIN && r.height >= MIN) { if (grown.has(el)) writes.push([el, null]); continue; }
       if (nx === 0 && ny === 0) { if (grown.has(el)) writes.push([el, null]); continue; }
       const cs = getComputedStyle(el);

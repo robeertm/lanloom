@@ -29,29 +29,6 @@
   const T = typeof module === 'object' && module.exports ? require('./tree.js') : null;
   const S = factory(T);
 
-  /* Pure part of the labels: items [{x, y (bottom middle), w, h, pri}] in priority order -> [{item, x, y, hidden}].
-     The label is clamped entirely into the picture (w x h); one that would cover a placed label is lifted up to four times by its own height,
-     and hidden only when it still covers one; the ones in focus (pri) are always shown. */
-  S.arrangeLabels = arrangeLabels;
-  function arrangeLabels(items, w, h, fixed) {
-    const boxes = (fixed || []).slice(), out = [];
-    const hit = r => boxes.some(b => r[0] < b[2] && r[2] > b[0] && r[1] < b[3] && r[3] > b[1]);
-    items.forEach(it => {
-      const hw = Math.min(it.w, w) / 2, x = Math.max(hw, Math.min(w - hw, it.x));
-      let y = Math.max(it.h, Math.min(h, it.y)), placed = null;
-      for (let k = 0; k <= 4; k++) {
-        const yy = y - k * (it.h + 2);
-        if (yy < it.h) break;                                    // would leave the picture at the top
-        const r = [x - hw, yy - it.h, x + hw, yy];
-        if (!hit(r)) { placed = { r, y: yy }; break; }
-      }
-      if (!placed && it.pri) placed = { r: [x - hw, y - it.h, x + hw, y], y };
-      if (!placed) { out.push({ item: it, x, y, hidden: true }); return; }
-      boxes.push(placed.r);
-      out.push({ item: it, x, y: placed.y, hidden: false });
-    });
-    return out;
-  }
   if (typeof module === 'object' && module.exports) module.exports = S;
   else {
     root.Lanloom = root.Lanloom || {};
@@ -72,6 +49,28 @@
   const tree = () => TreeArg || (typeof self !== 'undefined' && self.Lanloom && self.Lanloom.Tree) || null;
 
   // ---------------------------------------------------------------- pure part
+  /* Pure part of the labels (inside the factory: mount() draws with it, the module exports it for the Node test): items [{x, y (bottom middle), w, h, pri}] in priority order -> [{item, x, y, hidden}].
+     The label is clamped entirely into the picture (w x h); one that would cover a placed label is lifted up to four times by its own height,
+     and hidden only when it still covers one; the ones in focus (pri) are always shown. */
+  function arrangeLabels(items, w, h, fixed) {
+    const boxes = (fixed || []).slice(), out = [];
+    const hit = r => boxes.some(b => r[0] < b[2] && r[2] > b[0] && r[1] < b[3] && r[3] > b[1]);
+    items.forEach(it => {
+      const hw = Math.min(it.w, w) / 2, x = Math.max(hw, Math.min(w - hw, it.x));
+      let y = Math.max(it.h, Math.min(h, it.y)), placed = null;
+      for (let k = 0; k <= 4; k++) {
+        const yy = y - k * (it.h + 2);
+        if (yy < it.h) break;                                    // would leave the picture at the top
+        const r = [x - hw, yy - it.h, x + hw, yy];
+        if (!hit(r)) { placed = { r, y: yy }; break; }
+      }
+      if (!placed && it.pri) placed = { r: [x - hw, y - it.h, x + hw, y], y };
+      if (!placed) { out.push({ item: it, x, y, hidden: true }); return; }
+      boxes.push(placed.r);
+      out.push({ item: it, x, y: placed.y, hidden: false });
+    });
+    return out;
+  }
   function gpuVerdict(name) {
     return !/swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(name || ''));
   }
@@ -886,5 +885,5 @@
     return api;
   }
 
-  return { layout, along, gpuVerdict, orbit, project, parseColor, dotCount, fitCamera, available, canTry, allowSoft, mount };
+  return { layout, along, gpuVerdict, orbit, project, parseColor, dotCount, fitCamera, arrangeLabels, available, canTry, allowSoft, mount };
 });

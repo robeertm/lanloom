@@ -12,6 +12,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 - **The cable build waits for a busy server that stops answering**, not only for one that says it is busy.
+- **The header fits a phone again, with the live time.** Since 1.60.0 the phone header squeezed Search, Ask, the live state and the panel buttons into circles of 34 px: the live time no longer fitted and spilled out of its circle, and the invisible hit area beside each control read as content sticking out of it. Every header control is now a capsule 44 px wide by itself; the live capsule grows with its time (only the dot when a site switcher or a long language needs the room), the demo mark and the site name give up room first. A control that is already 44 px wide gets no invisible area to its sides, and the clear cross of the data paths selection is a full fingertip inside its chip.
+- **Long button labels break inside their button on a phone** (French *Delete files and stored figures* ran out of its card).
+- **The 3D view draws its labels again.** The label arrangement lived outside the module that draws the scene, so every frame of the 3D view stopped with a script error in the browser (only the unit test could reach it).
+- **Coming back to a view no longer leaves another page on screen.** After a sheet had been opened on a view (for example *More* on *Devices*) and another view was visited, a tap back on the first tab changed the address but kept the other page; the sheet host now forgets its view when the address moves to another view.
+- **Two more links of the device card and the time range chips are a fingertip high on a phone** (the peer link of a connection, *Open the data paths map*).
 
 ## [1.61.0] – 2026-11-22
 

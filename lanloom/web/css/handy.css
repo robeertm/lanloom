@@ -14,7 +14,7 @@
   .btn, .btn--sm, .ai-explain--small, .detail__chips .ai-explain { min-height: 44px; height: auto; }
   input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=file]):not([type=color]):not([type=hidden]), select, .select--sm, .input-sm { min-height: 44px; }
   .seg__btn { min-height: 42px; }
-  .mf-chip { height: 40px; max-width: none; overflow: visible; }      /* a chip that clips its own content cannot carry an invisible area; the filter bar scrolls sideways anyway */
+  .mf-chip { height: 44px; max-width: none; overflow: visible; }      /* a chip that clips its own content cannot carry an invisible area; the filter bar scrolls sideways anyway */
   .ll-legend__flt, .ll-legend__all, .ll-legend__zone { margin-top: 0; margin-bottom: 0; }
   .ll-legend__item { min-height: 40px; }
   .sn-seg__btn { min-height: 42px; }
@@ -22,6 +22,7 @@
   .btn, .btn--icon, .fc-outage__tools .btn--icon, .fc-outage__tools .btn--ghost, .rw-transport .btn--icon, .link-btn { min-width: 44px; }
   .ll-legend.is-inline .ll-legend__flt, .ll-legend.is-inline .ll-legend__all { margin-top: 0; margin-bottom: 0; }
   .btn-row { flex-wrap: wrap; }                      /* two buttons that do not fit side by side wrap, they never run out of the card */
+  .btn-row > .btn { max-width: 100%; white-space: normal; text-align: center; }      /* a label longer than the card (a long language) breaks into two lines inside its button */
   .link-btn, .ver-foot__link { min-height: 44px; display: inline-flex; align-items: center; }
   .pf-row { grid-template-columns: repeat(var(--pf-cols, 8), 44px); overflow-x: auto; padding-bottom: 2px; }      /* a port is 44 px wide; a long row scrolls sideways like the switch front does */
   .fw-cell { height: 40px; }
@@ -32,10 +33,23 @@
   .fold-head { min-height: 44px; }
   .inv-mini__link a { display: inline-flex; align-items: center; min-height: 44px; }
   .now-card li > a:only-child { display: flex; align-items: center; min-height: 44px; }
-  /* header: five controls of 34 px with 10 px between them — every one has 44 px of hit area, and the header still fits 390 px */
+  /* header: every control is a capsule 44 px wide itself, so none needs an invisible area to its sides (an area beside a control
+     counts as content sticking out of it, and the live text never fits a 34 px circle). The live capsule keeps its time where the
+     room is there and shrinks to its dot only through the header's own steps (fitTopbar in js/views.js). The demo mark and the
+     site switcher give up room first; with both, the header still fits 390 px. */
   .topbar { gap: 8px; padding-left: 8px; padding-right: 8px; }
-  .topbar__right, .topbar:has(.site-switch) .topbar__right { gap: 10px; }
-  .topbar .icon-btn, .topbar .ask-pill, .topbar .cmdk-pill, .topbar .grade-pill { flex: none; width: 34px; min-width: 34px; height: 34px; min-height: 34px; padding: 0; justify-content: center; }
+  .topbar__right, .topbar:has(.site-switch) .topbar__right { gap: 4px; }
+  .topbar .icon-btn, .topbar .ask-pill, .topbar .cmdk-pill { flex: none; width: 44px; min-width: 44px; height: 36px; min-height: 36px; padding: 0; justify-content: center; border-radius: var(--ll-radius-pill); }
+  .topbar .grade-pill, .topbar:has(.site-switch) .grade-pill, .topbar--fit3 .grade-pill { flex: none; width: auto; min-width: 44px; height: 36px; min-height: 36px; padding: 0 12px; gap: 6px; justify-content: center; }
+  .topbar .grade-pill__text { font-size: var(--ll-fs-xs); }
+  .topbar__brand { gap: 6px; }
+  .topbar__brand .chip--demo { padding: 0 6px; letter-spacing: .04em; }
+  .site-switch { min-width: 44px; height: 36px; }
+  /* the selection chip of the data paths: its clear cross is a full fingertip wide inside the chip, nothing reaches out of it */
+  .pw-selchip { padding-right: 0; }
+  .pw-selchip__x { width: 44px; height: 32px; margin: -4px 0; border-radius: var(--ll-radius-pill); }
+  /* links of the device card that are a line of text: a fingertip high */
+  a.conn__peer, .talk__more { display: inline-flex; align-items: center; min-height: 44px; }
 
   /* ---------------------------------------------------------------- keyboard guard (js/handy.js): the layer around the field follows the visible area */
   .ll-kb-layer { top: var(--ll-vvt, 0px) !important; bottom: auto !important; height: var(--ll-vvh, 100%) !important; max-height: var(--ll-vvh, 100%) !important; }

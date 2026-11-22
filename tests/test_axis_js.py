@@ -24,3 +24,12 @@ def test_wiring():
     assert "LL.axis.scale" in s and "axis.clipped" in s
     infra = (WEB / "js" / "paths_infra.js").read_text()
     assert "svgEl('title')" not in infra and "data-tip" in infra, "one shared sign instead of a title per line"
+
+
+def test_label_arrangement_lives_inside_the_factory():
+    """mount() draws the labels with arrangeLabels: the function has to be defined inside the factory, not in the module wrapper
+    around it (there the page threw "arrangeLabels is not defined" on every frame of the 3D view, only the Node test saw it)."""
+    src = (WEB / "board" / "scene3d.js").read_text()
+    factory = src[src.index("function (TreeArg) {"):]
+    assert "function arrangeLabels(" in factory and "arrangeLabels(items" in factory
+    assert "function arrangeLabels(" not in src[:src.index("function (TreeArg) {")]

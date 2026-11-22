@@ -71,3 +71,19 @@ def test_firewall_pads_scale_to_a_fingertip_on_the_phone():
 def test_handbook_names_the_rules():
     doc = (ROOT / "docs" / "ACCESSIBILITY.md").read_text(encoding="utf-8")
     assert "## Phones" in doc and "44" in doc and "16 px" in doc
+
+
+def test_header_controls_are_a_fingertip_wide_themselves():
+    """A hit area beside a control counts as content sticking out of it (scrollWidth > clientWidth in every engine), and the live
+    text never fits a circle of 34 px: the header controls are capsules 44 px wide, the live capsule grows with its time, and a side
+    that is already 44 px gets no invisible area (1.60.0 and 1.61.0 read every header capsule on a phone as cut)."""
+    css = read("css", "handy.css")
+    phone = css[css.index("@media (max-width: 700px)"):]
+    m = re.search(r"\.topbar \.icon-btn, \.topbar \.ask-pill, \.topbar \.cmdk-pill \{([^}]*)\}", phone)
+    assert m and "width: 44px" in m.group(1) and "min-width: 44px" in m.group(1)
+    g = re.search(r"\.topbar \.grade-pill,[^{]*\{([^}]*)\}", phone)
+    assert g and "width: auto" in g.group(1) and "min-width: 44px" in g.group(1)
+    assert "width: 34px" not in phone
+    assert ".pw-selchip__x { width: 44px" in phone and ".btn-row > .btn" in phone
+    src = read("js", "handy.js")
+    assert "r.width >= MIN ? 0" in src and "r.height >= MIN ? 0" in src

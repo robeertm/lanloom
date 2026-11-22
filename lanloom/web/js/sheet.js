@@ -188,6 +188,9 @@
         else if (!S.el || want.id !== S.id || want.arg !== S.arg) draw(want.id, want.arg);
         return true;
       }
+      // the address moved to another view: the sheets no longer belong to the view they were opened on, else coming back to it
+      // would be taken for a step that only changes the sheet and the view would never be drawn again (another page stays on screen)
+      S.view = null;
     }
     return before ? before() : false;
   };
