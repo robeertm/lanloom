@@ -66,7 +66,7 @@ drawn, in every colour theme.
 
 ## Colours and contrast
 
-Text and symbols meet the contrast of WCAG 2.2 level AA in the light and the dark theme, in both colour themes (Circuit and Aurora). Nothing is shown by colour alone: states are words, links have a line style, problems
+Text and symbols meet the contrast of WCAG 2.2 level AA in the light and the dark theme, in every colour theme (Circuit, Aurora, SummerGlass and WinterGlass); for the glass themes the check includes every colour field behind the glass, composited under the pane. Nothing is shown by colour alone: states are words, links have a line style, problems
 have a count. Calmer or past things are drawn in a quieter colour, not made see-through, so their text keeps its contrast.
 The animation of the tree follows the system setting *Reduce motion*.
 
@@ -84,7 +84,7 @@ Everything can be used with a finger. The rules, checked by a walk over every vi
 ## How it is tested
 
 Before a release the app runs against a demo network in a real browser (desktop width and phone width) and an automated
-check (axe-core) looks at every view in the light and the dark theme and both colour themes: **no serious or critical
+check (axe-core) looks at every view in the light and the dark theme and the colour themes Circuit and Aurora: **no serious or critical
 finding is allowed**. Further checks walk the tree with the keyboard (move, fold, open, `Esc`, focus back, the fold state
 after a redraw), check that every control has a name that contains its visible text, that nothing clickable is out of reach of the keyboard, that the page is not one big live
 region, and that the spoken status is throttled. A machine finds about a third of the problems; if you meet one a

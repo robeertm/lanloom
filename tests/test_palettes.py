@@ -169,6 +169,69 @@ def test_graphics_contrast_at_least_3(label, tok):
             assert contrast(tok[fg], _over(tok[bg], tok["--ll-surface"])) >= 3.0, (label, fg, bg, round(contrast(tok[fg], _over(tok[bg], tok["--ll-surface"])), 2))
 
 
+GLASS = [(label, tok) for label, tok in MODES if label.split("/")[0] in ("summerglass", "winterglass")]
+
+
+@pytest.mark.parametrize("label,tok", GLASS, ids=[m[0] for m in GLASS])
+def test_glass_boxes_stand_out_from_the_page(label, tok):
+    """The glass family (SummerGlass, WinterGlass) exists so that a box is told apart from the page at a glance: the box itself differs from the ground,
+    its edge is a visible line, and the outline of fields and buttons reaches the 3:1 of WCAG 2.2 SC 1.4.11."""
+    checks = (("--ll-surface", "--ll-bg", 1.3), ("--ll-border", "--ll-surface", 3.0), ("--ll-border", "--ll-bg", 1.8),
+              ("--ll-border-strong", "--ll-surface-2", 3.0), ("--ll-border-strong", "--ll-bg", 3.0),
+              ("--ll-pcb-tile", "--ll-pcb-board", 1.3), ("--ll-pcb-tile-line", "--ll-pcb-tile", 3.0))
+    for fg, bg, need in checks:
+        got = contrast(tok[fg], _over(tok[bg], tok["--ll-surface"]))
+        assert got >= need, (label, fg, bg, round(got, 2))
+
+
+def _glass_extras():
+    """(light, dark, auto) glass tokens of the glass family (the light behind the glass, the fill, sheen, glare and gloss)."""
+    css = read("css", "palettes.css")
+    g = re.escape('html:is([data-palette="summerglass"], [data-palette="winterglass"])')
+    light = re.search(g + r",\n" + g + r' \[data-theme="light"\]:not\(\[data-palette\]\) \{(.*?)\n\}', css, re.S)
+    dark = re.search(g + r'\[data-theme="dark"\],\n' + g + r' \[data-theme="dark"\]:not\(\[data-palette\]\) \{(.*?)\n\}', css, re.S)
+    auto = re.search(g + r'\[data-theme="auto"\],\s*' + g + r' \[data-theme="auto"\]:not\(\[data-palette\]\) \{(.*?)\n  \}', css, re.S)
+    assert light and dark and auto, "the glass tokens are set for light, dark and auto"
+    return _decl(light.group(1)), _decl(dark.group(1)), _decl(auto.group(1))
+
+
+@pytest.mark.parametrize("label,tok", GLASS, ids=[m[0] for m in GLASS])
+def test_text_on_glass_stays_readable_over_every_tint(label, tok):
+    """The light behind the glass shines through: every colour field (alone and over both ends of the gradient) is composited
+    under the glass fill, and text, links and the edges of boxes keep their contrast on every result."""
+    light, dark, auto = _glass_extras()
+    assert dark == auto
+    g = light if label.endswith("/light") else dark
+    grounds = []
+    for base in (g["--ll-glass-top"], g["--ll-glass-bottom"]):
+        grounds.append(base)
+        grounds += [_over(g["--ll-glass-tint-%d" % i], base) for i in (1, 2, 3)]
+    for page in grounds:
+        box = _over(g["--ll-glass-fill"], page)
+        for fg, need in (("--ll-text", 7), ("--ll-text-2", 4.5), ("--ll-text-3", 4.5), ("--ll-accent-text", 4.5), ("--ll-danger-text", 4.5),
+                         ("--ll-warn-text", 4.5), ("--ll-ok-text", 4.5)):
+            assert contrast(tok[fg], box) >= need, (label, fg, "on glass", page, round(contrast(tok[fg], box), 2))
+        for fg, need in (("--ll-text", 7), ("--ll-text-2", 4.5), ("--ll-text-3", 4.5), ("--ll-accent-text", 4.5)):
+            assert contrast(tok[fg], page) >= need, (label, fg, "on the page", page, round(contrast(tok[fg], page), 2))
+        assert contrast(box, page) >= 1.15, (label, "a pane stands apart from the light behind it", page, round(contrast(box, page), 2))
+        assert contrast(tok["--ll-border"], box) >= 2.4, (label, "the edge of a pane", page, round(contrast(tok["--ll-border"], box), 2))
+        assert contrast(tok["--ll-on-accent"], _over(g["--ll-glass-gloss"], tok["--ll-accent"])) >= 3, (label, "button label under the top of the gloss")
+
+
+def test_glass_needs_no_blur():
+    css = read("css", "glass.css")
+    assert "backdrop-filter" not in css and "filter:" not in css, "the glass is light and layers, never a blur (budget of small machines)"
+    assert "prefers-reduced-motion" in css and "transition" in css
+    html = read("index.html")
+    assert html.index("css/handy.css") < html.index("css/glass.css"), "the glass is laid over the components, so it loads after them"
+
+
+def test_glass_family_is_listed_and_shares_its_blocks():
+    ids = _palette_ids()
+    assert "summerglass" in ids and "winterglass" in ids and len(GLASS) == 6
+    assert _palette_sets("summerglass") == _palette_sets("winterglass"), "one family: the two names are its light and its dark face"
+
+
 # ------------------------------------------------------------------ surfaces (no dark islands in light, no light islands in dark)
 SURFACES = ("--ll-bg", "--ll-surface", "--ll-surface-2", "--ll-surface-3", "--ll-pcb-board", "--ll-pcb-zone", "--ll-pcb-tile", "--ll-pcb-icon-bg",
             "--ll-pcb-badge-bg", "--ll-pcb-legend-bg")

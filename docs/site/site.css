@@ -106,6 +106,7 @@ p { margin: 0; }
   color: var(--text); font: 560 13px/1 "Inter", system-ui, sans-serif; cursor: pointer; }
 .icon-btn:hover { border-color: var(--border-strong); background: var(--surface-2); }
 @media (max-width: 760px) { .nav a.hide-sm { display: none; } .top__in { gap: 10px; } }
+@media (max-width: 420px) { .top__in { gap: 6px; } .tools { gap: 4px; } .tools .icon-btn { padding-left: 8px; padding-right: 8px; } }
 
 /* hero */
 .hero { position: relative; padding: 64px 0 40px; overflow: hidden;
@@ -132,6 +133,8 @@ section.block { padding: 72px 0 8px; }
 .block__head { display: grid; gap: 10px; max-width: 720px; margin-bottom: 32px; }
 .block__head p { color: var(--text-2); }
 .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.glass-pair { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.glass-pair figure { margin: 0; }
 .grid--four { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; box-shadow: var(--shadow-1); display: grid; gap: 8px; align-content: start; }
 .card p { color: var(--text-2); font-size: 15px; }

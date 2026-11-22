@@ -289,13 +289,44 @@
   LL.setTheme = function (v) {
     try { localStorage.setItem('ll-theme', v); } catch (e) { /* ignore */ }
     document.documentElement.dataset.theme = v;
+    if (LL.followGlass) LL.followGlass();
     document.dispatchEvent(new CustomEvent('ll-theme', { detail: LL.effectiveTheme() }));
   };
   document.documentElement.dataset.theme = LL.theme();
 
   // ------------------------------------------------------------------ colour theme (accent palette, remembered per device)
   // The palettes are defined in css/palettes.css (the default one lives in tokens.css); this list only names them.
-  LL.PALETTES = ['circuit', 'aurora'];
+  LL.PALETTES = ['circuit', 'aurora', 'summerglass', 'winterglass'];
+  // The user's own colour theme (imported from a file, kept in this browser only): checked again on every load, written as one <style> with
+  // the colour values that passed the strict check (js/usertheme.js), and offered as the palette 'custom'. Never innerHTML, never the server.
+  const UT_KEY = 'll-user-theme';
+  LL.userTheme = function () {
+    if (!LL.usertheme) return null;
+    try {
+      const raw = localStorage.getItem(UT_KEY);
+      const r = raw ? LL.usertheme.parse(raw) : null;
+      return r && r.ok ? r.theme : null;
+    } catch (e) { return null; }
+  };
+  LL.applyUserTheme = function () {
+    const old = document.getElementById('ll-user-theme');
+    if (old) old.remove();
+    const th = LL.userTheme();
+    LL.PALETTES = LL.PALETTES.filter(p => p !== 'custom');
+    if (!th) return null;
+    const st = document.createElement('style');
+    st.id = 'll-user-theme';
+    st.textContent = LL.usertheme.toCss(th, 'custom');
+    document.head.appendChild(st);
+    LL.PALETTES.push('custom');
+    return th;
+  };
+  // the name of a palette as shown: its own name for the imported theme, the translation for the built-in ones
+  LL.paletteName = id => {
+    if (id === 'custom') { const th = LL.userTheme(); return th ? th.name : id; }
+    return LL.t('palette.' + id);
+  };
+  LL.applyUserTheme();
   LL.palette = function () {
     let v = 'circuit';
     try { v = localStorage.getItem('ll-palette') || 'circuit'; } catch (e) { /* ignore */ }
@@ -306,19 +337,35 @@
     const bg = getComputedStyle(document.documentElement).getPropertyValue('--ll-bg').trim();
     if (bg) document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.setAttribute('content', bg); });
   };
-  LL.setPalette = function (v) {
-    if (!LL.PALETTES.includes(v)) v = 'circuit';
+  // The glass family has a name per face: SummerGlass is light, WinterGlass is dark. Picking one picks its mode, and a change of the
+  // mode (the light/dark select, or the system in automatic mode) moves to the other face, so the name always says what is showing.
+  LL.FACE = { summerglass: 'light', winterglass: 'dark' };
+  LL.GLASS = { light: 'summerglass', dark: 'winterglass' };
+  const storePalette = v => {
     try { localStorage.setItem('ll-palette', v); } catch (e) { /* ignore */ }
     document.documentElement.dataset.palette = v;
+  };
+  LL.followGlass = function () {
+    const p = LL.palette();
+    if (LL.FACE[p] && LL.FACE[p] !== LL.effectiveTheme()) storePalette(LL.GLASS[LL.effectiveTheme()]);
+  };
+  LL.setPalette = function (v) {
+    if (!LL.PALETTES.includes(v)) v = 'circuit';
+    storePalette(v);
+    if (LL.FACE[v] && LL.effectiveTheme() !== LL.FACE[v]) {
+      try { localStorage.setItem('ll-theme', LL.FACE[v]); } catch (e) { /* ignore */ }
+      document.documentElement.dataset.theme = LL.FACE[v];
+    }
     LL.paintChrome();
     document.dispatchEvent(new CustomEvent('ll-theme', { detail: LL.effectiveTheme() }));   // the board re-reads its colours
   };
   document.documentElement.dataset.palette = LL.palette();
+  LL.followGlass();
   LL.paintChrome();
   document.addEventListener('ll-theme', LL.paintChrome);
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if (LL.theme() === 'auto') document.dispatchEvent(new CustomEvent('ll-theme', { detail: LL.effectiveTheme() }));
+      if (LL.theme() === 'auto') { LL.followGlass(); document.dispatchEvent(new CustomEvent('ll-theme', { detail: LL.effectiveTheme() })); }
     });
   }
 

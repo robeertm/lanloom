@@ -50,7 +50,7 @@
 - **AI, local or cloud (optional).** An Explain button on devices, notes of the nightly report and firewall rules lets an AI answer in plain words, in the language of the app. **Ask your network** answers questions with links to the devices and views concerned, the nightly report gets a paragraph *In plain words*, the AI suggests what an unknown device is (you confirm), and the firewall editor shows suggestions you can take over as a draft. Off by default; AI only reads and never changes a setting. See [docs/integrations/ai.md](docs/integrations/ai.md).
 - **Component card.** Classification with reasons, open ports, announcements, a chart of recent traffic (and its history), availability, connections with live rates, the physical connection (where it is plugged in, which source says so, what other sources say, the devices on its ports), and options to rename, re-type, hide, forget or set "connected via" by hand. Hidden devices keep their card, and a device behind a wireless repeater that rewrites its address is offered as *Same device* (or drawn as one device when IP address and name both fit). A device nothing could classify takes the class of the hub device that names its address.
 - **Search and commands.** One box for everything: press `Ctrl K` (`⌘ K` on a Mac) or `/`, or tap the Search button in the top bar. It finds devices, virtual machines and containers, services, automations and entities of a home-automation hub, and it runs commands: every view, the settings pages, light/dark, colour theme, rate unit, "Check for updates". Typos are forgiven, the last choices come first, a hit has a menu of actions (open, copy the address), and a comparison such as `> 25 °C` lists hub values that fit. Read only, full screen on a phone, usable with a keyboard and a screen reader. See [docs/PALETTE.md](docs/PALETTE.md).
-- **Device list** with search, light/dark/auto mode and two colour themes (Circuit green and Aurora), a phone layout with bottom tabs, a UI in English, German, French, Spanish, Dutch and Italian.
+- **Device list** with search, light/dark/auto mode and four colour themes (Circuit green, Aurora and the glass pair SummerGlass and WinterGlass) plus your own imported theme, a phone layout with bottom tabs, a UI in English, German, French, Spanish, Dutch and Italian.
 - **Firewall editor.** A Firewall tab shows every zone, network and device. In Change mode you drag a device to another network, or tap it (on a phone too) to move it, rename it or give it a fixed address; the changes collect in a draft and you get a plain-language preview: what the device may do afterwards, what it may no longer do, every field old → new, and what to watch out for. Addresses are checked before anything is written (inside the network, not the gateway, not taken). Gateway changes go the same way: create a network with a VLAN of its own from a template, change an address service, reserve or release fixed addresses, add or switch off port forwards (each new one confirmed separately); the preview names hub integrations, presence trackers and automations that reach a device by its address. The **zone firewall** can be rehearsed and changed the same way: create, rename and remove own zones, move networks between zones, switch, change, reorder, add and remove rules, and ask *May one reach the other?* now and after your draft, with lockout protection before anything is written. **Switch ports** show every switch as its faceplate; in Change mode a port gets a name, a port profile, an untagged network, tagged networks (none, all or a choice) and power over Ethernet on or off, or a power cycle that restarts the device behind it; uplinks, network equipment and protected devices keep their networks and their power, and every change of power needs its own confirmation. A **network plan** keeps the target network of every device (for example a new IoT network), marks each tile *→ IoT*, counts *5 of 12 moved* and drafts the moves that are possible now. Out of the box it runs as a **simulation** against a sample network and writes nothing anywhere; with the optional executor and a controller family that can write, the same draft becomes a signed change with backup, watch and automatic rollback. See [docs/FIREWALL-EDITOR.md](docs/FIREWALL-EDITOR.md).
 - **Firewall board, rules in plain words, "May one reach the other?".** For a zone firewall that Lanloom reads, the Firewall tab shows the zones as a board with the traffic between them (hits of the last hour, what was blocked today), every rule as a sentence, an answer to "May this device reach that one on this port?" from the rules in their order (and an honest *Depends* where a rule needs something Lanloom cannot see), and checks that come with a suggestion: a rule an earlier rule always overrides, a guest zone that reaches the inside, an intrusion-detection suppression list that has grown long. Read only. See [docs/manual/firewall.md](docs/manual/firewall.md).
 - **Switch front panels.** With a switch controller read, every switch shows its ports like the hardware: link, speed, power over Ethernet, uplink, VLAN, the devices behind each port and how often the link dropped or counted errors in 24 hours (a symbol and a word, not only a colour), and the port profile, the tagged networks and whether power is switched off; access points show their radios, clients, roaming and the signal of their wireless devices (good / fair / weak per band, and devices clinging to a far access point, kept in memory only). Where one device sits alone on a port, its cable is measured exactly from the port counters. A port that turns unstable is a notification event and a section of the nightly report. See [docs/manual/network.md](docs/manual/network.md).
@@ -72,7 +72,7 @@ A short clip of the sample network - the map with its moving dots, the data path
 
 ![The sample network: map, data paths and nightly report (animated, 4 MB)](docs/site/media/demo.gif)
 
-Every view in light and dark and in both colour themes (*Circuit* and *Aurora*), plus the phone layout, is in the **[tour](docs/TOUR.md)**; the same tour, with a viewer, is the static [landing page](docs/site/README.md) in `docs/site/`. A picture here opens its section of the tour.
+Every view in light and dark and in the colour themes *Circuit* and *Aurora*, plus the phone layout, is in the **[tour](docs/TOUR.md)** (the glass themes are shown [below](#colour-themes)); the same tour, with a viewer, is the static [landing page](docs/site/README.md) in `docs/site/`. A picture here opens its section of the tour.
 
 <table>
 <tr><td width="50%"><a href="docs/TOUR.md#overview"><img src="docs/site/img/overview-light-circuit.png" width="100%" alt="Overview, light, Circuit"></a><br><sub>Overview</sub></td><td width="50%"><a href="docs/TOUR.md#map"><img src="docs/site/img/map-light-circuit.png" width="100%" alt="Map, light, Circuit"></a><br><sub>Map</sub></td></tr>
@@ -545,16 +545,33 @@ Settings › API gives every person their own API tokens for scripts and other p
 
 ### Colour themes
 
-Settings > Appearance > Colour theme switches the accent palette of the whole app: the map, the traces, the data paths arcs, the firewall views, the charts and the live grades. **Circuit green** is the default and looks as before; **Aurora** uses turquoise, blue and violet on a cool ground. Every theme works in light, dark and automatic mode, and the choice is remembered per device. Warning and error colours keep their meaning in every theme, and the text and graphic contrast of each theme and mode is checked against WCAG AA in the test suite.
+Settings > Appearance > Colour theme switches the accent palette of the whole app: the map, the traces, the data paths arcs, the firewall views, the charts and the live grades. **Circuit green** is the default and looks as before; **Aurora** uses turquoise, blue and violet on a cool ground. **SummerGlass** and **WinterGlass** are one glass family: every box is a pane of glass with a light edge along its top, a soft sheen and a soft shadow, a glare that crosses it when the pointer rests on it, and soft colour fields behind the panes that shine through - SummerGlass is its light face (sky blue, mint and a warm sun on a bright ground), WinterGlass its dark face (ice blue, teal and polar violet on gunmetal). Picking one of them picks its mode, and switching between light and dark switches between the two. The glass needs no blur, so it stays smooth on small machines, and the glare stands still when the system asks for reduced motion. Circuit green and Aurora work in light, dark and automatic mode, and the choice is remembered per device. Warning and error colours keep their meaning in every theme, and the text and graphic contrast of each theme and mode is checked against WCAG AA in the test suite.
 
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/theme-circuit-dark.png" width="100%" alt="The map in the Circuit green theme"><br><sub>Circuit green (default)</sub></td>
 <td width="50%"><img src="docs/screenshots/theme-aurora-dark.png" width="100%" alt="The same map in the Aurora theme"><br><sub>Aurora, the same view</sub></td>
 </tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/theme-summerglass.png" width="100%" alt="The control room in the SummerGlass theme"><br><sub>SummerGlass (light)</sub></td>
+<td width="50%"><img src="docs/screenshots/theme-winterglass.png" width="100%" alt="The control room in the WinterGlass theme"><br><sub>WinterGlass (dark)</sub></td>
+</tr>
 </table>
 
 ![Colour theme setting with a preview of each theme](docs/screenshots/colour-theme-picker-light.png)
+
+#### Your own colour theme
+
+Below the tiles, **Import theme...** loads a theme file, **Export current theme** saves the active theme as a starting point, and **Remove imported theme** deletes yours again. A theme file is JSON (up to 64 KB):
+
+```json
+{ "format": "lanloom-theme/1", "name": "My theme", "light": { "--ll-accent": "#0A7C95" }, "dark": { "--ll-accent": "#4FD1E8" } }
+```
+
+Only colour values are accepted (hex colours, `rgb()`/`rgba()`, shadows made of offsets and a colour, and two plain numbers) for a fixed list of tokens; anything else is refused and unknown entries are ignored. Missing tokens come from the default theme, so a partial file is fine. Before you take a theme, a preview shows it in light and dark together with warnings where text or graphics would fall below the contrast of the built-in themes.
+
+![Preview of an imported theme in light and dark before it is used](docs/screenshots/colour-theme-import-light.png)
+ The theme stays in this browser (per device); nothing is sent to the server.
 
 ### AI
 
@@ -947,7 +964,7 @@ Measured on one core of a current 4-core arm64 single-board computer (2.4 GHz cl
 ## Documentation
 
 - [docs/manual/README.md](docs/manual/README.md): the manual, one page per view (overview, map, network, data paths, devices, inventory, firewall, nightly reports, running, settings, AI) with purpose, what you see, how to use it, limits and privacy; [docs/manual/views.md](docs/manual/views.md) covers the rails, keys, live state and deep links
-- [docs/TOUR.md](docs/TOUR.md): the tour: every view in light and dark and in both colour themes, and the phone layout; the animated clip
+- [docs/TOUR.md](docs/TOUR.md): the tour: every view in light and dark and in the colour themes Circuit and Aurora, and the phone layout; the animated clip
 - [docs/site/README.md](docs/site/README.md): the static landing page (`docs/site/`): what is in it, how to preview it, how to publish it with Pages, the pictures and the preview image
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): reading the status of a source, the reasons of every source and adapter with cause and fix, scanning, sign-in, install, and the redacted diagnostic export
 - [docs/INSTALL.md](docs/INSTALL.md): installation on each platform, configuration, backup, moving to another host, uninstall

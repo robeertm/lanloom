@@ -137,8 +137,8 @@
     run: () => { forget(); LL.toast(t('cmdk.recent_cleared')); } });
   // one command per colour theme (the list of themes belongs to js/app.js, so it is read when the palette opens)
   const paletteCommands = () => (LL.PALETTES || []).map((p, i) => ({ id: 'palette-' + p, group: 'commands', order: 5 + i / 100, available: () => LL.palette() !== p,
-    label: () => t('cmdk.colour', { name: t('palette.' + p) }), keywords: () => t('cmdk.kw.theme'),
-    run: () => { LL.setPalette(p); LL.toast(t('palette.changed', { name: t('palette.' + p) })); } }));
+    label: () => t('cmdk.colour', { name: LL.paletteName(p) }), keywords: () => t('cmdk.kw.theme'),
+    run: () => { LL.setPalette(p); LL.toast(t('palette.changed', { name: LL.paletteName(p) })); } }));
 
   // ------------------------------------------------------------------ actions of a hit (a feature adds its own)
   const openDevice = (kind, order) => LL.registerAction({ id: 'open.' + kind, kinds: [kind], order, label: 'cmdk.act.open', available: hit => !!(kind === 'device' ? hit.id : hit.device),

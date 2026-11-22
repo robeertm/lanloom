@@ -1,6 +1,6 @@
 # Tour of every view
 
-One section per view, each in the four looks Lanloom ships: light and dark, in the colour themes *Circuit* (green) and *Aurora* (turquoise and violet). The mode follows your system or the toggle in the top bar; the colour theme is chosen under Settings › Appearance.
+One section per view, each in four looks: light and dark, in the colour themes *Circuit* (green) and *Aurora* (turquoise and violet); the glass themes SummerGlass and WinterGlass are shown in the README. The mode follows your system or the toggle in the top bar; the colour theme is chosen under Settings › Appearance.
 
 All pictures show the built-in sample network with invented names and addresses. The manual page of each view says what everything on it means. The same tour is on the [landing page](site/index.html) as a viewer.
 

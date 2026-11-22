@@ -1,0 +1,72 @@
+/* Lanloom — the glass of the SummerGlass (light) and WinterGlass (dark) colour themes.
+   Every colour is a token (css/palettes.css); this file only layers them, and only under these two palettes.
+   Budget for small machines: no blur behind the glass (nothing blurs over the animated map, tests/test_storage_counters.py);
+   the gradient behind the glass is one fixed layer that is painted once; sheen and edge light are background layers and
+   inset shadows of the boxes themselves; the glare crosses a box only while the pointer is on it, and not at all when the
+   system asks for reduced motion. */
+
+/* the light behind the glass: three soft colour fields over a calm vertical gradient */
+:where([data-palette="summerglass"], [data-palette="winterglass"]) body { background-color: var(--ll-glass-bottom, var(--ll-bg)); }
+:where([data-palette="summerglass"], [data-palette="winterglass"]) body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(62vmax 44vmax at 4% -6%, var(--ll-glass-tint-1, transparent), transparent 72%),
+    radial-gradient(54vmax 40vmax at 102% 6%, var(--ll-glass-tint-2, transparent), transparent 70%),
+    radial-gradient(70vmax 48vmax at 70% 112%, var(--ll-glass-tint-3, transparent), transparent 70%),
+    linear-gradient(180deg, var(--ll-glass-top, var(--ll-bg)), var(--ll-glass-bottom, var(--ll-bg)));
+}
+
+/* boxes are panes of glass: a fill the light shines through, a sheen at the top edge, a glare that crosses on hover.
+   A state colour of a box (an incident, a warning) stays: only the image layers are set here, the colour is the box's own. */
+:where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.card, .ov-kpi, .en-kpi, .pw-kpi, .au-tile, .au-pad, .au-ent, .au-board__chip,
+    .detail, .device-list, .stepper__item, .setup-guide, .fc-bar, .rw-bar, .cr-hero, .cr-block, .cr-cell, .cr-nas, .cr-ups, .zf-zone, .rp-ch,
+    .site-card, .map-filter, .chip-btn, .mf-chip, .icon-btn, .btn--ghost, .ll-tile) {
+  --ll-surface: var(--ll-glass-fill, var(--ll-surface-2));
+  background-image:
+    linear-gradient(180deg, var(--ll-glass-sheen-hi, transparent) 0, var(--ll-glass-sheen-lo, transparent) 44px, transparent 120px),
+    linear-gradient(112deg, transparent 38%, var(--ll-glass-glare, transparent) 50%, transparent 62%);
+  background-size: 100% 100%, 260% 100%;
+  background-position: 0 0, 130% 0;
+  background-repeat: no-repeat;
+  transition: background-position .9s var(--ll-ease), border-color var(--ll-dur-fast) var(--ll-ease), box-shadow var(--ll-dur) var(--ll-ease);
+}
+:where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.card, .ov-kpi, .en-kpi, .pw-kpi, .au-tile, .au-pad, .au-ent, .au-board__chip,
+    .detail, .device-list, .stepper__item, .setup-guide, .fc-bar, .rw-bar, .cr-hero, .cr-block, .cr-cell, .cr-nas, .cr-ups, .zf-zone, .rp-ch,
+    .site-card, .map-filter, .chip-btn, .mf-chip, .icon-btn, .btn--ghost, .ll-tile):hover { background-position: 0 0, -30% 0; }
+/* the big panes (a settings card is as tall as the window) keep their sheen and skip the glare */
+:where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.card, .device-list, .detail):hover { background-position: 0 0, 130% 0; }
+
+/* the bars at the top and, on a phone, at the bottom are frosted strips with a line of light along their edge */
+:where([data-palette="summerglass"], [data-palette="winterglass"]) .topbar {
+  --ll-surface: var(--ll-glass-bar, var(--ll-surface-2));
+  background-image: linear-gradient(180deg, var(--ll-glass-sheen-lo, transparent), transparent);
+  box-shadow: inset 0 -1px 0 var(--ll-glass-sheen-lo, transparent), 0 6px 20px var(--ll-glass-depth, transparent);
+}
+:where([data-palette="summerglass"], [data-palette="winterglass"]) .tab.is-active {
+  background-image: radial-gradient(70% 90% at 50% 100%, var(--ll-glass-glow, transparent), transparent 72%);
+}
+
+/* buttons: the accent under a gloss that fades out before the middle, so the label sits on the accent itself */
+:where([data-palette="summerglass"], [data-palette="winterglass"]) .btn--primary {
+  background-image: linear-gradient(180deg, var(--ll-glass-gloss, transparent) 0, transparent 46%),
+    linear-gradient(0deg, var(--ll-glass-depth, transparent) 0, transparent 40%);
+  box-shadow: inset 0 1px 0 var(--ll-glass-sheen-hi, transparent), 0 1px 2px var(--ll-glass-depth, transparent), 0 6px 16px var(--ll-glass-glow, transparent);
+  transition: background-color var(--ll-dur-fast), box-shadow var(--ll-dur) var(--ll-ease);
+}
+:where([data-palette="summerglass"], [data-palette="winterglass"]) .btn--primary:hover:not(:disabled) {
+  box-shadow: inset 0 1px 0 var(--ll-glass-sheen-hi, transparent), 0 1px 2px var(--ll-glass-depth, transparent), 0 8px 22px var(--ll-glass-glow, transparent);
+}
+:where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.seg__btn.is-active, .chip) {
+  background-image: linear-gradient(180deg, var(--ll-glass-sheen-hi, transparent), transparent 70%);
+}
+/* fields are set into the glass: a soft shade along their upper inner edge */
+:where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.input, .select) { box-shadow: inset 0 1px 3px var(--ll-glass-depth, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  :where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.card, .ov-kpi, .en-kpi, .pw-kpi, .au-tile, .au-pad, .au-ent, .au-board__chip,
+      .detail, .device-list, .stepper__item, .setup-guide, .fc-bar, .rw-bar, .cr-hero, .cr-block, .cr-cell, .cr-nas, .cr-ups, .zf-zone, .rp-ch,
+      .site-card, .map-filter, .chip-btn, .mf-chip, .icon-btn, .btn--ghost, .ll-tile) { transition: border-color var(--ll-dur-fast) var(--ll-ease); }
+  :where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.card, .ov-kpi, .en-kpi, .pw-kpi, .au-tile, .au-pad, .au-ent, .au-board__chip,
+      .detail, .device-list, .stepper__item, .setup-guide, .fc-bar, .rw-bar, .cr-hero, .cr-block, .cr-cell, .cr-nas, .cr-ups, .zf-zone, .rp-ch,
+      .site-card, .map-filter, .chip-btn, .mf-chip, .icon-btn, .btn--ghost, .ll-tile):hover { background-position: 0 0, 130% 0; }
+}

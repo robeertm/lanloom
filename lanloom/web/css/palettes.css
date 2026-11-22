@@ -221,3 +221,491 @@
     --ll-pcb-legend-bg: rgba(10, 12, 28, .9);
   }
 }
+
+/* ---- SummerGlass and WinterGlass: one glass family. SummerGlass is its light face, WinterGlass its dark face; picking one also
+   picks its mode (js/app.js), so both ids carry the same three blocks: clear boxes with a visible edge on a grey ground (light) and
+   dark glass on gunmetal (dark). The glass surface itself (sheen, edge light, the gradient behind it) is in css/glass.css. ---- */
+[data-palette="summerglass"],
+[data-palette="summerglass"] [data-theme="light"]:not([data-palette]) {
+  color-scheme: light;
+  --ll-bg: #D4D8DC;
+  --ll-surface: #FAFBFC;
+  --ll-surface-2: #EFF2F5;
+  --ll-surface-3: #E3E8EC;
+  --ll-border: #8A9298;
+  --ll-border-strong: #6E767D;
+  --ll-text: #0E1417;
+  --ll-text-2: #33404A;
+  --ll-text-3: #3D4952;
+  --ll-text-disabled: #7C858C;
+  --ll-accent: #1F6FA8;
+  --ll-accent-hover: #195C8C;
+  --ll-accent-text: #14527C;
+  --ll-accent-soft: #DCEAF5;
+  --ll-on-accent: #FFFFFF;
+  --ll-focus: #6B4BC8;
+  --ll-overlay: rgba(14, 20, 23, .38);
+  --ll-shadow-1: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 0 0 1px rgba(255, 255, 255, .45) inset, 0 1px 2px rgba(16, 24, 32, .12), 0 6px 18px rgba(16, 24, 32, .10);
+  --ll-shadow-2: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 0 0 1px rgba(255, 255, 255, .45) inset, 0 4px 12px rgba(16, 24, 32, .14), 0 18px 44px rgba(16, 24, 32, .18);
+  --ll-ok: #11875F;
+  --ll-ok-text: #0B6A4A;
+  --ll-ok-soft: #DCF1E8;
+  --ll-warn: #A06A00;
+  --ll-warn-text: #7E5300;
+  --ll-warn-soft: #F7EDD6;
+  --ll-danger: #C93838;
+  --ll-danger-text: #A82424;
+  --ll-danger-soft: #F8E2E2;
+  --ll-muted: #7C858C;
+  --ll-grade-realtime: #11875F;
+  --ll-grade-near: #4D8621;
+  --ll-grade-periodic: #9E6C00;
+  --ll-grade-sluggish: #C2560F;
+  --ll-grade-interrupted: #C93838;
+  --ll-grade-unknown: #6A737A;
+  --ll-pcb-board: #D4D8DC;
+  --ll-pcb-grid: rgba(40, 60, 80, .12);
+  --ll-pcb-zone: #E4E8EB;
+  --ll-pcb-zone-line: #8E979E;
+  --ll-pcb-silk: #2A333A;
+  --ll-pcb-silk-2: #4A555D;
+  --ll-pcb-tile: #FAFBFC;
+  --ll-pcb-tile-line: #8A9298;
+  --ll-pcb-tile-hover: #4F7398;
+  --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 1px 2px rgba(16, 24, 32, .12), 0 3px 10px rgba(16, 24, 32, .08);
+  --ll-pcb-tile-down: #EBC4C8;
+  --ll-pcb-icon-bg: #E3EAF1;
+  --ll-pcb-icon: #2A5C8E;
+  --ll-pcb-copper: #5F7192;
+  --ll-pcb-via: #56678A;
+  --ll-pcb-trace-rest: .62;
+  --ll-pcb-trace-uplink: #A5650C;
+  --ll-pcb-trace-lan: #0F8585;
+  --ll-pcb-trace-service: #5148C8;
+  --ll-pcb-trace-flow: #8A3CC0;
+  --ll-pcb-trace-integration: #B23380;
+  --ll-pcb-trace-cable: #0F8585;
+  --ll-pcb-trace-radio: #2A6FC0;
+  --ll-pcb-trace-virtual: #6A7090;
+  --ll-pcb-dot-core: #FFFFFF;
+  --ll-pcb-badge-bg: #EEF1F4;
+  --ll-pcb-badge-line: #A9B1B8;
+  --ll-pcb-badge-text: #2F3A42;
+  --ll-pcb-led-ring: #FFFFFF;
+  --ll-pcb-led-glow: 0px;
+  --ll-pcb-legend-bg: rgba(250, 251, 252, .92);
+}
+
+[data-palette="summerglass"][data-theme="dark"],
+[data-palette="summerglass"] [data-theme="dark"]:not([data-palette]) {
+  color-scheme: dark;
+  --ll-bg: #343D43;
+  --ll-surface: #171D21;
+  --ll-surface-2: #1D2429;
+  --ll-surface-3: #262F35;
+  --ll-border: #5F6D76;
+  --ll-border-strong: #7A8893;
+  --ll-text: #EDF1F4;
+  --ll-text-2: #CAD3DA;
+  --ll-text-3: #B8C3CB;
+  --ll-text-disabled: #6E7A82;
+  --ll-accent: #6FC3F5;
+  --ll-accent-hover: #93D3F8;
+  --ll-accent-text: #7FCBF7;
+  --ll-accent-soft: rgba(111, 195, 245, .15);
+  --ll-on-accent: #062033;
+  --ll-focus: #B39BFF;
+  --ll-overlay: rgba(4, 8, 10, .6);
+  --ll-shadow-1: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 1px 2px rgba(0, 0, 0, .45), 0 8px 22px rgba(0, 0, 0, .32);
+  --ll-shadow-2: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 4px 12px rgba(0, 0, 0, .45), 0 20px 52px rgba(0, 0, 0, .52);
+  --ll-ok: #3FCB9A;
+  --ll-ok-text: #66DBB3;
+  --ll-ok-soft: rgba(63, 203, 154, .15);
+  --ll-warn: #F2B53A;
+  --ll-warn-text: #F6C766;
+  --ll-warn-soft: rgba(242, 181, 58, .15);
+  --ll-danger: #F06A6A;
+  --ll-danger-text: #F58C8C;
+  --ll-danger-soft: rgba(240, 106, 106, .15);
+  --ll-muted: #7C8890;
+  --ll-grade-realtime: #3FCB9A;
+  --ll-grade-near: #9AD24E;
+  --ll-grade-periodic: #F2B53A;
+  --ll-grade-sluggish: #F8913E;
+  --ll-grade-interrupted: #F06A6A;
+  --ll-grade-unknown: #8794A0;
+  --ll-pcb-board: #0F1417;
+  --ll-pcb-grid: rgba(160, 190, 210, .07);
+  --ll-pcb-zone: #151B1F;
+  --ll-pcb-zone-line: #46535C;
+  --ll-pcb-silk: #D3DCE2;
+  --ll-pcb-silk-2: #A3AFB7;
+  --ll-pcb-tile: #262F35;
+  --ll-pcb-tile-line: #6A7C87;
+  --ll-pcb-tile-hover: #7FA0BC;
+  --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 2px 10px rgba(0, 0, 0, .4);
+  --ll-pcb-tile-down: #5A2C34;
+  --ll-pcb-icon-bg: #2C363D;
+  --ll-pcb-icon: #8CC4EE;
+  --ll-pcb-copper: #9DB0C8;
+  --ll-pcb-via: #8A9DB6;
+  --ll-pcb-trace-rest: .55;
+  --ll-pcb-trace-uplink: #E0B04A;
+  --ll-pcb-trace-lan: #3DCFCB;
+  --ll-pcb-trace-service: #8A8CFF;
+  --ll-pcb-trace-flow: #C78AF5;
+  --ll-pcb-trace-integration: #EE7DBE;
+  --ll-pcb-trace-cable: #3DCFCB;
+  --ll-pcb-trace-radio: #5EB0FF;
+  --ll-pcb-trace-virtual: #A7B3BE;
+  --ll-pcb-dot-core: #FFFFFF;
+  --ll-pcb-badge-bg: #222A30;
+  --ll-pcb-badge-line: #3C4850;
+  --ll-pcb-badge-text: #C3CDD4;
+  --ll-pcb-led-ring: #262F35;
+  --ll-pcb-led-glow: 6px;
+  --ll-pcb-legend-bg: rgba(18, 23, 27, .9);
+}
+
+@media (prefers-color-scheme: dark) {
+    [data-palette="summerglass"][data-theme="auto"],
+  [data-palette="summerglass"] [data-theme="auto"]:not([data-palette]) {
+    color-scheme: dark;
+    --ll-bg: #343D43;
+    --ll-surface: #171D21;
+    --ll-surface-2: #1D2429;
+    --ll-surface-3: #262F35;
+    --ll-border: #5F6D76;
+    --ll-border-strong: #7A8893;
+    --ll-text: #EDF1F4;
+    --ll-text-2: #CAD3DA;
+    --ll-text-3: #B8C3CB;
+    --ll-text-disabled: #6E7A82;
+    --ll-accent: #6FC3F5;
+    --ll-accent-hover: #93D3F8;
+    --ll-accent-text: #7FCBF7;
+    --ll-accent-soft: rgba(111, 195, 245, .15);
+    --ll-on-accent: #062033;
+    --ll-focus: #B39BFF;
+    --ll-overlay: rgba(4, 8, 10, .6);
+    --ll-shadow-1: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 1px 2px rgba(0, 0, 0, .45), 0 8px 22px rgba(0, 0, 0, .32);
+    --ll-shadow-2: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 4px 12px rgba(0, 0, 0, .45), 0 20px 52px rgba(0, 0, 0, .52);
+    --ll-ok: #3FCB9A;
+    --ll-ok-text: #66DBB3;
+    --ll-ok-soft: rgba(63, 203, 154, .15);
+    --ll-warn: #F2B53A;
+    --ll-warn-text: #F6C766;
+    --ll-warn-soft: rgba(242, 181, 58, .15);
+    --ll-danger: #F06A6A;
+    --ll-danger-text: #F58C8C;
+    --ll-danger-soft: rgba(240, 106, 106, .15);
+    --ll-muted: #7C8890;
+    --ll-grade-realtime: #3FCB9A;
+    --ll-grade-near: #9AD24E;
+    --ll-grade-periodic: #F2B53A;
+    --ll-grade-sluggish: #F8913E;
+    --ll-grade-interrupted: #F06A6A;
+    --ll-grade-unknown: #8794A0;
+    --ll-pcb-board: #0F1417;
+    --ll-pcb-grid: rgba(160, 190, 210, .07);
+    --ll-pcb-zone: #151B1F;
+    --ll-pcb-zone-line: #46535C;
+    --ll-pcb-silk: #D3DCE2;
+    --ll-pcb-silk-2: #A3AFB7;
+    --ll-pcb-tile: #262F35;
+    --ll-pcb-tile-line: #6A7C87;
+    --ll-pcb-tile-hover: #7FA0BC;
+    --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 2px 10px rgba(0, 0, 0, .4);
+    --ll-pcb-tile-down: #5A2C34;
+    --ll-pcb-icon-bg: #2C363D;
+    --ll-pcb-icon: #8CC4EE;
+    --ll-pcb-copper: #9DB0C8;
+    --ll-pcb-via: #8A9DB6;
+    --ll-pcb-trace-rest: .55;
+    --ll-pcb-trace-uplink: #E0B04A;
+    --ll-pcb-trace-lan: #3DCFCB;
+    --ll-pcb-trace-service: #8A8CFF;
+    --ll-pcb-trace-flow: #C78AF5;
+    --ll-pcb-trace-integration: #EE7DBE;
+    --ll-pcb-trace-cable: #3DCFCB;
+    --ll-pcb-trace-radio: #5EB0FF;
+    --ll-pcb-trace-virtual: #A7B3BE;
+    --ll-pcb-dot-core: #FFFFFF;
+    --ll-pcb-badge-bg: #222A30;
+    --ll-pcb-badge-line: #3C4850;
+    --ll-pcb-badge-text: #C3CDD4;
+    --ll-pcb-led-ring: #262F35;
+    --ll-pcb-led-glow: 6px;
+    --ll-pcb-legend-bg: rgba(18, 23, 27, .9);
+  }
+}
+
+[data-palette="winterglass"],
+[data-palette="winterglass"] [data-theme="light"]:not([data-palette]) {
+  color-scheme: light;
+  --ll-bg: #D4D8DC;
+  --ll-surface: #FAFBFC;
+  --ll-surface-2: #EFF2F5;
+  --ll-surface-3: #E3E8EC;
+  --ll-border: #8A9298;
+  --ll-border-strong: #6E767D;
+  --ll-text: #0E1417;
+  --ll-text-2: #33404A;
+  --ll-text-3: #3D4952;
+  --ll-text-disabled: #7C858C;
+  --ll-accent: #1F6FA8;
+  --ll-accent-hover: #195C8C;
+  --ll-accent-text: #14527C;
+  --ll-accent-soft: #DCEAF5;
+  --ll-on-accent: #FFFFFF;
+  --ll-focus: #6B4BC8;
+  --ll-overlay: rgba(14, 20, 23, .38);
+  --ll-shadow-1: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 0 0 1px rgba(255, 255, 255, .45) inset, 0 1px 2px rgba(16, 24, 32, .12), 0 6px 18px rgba(16, 24, 32, .10);
+  --ll-shadow-2: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 0 0 1px rgba(255, 255, 255, .45) inset, 0 4px 12px rgba(16, 24, 32, .14), 0 18px 44px rgba(16, 24, 32, .18);
+  --ll-ok: #11875F;
+  --ll-ok-text: #0B6A4A;
+  --ll-ok-soft: #DCF1E8;
+  --ll-warn: #A06A00;
+  --ll-warn-text: #7E5300;
+  --ll-warn-soft: #F7EDD6;
+  --ll-danger: #C93838;
+  --ll-danger-text: #A82424;
+  --ll-danger-soft: #F8E2E2;
+  --ll-muted: #7C858C;
+  --ll-grade-realtime: #11875F;
+  --ll-grade-near: #4D8621;
+  --ll-grade-periodic: #9E6C00;
+  --ll-grade-sluggish: #C2560F;
+  --ll-grade-interrupted: #C93838;
+  --ll-grade-unknown: #6A737A;
+  --ll-pcb-board: #D4D8DC;
+  --ll-pcb-grid: rgba(40, 60, 80, .12);
+  --ll-pcb-zone: #E4E8EB;
+  --ll-pcb-zone-line: #8E979E;
+  --ll-pcb-silk: #2A333A;
+  --ll-pcb-silk-2: #4A555D;
+  --ll-pcb-tile: #FAFBFC;
+  --ll-pcb-tile-line: #8A9298;
+  --ll-pcb-tile-hover: #4F7398;
+  --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 1px 2px rgba(16, 24, 32, .12), 0 3px 10px rgba(16, 24, 32, .08);
+  --ll-pcb-tile-down: #EBC4C8;
+  --ll-pcb-icon-bg: #E3EAF1;
+  --ll-pcb-icon: #2A5C8E;
+  --ll-pcb-copper: #5F7192;
+  --ll-pcb-via: #56678A;
+  --ll-pcb-trace-rest: .62;
+  --ll-pcb-trace-uplink: #A5650C;
+  --ll-pcb-trace-lan: #0F8585;
+  --ll-pcb-trace-service: #5148C8;
+  --ll-pcb-trace-flow: #8A3CC0;
+  --ll-pcb-trace-integration: #B23380;
+  --ll-pcb-trace-cable: #0F8585;
+  --ll-pcb-trace-radio: #2A6FC0;
+  --ll-pcb-trace-virtual: #6A7090;
+  --ll-pcb-dot-core: #FFFFFF;
+  --ll-pcb-badge-bg: #EEF1F4;
+  --ll-pcb-badge-line: #A9B1B8;
+  --ll-pcb-badge-text: #2F3A42;
+  --ll-pcb-led-ring: #FFFFFF;
+  --ll-pcb-led-glow: 0px;
+  --ll-pcb-legend-bg: rgba(250, 251, 252, .92);
+}
+
+[data-palette="winterglass"][data-theme="dark"],
+[data-palette="winterglass"] [data-theme="dark"]:not([data-palette]) {
+  color-scheme: dark;
+  --ll-bg: #343D43;
+  --ll-surface: #171D21;
+  --ll-surface-2: #1D2429;
+  --ll-surface-3: #262F35;
+  --ll-border: #5F6D76;
+  --ll-border-strong: #7A8893;
+  --ll-text: #EDF1F4;
+  --ll-text-2: #CAD3DA;
+  --ll-text-3: #B8C3CB;
+  --ll-text-disabled: #6E7A82;
+  --ll-accent: #6FC3F5;
+  --ll-accent-hover: #93D3F8;
+  --ll-accent-text: #7FCBF7;
+  --ll-accent-soft: rgba(111, 195, 245, .15);
+  --ll-on-accent: #062033;
+  --ll-focus: #B39BFF;
+  --ll-overlay: rgba(4, 8, 10, .6);
+  --ll-shadow-1: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 1px 2px rgba(0, 0, 0, .45), 0 8px 22px rgba(0, 0, 0, .32);
+  --ll-shadow-2: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 4px 12px rgba(0, 0, 0, .45), 0 20px 52px rgba(0, 0, 0, .52);
+  --ll-ok: #3FCB9A;
+  --ll-ok-text: #66DBB3;
+  --ll-ok-soft: rgba(63, 203, 154, .15);
+  --ll-warn: #F2B53A;
+  --ll-warn-text: #F6C766;
+  --ll-warn-soft: rgba(242, 181, 58, .15);
+  --ll-danger: #F06A6A;
+  --ll-danger-text: #F58C8C;
+  --ll-danger-soft: rgba(240, 106, 106, .15);
+  --ll-muted: #7C8890;
+  --ll-grade-realtime: #3FCB9A;
+  --ll-grade-near: #9AD24E;
+  --ll-grade-periodic: #F2B53A;
+  --ll-grade-sluggish: #F8913E;
+  --ll-grade-interrupted: #F06A6A;
+  --ll-grade-unknown: #8794A0;
+  --ll-pcb-board: #0F1417;
+  --ll-pcb-grid: rgba(160, 190, 210, .07);
+  --ll-pcb-zone: #151B1F;
+  --ll-pcb-zone-line: #46535C;
+  --ll-pcb-silk: #D3DCE2;
+  --ll-pcb-silk-2: #A3AFB7;
+  --ll-pcb-tile: #262F35;
+  --ll-pcb-tile-line: #6A7C87;
+  --ll-pcb-tile-hover: #7FA0BC;
+  --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 2px 10px rgba(0, 0, 0, .4);
+  --ll-pcb-tile-down: #5A2C34;
+  --ll-pcb-icon-bg: #2C363D;
+  --ll-pcb-icon: #8CC4EE;
+  --ll-pcb-copper: #9DB0C8;
+  --ll-pcb-via: #8A9DB6;
+  --ll-pcb-trace-rest: .55;
+  --ll-pcb-trace-uplink: #E0B04A;
+  --ll-pcb-trace-lan: #3DCFCB;
+  --ll-pcb-trace-service: #8A8CFF;
+  --ll-pcb-trace-flow: #C78AF5;
+  --ll-pcb-trace-integration: #EE7DBE;
+  --ll-pcb-trace-cable: #3DCFCB;
+  --ll-pcb-trace-radio: #5EB0FF;
+  --ll-pcb-trace-virtual: #A7B3BE;
+  --ll-pcb-dot-core: #FFFFFF;
+  --ll-pcb-badge-bg: #222A30;
+  --ll-pcb-badge-line: #3C4850;
+  --ll-pcb-badge-text: #C3CDD4;
+  --ll-pcb-led-ring: #262F35;
+  --ll-pcb-led-glow: 6px;
+  --ll-pcb-legend-bg: rgba(18, 23, 27, .9);
+}
+
+@media (prefers-color-scheme: dark) {
+    [data-palette="winterglass"][data-theme="auto"],
+  [data-palette="winterglass"] [data-theme="auto"]:not([data-palette]) {
+    color-scheme: dark;
+    --ll-bg: #343D43;
+    --ll-surface: #171D21;
+    --ll-surface-2: #1D2429;
+    --ll-surface-3: #262F35;
+    --ll-border: #5F6D76;
+    --ll-border-strong: #7A8893;
+    --ll-text: #EDF1F4;
+    --ll-text-2: #CAD3DA;
+    --ll-text-3: #B8C3CB;
+    --ll-text-disabled: #6E7A82;
+    --ll-accent: #6FC3F5;
+    --ll-accent-hover: #93D3F8;
+    --ll-accent-text: #7FCBF7;
+    --ll-accent-soft: rgba(111, 195, 245, .15);
+    --ll-on-accent: #062033;
+    --ll-focus: #B39BFF;
+    --ll-overlay: rgba(4, 8, 10, .6);
+    --ll-shadow-1: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 1px 2px rgba(0, 0, 0, .45), 0 8px 22px rgba(0, 0, 0, .32);
+    --ll-shadow-2: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 4px 12px rgba(0, 0, 0, .45), 0 20px 52px rgba(0, 0, 0, .52);
+    --ll-ok: #3FCB9A;
+    --ll-ok-text: #66DBB3;
+    --ll-ok-soft: rgba(63, 203, 154, .15);
+    --ll-warn: #F2B53A;
+    --ll-warn-text: #F6C766;
+    --ll-warn-soft: rgba(242, 181, 58, .15);
+    --ll-danger: #F06A6A;
+    --ll-danger-text: #F58C8C;
+    --ll-danger-soft: rgba(240, 106, 106, .15);
+    --ll-muted: #7C8890;
+    --ll-grade-realtime: #3FCB9A;
+    --ll-grade-near: #9AD24E;
+    --ll-grade-periodic: #F2B53A;
+    --ll-grade-sluggish: #F8913E;
+    --ll-grade-interrupted: #F06A6A;
+    --ll-grade-unknown: #8794A0;
+    --ll-pcb-board: #0F1417;
+    --ll-pcb-grid: rgba(160, 190, 210, .07);
+    --ll-pcb-zone: #151B1F;
+    --ll-pcb-zone-line: #46535C;
+    --ll-pcb-silk: #D3DCE2;
+    --ll-pcb-silk-2: #A3AFB7;
+    --ll-pcb-tile: #262F35;
+    --ll-pcb-tile-line: #6A7C87;
+    --ll-pcb-tile-hover: #7FA0BC;
+    --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 2px 10px rgba(0, 0, 0, .4);
+    --ll-pcb-tile-down: #5A2C34;
+    --ll-pcb-icon-bg: #2C363D;
+    --ll-pcb-icon: #8CC4EE;
+    --ll-pcb-copper: #9DB0C8;
+    --ll-pcb-via: #8A9DB6;
+    --ll-pcb-trace-rest: .55;
+    --ll-pcb-trace-uplink: #E0B04A;
+    --ll-pcb-trace-lan: #3DCFCB;
+    --ll-pcb-trace-service: #8A8CFF;
+    --ll-pcb-trace-flow: #C78AF5;
+    --ll-pcb-trace-integration: #EE7DBE;
+    --ll-pcb-trace-cable: #3DCFCB;
+    --ll-pcb-trace-radio: #5EB0FF;
+    --ll-pcb-trace-virtual: #A7B3BE;
+    --ll-pcb-dot-core: #FFFFFF;
+    --ll-pcb-badge-bg: #222A30;
+    --ll-pcb-badge-line: #3C4850;
+    --ll-pcb-badge-text: #C3CDD4;
+    --ll-pcb-led-ring: #262F35;
+    --ll-pcb-led-glow: 6px;
+    --ll-pcb-legend-bg: rgba(18, 23, 27, .9);
+  }
+}
+
+/* ---- the glass of SummerGlass and WinterGlass: the gradient behind the glass, the glass fill, sheen, glare and gloss.
+   Used by css/glass.css only; text never sits on a tint alone (tests/test_palettes.py composites every tint under the glass). ---- */
+html:is([data-palette="summerglass"], [data-palette="winterglass"]),
+html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme="light"]:not([data-palette]) {
+  --ll-glass-top: #DCE2E8;
+  --ll-glass-bottom: #CDD3D9;
+  --ll-glass-tint-1: rgba(150, 202, 246, .78);
+  --ll-glass-tint-2: rgba(120, 220, 200, .75);
+  --ll-glass-tint-3: rgba(255, 200, 140, .70);
+  --ll-glass-fill: rgba(255, 255, 255, .62);
+  --ll-glass-bar: rgba(250, 251, 252, .84);
+  --ll-glass-sheen-hi: rgba(255, 255, 255, .95);
+  --ll-glass-sheen-lo: rgba(255, 255, 255, .22);
+  --ll-glass-glare: rgba(255, 255, 255, .60);
+  --ll-glass-gloss: rgba(255, 255, 255, .26);
+  --ll-glass-depth: rgba(16, 24, 32, .10);
+  --ll-glass-glow: rgba(31, 111, 168, .28);
+}
+
+html:is([data-palette="summerglass"], [data-palette="winterglass"])[data-theme="dark"],
+html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme="dark"]:not([data-palette]) {
+  --ll-glass-top: #363F45;
+  --ll-glass-bottom: #2A3237;
+  --ll-glass-tint-1: rgba(32, 100, 172, .44);
+  --ll-glass-tint-2: rgba(20, 140, 144, .29);
+  --ll-glass-tint-3: rgba(118, 84, 204, .40);
+  --ll-glass-fill: rgba(14, 19, 23, .62);
+  --ll-glass-bar: rgba(20, 26, 30, .86);
+  --ll-glass-sheen-hi: rgba(255, 255, 255, .13);
+  --ll-glass-sheen-lo: rgba(255, 255, 255, .02);
+  --ll-glass-glare: rgba(255, 255, 255, .09);
+  --ll-glass-gloss: rgba(255, 255, 255, .38);
+  --ll-glass-depth: rgba(0, 0, 0, .30);
+  --ll-glass-glow: rgba(111, 195, 245, .30);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:is([data-palette="summerglass"], [data-palette="winterglass"])[data-theme="auto"],
+  html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme="auto"]:not([data-palette]) {
+    --ll-glass-top: #363F45;
+    --ll-glass-bottom: #2A3237;
+    --ll-glass-tint-1: rgba(32, 100, 172, .44);
+    --ll-glass-tint-2: rgba(20, 140, 144, .29);
+    --ll-glass-tint-3: rgba(118, 84, 204, .40);
+    --ll-glass-fill: rgba(14, 19, 23, .62);
+    --ll-glass-bar: rgba(20, 26, 30, .86);
+    --ll-glass-sheen-hi: rgba(255, 255, 255, .13);
+    --ll-glass-sheen-lo: rgba(255, 255, 255, .02);
+    --ll-glass-glare: rgba(255, 255, 255, .09);
+    --ll-glass-gloss: rgba(255, 255, 255, .38);
+    --ll-glass-depth: rgba(0, 0, 0, .30);
+    --ll-glass-glow: rgba(111, 195, 245, .30);
+  }
+}

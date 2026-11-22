@@ -1315,6 +1315,11 @@
     lang.value = LL.lang;
     const theme = h('select', { class: 'select', onchange: () => LL.setTheme(theme.value) }, ['auto', 'light', 'dark'].map(v => h('option', { value: v }, t('theme.' + v))));
     theme.value = LL.theme();
+    const followMode = () => {                             // picking SummerGlass or WinterGlass also picks the mode
+      if (!theme.isConnected) { document.removeEventListener('ll-theme', followMode); return; }
+      theme.value = LL.theme();
+    };
+    document.addEventListener('ll-theme', followMode);
     return [lang, theme];
   }
   // what viewers and operators see under Settings > General: appearance and about (everything else is for admins)
@@ -1327,30 +1332,120 @@
     fr.main.append(page);
     return fr;
   }
-  // Colour theme: one preview per palette, drawn with that palette's own tokens in the mode that is showing now.
+  // Colour theme: one preview per palette, drawn with that palette's own tokens in the mode that is showing now. Below the tiles: import of an own
+  // theme file (checked strictly, shown with a preview and contrast warnings before it is taken), export of the current theme as a starting point.
   function paletteField() {
-    const mode = LL.effectiveTheme();
+    const U = LL.usertheme;
     const group = h('div', { class: 'palette-pick', role: 'radiogroup', 'aria-labelledby': 'palette-label' });
+    const stage = h('div', { class: 'palette-import', 'aria-live': 'polite' });
+    const tools = h('div', { class: 'palette-tools' });
     const refresh = () => group.querySelectorAll('.pp').forEach(el => el.classList.toggle('is-on', el.querySelector('input').checked));
-    LL.PALETTES.forEach(id => {
-      const input = h('input', { type: 'radio', name: 'palette', value: id, class: 'pp__input', 'aria-describedby': 'pp-desc-' + id, onchange: () => {
-        if (!input.checked) return;
-        LL.setPalette(id); refresh(); LL.toast(t('palette.changed', { name: t('palette.' + id) }), 'ok');
-      } });
-      input.checked = LL.palette() === id;
-      const preview = h('span', { class: 'pp__preview', 'aria-hidden': 'true', dataset: { palette: id, theme: mode } },
-        h('i', { class: 'pp__bar' }),
-        h('span', { class: 'pp__tile' }, h('i', { class: 'pp__dot' }), h('i', { class: 'pp__line' })),
-        h('span', { class: 'pp__traces' }, ['lan', 'radio', 'service', 'flow', 'integration', 'uplink'].map(k => h('i', { class: 'pp__trace pp__trace--' + k }))));
-      group.append(h('label', { class: 'pp' + (input.checked ? ' is-on' : '') }, input, preview,
-        h('span', { class: 'pp__name' }, t('palette.' + id)), h('span', { class: 'pp__desc', id: 'pp-desc-' + id }, t('palette.' + id + '.desc'))));
-    });
+    const previewEl = (id, mode) => h('span', { class: 'pp__preview', 'aria-hidden': 'true', dataset: { palette: id, theme: mode } },
+      h('i', { class: 'pp__bar' }),
+      h('span', { class: 'pp__tile' }, h('i', { class: 'pp__dot' }), h('i', { class: 'pp__line' })),
+      h('span', { class: 'pp__traces' }, ['lan', 'radio', 'service', 'flow', 'integration', 'uplink'].map(k => h('i', { class: 'pp__trace pp__trace--' + k }))));
+    const renderTiles = () => {
+      group.replaceChildren();
+      LL.PALETTES.forEach(id => {
+        const input = h('input', { type: 'radio', name: 'palette', value: id, class: 'pp__input', 'aria-describedby': 'pp-desc-' + id, onchange: () => {
+          if (!input.checked) return;
+          LL.setPalette(id); refresh(); LL.toast(t('palette.changed', { name: LL.paletteName(id) }), 'ok');
+        } });
+        input.checked = LL.palette() === id;
+        group.append(h('label', { class: 'pp' + (input.checked ? ' is-on' : '') }, input, previewEl(id, LL.FACE[id] || LL.effectiveTheme()),
+          h('span', { class: 'pp__name' }, LL.paletteName(id)), h('span', { class: 'pp__desc', id: 'pp-desc-' + id }, t('palette.' + id + '.desc'))));
+      });
+    };
+    // the colour tokens of both modes as the browser resolves them, read from hidden probe elements (palette: a fixed one, or null = the current one)
+    const tokenMaps = palette => {
+      const attrs = palette ? { 'data-palette': palette } : {};
+      const dark = h('div', Object.assign({ 'data-theme': 'dark' }, attrs));
+      const light = h('div', Object.assign({ 'data-theme': 'light', hidden: true }, attrs), dark);
+      document.body.appendChild(light);
+      const read = el => { const cs = getComputedStyle(el), m = {}; U.TOKENS.forEach(k => { m[k] = cs.getPropertyValue(k).trim(); }); return m; };
+      const out = { light: read(light), dark: read(dark) };
+      light.remove();
+      return out;
+    };
+    const dropPreview = () => { const el = document.getElementById('ll-user-theme-preview'); if (el) el.remove(); };
+    const clearStage = () => { dropPreview(); stage.replaceChildren(); };
+    const errText = e => t('palette.import.err.' + e.code, { mode: e.mode ? t('palette.import.mode.' + e.mode) : '', token: e.token });
+    const warnText = w => w.kind === 'contrast'
+      ? t('palette.import.warn.contrast', { mode: t('palette.import.mode.' + w.mode), fg: w.fg, bg: w.bg, ratio: LL.fmtNum(w.ratio, 1), need: LL.fmtNum(w.need, 1) })
+      : t('palette.import.warn.' + w.side, { mode: t('palette.import.mode.' + w.mode), token: w.token });
+    const showErrors = r => {
+      clearStage();
+      stage.append(h('div', { class: 'callout callout--warn', role: 'alert' }, h('strong', {}, t('palette.import.errors')),
+        h('ul', { class: 'palette-import__list' }, r.errors.slice(0, 8).map(e => h('li', {}, errText(e)))),
+        r.errors.length > 8 ? h('p', {}, t('palette.import.more', { n: r.errors.length - 8 })) : null));
+    };
+    const showPreview = r => {
+      clearStage();
+      const full = U.fill(r.theme, tokenMaps('circuit'));
+      const warns = U.check(full);
+      const st = document.createElement('style');
+      st.id = 'll-user-theme-preview';
+      st.textContent = U.toCss(full, 'custom-preview');
+      document.head.appendChild(st);
+      const notes = [];
+      if (warns.length) notes.push(h('strong', {}, t('palette.import.warnings')), h('ul', { class: 'palette-import__list' }, warns.slice(0, 8).map(w => h('li', {}, warnText(w)))),
+        warns.length > 8 ? h('p', {}, t('palette.import.more', { n: warns.length - 8 })) : null);
+      if (r.dropped.length) notes.push(h('p', {}, t('palette.import.dropped', { n: r.dropped.length })));
+      const use = h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => {
+        try { localStorage.setItem('ll-user-theme', JSON.stringify(full)); } catch (e) { /* storage full or blocked: the check below catches it */ }
+        LL.applyUserTheme();
+        if (!LL.PALETTES.includes('custom')) return;
+        clearStage(); LL.setPalette('custom'); renderTiles(); renderTools();
+        LL.toast(t('palette.imported', { name: full.name }), 'ok');
+      } }, t('palette.import.use'));
+      const cancel = h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => { clearStage(); } }, t('palette.import.cancel'));
+      stage.append(h('div', { class: 'palette-import__box' },
+        h('div', { class: 'palette-import__prev' }, previewEl('custom-preview', 'light'), previewEl('custom-preview', 'dark')),
+        h('div', { class: 'pp__name' }, full.name), notes.length ? h('div', { class: 'palette-import__notes' }, notes) : null,
+        h('div', { class: 'palette-tools' }, use, cancel)));
+      use.focus();
+    };
+    const fileInput = h('input', { type: 'file', accept: '.json,application/json', hidden: true, 'aria-hidden': 'true', tabindex: '-1', onchange: async () => {
+      const f = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!f) return;
+      if (f.size > U.MAX_BYTES * 2) { showErrors({ errors: [{ code: 'size', mode: '', token: '' }] }); return; }
+      let text = '';
+      try { text = await f.text(); } catch (e) { showErrors({ errors: [{ code: 'json', mode: '', token: '' }] }); return; }
+      const r = U.parse(text);
+      if (r.ok) showPreview(r); else showErrors(r);
+    } });
+    const exportCurrent = () => {
+      const maps = tokenMaps(null), id = LL.palette();
+      const blob = new Blob([U.exportTheme(LL.paletteName(id), maps.light, maps.dark)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = h('a', { href: url, download: 'lanloom-theme-' + id + '.json', hidden: true });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    };
+    const removeTheme = () => {
+      const wasOn = LL.palette() === 'custom';
+      try { localStorage.removeItem('ll-user-theme'); } catch (e) { /* ignore */ }
+      LL.applyUserTheme();
+      if (wasOn) LL.setPalette('circuit');
+      clearStage(); renderTiles(); renderTools();
+      LL.toast(t('palette.removed'), 'ok');
+    };
+    function renderTools() {
+      tools.replaceChildren(...[
+        h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => fileInput.click() }, t('palette.import')), fileInput,
+        h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: exportCurrent }, t('palette.export')),
+        LL.userTheme() ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: removeTheme }, t('palette.remove')) : null].filter(Boolean));
+    }
+    renderTiles(); renderTools();
     const follow = () => {                                  // the mode select above changes the mode the previews are drawn in
-      if (!group.isConnected) { document.removeEventListener('ll-theme', follow); return; }
-      group.querySelectorAll('.pp__preview').forEach(el => { el.dataset.theme = LL.effectiveTheme(); });
+      if (!group.isConnected) { document.removeEventListener('ll-theme', follow); dropPreview(); return; }
+      group.querySelectorAll('.pp__preview').forEach(el => { el.dataset.theme = LL.FACE[el.dataset.palette] || LL.effectiveTheme(); });
+      group.querySelectorAll('.pp__input').forEach(el => { el.checked = LL.palette() === el.value; });   // a glass face follows the mode
+      refresh();
     };
     document.addEventListener('ll-theme', follow);
-    return h('div', { class: 'field' }, h('span', { class: 'field__label', id: 'palette-label' }, t('settings.palette')), group,
+    return h('div', { class: 'field' }, h('span', { class: 'field__label', id: 'palette-label' }, t('settings.palette')), group, tools, stage,
       h('div', { class: 'field__hint' }, t('settings.palette.hint')));
   }
   // Settings > General > Network scan: polls GET /api/scan while a scan runs, fills the bar (never backwards, see
