@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.60.0] – 2026-11-22
+
 ### Added
 - **Signal strength of wireless devices at an access point, and devices that cling to a far one.** The controller adapters now read the signal strength of wireless clients (whole dBm, -100 to -10, anything else is dropped) from the client lists they already request - the generic controller family, the UniFi classic list, Omada (`rssi`, never the percentage), MikroTik (both registration tables, also `-62@5GHz`) and OpenWrt - without an extra request. The access point card shows one bar per band (good from -65 dBm, fair down to -75 dBm, weak below) and the weakest devices, in six languages. A device that stays at -80 dBm or weaker on the same access point for ten minutes although the site has another is marked *clinging*, with the time - a hint, never an error; a move, a missing reading or a better value starts the clock again. The nightly report gets a line per clinging device (only when there are any) and counts the moves between access points during the period. The demo shows a tablet at -86 dBm at the far access point. The signal strength, the moves and the clinging state are kept in memory only - never who was at which access point when - and each site keeps its own.
 - **NetFlow / IPFIX: one block per exporter.** *Settings > NetFlow / IPFIX from your router* now shows every allowed exporter on its own: protocol (NetFlow v5, v9 or IPFIX), *Sending* / *Quiet for* / *Nothing received yet*, last packet, flows and bytes to the internet, the templates it sent (known, expired, restarts seen) and its own waiting and unreadable counts. `GET /api/netflow` carries these figures per exporter.
