@@ -27,6 +27,7 @@
 .cb-attr { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: var(--ll-fs-xs); color: var(--ll-text-3); line-height: 1.45; min-width: 0; }
 .cb-attr .cb-sw { position: relative; top: -3px; }
 .cb-attr a { color: var(--ll-text-2); }
+.cb-src { white-space: nowrap; }
 .cb-attr span { min-width: 0; overflow-wrap: anywhere; }
 .pw-full__attr { flex-basis: 100%; }
 .pc-attr { padding: 0 4px; }

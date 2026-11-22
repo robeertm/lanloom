@@ -140,8 +140,9 @@
   /* the open sources of the second cable file (lines of national waters, cable facts; CC0): ", <source> (CC0 1.0)" each */
   function openSources(d, first) {
     const list = (d && Array.isArray(d.sources) ? d.sources : []).filter(x => x && x.short && x.url);
-    return list.length ? list.map((x, k) => [k ? ', ' : (first == null ? ', ' : first), h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer' }, x.short),
-      x.license ? [' (', h('a', { href: x.license_url, target: '_blank', rel: 'noopener noreferrer' }, x.license), ')'] : null]) : null;
+    return list.length ? list.map((x, k) => [k ? ', ' : (first == null ? ', ' : first), h('span', { class: 'cb-src' },
+      h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer' }, x.short),
+      x.license ? [' (', h('a', { href: x.license_url, target: '_blank', rel: 'noopener noreferrer' }, x.license), ')'] : null)]) : null;
   }
   C.openSources = openSources;
   document.addEventListener('lanloom-paths-cables', () => {

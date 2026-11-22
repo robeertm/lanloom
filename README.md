@@ -313,7 +313,7 @@ The same chain as a stack of circuit boards that you can turn, tilt and zoom: In
 ### Data paths
 
 ![Data paths: Real cables view - every country's traffic runs over infrastructure (sea cables, land lines, a satellite hop to a remote island), bundled strands that get thicker with the traffic, key figures and the period switch](docs/screenshots/paths-cables-light.png)
-<sub>Real cables view of the sample network: only lines, never an arc. Sea cables: © OpenStreetMap contributors (ODbL), incomplete, community-mapped; gaps and land paths are estimated, and which line a way takes is an estimate unless measured routes back it.</sub>
+<sub>Real cables view of the sample network: only lines, never an arc. Sea cables: © OpenStreetMap contributors (ODbL), incomplete, community-mapped, with cable routes of U.S. waters and cable facts from open data (CC0); gaps and land paths are estimated, and which line a way takes is an estimate unless measured routes back it.</sub>
 
 <table>
 <tr>
