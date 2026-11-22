@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- **A single spike no longer flattens a history chart.** The history charts (sensor values, the trend lines of the host health cards) share one axis block: the top of the axis is the highest value of the chosen range with head room, on fine steps (1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8 times a power of ten, so 5.2 kW does not jump to 10 kW). When the highest value lies far above the 98th percentile (a kettle at 2 kW, one burst of 800 Mbit/s) the axis follows the percentile, the spike is cut off at the top and marked "▲ up to ...", and the tooltip still shows the real value. Percent charts stay 0-100, and a very small chart shows only the two ends of the axis. Translated into all six languages.
+- **Labels of the 3D view no longer cover each other or leave the picture.** Each label is measured once (a hidden label has no size, so it is measured when first shown), kept entirely inside the picture, and when it would cover another one it is lifted up to four times by its own height instead of being hidden; the element in focus or selected is placed first and always shown.
+- **The lines of the Real cables view share one sign.** Instead of one title per line (twice as many elements while zooming) a single tooltip shows kind, name or end points, destinations and amount, and for each share how the way is known: measured by hops, sea cable likely, land path estimated, radio link likely, satellite likely. It opens on hover, tap and keyboard focus (Escape closes it).
+
 ## [1.60.0] – 2026-11-22
 
 ### Added

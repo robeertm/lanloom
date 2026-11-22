@@ -62,8 +62,8 @@
     const pts = (points || []).filter(p => p[1] != null);
     if (pts.length < 2) return null;
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-    const x0 = Math.min(...xs), x1 = Math.max(...xs), lo = Math.min(...ys), hi = Math.max(...ys), dy = (hi - lo) || 1;
-    const d = pts.map((p, i) => (i ? 'L' : 'M') + fx(2 + (p[0] - x0) / ((x1 - x0) || 1) * 76) + ' ' + fx(20 - (p[1] - lo) / dy * 16)).join(' ');
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), lo = Math.min(...ys), hi = (sc => (sc.clipped ? Math.max(lo, sc.hi) : Math.max(...ys)))(LL.axis.scale(ys)), dy = (hi - lo) || 1;
+    const d = pts.map((p, i) => (i ? 'L' : 'M') + fx(2 + (p[0] - x0) / ((x1 - x0) || 1) * 76) + ' ' + fx(20 - (Math.min(hi, p[1]) - lo) / dy * 16)).join(' ');
     return svg('svg', { class: 'hh-spark hh-spark--' + level, viewBox: '0 0 80 22', 'aria-hidden': 'true' }, [svg('path', { d })]);
   }
   function trendText(f) {

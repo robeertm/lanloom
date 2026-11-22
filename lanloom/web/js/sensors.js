@@ -261,16 +261,17 @@
         legend.replaceChildren(pts.length ? h('span', { class: 'sn-legend__item' }, h('i', { class: 'sn-key sn-key--band' }), t('sensorview.legend.band')) : '',
           pts.length ? h('span', { class: 'sn-legend__item' }, h('i', { class: 'sn-key sn-key--line' }), t('sensorview.legend.mean')) : '');
         if (!pts.length) { empty(g, w, hgt, c); geom = null; return; }
-        let lo = Math.min(...pts.map(p => p[1])), hi = Math.max(...pts.map(p => p[3]));
-        if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
-        const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
-        const y = v => T + ph - (v - lo) / (hi - lo) * ph;
+        const sc = LL.axis.scale(pts.map(p => p[3]).concat(pts.map(p => p[1])), { pct: data.entity.unit === '%' && pts.every(p => p[3] <= 100 && p[1] >= 0) });
+        const lo = sc.lo, hi = sc.hi;
+        const y = v => T + ph - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo) * ph;
+        const small = ph < 110;
         g.strokeStyle = c.grid; g.lineWidth = 1; g.textAlign = 'right'; g.textBaseline = 'middle';
-        for (let i = 0; i <= 3; i++) {
-          const v = lo + (hi - lo) * i / 3, yy = Math.round(y(v)) + 0.5;
+        LL.axis.ticks(sc, 3, small).forEach((v, i) => {
+          const yy = Math.round(y(v)) + 0.5;
           g.globalAlpha = i === 0 ? 1 : 0.6; g.beginPath(); g.moveTo(L, yy); g.lineTo(L + pw, yy); g.stroke(); g.globalAlpha = 1;
           g.fillStyle = c.text; g.fillText(LL.fmtNum(Math.round(v * 10) / 10), L - 8, yy);
-        }
+        });
+        if (sc.clipped) { g.fillStyle = c.down; g.textAlign = 'right'; g.textBaseline = 'top'; g.fillText(t('axis.clipped', { value: LL.hubValue(Math.round(sc.top * 100) / 100, data.entity.unit) }), L + pw, T + 1); }
         g.save(); g.globalAlpha = 0.18; g.fillStyle = c.line; g.beginPath();
         pts.forEach((p, i) => { i ? g.lineTo(x(p[0]), y(p[3])) : g.moveTo(x(p[0]), y(p[3])); });
         for (let i = pts.length - 1; i >= 0; i--) g.lineTo(x(pts[i][0]), y(pts[i][1]));

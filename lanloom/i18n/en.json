@@ -4739,6 +4739,7 @@
  "sensorview.current": "current value",
  "sensorview.integration": "Integration",
  "sensorview.legend.band": "Minimum to maximum",
+ "axis.clipped": "▲ up to {value}",
  "sensorview.legend.mean": "Mean",
  "sensorview.loading": "Loading the course ...",
  "sensorview.max": "Maximum",

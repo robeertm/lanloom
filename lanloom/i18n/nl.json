@@ -4739,6 +4739,7 @@
  "sensorview.current": "huidige waarde",
  "sensorview.integration": "Integratie",
  "sensorview.legend.band": "Minimum tot maximum",
+ "axis.clipped": "▲ tot {value}",
  "sensorview.legend.mean": "Gemiddelde",
  "sensorview.loading": "Het verloop laden ...",
  "sensorview.max": "Maximum",

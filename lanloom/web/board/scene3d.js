@@ -28,6 +28,30 @@
 (function (root, factory) {
   const T = typeof module === 'object' && module.exports ? require('./tree.js') : null;
   const S = factory(T);
+
+  /* Pure part of the labels: items [{x, y (bottom middle), w, h, pri}] in priority order -> [{item, x, y, hidden}].
+     The label is clamped entirely into the picture (w x h); one that would cover a placed label is lifted up to four times by its own height,
+     and hidden only when it still covers one; the ones in focus (pri) are always shown. */
+  S.arrangeLabels = arrangeLabels;
+  function arrangeLabels(items, w, h, fixed) {
+    const boxes = (fixed || []).slice(), out = [];
+    const hit = r => boxes.some(b => r[0] < b[2] && r[2] > b[0] && r[1] < b[3] && r[3] > b[1]);
+    items.forEach(it => {
+      const hw = Math.min(it.w, w) / 2, x = Math.max(hw, Math.min(w - hw, it.x));
+      let y = Math.max(it.h, Math.min(h, it.y)), placed = null;
+      for (let k = 0; k <= 4; k++) {
+        const yy = y - k * (it.h + 2);
+        if (yy < it.h) break;                                    // would leave the picture at the top
+        const r = [x - hw, yy - it.h, x + hw, yy];
+        if (!hit(r)) { placed = { r, y: yy }; break; }
+      }
+      if (!placed && it.pri) placed = { r: [x - hw, y - it.h, x + hw, y], y };
+      if (!placed) { out.push({ item: it, x, y, hidden: true }); return; }
+      boxes.push(placed.r);
+      out.push({ item: it, x, y: placed.y, hidden: false });
+    });
+    return out;
+  }
   if (typeof module === 'object' && module.exports) module.exports = S;
   else {
     root.Lanloom = root.Lanloom || {};
@@ -467,30 +491,44 @@
         labels.appendChild(e); labelEls.set(n.id, e);
       });
     }
+    /* size of a label, measured once (a hidden label has no size: it is shown invisibly for the measurement and remembered) */
+    function measure(e) {
+      if (e._size) return e._size;
+      const wasHidden = e.hidden, vis = e.style.visibility;
+      if (wasHidden) { e.style.visibility = 'hidden'; e.hidden = false; }
+      const r = { w: e.offsetWidth, h: e.offsetHeight };
+      if (wasHidden) { e.hidden = true; e.style.visibility = vis; }
+      if (r.w > 0 && r.h > 0) e._size = r;          // no layout yet (zero): measure again next frame
+      return r.w > 0 && r.h > 0 ? r : { w: Math.min(160, 7 * e.textContent.length + 10), h: 22 };
+    }
     function placeLabels(m, w, h) {
-      const boxes = [];
+      const boards = [], items = [];
       (st.boardLabels || []).forEach(b => {
         const p = project(m, b.p, w, h);
-        b.e.hidden = !p;
-        if (p) { b.e.style.transform = 'translate(' + Math.round(p.x) + 'px,' + Math.round(p.y) + 'px) translate(0,4px)'; boxes.push([p.x, p.y, p.x + 160, p.y + 24]); }
+        if (!p) { b.e.hidden = true; return; }
+        const sz = measure(b.e); boards.push({ e: b.e, x: p.x, y: p.y, w: sz.w, h: sz.h });
       });
       const want = [...st.L.nodes].sort((a, b) => a.layer - b.layer);
       const pri = new Set([st.focus, st.hover, st.selected].filter(Boolean));
-      // the ones in focus first, then layer by layer; a label that would cover one already placed stays hidden
+      // the ones in focus first, then layer by layer
       want.sort((a, b) => (pri.has(b.id) ? 1 : 0) - (pri.has(a.id) ? 1 : 0));
       want.forEach(n => {
         const e = labelEls.get(n.id); if (!e) return;
         const p = project(m, [n.x, n.y + chipHeight(n) + 0.12, n.z], w, h);
         const show = p && (pri.has(n.id) || e.dataset.always === '1') && p.x > -40 && p.x < w + 40 && p.y > -10 && p.y < h + 10;
         if (!show) { if (!e.hidden) e.hidden = true; return; }
-        const lw = Math.min(160, 7 * (e.textContent.length) + 10), lh = 18;
-        const r = [p.x - lw / 2, p.y - lh - 2, p.x + lw / 2, p.y - 2];
-        const hit = !pri.has(n.id) && boxes.some(b => r[0] < b[2] && r[2] > b[0] && r[1] < b[3] && r[3] > b[1]);
-        if (hit) { if (!e.hidden) e.hidden = true; return; }
-        boxes.push(r);
+        const sz = measure(e);
+        items.push({ e, id: n.id, x: p.x, y: p.y - 2, w: sz.w, h: sz.h, pri: pri.has(n.id) });
+      });
+      const out = arrangeLabels(items, w, h, boards.map(b => [b.x, b.y + 4, b.x + b.w, b.y + 4 + b.h]));
+      boards.forEach(b => { b.e.hidden = false; b.e.style.transform = 'translate(' + Math.round(b.x) + 'px,' + Math.round(b.y) + 'px) translate(0,4px)'; });
+      out.forEach(o => {
+        const e = o.item.e;
+        if (o.hidden) { if (!e.hidden) e.hidden = true; return; }
         e.hidden = false;
-        e.classList.toggle('is-focus', pri.has(n.id));
-        e.style.transform = 'translate(' + Math.round(p.x) + 'px,' + Math.round(p.y) + 'px) translate(-50%,-100%)';
+        e.classList.toggle('is-focus', o.item.pri);
+        // the anchor is the middle of the bottom edge (translate -50% / -100%); the label stays entirely in the picture
+        e.style.transform = 'translate(' + Math.round(o.x) + 'px,' + Math.round(o.y) + 'px) translate(-50%,-100%)';
       });
     }
 

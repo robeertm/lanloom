@@ -199,7 +199,8 @@
           return;
         }
         let x = edges.get(k);
-        if (!x) { x = { b: 0, bo: 0, measured: false, ccs: new Set(), e, quiet: true }; edges.set(k, x); }
+        if (!x) { x = { b: 0, bo: 0, measured: false, ccs: new Set(), e, quiet: true, hows: new Set() }; edges.set(k, x); }
+        x.hows.add(howText(s));
         x.b += s.bytes; if (s.out) x.bo += s.bytes;
         if (i < (s.measured || 0)) x.measured = true;
         if (!s.quiet) x.quiet = false;
@@ -232,7 +233,9 @@
     const names = hubAt(N), g = svgEl('g', { class: 'in-layer' });
     const nodes = new Map();
     const count = x => (x.ccs.size === 1 ? cname([...x.ccs][0]) : t('infra.edge.targets', { n: x.ccs.size }));
-    const title = (txt, parts) => { const e = svgEl('title'); e.textContent = [txt].concat(parts).join(' · '); return e; };
+    /* one shared sign for all lines (no <title> per line): the text sits in data-tip, a line is reachable by keyboard */
+    const tipOf = (txt, parts) => [txt].concat(parts).filter(Boolean).join('\n');
+    const tipAttrs = (txt, parts) => { const tx = tipOf(txt, parts); return { 'data-tip': tx, tabindex: '0', role: 'img', 'aria-label': tx.replace(/\n/g, ', ') }; };
     for (const x of [...edges.entries()].sort((a, b) => a[1].b - b[1].b)) {
       const [k, v] = x, e = v.e, p = e.p, a = names.get(key2(p[0])), z = names.get(key2(p[p.length - 1]));
       if (v.b >= maxB * 0.03) [a && [p[0], a], z && [p[p.length - 1], z]].forEach(q => { if (q) nodes.set(q[1], q[0]); });
@@ -240,9 +243,10 @@
       if (e.kind === 'cable') what = e.name ? t('infra.edge.cable', { name: e.name }) : t('infra.edge.cable_unnamed');
       else if (e.kind === 'land' && a && z) what = t('infra.edge.land_between', { a, b: z });
       else what = t('infra.edge.' + e.kind);
-      const path = svgEl('path', { class: 'in-k in-k--' + e.kind + (v.measured ? ' is-measured' : '') + (v.quiet ? ' is-quiet' : '') + ' ' + (v.bo > v.b / 2 ? 'pw-out' : 'pw-eu'),
-        d: e.kind === 'radio' ? wave(p) : pathD(p), style: '--in-w:' + width(v.b) + 'px', 'data-e': k });
-      path.appendChild(title(what, [count(v), LL.fmtBytes(v.b)].concat(v.measured ? [t('infra.edge.measured')] : [])));
+      const hows = [...v.hows].filter(Boolean).slice(0, 3).join(' / ');
+      const path = svgEl('path', Object.assign({ class: 'in-k in-k--' + e.kind + (v.measured ? ' is-measured' : '') + (v.quiet ? ' is-quiet' : '') + ' ' + (v.bo > v.b / 2 ? 'pw-out' : 'pw-eu'),
+        d: e.kind === 'radio' ? wave(p) : pathD(p), style: '--in-w:' + width(v.b) + 'px', 'data-e': k },
+        tipAttrs(what, [[count(v), LL.fmtBytes(v.b)].join(' · '), hows, v.measured ? t('infra.edge.measured') : ''])));
       g.appendChild(path);
     }
     for (const a of tails) {
@@ -251,24 +255,22 @@
     }
     for (const m of sats.values()) {
       const orbit = t('infra.orbit.' + (m.orbit === 'leo' ? 'leo' : 'geo'));
-      const tt = title(t('infra.sat.title', { orbit }), [m.name ? t('infra.sat.station', { name: m.name }) : null, count(m), LL.fmtBytes(m.b)].filter(Boolean));
+      const tipA = tipAttrs(t('infra.sat.title', { orbit }), [m.name ? t('infra.sat.station', { name: m.name }) : null, count(m) + ' · ' + LL.fmtBytes(m.b)]);
       const c = [2 * m.top[0] - (m.gw[0] + m.to[0]) / 2, 2 * m.top[1] - (m.gw[1] + m.to[1]) / 2];
-      const path = svgEl('path', { class: 'in-k in-sat' + (m.quiet ? ' is-quiet' : '') + ' ' + (m.bo > m.b / 2 ? 'pw-out' : 'pw-eu'), style: '--in-w:' + Math.min(1.6, Number(width(m.b))) + 'px',
-        d: 'M' + m.gw[0].toFixed(2) + ' ' + m.gw[1].toFixed(2) + 'Q' + c[0].toFixed(2) + ' ' + c[1].toFixed(2) + ' ' + m.to[0].toFixed(2) + ' ' + m.to[1].toFixed(2) });
-      path.appendChild(tt.cloneNode(true));
+      const path = svgEl('path', Object.assign({ class: 'in-k in-sat' + (m.quiet ? ' is-quiet' : '') + ' ' + (m.bo > m.b / 2 ? 'pw-out' : 'pw-eu'), style: '--in-w:' + Math.min(1.6, Number(width(m.b))) + 'px',
+        d: 'M' + m.gw[0].toFixed(2) + ' ' + m.gw[1].toFixed(2) + 'Q' + c[0].toFixed(2) + ' ' + c[1].toFixed(2) + ' ' + m.to[0].toFixed(2) + ' ' + m.to[1].toFixed(2) }, tipA));
       g.appendChild(path);
       const sym = svgEl('g', { class: 'in-satellite' + (m.quiet ? ' is-quiet' : ''), 'data-sat': '1', 'data-x': m.top[0].toFixed(2), 'data-y': m.top[1].toFixed(2),
         transform: 'translate(' + m.top[0].toFixed(2) + ' ' + m.top[1].toFixed(2) + ') scale(1.2)' });
       sym.innerHTML = '<rect class="in-satellite__body" x="-3" y="-3" width="6" height="6" rx="1.2"/><rect class="in-satellite__panel" x="-11" y="-2" width="7" height="4" rx=".6"/>'
         + '<rect class="in-satellite__panel" x="4" y="-2" width="7" height="4" rx=".6"/><path d="M0 3v3"/>';
-      sym.appendChild(tt);
+      sym.setAttribute('data-tip', tipA['data-tip']);
       g.appendChild(sym);
     }
     if (o.nodes !== false) {
       for (const [name, p] of nodes) {
         const c = svgEl('circle', { class: 'in-node', cx: p[0].toFixed(2), cy: p[1].toFixed(2), r: 1.6, 'data-ir': '2.4' });
-        const tt = svgEl('title'); tt.textContent = t('infra.hub', { name });
-        c.appendChild(tt);
+        c.setAttribute('data-tip', t('infra.hub', { name }));
         g.appendChild(c);
       }
     }
@@ -309,11 +311,39 @@
     const a = arts || S.arts || new Set(['cable', 'land']), k = cls || 'pw-legend__item';
     return ORDER.filter(x => a.has(x)).map(x => h('span', { class: k }, h('i', { class: 'in-sw in-sw--' + x, 'aria-hidden': 'true' }), t('infra.legend.' + x)));
   };
+  /* the origin of one share in words: measured by hops, sea cable likely, land path estimated, radio link likely, satellite likely */
+  function howText(s) {
+    return s.origin === 'sat' ? t('infra.origin.sat', { orbit: t('infra.orbit.' + ((s.sat && s.sat.orbit) === 'leo' ? 'leo' : 'geo')) }) : t('infra.origin.' + (s.origin || 'land'));
+  }
+  /* the one shared sign of the lines (hover, keyboard focus, tap); same look as the sign of the sea cables */
+  let tip = null, away = 0;
+  const hitOf = ev => (ev.target && ev.target.closest ? ev.target.closest('.in-layer [data-tip]') : null);
+  function hideTip() { if (tip) { tip.remove(); tip = null; } }
+  function showTip(el, x, y) {
+    const stage = el.closest('.pw-stage, .pc-stage') || el.closest('svg').parentNode;
+    if (!stage) return;
+    if (!tip || tip.parentNode !== stage) { hideTip(); tip = h('div', { class: 'cb-tip in-tip', role: 'tooltip' }); stage.appendChild(tip); }
+    const lines = (el.getAttribute('data-tip') || '').split('\n').filter(Boolean);
+    tip.replaceChildren(...lines.map((l, i) => h(i === 0 ? 'b' : 'span', {}, l)));
+    const r = stage.getBoundingClientRect();
+    tip.style.left = Math.max(4, Math.min(x - r.left + 12, r.width - tip.offsetWidth - 4)) + 'px';
+    tip.style.top = Math.max(4, Math.min(y - r.top + 14, r.height - tip.offsetHeight - 4)) + 'px';
+  }
+  I.tipText = el => (el && el.getAttribute ? el.getAttribute('data-tip') || '' : '');
+  document.addEventListener('mouseover', ev => { const p = hitOf(ev); if (p) { clearTimeout(away); showTip(p, ev.clientX, ev.clientY); } });
+  document.addEventListener('mousemove', ev => { const p = hitOf(ev); if (p && tip) showTip(p, ev.clientX, ev.clientY); });
+  document.addEventListener('mouseout', ev => { if (hitOf(ev)) hideTip(); });
+  document.addEventListener('focusin', ev => { const p = hitOf(ev); if (p) { const b = p.getBoundingClientRect(); showTip(p, b.left + b.width / 2, b.top + b.height / 2); } });
+  document.addEventListener('focusout', ev => { if (hitOf(ev)) hideTip(); });
+  document.addEventListener('click', ev => { const p = hitOf(ev); if (p) { clearTimeout(away); showTip(p, ev.clientX, ev.clientY); away = setTimeout(hideTip, 4000); } else if (tip && !(ev.target.closest && ev.target.closest('.cb-tip'))) hideTip(); }, true);
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && tip) hideTip(); });
+  window.addEventListener('scroll', () => { if (tip) hideTip(); }, true);
+
   /* what a country's endpoint says: where the traffic came from per way, over which places and cables */
   I.endText = function (cc, shares) {
     const mine = (shares || []).filter(s => s.cc === cc), seen = new Set(), lines = [];
     for (const s of mine) {
-      const how = s.origin === 'sat' ? t('infra.origin.sat', { orbit: t('infra.orbit.' + ((s.sat && s.sat.orbit) === 'leo' ? 'leo' : 'geo')) }) : t('infra.origin.' + (s.origin || 'land'));
+      const how = howText(s);
       const via = (s.via || []).length ? t('infra.via', { places: s.via.slice(0, 4).join(' → ') }) : '';
       const cab = (s.cables || []).length ? t('infra.cables', { names: s.cables.slice(0, 2).join(', ') }) : '';
       const line = [how, via, cab].filter(Boolean).join(' · ');
