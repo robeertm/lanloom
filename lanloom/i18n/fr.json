@@ -4103,7 +4103,7 @@
  "pf.sig.fair": "moyen",
  "pf.sig.good": "bon",
  "pf.sig.stuck": "{name} reste accroché à ce point d'accès depuis {min, plural, one {# minute} other {# minutes}} à {dbm} dBm, alors qu'un autre est disponible.",
- "pf.sig.title": "Signal des appareils sans fil",
+ "pf.sig.title": "Force du signal des appareils sans fil",
  "pf.sig.weak": "faible",
  "pf.sig.weakest": "Appareils les plus faibles",
  "pf.speed.g": "{n}G",

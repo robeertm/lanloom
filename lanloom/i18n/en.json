@@ -4103,7 +4103,7 @@
  "pf.sig.fair": "fair",
  "pf.sig.good": "good",
  "pf.sig.stuck": "{name} has clung to this access point for {min, plural, one {# minute} other {# minutes}} at {dbm} dBm although another one is available.",
- "pf.sig.title": "Signal of the wireless devices",
+ "pf.sig.title": "Signal strength of the wireless devices",
  "pf.sig.weak": "weak",
  "pf.sig.weakest": "Weakest devices",
  "pf.speed.g": "{n}G",

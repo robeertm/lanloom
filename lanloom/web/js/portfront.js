@@ -165,7 +165,7 @@
       r.clients != null ? h('span', { class: 'muted' }, t('pf.clients', { n: r.clients })) : null)));
   }
 
-  // Signal of the wireless clients of an access point (W2): one bar per band (good / fair / weak), the weakest devices, and the
+  // Signal strength of the wireless clients of an access point (W2): one bar per band (good / fair / weak), the weakest devices, and the
   // devices that cling to this access point at -80 dBm or weaker. Hints, not errors; the wording says what, the colour only helps.
   function signalBlock(sig) {
     if (!sig || !sig.bands) return null;

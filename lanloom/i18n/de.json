@@ -4103,7 +4103,7 @@
  "pf.sig.fair": "mittel",
  "pf.sig.good": "gut",
  "pf.sig.stuck": "{name} klebt seit {min, plural, one {# Minute} other {# Minuten}} mit {dbm} dBm an diesem Zugangspunkt, obwohl ein weiterer erreichbar ist.",
- "pf.sig.title": "Signal der Funkgeräte",
+ "pf.sig.title": "Signalstärke der Funkgeräte",
  "pf.sig.weak": "schwach",
  "pf.sig.weakest": "Schwächste Geräte",
  "pf.speed.g": "{n}G",
