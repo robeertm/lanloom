@@ -37,6 +37,15 @@ def test_impact_grows_with_what_hangs_on_it():
     assert few["why"][0]["key"] == "impact_sure" and few["why"][1] == {"key": "impact_likely", "vars": {"n": 1}}
 
 
+def test_impact_total_equals_its_breakdown():
+    sure = {"device": 1, "hub_device": 1, "entity": 11, "connection": 2, "hub": 1, "automation": 3, "script": 1, "node": 2}
+    ax = rs.axis_impact({"sure": sure, "likely": 0})
+    v = ax["why"][0]["vars"]
+    assert v["n"] == sum(sure.values()) == 22
+    assert v["devices"] + v["hub"] + v["autos"] + v["entities"] + v["links"] == v["n"]
+    assert (v["devices"], v["hub"], v["autos"], v["entities"], v["links"]) == (3, 1, 4, 11, 3)
+
+
 def test_risk_counts_unknown_as_half_and_skips_what_does_not_count():
     axes = {k: {"weak": 0.0} for k in rs.WEIGHT}
     assert rs.risk_of(axes, 1.0)[0] == 0

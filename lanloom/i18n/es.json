@@ -7157,7 +7157,7 @@
  "rs.source.snmp": "informa de sus contadores",
  "rs.source.topology": "conocido por la topología de la red",
  "rs.why.impact_none": "Nada depende de él: si falla, no falla nada con él.",
- "rs.why.impact_sure": "Si falla, {n, plural, one {# elemento falla} other {# elementos fallan}} con él ({devices} dispositivos, {hub} dispositivos del hub, {autos} automatizaciones).",
+ "rs.why.impact_sure": "Si falla, {n, plural, one {# elemento falla} other {# elementos fallan}} con él ({devices} dispositivos, {hub} dispositivos del hub, {autos} automatizaciones, {entities} entidades, {links} conexiones).",
  "rs.why.impact_likely": "{n, plural, one {# elemento más está afectado} other {# elementos más están afectados}}.",
  "rs.why.spare_reserve": "La línea de reserva {name} toma el relevo.",
  "rs.why.spare_live": "Una segunda unidad toma el relevo sola.",

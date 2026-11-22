@@ -7157,7 +7157,7 @@
  "rs.source.snmp": "het meldt zijn tellers",
  "rs.source.topology": "bekend uit de netwerktopologie",
  "rs.why.impact_none": "Er hangt niets van af: als het uitvalt, valt er niets mee uit.",
- "rs.why.impact_sure": "Als het uitvalt, {n, plural, one {valt # onderdeel} other {vallen # onderdelen}} ermee uit ({devices} apparaten, {hub} hubapparaten, {autos} automatiseringen).",
+ "rs.why.impact_sure": "Als het uitvalt, {n, plural, one {valt # onderdeel} other {vallen # onderdelen}} ermee uit ({devices} apparaten, {hub} hubapparaten, {autos} automatiseringen, {entities} entiteiten, {links} verbindingen).",
  "rs.why.impact_likely": "{n, plural, one {# onderdeel meer is} other {# onderdelen meer zijn}} gestoord.",
  "rs.why.spare_reserve": "De reservelijn {name} neemt het over.",
  "rs.why.spare_live": "Een tweede eenheid neemt het zelf over.",

@@ -7157,7 +7157,7 @@
  "rs.source.snmp": "riporta i suoi contatori",
  "rs.source.topology": "noto dalla topologia di rete",
  "rs.why.impact_none": "Nulla ne dipende: se si guasta, non si guasta nient’altro.",
- "rs.why.impact_sure": "Se si guasta, {n, plural, one {# elemento si guasta} other {# elementi si guastano}} con esso ({devices} dispositivi, {hub} dispositivi dell’hub, {autos} automazioni).",
+ "rs.why.impact_sure": "Se si guasta, {n, plural, one {# elemento si guasta} other {# elementi si guastano}} con esso ({devices} dispositivi, {hub} dispositivi dell’hub, {autos} automazioni, {entities} entità, {links} connessioni).",
  "rs.why.impact_likely": "{n, plural, one {# altro elemento è compromesso} other {# altri elementi sono compromessi}}.",
  "rs.why.spare_reserve": "La linea di riserva {name} subentra.",
  "rs.why.spare_live": "Una seconda unità subentra da sola.",

@@ -225,16 +225,20 @@ def axis_impact(counts: dict) -> dict:
     a = impact_value(nw)
     devices = sum(sure.get(k, 0) for k in ("device", "node", "container"))
     autos = sure.get("automation", 0) + sure.get("script", 0)
+    hub = sure.get("hub_device", 0)
+    entities = sure.get("entity", 0)
+    total = sum(sure.values())
+    links = total - devices - hub - autos - entities       # connections, hubs, the internet: the total always equals its breakdown
     why = []
     if not sure and not counts.get("likely"):
         why.append(R("impact_none"))
         value = "none"
     else:
-        why.append(R("impact_sure", n=sum(sure.values()), devices=devices, hub=sure.get("hub_device", 0), autos=autos))
+        why.append(R("impact_sure", n=total, devices=devices, hub=hub, autos=autos, entities=entities, links=links))
         if counts.get("likely"):
             why.append(R("impact_likely", n=counts["likely"]))
         value = "parts"
-    return {"axis": "impact", "weak": round(a, 3), "value": value, "why": why, "n": round(nw, 1), "devices": devices, "autos": autos}
+    return {"axis": "impact", "weak": round(a, 3), "value": value, "why": why, "n": round(nw, 1), "devices": devices, "autos": autos, "entities": entities, "links": links}
 
 
 def axis_spare(field: Optional[str], has_dependants: bool, reserve_line: Optional[str] = None, note: str = "") -> dict:

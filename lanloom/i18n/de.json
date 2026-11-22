@@ -7157,7 +7157,7 @@
  "rs.source.snmp": "es meldet seine Zähler",
  "rs.source.topology": "aus der Netztopologie bekannt",
  "rs.why.impact_none": "Nichts hängt daran: fällt es aus, fällt nichts mit.",
- "rs.why.impact_sure": "Fällt es aus, {n, plural, one {fällt # Teil} other {fallen # Teile}} mit aus ({devices} Geräte, {hub} Hub-Geräte, {autos} Automationen).",
+ "rs.why.impact_sure": "Fällt es aus, {n, plural, one {fällt # Teil} other {fallen # Teile}} mit aus ({devices} Geräte, {hub} Hub-Geräte, {autos} Automationen, {entities} Entitäten, {links} Verbindungen).",
  "rs.why.impact_likely": "{n, plural, one {# weiteres Teil ist} other {# weitere Teile sind}} beeinträchtigt.",
  "rs.why.spare_reserve": "Die Reserveleitung {name} übernimmt.",
  "rs.why.spare_live": "Ein zweites Gerät übernimmt von selbst.",

@@ -7157,7 +7157,7 @@
  "rs.source.snmp": "it reports its counters",
  "rs.source.topology": "known from the network topology",
  "rs.why.impact_none": "Nothing hangs on it: when it fails, nothing fails with it.",
- "rs.why.impact_sure": "When it fails, {n, plural, one {# part fails} other {# parts fail}} with it ({devices} devices, {hub} hub devices, {autos} automations).",
+ "rs.why.impact_sure": "When it fails, {n, plural, one {# part fails} other {# parts fail}} with it ({devices} devices, {hub} hub devices, {autos} automations, {entities} entities, {links} connections).",
  "rs.why.impact_likely": "{n, plural, one {# more part is} other {# more parts are}} impaired.",
  "rs.why.spare_reserve": "The reserve line {name} takes over.",
  "rs.why.spare_live": "A second unit takes over by itself.",

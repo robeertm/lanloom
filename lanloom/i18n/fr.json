@@ -7157,7 +7157,7 @@
  "rs.source.snmp": "il remonte ses compteurs",
  "rs.source.topology": "connu par la topologie du réseau",
  "rs.why.impact_none": "Rien n’en dépend : s’il tombe en panne, rien ne tombe avec lui.",
- "rs.why.impact_sure": "S’il tombe en panne, {n, plural, one {# élément tombe} other {# éléments tombent}} avec lui ({devices} appareils, {hub} appareils du hub, {autos} automatisations).",
+ "rs.why.impact_sure": "S’il tombe en panne, {n, plural, one {# élément tombe} other {# éléments tombent}} avec lui ({devices} appareils, {hub} appareils du hub, {autos} automatisations, {entities} entités, {links} connexions).",
  "rs.why.impact_likely": "{n, plural, one {# élément de plus est} other {# éléments de plus sont}} perturbé(s).",
  "rs.why.spare_reserve": "La ligne de secours {name} prend le relais.",
  "rs.why.spare_live": "Une deuxième unité prend seule le relais.",
