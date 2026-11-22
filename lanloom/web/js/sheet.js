@@ -56,7 +56,7 @@
     card.style.transform = '';
     S.el.dataset.height = which;
     const grip = S.el.querySelector('.sheet__grip');
-    if (grip) grip.setAttribute('aria-label', t(which === 'full' ? 'sheet.grip.half' : 'sheet.grip.full'));
+    if (grip) { grip.setAttribute('aria-label', t(which === 'full' ? 'sheet.grip.half' : 'sheet.grip.full')); grip.setAttribute('aria-expanded', which === 'full' ? 'true' : 'false'); }   // the height is a state a screen reader names
   }
 
   function draw(id, arg) {
@@ -76,7 +76,7 @@
   }
 
   function build() {
-    const grip = h('button', { class: 'sheet__grip', type: 'button', onclick: () => setHeight(S.height === 'full' ? 'half' : 'full', true) }, h('i', { 'aria-hidden': 'true' }));
+    const grip = h('button', { class: 'sheet__grip', type: 'button', 'aria-expanded': 'false', onclick: () => setHeight(S.height === 'full' ? 'half' : 'full', true) }, h('i', { 'aria-hidden': 'true' }));
     const head = h('header', { class: 'sheet__head' }, grip,
       h('h2', { class: 'sheet__title' }),
       h('button', { class: 'icon-btn sheet__close', type: 'button', 'aria-label': t('detail.close'), onclick: () => api.close() }, '✕'));

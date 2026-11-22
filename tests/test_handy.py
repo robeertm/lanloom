@@ -87,3 +87,11 @@ def test_header_controls_are_a_fingertip_wide_themselves():
     assert ".pw-selchip__x { width: 44px" in phone and ".btn-row > .btn" in phone
     src = read("js", "handy.js")
     assert "r.width >= MIN ? 0" in src and "r.height >= MIN ? 0" in src
+
+
+def test_taps_that_would_change_nothing_do_something():
+    """The sheet grip names its state (aria-expanded follows the height), and the brand redraws the map when the map is already open."""
+    sheet = read("js", "sheet.js")
+    assert "grip.setAttribute('aria-expanded', which === 'full' ? 'true' : 'false')" in sheet
+    views = read("js", "views.js")
+    assert "(location.hash || '') === '#/map' && LL.route" in views

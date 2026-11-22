@@ -16,6 +16,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Long button labels break inside their button on a phone** (French *Delete files and stored figures* ran out of its card).
 - **The 3D view draws its labels again.** The label arrangement lived outside the module that draws the scene, so every frame of the 3D view stopped with a script error in the browser (only the unit test could reach it).
 - **Coming back to a view no longer leaves another page on screen.** After a sheet had been opened on a view (for example *More* on *Devices*) and another view was visited, a tap back on the first tab changed the address but kept the other page; the sheet host now forgets its view when the address moves to another view.
+- **No tap on a phone that changes nothing.** The grip of a sheet names its state (*expanded* when the sheet fills the screen), and the brand in the header draws the map afresh when the map is already open.
 - **Two more links of the device card and the time range chips are a fingertip high on a phone** (the peer link of a connection, *Open the data paths map*).
 
 ## [1.61.0] – 2026-11-22

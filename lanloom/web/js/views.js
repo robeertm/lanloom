@@ -127,7 +127,9 @@
     themeBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>';
     const siteSwitch = LL.siteSwitcher ? LL.siteSwitcher() : null;          // several sites (M1): the switcher takes the room of one tab
     const header = h('header', { class: 'topbar' + (tabs.filter(x => x[0] !== 'now').length + (siteSwitch ? 1 : 0) > 9 ? ' topbar--many' : '') },   // more than nine tabs (a hub or running hosts): narrower steps
-      h('a', { class: 'topbar__brand', href: '#/map' }, LL.logo(26), h('span', { class: 'brand-name' }, 'Lanloom'),
+      // the brand leads to the map; a tap on it while the map is already open draws the map afresh from its start (a tap that changes nothing
+      // looks broken on a phone)
+      h('a', { class: 'topbar__brand', href: '#/map', onclick: ev => { if ((location.hash || '') === '#/map' && LL.route) { ev.preventDefault(); window.scrollTo(0, 0); LL.route(); } } }, LL.logo(26), h('span', { class: 'brand-name' }, 'Lanloom'),
         LL.state && LL.state.demo ? h('span', { class: 'chip chip--demo' }, t('app.demo')) : null),
       LL.versionChip ? LL.versionChip() : null,
       siteSwitch,
