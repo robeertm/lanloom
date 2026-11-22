@@ -23,6 +23,23 @@ Six views sit under the title (`#/automations?view=list|who|timeline|plan|rooms|
   findings and its last runs.
 - **Dependency board** (from an automation or an entity, *Show dependencies*). Sources on the left, consumers on the right, a dot travels when an automation runs.
 - **Who switches what.** Which automation sets which entity, with conflicts (opposite states within 60 seconds).
+- **Chain.** Under the conflicts, *Effect chains* shows what led to a switch, read back from the runs the hub stored: the
+  sensor that started the first automation, the automations and scripts that called one another (up to four), and the
+  device with its new state and the time. Only runs that started at most one hour before the switch count. The same
+  chains are in the card of a hub device (also on the phone), on the page of an automation or script and in `Ctrl K`
+  (*Show effect chains*); every step is a link. They need *admin mode* on the connection; without it the section says so.
+
+  ![Effect chains in Who switches what](../screenshots/automations-chain-light.png)
+
+  ![The chain in the card of a hub device on a phone](../screenshots/automations-chain-phone-light.png)
+
+- **Mode conflicts.** The finding *Mode conflict* (with admin mode) says what the hub really did because of an
+  automation's mode: a `single` automation dropped starts while its run was still going, a `restart` automation was stopped
+  three times within an hour, a `queued` or `parallel` automation found its maximum number of runs full. It is also a point
+  in the nightly report. The hub keeps only its last few runs of each automation, so the numbers are "at least".
+
+  ![A mode conflict in the findings of an automation](../screenshots/automations-mode-conflict-light.png)
+
 - **Timeline.** Who started what in the last 24 hours (people only as "a person").
 - **Day plan.** The day with a now line: times, sun events and rhythms.
 - **Rooms** and **Hub health.** Devices per room with live state; integrations with errors, unavailable entities and

@@ -489,12 +489,16 @@ Devices the hub also knows are drawn as one component with a network side and a 
 
 ### Automations in plain words
 
-The Automations tab explains every automation and script of the hub in plain words (When → Only if → Then, written by fixed rules, without AI, in every language of the app), shows its flow with the live state of every entity and checks it: missing or unavailable entities, runaways, two automations switching one entity in opposite directions, automations that start themselves or drop starts, and those that have not run for 30 days. The dependency board shows what sets an entity and what reads it, with a dot travelling whenever an automation runs; *Who switches what* names the cause of every change (an automation, a person - never who - or the device itself), the timeline covers the last 24 hours, the day plan puts every fixed time and sun trigger on today's axis with a now line, the rooms view lists devices with their live state, and *Hub health* bundles integrations with errors and unavailable entities - read only, nothing is ever healed or switched. See [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md).
+The Automations tab explains every automation and script of the hub in plain words (When → Only if → Then, written by fixed rules, without AI, in every language of the app), shows its flow with the live state of every entity and checks it: missing or unavailable entities, runaways, two automations switching one entity in opposite directions, automations that start themselves or drop starts, and those that have not run for 30 days. The dependency board shows what sets an entity and what reads it, with a dot travelling whenever an automation runs; *Who switches what* names the cause of every change (an automation, a person - never who - or the device itself) and, from the runs the hub stored, the chain that led to it (sensor → automation → script → device) and the mode conflicts (dropped starts, restarts, full queues), the timeline covers the last 24 hours, the day plan puts every fixed time and sun trigger on today's axis with a now line, the rooms view lists devices with their live state, and *Hub health* bundles integrations with errors and unavailable entities - read only, nothing is ever healed or switched. See [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md).
 
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/automations-light.png" width="100%" alt="The list of automations with tiles and findings"><br><sub>Every automation with its findings</sub></td>
 <td width="50%"><img src="docs/screenshots/automations-item-dark.png" width="100%" alt="One automation in plain words with its flow"><br><sub>In plain words: When, Only if, Then</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/automations-chain-light.png" width="100%" alt="Effect chains: sensor, automation, script, device"><br><sub>What led to a switch: the effect chains</sub></td>
+<td width="50%"><img src="docs/screenshots/automations-mode-conflict-light.png" width="100%" alt="A mode conflict in the findings of an automation"><br><sub>A mode conflict from real runs</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/automations-plan-light.png" width="100%" alt="The day plan with time and sun triggers and the now line"><br><sub>The day plan with the now line</sub></td>

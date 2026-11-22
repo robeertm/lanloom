@@ -22,7 +22,7 @@ service is involved in making it.
   a finding (a missing entity, an automation that starts itself, an integration with an error ...) as a point only the
   first time. When the next report has the same finding it appears only in one calm line, "still open since ...", and
   after 36 hours without it the finding counts as new again. Automations whose runs ended with an error during the night
-  are points too (with *admin mode* on the connection): the number of runs, the time of the last one and a short error
+  are points too, and so are automations whose runs the hub dropped, stopped or queued out because of their mode (with *admin mode* on the connection): the number of runs, the time of the last one and a short error
   text with the names of the things instead of technical ids, and a link *Open* to the automation in the Automations tab.
   The report asks the hub once for this, never per automation; if it cannot, one calm line says so. See
   [Automations](automations.md) and [AUTOMATIONS.md](../AUTOMATIONS.md#nightly-report).

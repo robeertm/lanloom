@@ -520,8 +520,9 @@ def runs_frame(now: float, failed_at: list | None = None) -> dict:
 
 
 # who switches the sample entities in the live demo: one owner each, so the only conflict is the curated one (desk focus
-# switches the office plug on, the power saver off)
-OWNERS = {"light.hallway_2": {"on": "automation.hallway_light_on_motion", "off": "automation.hallway_light_on_motion"},
+# switches the office plug on, the power saver off); the hallway lamp is switched by the scene script and the light automation
+# only in the fixed pattern (with the runs behind them, see ``runs_frame``), so the live changes at random come from the device
+OWNERS = {"light.hallway_2": {"on": None, "off": None},
           "switch.kitchen_3": {"on": "automation.kitchen_climate", "off": None},
           "switch.office_3": {"on": "automation.desk_focus", "off": "automation.office_power_saver"},
           "light.living_room_2": {"on": "user", "off": "user"}}

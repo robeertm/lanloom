@@ -71,6 +71,32 @@ to the board, entities with several switchers are marked.
 
 ![Who switches what with a conflict](screenshots/automations-who-dark.png)
 
+#### Chain: what led to a switch
+
+Under the conflicts, *Effect chains* lists what an automation or script switched in the last 24 hours together with what
+led to it, read back from the runs the hub stored: the entity that started the first run (a sensor, for example), the
+automation or script runs that called one another, and the device with its new state and the time. Rules:
+
+- every run in the chain started at most **one hour** before the switch, and a called run started no earlier than the run
+  that called it (two seconds of clock jitter are allowed);
+- at most **four** automations or scripts per chain; longer chains are cut and say so, a loop of callers ends the chain
+  and says so;
+- the start of a chain is shown only when the hub names an entity that started it and the bridge may show it (a person,
+  tracker, zone, camera or calendar stays private: the chain then begins at the automation, with the note that the start
+  is not known);
+- per device at most three chains (different callers), the newest switch of each cause that has a run behind it.
+
+The same chains appear in the **card of a hub device** (and the phone sheet) for the entities of that device, and on the
+**page of an automation or script** for every chain it takes part in. Every step is a link: automations and scripts open
+their page, entities their dependency board.
+
+They come from the *run summary*: the hub's stored runs of all automations and scripts (one `trace/list` per domain, the
+same two requests as the nightly report; see [HUB-BRIDGE.md](HUB-BRIDGE.md)), reduced inside the bridge to time, result,
+the entity that started the run and the automation or script whose run called it - context ids are resolved there and
+never leave it. Admin mode is required; without it the sections say so and nothing is asked. A view asks for a fresh
+summary at most every five minutes (it also says how long ago the runs were read, and warns after an hour). The hub keeps
+only a few runs per item, so older switches simply have no chain.
+
 ### Timeline
 
 Who started what over the last 24 hours, newest first, grouped by hour: state changes with their cause and the runs of
@@ -110,6 +136,7 @@ From Lanloom's own rules, per automation:
 | Runaway | it ran 60 times or more within one clock hour | look at |
 | Conflict | it and another automation set an entity to opposite states within 60 seconds | look at |
 | Script loop | scripts call each other in a loop (the bridge does not look them up) | look at |
+| Mode conflict | from the stored runs (admin mode): `single` dropped starts, `restart` was stopped three times within an hour, `queued`/`parallel` found its maximum number of runs full | look at |
 | Starts itself | it switches what also starts it | note |
 | Drops starts | mode `single` with a wait or a delay of 30 seconds or more: starts during the wait are dropped | note |
 | Never ran | switched on, but it has not run for 30 days | note |
@@ -119,7 +146,7 @@ From Lanloom's own rules, per automation:
 
 The section **Automations** (one per hub connection) appears when there is something to judge - flows, integration
 states or unavailable entities. Points: automations naming a missing entity, conflicts of the night, runs that ended
-with an error during the night, integrations with errors, unavailable entities per domain from three on. Notes: fewer
+with an error during the night, runs the hub dropped, stopped or queued out because of the mode of the automation, integrations with errors, unavailable entities per domain from three on. Notes: fewer
 unavailable entities, automations that start themselves or drop starts, automations that have not run for 30 days. The
 summary has counts only; the AI features see the section only as its summary. See [NIGHTLY-REPORT.md](NIGHTLY-REPORT.md).
 
@@ -128,7 +155,7 @@ entities, integration with an error) is a point the first time it shows. The nex
 "still open since <date>: N findings". A finding that was gone for 36 hours is new again when it comes back; the first
 report after an update (and the first one of a hub) takes what it finds as known and says so in one line. The small
 register (finding, first and last seen) is stored with each report, per site, and goes with the archive. Events of the
-night - conflicts and failed runs - stay points every night.
+night - conflicts, failed runs and mode conflicts - stay points every night.
 
 **Failed runs.** Once per report (admin mode only) the bridge asks the hub for the stored run summaries of all
 automations and scripts with one list per domain - never one request per automation - and counts the runs that ended
@@ -140,9 +167,17 @@ template is counted but its text is never kept. When the hub cannot be asked (bu
 without the command) the section says so in one calm line; without admin mode nothing is asked. Each point links to the
 automation in this tab.
 
+**Mode conflicts.** From the same summary of runs (no extra request): per automation the runs the hub did not carry out
+because of its mode between the last report and this one - `single`: starts dropped because a run was still going;
+`restart`: a run stopped by a new start three times or more within one hour; `queued`/`parallel`: starts that found the
+maximum number of runs full. Each automation is a point with the count, the time of the last one and a link; five are
+named, the rest is counted. The numbers are "at least", because the hub keeps only its last few runs per automation. The
+text names automations by their display names only; a summary that was not read within half an hour of the end of the
+report window is not used.
+
 ## Search and commands
 
-`Ctrl K`: *Go to Automations*, and typed: *Who switches what*, *Timeline*, *Day plan*, *Rooms*, *Hub health*, *Show
+`Ctrl K`: *Go to Automations*, and typed: *Who switches what*, *Timeline*, *Day plan*, *Rooms*, *Hub health*, *Show effect chains*, *Show
 automations with findings*. An automation hit has *Open in Automations*; automation and entity hits have *Show
 dependencies* (the board).
 
@@ -172,6 +207,7 @@ All read only, viewer role.
 | `GET /api/hub/{id}/auto/item/{entity_id}` | one automation or script: plain words, flow, findings, runs per hour, related |
 | `GET /api/hub/{id}/auto/board/{entity_id}` | the dependency board of any entity |
 | `GET /api/hub/{id}/auto/who` | who switches what, conflicts |
+| `GET /api/hub/{id}/auto/chain` | effect chains of the last 24 hours (`?entity=`, `?device=` a hub device id, `?item=` an automation or script; combinable) with `runs_summary` (`ok`, `waiting`, `admin_off`, `error`, `no_hub`; age; `stale` after an hour); asks the hub for a fresh summary at most every five minutes |
 | `GET /api/hub/{id}/auto/timeline` | who started what over 24 hours |
 | `GET /api/hub/{id}/auto/plan` | the day plan |
 | `GET /api/hub/{id}/auto/rooms` | devices per room with live state |
@@ -183,5 +219,5 @@ The live frame carries `autoruns` (`[connection, entity id, runs]` since the las
 
 The sample network has a hub with 17 automations and 3 scripts that show every part: a conflict of two automations on
 one plug, a runaway that starts itself, missing and unavailable entities, a script loop, a `single` automation that
-drops starts, one that never ran, one switched off, time, time helper, sun and rhythm triggers, choices and waits, two
+drops starts, one that never ran, one switched off, a motion sensor that starts the hallway light automation, which calls a scene script that switches two lamps (a chain of four steps), a `single` automation that dropped starts, a `restart` automation stopped three times within an hour and a `queued` one whose queue was full, time, time helper, sun and rhythm triggers, choices and waits, two
 integrations with errors and a day of switching with causes.

@@ -37,7 +37,7 @@ exactly its fields, and checks every value:
 | `automation/config`, `script/config` | the entity id (only `automation.*` / `script.*`) | admin mode, within a budget |
 | `search/related` | item type `automation`/`script` and its entity id | admin mode, within a budget |
 | `trace/list`, `trace/get` | domain `automation`/`script`, item id, run id | admin mode, only on request |
-| `trace/list` (without an item) | domain `automation`/`script` only: the stored run summaries of every item of the domain | admin mode, once per nightly report, two requests within the trace budget |
+| `trace/list` (without an item) | domain `automation`/`script` only: the stored run summaries of every item of the domain | admin mode, once per nightly report and on demand while someone looks at the effect chains (at most every five minutes), two requests within the trace budget; of each run only the start and end time, how it ended (finished, error, dropped, stopped, queue full …), the entity that started it (only when the bridge knows it and may show it) and the automation or script whose run called it are kept - context ids are resolved inside the bridge, text of errors only after the filter of the nightly report |
 | `history/history_during_period` | start and end time, exactly one entity id (never a private one), `minimal_response`, `no_attributes`, `significant_changes_only` (all `true`) | only when someone opens 24 h, 7 days or 30 days on a sensor page, at most 12 per minute |
 | `recorder/statistics_during_period` | start and end time, exactly one entity id, period `5minute`/`hour`/`day`, types `mean`/`min`/`max`/`state` | the same, for numbers that have long-term statistics |
 
