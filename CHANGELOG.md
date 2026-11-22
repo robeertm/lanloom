@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **More cables and fuller tooltips in the Real cables view, from open sources.** A second, separate cable file (`lanloom/data/cables-open.json.gz`, CC0 1.0) joins the community-mapped one: the submarine cable corridors of U.S. waters published by NOAA Office for Coastal Management and BOEM, turned into centre lines (named systems in service or under construction; power, utility, telegraph, research, range, military and retired cables left out), and the facts of 184 submarine communications cables from Wikidata. The map now has 864 sea cables instead of 779 (307 instead of 222 with a name): 83 cables the community map lacks - among them the inter-island cables of Hawaii, Alaska and the Caribbean and the U.S. ends of transoceanic systems - and 3 more from the community map itself, which now also reads cables tagged `submarine=yes` or `telecom=line` under water. Every cable is drawn once: a line whose cable the community map already holds (same name, alias or the same Wikidata item) is left out, and facts only fill gaps. Pointing at a cable shows the owners, the year it went into service and the design capacity where known (56 cables), and where the line comes from; a line that stops where the U.S. data stops says *only the part in U.S. waters is known*, and such an end at sea is never taken for a landing point. A cable that Wikidata lists as out of service no longer counts as a candidate of the route estimate (one so far). The attribution line beside the map and *Settings > General > Cable data* name both sources with their licence and the counts. Everything is built at build time by `scripts/build_cables.py` (new step `open`, with its own checks, size budget and checksum) and never downloaded at run time; `lanloom/data/CABLES-LICENSE.md` explains the sources, the changes and which sources were checked and not used. All six languages.
+
+### Fixed
+- **The cable build waits for a busy server that stops answering**, not only for one that says it is busy.
+
 ## [1.61.0] – 2026-11-22
 
 1.60.0 below was not released on its own; it is part of this release.

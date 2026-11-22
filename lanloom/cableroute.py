@@ -159,11 +159,13 @@ class CableGraph:
             self.edges.setdefault(b, []).append((a, km, t[::-1]))
         self._gaps()
         self._join()
-        for i, (x, y) in enumerate(self.nodes):
+        ends = entry.get("ends")
+        # only a part of the cable is known ("part": data of national waters): a free end out at sea, where that data stops, is no
+        # landing - only the ends of the data set are
+        for i, (x, y) in enumerate(() if entry.get("part") else self.nodes):
             if len(self.edges.get(i, ())) == 1 and 0.5 < x < 999.5:        # ends at the date line are no landing
                 lon, lat = unproject(x, y)
                 self.landings.append((lat, lon, i))
-        ends = entry.get("ends")
         if isinstance(ends, list) and len(ends) == 2:                       # the two ends of the data set are always landings
             for p in ends:
                 try:

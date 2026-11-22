@@ -33,6 +33,20 @@ def test_tip_without_operator_has_no_null_line():
     assert len(r["withOp"]) == 4 and "Consortium" in r["withOp"][2]
 
 
+def test_tip_names_owners_year_capacity_and_the_source_of_each_line():
+    """Open sources: facts (owners, year in service, design capacity) and the source of the line (community map, national data,
+    only the part in national waters); a fact that is missing or the text "null" gives no line."""
+    r = run_node("paths_cables_tip_test.js")
+    f = r["facts"]
+    assert f[0] == "Atlas Link" and any(x.startswith("cables.tip.owners") and "Coast Carrier" in x for x in f)
+    assert any(x.startswith("cables.tip.year") and "2004" in x for x in f) and any(x.startswith("cables.tip.capacity") for x in f)
+    assert "cables.tip.source" in f and "cables.tip.facts" in f and not any("operator" in x for x in f)
+    assert not any(x.startswith("cables.tip.owners") for x in r["sameOwner"])              # owner = operator: said once
+    assert "cables.tip.source.noaa" in r["national"] and "cables.tip.source" not in r["national"]
+    assert r["part"] == ["Coral Link", 'cables.tip.meta{"km":"300"}', "cables.tip.source.noaa_part"]
+    assert r["attr"] == 2 and r["attrNone"] is None
+
+
 def test_no_null_children_in_direct_dom_calls():
     """replaceChildren/append turn a null argument into the text "null": no `: null` child may go in unfiltered."""
     import pathlib

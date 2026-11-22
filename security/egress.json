@@ -426,6 +426,18 @@
    "use": "link",
    "category": "link",
    "purpose": "licence link of the bundled cable data (ODbL), shown only"
+  },
+  {
+   "host": "catalog.data.gov",
+   "use": "link",
+   "category": "link",
+   "purpose": "source link of the bundled open cable lines (national submarine cable corridors, CC0), shown beside the map in the real cables view and in the settings; opened only when clicked"
+  },
+  {
+   "host": "www.wikidata.org",
+   "use": "link",
+   "category": "link",
+   "purpose": "source link of the bundled cable facts (CC0), shown beside the map in the real cables view and in the settings; opened only when clicked"
   }
  ]
 }

@@ -86,12 +86,14 @@ views of the same numbers. Your choice is remembered on this device; a link can 
   without a measured route get a dashed arc: *path estimated*. Dots towards you are received data, lighter dots sent data.
 - **Rain**: the arcs from your home country with travelling dots, as before.
 - **The sum is the same in both views** - nothing disappears when you switch.
-- **Point at or tap a cable** (on a phone, zoom in first) to see its name, length and operator; the probable cables can also
-  be reached with Tab.
+- **Point at or tap a cable** (on a phone, zoom in first) to see its name, length and operator, the owners, the year it went
+  into service and its capacity where known, and where the line comes from; the probable cables can also be reached with Tab.
 - **Which cable?** The routes list says *Probably via …*, *Possibly via … or …* or *Cable unknown*, with the reason (round-trip
   times and where the cables land). It is always an **estimate, never a measurement**; nothing of it is stored.
-- **Incomplete by nature:** the cables come only from OpenStreetMap (© OpenStreetMap contributors, ODbL), community-mapped
-  and incomplete - many cables are missing or have no name. The map says so in the line below it whenever cables are shown.
+- **Incomplete by nature:** most cables come from OpenStreetMap (© OpenStreetMap contributors, ODbL), community-mapped
+  and incomplete - many cables are missing or have no name. Cable routes in U.S. waters come from national open data and the
+  facts (owners, year, capacity) from Wikidata, both CC0. The map names its sources in the line below it whenever cables are
+  shown.
 - **Cable data** under *Settings > General > Cable data*: source, date, number of cables and the licence. Administrators can
   import an Overpass answer of their own (for example a region mapped in more detail) and go back to the bundled cables;
   nothing is downloaded for it.
@@ -142,7 +144,7 @@ Details (how a sea crossing and a fitting cable are found, the data file, its li
 - The controller adapters count bytes per client but not per destination, so the figures by country come only from the
   host's connections and from NetFlow (see [DATA-PATHS.md](../DATA-PATHS.md#what-the-adapter-statistics-can-and-cannot-do)).
 - Hints never create a firewall rule and never block anything.
-- The cables come only from OpenStreetMap and are incomplete; which cable a route used is an estimate from the places of
+- The cables come from OpenStreetMap and two open sources (U.S. waters, cable facts) and are incomplete; which cable a route used is an estimate from the places of
   the hops, their round-trip times and where the cables land. *Cable unknown* means that no cable in the data fits, not
   that there is none.
 - NetFlow receives only from the exporter addresses you allow; packets from any other address are dropped and counted.

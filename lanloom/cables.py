@@ -46,7 +46,9 @@ CHANGES = ("Telecommunication cables only (power, pipeline, disused and decommis
            "units), projected onto the world map and rounded to 0.01.")
 # Overpass queries (build time only, scripts/build_cables.py)
 QUERIES = (
-    ("sea", '[out:json][timeout:240];way["communication"="line"]["location"~"underwater|submarine"];out tags geom;'),
+    ("sea", '[out:json][timeout:240];(way["communication"="line"]["location"~"underwater|submarine"];'
+            'way["communication"="line"]["submarine"="yes"];way["telecom"="line"]["location"~"underwater|submarine"];'
+            'way["telecom"="line"]["submarine"="yes"];);out tags geom;'),
     ("seamark", '[out:json][timeout:240];way["seamark:type"="cable_submarine"];out tags geom;'),
     ("land", '[out:json][timeout:240];(way["communication"="line"]["location"!~"underwater|submarine"]["name"];'
              'way["communication"="line"]["location"!~"underwater|submarine"]["operator"];'
@@ -232,7 +234,8 @@ def ways_from_answer(raw) -> list:
         if len(pts) < 2:
             continue
         loc = str(tags.get("location") or "").lower()
-        sea = loc in ("underwater", "submarine") or (tags.get("seamark:type") == "cable_submarine" and loc not in LAND_LOCATIONS)
+        sub = str(tags.get("submarine") or "").lower() == "yes"
+        sea = loc in ("underwater", "submarine") or ((tags.get("seamark:type") == "cable_submarine" or sub) and loc not in LAND_LOCATIONS)
         wid = e.get("id") if isinstance(e.get("id"), int) and not isinstance(e.get("id"), bool) else None
         out.append({"id": wid, "n": _text(tags, "name", "seamark:name"), "ref": _text(tags, "ref"), "op": _text(tags, "operator"),
                     "sea": sea, "pts": pts})
@@ -387,21 +390,44 @@ class CableData:
     """The cable data of the app: an administrator's import (if there is one and it is good) or the bundled file.
     Loaded on first use only (the map asks for it in the "Real cables" view); never fetched from the network."""
 
-    def __init__(self, folder: Optional[Path] = None, bundled: Path = DATA_FILE):
+    def __init__(self, folder: Optional[Path] = None, bundled: Path = DATA_FILE, open_file: Optional[Path] = None):
+        from . import cables_open
         self.folder = Path(folder) if folder else None
         self.bundled = Path(bundled)
+        self.open_file = Path(open_file) if open_file else (cables_open.DATA_FILE if Path(bundled) == DATA_FILE else None)
         self.lock = threading.Lock()
         self._data = None
         self._blob = None
         self._etag = None
         self._source = None
         self._error = None
+        self._open = None
         self.version = 0
 
     def _import_path(self) -> Optional[Path]:
         return self.folder / IMPORT_NAME if self.folder else None
 
+    def _with_open(self, blob: bytes, d: dict) -> tuple:
+        """The open sources (cables_open: more lines, cable facts, CC0) merged into the data set; without a good open file the data
+        set stays as it is. -> (gzip bytes, data set)"""
+        from . import cables_open
+        self._open = None
+        if not self.open_file:
+            return blob, d
+        try:
+            extra = cables_open.decode(self.open_file.read_bytes())
+        except OSError:
+            return blob, d
+        if extra is None or cables_open.problems(extra):
+            return blob, d
+        merged = cables_open.merge(d, extra)
+        if problems(merged, MIN_SEA_IMPORT):
+            return blob, d
+        self._open = extra
+        return encode(merged), merged
+
     def _set(self, blob: bytes, d: dict, source: str) -> None:
+        blob, d = self._with_open(blob, d)
         self._blob, self._data, self._source = blob, d, source
         self._etag = '"%s"' % hashlib.sha256(blob).hexdigest()[:20]
         self.version += 1
@@ -447,8 +473,11 @@ class CableData:
             self._load()
             d = self._data or {}
             c = d.get("counts") or {}
+            srcs = [{k: x.get(k) for k in ("id", "name", "short", "license", "license_url", "url", "date")} for x in d.get("sources") or ()]
             return {"available": self._data is not None, "source": self._source, "date": d.get("date"),
                     "sea": c.get("sea", 0), "land": c.get("land", 0), "named_sea": c.get("named_sea", 0),
+                    "osm_sea": c.get("osm_sea", c.get("sea", 0)), "open_sea": c.get("open_sea", 0), "facts": c.get("facts", 0),
+                    "retired": c.get("retired", 0), "open_date": d.get("open_date"), "sources": srcs,
                     "attribution": ATTRIBUTION, "attribution_url": ATTRIBUTION_URL, "license": LICENSE, "license_url": LICENSE_URL,
                     "error": self._error, "import_max_mb": MAX_IMPORT_BYTES // (1024 * 1024), "etag": self._etag}
 

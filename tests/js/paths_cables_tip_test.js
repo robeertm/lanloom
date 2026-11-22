@@ -20,4 +20,12 @@ process.stdout.write(JSON.stringify({
   empty: lines({ n: 'X', km: 1, op: '  ' }),
   literal: lines({ n: 'X', km: 1, op: 'null' }),
   withOp: lines({ n: 'SEA-ME-WE', km: 20000, op: 'Consortium' }),
+  facts: lines({ n: 'Atlas Link', km: 6400, op: null, own: 'Atlas Telco, Coast Carrier', yr: 2004, cap: 40, wd: 'Q21', src: 'osm' }),
+  sameOwner: lines({ n: 'A', km: 5, op: 'Atlas Telco', own: 'Atlas Telco', src: 'osm' }),
+  national: lines({ n: 'Coral Link', km: 300, op: 'Island Telco', src: 'noaa' }),
+  part: lines({ n: 'Coral Link', km: 300, src: 'noaa', part: 1, yr: null, cap: 'null', own: 'null' }),
+  attr: (C.openSources({ sources: [{ short: 'NOAA / BOEM', url: 'https://example.org/a', license: 'CC0 1.0', license_url: 'https://example.org/l' },
+                                   { short: 'Wikidata', url: 'https://example.org/b', license: 'CC0 1.0', license_url: 'https://example.org/l' },
+                                   { short: '', url: 'x' }] }) || []).length,
+  attrNone: C.openSources({}),
 }));

@@ -101,13 +101,15 @@ def test_licence_file_and_third_party_notices_name_osm_and_odbl():
 
 
 def test_no_cable_data_from_a_subscriber_only_source_in_the_repository():
-    """Only OpenStreetMap: every cable entry has the fields of the OSM build, and no file name points at another source."""
+    """Only OpenStreetMap in the ODbL file (every entry has the fields of the OSM build) and only the open sources (public domain /
+    CC0, tests/test_cables_open.py) in the second file; no file name points at another source."""
     d = cables.decode(cables.DATA_FILE.read_bytes())
     for e in d["sea"] + d["land"]:
         assert set(e) == {"id", "n", "op", "d", "km", "ends"}
         assert re.match(r"^(w\d+|[sl]\d+)$", e["id"])
     names = [p.name.lower() for p in (ROOT / "lanloom").rglob("*") if p.is_file() and "__pycache__" not in p.parts]
     assert not [n for n in names if "cable" in n and n not in ("cables.py", "cableroute.py", "cables-osm.json.gz", "cables-osm.sha256",
+                                                               "cables_open.py", "cables-open.json.gz", "cables-open.sha256",
                                                                "cables-license.md", "paths_cables.js", "paths_cables.css")]
 
 
@@ -159,7 +161,7 @@ def test_build_script_refuses_a_thin_answer_and_writes_nothing(tmp_path):
     (raw / "seamark.json").write_bytes(answer(way(2, line(-40, 12, -10, 12), "B")))
     (raw / "land.json").write_bytes(answer())
     out = tmp_path / "cables-osm.json.gz"
-    assert build_script.main(["--from-raw", str(raw), "--out", str(out)]) == 1
+    assert build_script.main(["--step", "osm", "--from-raw", str(raw), "--out", str(out)]) == 1
     assert not out.exists() and not (tmp_path / "cables-osm.sha256").exists()
 
 
@@ -172,7 +174,7 @@ def test_build_script_writes_atomically_with_a_checksum(tmp_path, monkeypatch):
     monkeypatch.setattr(cables, "MIN_SEA", 1)
     monkeypatch.setattr(build_script, "samples", lambda d: [])
     out = tmp_path / "cables-osm.json.gz"
-    assert build_script.main(["--from-raw", str(raw), "--out", str(out), "--date", "2026-01-02"]) == 0
+    assert build_script.main(["--step", "osm", "--from-raw", str(raw), "--out", str(out), "--date", "2026-01-02"]) == 0
     blob = out.read_bytes()
     assert (tmp_path / "cables-osm.sha256").read_text().split()[0] == hashlib.sha256(blob).hexdigest()
     assert cables.decode(blob)["date"] == "2026-01-02"
@@ -278,7 +280,8 @@ def test_cable_data_prefers_a_good_import_and_falls_back_to_the_bundled_file(tmp
     cd = cables.CableData(tmp_path)
     assert cd.info()["source"] == "bundled"
     info = cd.import_answer(answer(way(1, line(-40, 10, -10, 10), "Own Link")), "2026-11-19")
-    assert info["source"] == "import" and info["sea"] == 1 and (tmp_path / cables.IMPORT_NAME).is_file()
+    assert info["source"] == "import" and info["osm_sea"] == 1 and (tmp_path / cables.IMPORT_NAME).is_file()
+    assert info["sea"] == 1 + info["open_sea"]                   # the lines of the open sources stay next to an own import
     assert cables.CableData(tmp_path).info()["source"] == "import"
     (tmp_path / cables.IMPORT_NAME).write_bytes(b"broken")
     again = cables.CableData(tmp_path)
@@ -384,7 +387,7 @@ def test_api_only_an_admin_imports_or_resets_with_audit_entries(app_client):
     try:
         r = c.post("/api/paths/cables/import", content=raw, headers=dict(HDR, **{"Content-Type": "application/json"}))
         assert r.status_code == 200, r.text
-        assert r.json()["source"] == "import" and r.json()["sea"] == 1
+        assert r.json()["source"] == "import" and r.json()["osm_sea"] == 1
         assert c.post("/api/paths/cables/import", content=b"{}", headers=HDR).json()["error"] == "paths.cables.err.no_cables"
         big = c.post("/api/paths/cables/import", content=b"x", headers=dict(HDR, **{"Content-Length": str(cables.MAX_IMPORT_BYTES + 1)}))
         assert big.status_code in (400, 413)

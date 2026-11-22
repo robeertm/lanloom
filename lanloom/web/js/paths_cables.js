@@ -134,8 +134,16 @@
       h('span', {}, t('cables.attr.title'), ': ',
         a ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, a) : t('cables.attr.loading'),
         lic ? [' (', h('a', { href: lurl, target: '_blank', rel: 'noopener noreferrer' }, lic), ')'] : null,
+        openSources(d),
         ' — ', t('cables.attr.incomplete'), ' · ', t('infra.attr.estimated'), date ? ' · ' + date : ''));
   };
+  /* the open sources of the second cable file (lines of national waters, cable facts; CC0): ", <source> (CC0 1.0)" each */
+  function openSources(d, first) {
+    const list = (d && Array.isArray(d.sources) ? d.sources : []).filter(x => x && x.short && x.url);
+    return list.length ? list.map((x, k) => [k ? ', ' : (first == null ? ', ' : first), h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer' }, x.short),
+      x.license ? [' (', h('a', { href: x.license_url, target: '_blank', rel: 'noopener noreferrer' }, x.license), ')'] : null]) : null;
+  }
+  C.openSources = openSources;
   document.addEventListener('lanloom-paths-cables', () => {
     document.querySelectorAll('.cb-attr').forEach(p => { const n = C.attribution(p.className.replace('cb-attr', '').trim()); if (n) p.replaceWith(n); });
   });
@@ -143,12 +151,19 @@
   // ------------------------------------------------------------------ tooltip (hover, focus, tap)
   /* The lines of a cable's tip. A missing operator (null, undefined, empty or the text "null") drops its line: replaceChildren turns a
      null child into the text "null" (lanloom#12), so only real nodes are returned. */
+  const real = v => { const x = typeof v === 'string' ? v.trim() : ''; return x && !/^(null|undefined|none|nan)$/i.test(x) ? x : ''; };
+  const num = v => (typeof v === 'number' && isFinite(v) && v > 0 ? v : 0);
   function tipNodes(e) {
-    const op = typeof e.op === 'string' ? e.op.trim() : '';
+    const op = real(e.op), own = real(e.own), yr = num(e.yr), cap = num(e.cap);
+    const src = e.src === 'noaa' ? t(e.part ? 'cables.tip.source.noaa_part' : 'cables.tip.source.noaa') : t('cables.tip.source');
     return [h('b', {}, e.n || t('cables.unnamed')),
       h('span', {}, t('cables.tip.meta', { km: LL.fmtNum(e.km || 0, 0) })),
-      op && !/^(null|undefined|none|nan)$/i.test(op) ? h('span', {}, t('cables.tip.operator', { operator: op })) : null,
-      h('small', {}, t('cables.tip.source'))].filter(Boolean);
+      op ? h('span', {}, t('cables.tip.operator', { operator: op })) : null,
+      own && own !== op ? h('span', {}, t('cables.tip.owners', { owners: own })) : null,
+      yr ? h('span', {}, t('cables.tip.year', { year: String(yr) })) : null,
+      cap ? h('span', {}, t('cables.tip.capacity', { tbps: LL.fmtNum(cap, cap < 1 ? 2 : (cap < 10 ? 1 : 0)) })) : null,
+      h('small', {}, src),
+      e.wd ? h('small', {}, t('cables.tip.facts')) : null].filter(Boolean);
   }
   C.tipNodes = tipNodes;
   function hideTip() { if (S.tip) { S.tip.remove(); S.tip = null; } }
@@ -301,7 +316,7 @@
         const res = LL.siteChecked(await fetch(LL.url('/api/paths/cables/import'), { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: head, body: f }));
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(t(body.error || 'paths.cables.err.no_cables'));
-        LL.msg(msg, t('cables.set.imported', { n: body.sea || 0 }), 'ok');
+        LL.msg(msg, t('cables.set.imported', { n: body.osm_sea || 0 }), 'ok');
         C.reload();
         refresh();
       } catch (e) { LL.msg(msg, e.message || LL.errText(e), 'error'); }
@@ -315,6 +330,8 @@
         [t('cables.set.count'), t('cables.set.count_value', { sea: LL.fmtNum(i.sea || 0, 0), named: LL.fmtNum(i.named_sea || 0, 0), land: LL.fmtNum(i.land || 0, 0) })],
         [t('cables.set.licence'), h('span', {}, h('a', { href: i.attribution_url, target: '_blank', rel: 'noopener noreferrer' }, i.attribution), ' (',
           h('a', { href: i.license_url, target: '_blank', rel: 'noopener noreferrer' }, i.license), ')')],
+        (i.sources || []).length ? [t('cables.set.open'), h('span', {}, t('cables.set.open_value', { lines: LL.fmtNum(i.open_sea || 0, 0),
+          facts: LL.fmtNum(i.facts || 0, 0), retired: LL.fmtNum(i.retired || 0, 0) }), openSources({ sources: i.sources }, ' '))] : null,
         i.error ? [t('cables.set.problem'), h('span', { class: 'nf-bad' }, t(i.error))] : null]));
       if (reset) reset.hidden = i.source !== 'import';
     }
