@@ -120,10 +120,10 @@
       else if (ev.key === 'Tab') closeMenu(false);
     };
     const onResize = () => place();
-    setTimeout(() => document.addEventListener('mousedown', onDoc), 0);
+    setTimeout(() => document.addEventListener('pointerdown', onDoc), 0);
     document.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', onResize);
-    menuEl = { el, btn, off: () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey, true); window.removeEventListener('resize', onResize); } };
+    menuEl = { el, btn, off: () => { document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onKey, true); window.removeEventListener('resize', onResize); } };
     btn.setAttribute('aria-expanded', 'true');
     place();
     let data;

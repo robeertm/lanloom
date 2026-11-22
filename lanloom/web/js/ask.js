@@ -132,7 +132,8 @@
     }
     async function ask(q) {
       q = String(q || '').trim();
-      if (!q || busy) return;
+      if (busy) return;
+      if (!q) { input.focus(); return; }              // an empty Send leads into the field (a tap that does nothing looks broken)
       busy = true; send.disabled = true; previewBox.hidden = true;
       const hist = history();
       turns.push({ role: 'user', text: q.slice(0, 500) });

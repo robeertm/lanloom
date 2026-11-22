@@ -33,14 +33,14 @@
   // the inner pads between the outer ones), more go on a grid. `narrow` is the phone layout: smaller pads in two columns,
   // one row after the other (a ring does not fit 380 units).
   function boardLayout(n, narrow) {
-    const pad = narrow ? { w: 120, h: 46 } : { w: 158, h: 68 };
+    const pad = narrow ? { w: 120, h: 54 } : { w: 158, h: 68 };      // phone: 54 units scale to a fingertip (44 px) on a 390 px screen
     const W = narrow ? 380 : 960;
     let H = narrow ? 0 : (n <= 8 ? 500 : 560);
     const cx = W / 2;
     const pos = [];
     if (narrow) {
       const rows = Math.max(1, Math.ceil(n / 2));
-      const step = pad.h + 44;
+      const step = 90;                       // the same row distance as with the former 46-unit pads
       H = rows * step - 12 + 20 - 6;
       for (let i = 0; i < n; i++) pos.push({ x: n === 1 ? cx : (i % 2 ? W - pad.w / 2 - 8 : pad.w / 2 + 8), y: r1(10 + step / 2 + Math.floor(i / 2) * step - 12) });
       return { w: W, h: H, pad, pos };
