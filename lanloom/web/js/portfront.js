@@ -266,7 +266,8 @@
         requestAnimationFrame(() => { const el = pads.find(x => x.dataset.port === want); if (el && root.isConnected && (!document.activeElement || document.activeElement === document.body)) el.focus({ preventScroll: true }); });
       }
     }
-    if (isAp) root.append(radios(front));
+    const radioBox = isAp ? radios(front) : null;                     // an access point without radio data has no radio block
+    if (radioBox) root.append(radioBox);
     if (front.roams && (front.roams.in != null || front.roams.out != null)) {
       root.append(h('p', { class: 'pf-roams muted' }, t('pf.roams', { n_in: front.roams.in || 0, n_out: front.roams.out || 0 })));
     }

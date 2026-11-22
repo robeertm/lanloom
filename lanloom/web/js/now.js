@@ -216,8 +216,8 @@
     let list = [];
     try { list = (await api('/api/sites/overview')).sites || []; } catch (e) { body.replaceChildren(h('p', { class: 'msg msg--error' }, LL.errText(e))); return; }
     if (!body.isConnected) return;
-    body.replaceChildren(h('ul', { class: 'now-sites__list' }, list.map(s => siteRow(s, cur))),
-      LL.can('admin') ? h('a', { class: 'btn btn--ghost btn--sm', href: '#/sites' }, t('now.sites.manage')) : null);
+    body.replaceChildren(...[h('ul', { class: 'now-sites__list' }, list.map(s => siteRow(s, cur))),
+      LL.can('admin') ? h('a', { class: 'btn btn--ghost btn--sm', href: '#/sites' }, t('now.sites.manage')) : null].filter(Boolean));
   }
   const sheetKind = (id, title, draw) => LL.sheets.register(id, { title, render: async body => { sheetBody = body; sheetId = id; await need(); draw(body); } });
   sheetKind('notes', 'now.sheet.notes', drawNotes);
@@ -286,11 +286,11 @@
     const acts = h('div', { class: 'btn-row btn-row--wrap focus-acts' },
       h('a', { class: 'btn btn--sm', href: '#/map/' + encodeURIComponent(pick) }, t('focus.on_map')),
       /^d-/.test(pick) ? h('a', { class: 'btn btn--ghost btn--sm', href: '#/devices/' + encodeURIComponent(pick) }, t('focus.card')) : null);
-    body.replaceChildren(h('div', { class: 'focus-top' }, sel, acts),
+    body.replaceChildren(...[h('div', { class: 'focus-top' }, sel, acts),
       h('section', { class: 'card focus-card' }, fig,
         h('p', { class: 'focus-sum muted' }, partners.length ? t('focus.sum', { name: nameOf(centre), n: partners.length }) : t('focus.alone', { name: nameOf(centre) })),
         partners.length > RING_MAX ? h('p', { class: 'muted focus-more' }, t('focus.more', { n: partners.length - RING_MAX })) : null),
-      partners.length ? h('section', { class: 'card focus-partners', 'aria-labelledby': 'focus-h-list' }, h('h2', { id: 'focus-h-list' }, t('focus.partners')), list) : null);
+      partners.length ? h('section', { class: 'card focus-partners', 'aria-labelledby': 'focus-h-list' }, h('h2', { id: 'focus-h-list' }, t('focus.partners')), list) : null].filter(Boolean));
     // live: grades and metrics of the centre and the partners
     const unsub = LL.live.subscribe(f => {
       if (!fig.isConnected) return;

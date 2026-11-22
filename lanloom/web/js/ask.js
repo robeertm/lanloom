@@ -224,9 +224,9 @@
       return box;
     }
     const kind = h('span', { class: 'ai-hint__kind' }, LL.kindIcon ? LL.kindIcon(hint.kind) : null, h('b', {}, t('kind.' + hint.kind)), hint.what ? h('span', { class: 'muted' }, ' · ' + hint.what) : null);
-    box.append(h('div', { class: 'ai-hint__main' }, h('span', { class: 'chip chip--' + (hint.state === 'accepted' ? 'ok' : 'warn') }, t('hint.state.' + hint.state)), kind),
+    box.append(...[h('div', { class: 'ai-hint__main' }, h('span', { class: 'chip chip--' + (hint.state === 'accepted' ? 'ok' : 'warn') }, t('hint.state.' + hint.state)), kind),
       hint.reason ? h('p', { class: 'ai-hint__reason' }, hint.reason) : null,
-      h('p', { class: 'muted ai-hint__meta' }, t(hint.state === 'accepted' ? 'hint.accepted_text' : 'hint.open_text')));
+      h('p', { class: 'muted ai-hint__meta' }, t(hint.state === 'accepted' ? 'hint.accepted_text' : 'hint.open_text'))].filter(Boolean));
     if (may) {
       box.append(h('div', { class: 'btn-row' }, hint.state === 'open'
         ? [hint.kind !== 'unknown' ? h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => decide('accept') }, t('hint.accept')) : null,

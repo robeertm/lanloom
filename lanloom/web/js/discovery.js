@@ -55,11 +55,11 @@
         try { await api('/api/settings', { method: 'PUT', body: { adapter_inventory: adapterToggle.checked } }); LL.toast(t('settings.saved'), 'ok'); render(); }
         catch (e) { LL.toast(LL.errText(e), 'error'); adapterToggle.checked = !adapterToggle.checked; }
       } });
-      body.replaceChildren(list,
+      body.replaceChildren(...[list,
         data.no_address ? h('p', { class: 'muted fineprint' }, t('zone.no_address', { n: data.no_address })) : null,
         data.unzoned ? h('p', { class: 'muted fineprint' }, t('zone.unzoned', { n: data.unzoned })) : null,
         h('hr'), h('label', { class: 'check' }, adapterToggle, h('span', {}, t('zone.adapter_inventory'))),
-        h('p', { class: 'muted fineprint' }, t('zone.adapter_inventory.hint')));
+        h('p', { class: 'muted fineprint' }, t('zone.adapter_inventory.hint'))].filter(Boolean));
     }
     wrap.append(h('p', { class: 'muted' }, t('zone.lead')), body);
     await render();

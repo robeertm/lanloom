@@ -828,13 +828,13 @@
       if (!st.enabled) { status.replaceChildren(h('p', { class: 'muted fineprint' }, t('settings.netflow.off'))); return; }
       const now = Date.now() / 1000;
       const state = st.error ? t(st.error, { port: st.port }) : st.listening ? t('settings.netflow.listening', { port: st.port }) : t('settings.netflow.not_listening');
-      status.replaceChildren(LL.facts([
+      status.replaceChildren(...[LL.facts([
         [t('settings.netflow.state'), h('span', { class: st.error || !st.listening ? 'nf-bad' : 'nf-ok' }, state)],
         [t('settings.netflow.last_packet'), st.last_packet ? t('settings.netflow.ago', { age: LL.fmtAge(now - st.last_packet) }) : t('settings.netflow.none_yet')],
         [t('settings.netflow.flows'), t('settings.netflow.flows_value', { flows: LL.fmtNum(st.flows, 0), booked: LL.fmtNum(st.booked, 0), bytes: LL.fmtBytes(st.bytes) })],
         [t('settings.netflow.dropped'), LL.fmtNum(st.dropped_foreign, 0)],
         st.waiting ? [t('settings.netflow.waiting'), LL.fmtNum(st.waiting, 0)] : null,
-        st.malformed ? [t('settings.netflow.malformed'), LL.fmtNum(st.malformed, 0)] : null]), exporterList(st, now), refusedList(st, now));
+        st.malformed ? [t('settings.netflow.malformed'), LL.fmtNum(st.malformed, 0)] : null]), exporterList(st, now), refusedList(st, now)].filter(Boolean));
     }
     // per exporter: protocol, state, last packet, flows, templates (v9/IPFIX), records waiting, unreadable packets
     function exporterList(st, now) {

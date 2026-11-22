@@ -219,9 +219,9 @@
       try { d = await api('/api/resilience/scenario/power?minute=' + m); } catch (e) { if (my === seq) out.textContent = LL.errText(e); return; }
       if (my !== seq) return;
       const off = d.counts.sure, running = d.running || [];
-      out.replaceChildren(h('strong', {}, t('rs.sc.power.at', { n: m, off })), ' ',
+      out.replaceChildren(...[h('strong', {}, t('rs.sc.power.at', { n: m, off })), ' ',
         h('span', {}, running.length ? t('rs.sc.power.running', { n: running.length }) : t('rs.sc.power.all_off')),
-        countsLine(d.counts) ? h('span', { class: 'muted' }, ' · ' + countsLine(d.counts)) : null);
+        countsLine(d.counts) ? h('span', { class: 'muted' }, ' · ' + countsLine(d.counts)) : null].filter(Boolean));
     }
     slider.oninput = () => { clearTimeout(timer); label.textContent = t('rs.minutes', { n: Number(slider.value) }); timer = setTimeout(update, 180); };
     setTimeout(update, 0);

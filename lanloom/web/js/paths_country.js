@@ -408,7 +408,7 @@
     const where = d.home ? t('pc.sub.home') : d.eu ? t('pc.sub.eu') : t('pc.sub.out');
     el.querySelector('.pc-titles small').textContent = t('pc.sub', { bytes: LL.fmtBytes(d.totals.bytes), share: pct(d.totals.share), where });
     lastPhone = phone();
-    if (!d.totals.bytes) { body.replaceChildren(detailNote(d), h('p', { class: 'muted pc-empty' }, t('pc.empty', { country: name(Z.cc) })), attribution(d)); return; }
+    if (!d.totals.bytes) { body.replaceChildren(...[detailNote(d), h('p', { class: 'muted pc-empty' }, t('pc.empty', { country: name(Z.cc) })), attribution(d)].filter(Boolean)); return; }
     const parts = mapParts(d);
     parts.cc = Z.cc;
     const homeCc = d.home_cc || (LL.pathsHomeCc && LL.pathsHomeCc()) || '';
@@ -442,7 +442,7 @@
     const left = h('div', { class: 'pc-col' }, h('section', { class: 'card pc-card pc-mapcard' + (parts.ways ? ' is-cables' : ''), 'data-view': CB() ? CB().view() : 'rain' },
       viewbar, stage, legend, CB() ? CB().attribution('pc-attr') : null), historyCard(d, parts.side), targetsCard(d));
     const right = h('div', { class: 'pc-col' }, kpis(d), note, citiesCard(d, parts.side), operatorsCard(d, parts.side), devicesCard(d, parts.side));
-    body.replaceChildren(h('div', { class: 'pc-grid' }, left, right), routeCard, attribution(d));     // routes: the whole width, a chain has room
+    body.replaceChildren(...[h('div', { class: 'pc-grid' }, left, right), routeCard, attribution(d)].filter(Boolean));     // routes: the whole width, a chain has room
     body.scrollTop = scroll;
     const pts = parts.bubbles.map(b => [b.x, b.y]).concat(parts.ways ? parts.ways.extra || [] : []);      // the satellite hop stays in the picture
     Z.zvCc = Z.zvCc || Z.cc;

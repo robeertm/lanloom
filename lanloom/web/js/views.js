@@ -813,11 +813,11 @@
         h('td', {}, h('span', { class: 'chip chip--' + (r.state === 'ok' ? 'ok' : 'warn') }, t('counters.state.' + r.state))),
         h('td', { class: 'num' }, LL.fmtDate((r.hour + 1) * 3600)));
       const bad = (c.findings || []).slice(-6).reverse();
-      box.replaceChildren(h('h3', {}, t('counters.title')), h('p', { class: 'muted' }, t('counters.explain', { low: Math.round(c.low * 100), high: Math.round(c.high * 100) })),
+      box.replaceChildren(...[h('h3', {}, t('counters.title')), h('p', { class: 'muted' }, t('counters.explain', { low: Math.round(c.low * 100), high: Math.round(c.high * 100) })),
         h('table', { class: 'mini-table cc-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('counters.col.pair')), h('th', { class: 'num' }, t('counters.col.factor')), h('th', {}, t('counters.col.state')), h('th', { class: 'num' }, t('counters.col.hour')))),
           h('tbody', {}, pairs.map(row))),
         bad.length ? h('div', { class: 'callout callout--warn' }, h('strong', {}, t('counters.findings', { n: bad.length })),
-          h('ul', { class: 'cc-list' }, bad.map(r => h('li', {}, t('counters.finding.' + r.state, { pair: t('counters.pair.' + r.pair), pct: Math.round((r.factor || 0) * 100), at: LL.fmtDate((r.hour + 1) * 3600) }))))) : null);
+          h('ul', { class: 'cc-list' }, bad.map(r => h('li', {}, t('counters.finding.' + r.state, { pair: t('counters.pair.' + r.pair), pct: Math.round((r.factor || 0) * 100), at: LL.fmtDate((r.hour + 1) * 3600) }))))) : null].filter(Boolean));
     }).catch(() => box.replaceChildren());
     return box;
   }

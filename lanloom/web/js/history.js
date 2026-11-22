@@ -84,7 +84,7 @@
       if (d.open) chips.push(h('span', { class: 'chip chip--danger' }, t('avail.open')));
       if (d.wobbly) chips.push(h('span', { class: 'chip chip--warn' }, t('avail.wobbly')));
       const list = (d.list || []).slice(0, 5);
-      body.replaceChildren(
+      body.replaceChildren(...[
         h('div', { class: 'avail__head' }, h('strong', { class: 'avail__big' }, pct(d.share24)), h('span', { class: 'muted' }, t('avail.over24')), ...chips),
         strip(d.slots24, d.t, d.slot_s),
         h('div', { class: 'avail__axis muted', 'aria-hidden': 'true' }, h('span', {}, t('avail.axis.24h')), h('span', {}, t('avail.axis.12h')), h('span', {}, t('avail.axis.now'))),
@@ -95,7 +95,7 @@
         LL.a11y ? LL.a11y.tableAlt(t('a11y.table.avail_caption', { n: d.bars.length }), [t('a11y.table.day'), t('a11y.table.share')],
           d.bars.map((v, i) => [dayStamp(d.t - (d.bars.length - 1 - i) * 86400), v == null ? t('avail.slot.unknown') : pct(v)]).reverse()) : null,
         list.length ? h('ul', { class: 'avail-list' }, list.map(i => h('li', {}, h('span', { class: 'mono' }, stamp(i.from, true)),
-          h('span', { class: 'muted' }, ' · ' + (i.open ? t('avail.ongoing') : LL.fmtAge(i.dur)))))) : h('p', { class: 'muted avail__none' }, t('avail.none')));
+          h('span', { class: 'muted' }, ' · ' + (i.open ? t('avail.ongoing') : LL.fmtAge(i.dur)))))) : h('p', { class: 'muted avail__none' }, t('avail.none'))].filter(Boolean));
     }
     const fw = LL.fresh.watch(sec, 60000, load, { band: false });
     load();
@@ -324,7 +324,7 @@
       const rows = data.rows.filter(r => !f || r.title.toLowerCase().includes(f));
       const tile = (k, v, cls) => h('div', { class: 'stab-tile' + (cls ? ' ' + cls : '') }, h('strong', {}, v), h('span', { class: 'muted' }, t(k)));
       const wob = data.rows.filter(r => r.wobbly);
-      el.replaceChildren(
+      el.replaceChildren(...[
         h('div', { class: 'stab-sum' }, tile('stab.tile.tracked', String(s.subjects)), tile('stab.tile.stable', String(s.stable), 'is-ok'),
           tile('stab.tile.incidents', String(s.incidents7), s.incidents7 ? 'is-warn' : ''), tile('stab.tile.mttr', s.mttr_s ? LL.fmtAge(s.mttr_s) : '—'),
           tile('stab.tile.wobbly', String(s.wobbly), s.wobbly ? 'is-warn' : '')),
@@ -342,7 +342,7 @@
           return h(canOpen ? 'button' : 'div', Object.assign({ class: 'stab-row' + (r.open ? ' is-open' : r.wobbly ? ' is-wobbly' : ''), role: 'listitem' }, canOpen ? { type: 'button', onclick: () => open(r.id) } : {}),
             name, bar, h('span', { class: 'num', 'data-label': t('stab.col.h24') }, pct(r.share24)), h('span', { class: 'num', 'data-label': t('stab.col.d7') }, pct(r.share7)),
             h('span', { class: 'num', 'data-label': t('stab.col.inc') }, String(r.incidents7)), h('span', { class: 'num', 'data-label': t('stab.col.mttr') }, r.mttr_s ? LL.fmtAge(r.mttr_s) : '—'));
-        }) : [h('div', { class: 'empty-note' }, data.rows.length ? t('devices.none') : t('stab.empty'))]));
+        }) : [h('div', { class: 'empty-note' }, data.rows.length ? t('devices.none') : t('stab.empty'))])].filter(Boolean));
     }
     const open = id => { if (id.startsWith('dev:') && opts.onOpen) opts.onOpen(id.slice(4)); };
     async function load() {

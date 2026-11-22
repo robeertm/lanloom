@@ -27,7 +27,7 @@
         const tr = r.traces;
         if (!tr) return false;
         if (tr.error) { LL.msg(msg, t('hub.runs.failed'), 'error'); return true; }
-        out.replaceChildren(
+        out.replaceChildren(...[
           tr.runs.length ? h('table', { class: 'mini-table hub-table' },
             h('thead', {}, h('tr', {}, h('th', {}, t('hub.runs.when')), h('th', {}, t('hub.runs.result')), h('th', {}, t('hub.runs.last_step')))),
             h('tbody', {}, tr.runs.slice(0, 8).map(run => h('tr', {},
@@ -35,7 +35,7 @@
               h('td', {}, h('span', { class: 'chip ' + (run.error ? 'chip--danger' : run.execution === 'finished' ? 'chip--ok' : 'chip--muted') },
                 t(run.error ? 'hub.runs.error' : run.execution === 'finished' ? 'hub.runs.finished' : 'hub.runs.stopped'))),
               h('td', { class: 'mono truncate' }, run.last_step || '—'))))) : h('p', { class: 'muted' }, t('hub.runs.none')),
-          tr.steps.length ? h('p', { class: 'muted hub-steps' }, t('hub.runs.path'), ' ', h('span', { class: 'mono' }, tr.steps.map(s => s.path + (s.ok ? '' : ' ✕')).join(' → '))) : null);
+          tr.steps.length ? h('p', { class: 'muted hub-steps' }, t('hub.runs.path'), ' ', h('span', { class: 'mono' }, tr.steps.map(s => s.path + (s.ok ? '' : ' ✕')).join(' → '))) : null].filter(Boolean));
         return true;
       } catch (e) { LL.msg(msg, LL.errText(e), 'error'); return true; }
     }

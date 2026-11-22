@@ -105,9 +105,9 @@
       if (fw) fw.ok();
       const keep = areaSel.value;
       const used = new Set(data.entities.map(e => e.area || '-'));
-      areaSel.replaceChildren(h('option', { value: '' }, t('sensors.area.all')),
+      areaSel.replaceChildren(...[h('option', { value: '' }, t('sensors.area.all')),
         ...(data.areas || []).filter(a => used.has(a.id)).sort((a, b) => String(a.name).localeCompare(String(b.name), LL.locale())).map(a => h('option', { value: a.id }, a.name)),
-        used.has('-') ? h('option', { value: '-' }, t('sensors.no_area')) : null);
+        used.has('-') ? h('option', { value: '-' }, t('sensors.no_area')) : null].filter(Boolean));
       areaSel.value = keep;
       if (!data.connected) body.replaceChildren(h('div', { class: 'empty-note' }, t('sensors.waiting')));
       else render();
