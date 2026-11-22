@@ -62,50 +62,7 @@ and nothing is switched.
 
 ![The rewind on a phone: the bar above the board, the list of the moment open](../screenshots/rewind-phone-dark.png)
 
-## How to use it
-
-1. On the *Map* or *Network* view press **Rewind** in the row above the board (or the key `R`). The last 24 hours start to
-   play from the beginning.
-2. Keys while the rewind is open: `Space` play / pause · `←` `→` one step (with `Shift`: one hour, in 7 days one day) ·
-   `1`-`4` the speed · `W` 24 hours / 7 days · `R` from the start of the range · `Esc` back to live. A click or drag on the
-   time line moves the cursor; a double click on an incident band opens its file.
-3. The command palette (`Ctrl K` / `⌘ K`) understands *Rewind the last 24 hours*, *Rewind the last 7 days* and a time:
-   type `rewind to 14:30`, `rewind to yesterday 9:15`, `rewind to mon 8:00` or `rewind to 3 h` (German words work as well; in French, Spanish, Dutch and Italian the English words are the ones to type).
-4. Open *Incidents* from the palette, the start page or a nightly report. Filter by range (24 hours to 90 days) and kind;
-   a day of the calendar shows only that day.
-5. In a file, *Play in rewind* opens the map a quarter of an hour before the incident; *Failure chain* shows what hangs on
-   the root today.
-6. Operators can mark an incident as maintenance (it then counts as maintenance in the calendar, the list and the nightly
-   report) and add a short note; *Not maintenance* takes the mark back.
-
-## Limits
-
-- The rewind reaches back as far as the minute log: 7 days (8 days are kept). The incident list and the calendar reach 90
-  days; the slots behind a file are kept 35 days (*Settings > Storage*), older files keep what was found then.
-- One look a minute in 5-minute slots: an outage shorter than a minute can be missed, and times are exact to the minute
-  only where the event journal has them.
-- A slot without a look is *unknown*, never "down": while Lanloom itself does not run, nothing is counted against a device.
-  An incident followed only by such slots stays open until a look finds the device again.
-- The probable root is only as good as the topology Lanloom knows. Enter dependencies by hand on the card where it does not
-  know them ([failure chain](failure-chain.md)).
-- The traffic in the rewind is what the board measured per trace; a step is exact to about a fifth.
-
-## Privacy
-
-Everything stays on the Lanloom host: slot states, byte counts per trace, journal rows with device names, versions and
-the incident files. No addresses of the outside world are kept for this, nothing is sent anywhere, and the AI is not
-involved. Every role that sees the map may use the rewind and read incidents; marking an incident as maintenance needs the
-operator role and lands in the [audit log](settings.md) (action `incident.mark`).
-
-## See also
-
-- [Failure chain and outages](failure-chain.md) - the dependency graph the bundling uses
-- [Availability and stability](../AVAILABILITY.md) - the 5-minute slots
-- [Nightly report](../NIGHTLY-REPORT.md) - the section *Incidents of the night*
-- [Notifications](../NOTIFICATIONS.md) - planning a maintenance window
-- [Command palette](../PALETTE.md) - *Rewind to …*
-
-## Rule changes made outside Lanloom
+### Rule changes made outside Lanloom
 
 Whoever changes a rule on the device, or in the controller's own interface, does not tell Lanloom. So Lanloom compares: every
 time a connection reads the configuration of a controller it keeps a small state - the zones, which network lies in which
@@ -133,3 +90,49 @@ an address is made unreadable.
 ![What changed before an outage of the core switch: a zone pair opened from the internet, a new rule, a port forward switched on, a rule switched off and the firmware jump](../screenshots/incident-rule-changes-light.png)
 
 Each site keeps its own state and its own events. Nothing is sent anywhere and nothing is written to a controller.
+
+## How to use it
+
+1. On the *Map* or *Network* view press **Rewind** in the row above the board (or the key `R`). The last 24 hours start to
+   play from the beginning.
+2. Keys while the rewind is open: `Space` play / pause · `←` `→` one step (with `Shift`: one hour, in 7 days one day) ·
+   `1`-`4` the speed · `W` 24 hours / 7 days · `R` from the start of the range · `Esc` back to live. A click or drag on the
+   time line moves the cursor; a double click on an incident band opens its file.
+3. The command palette (`Ctrl K` / `⌘ K`) understands *Rewind the last 24 hours*, *Rewind the last 7 days* and a time:
+   type `rewind to 14:30`, `rewind to yesterday 9:15`, `rewind to mon 8:00` or `rewind to 3 h` (German words work as well; in French, Spanish, Dutch and Italian the English words are the ones to type).
+4. Open *Incidents* from the palette, the start page or a nightly report. Filter by range (24 hours to 90 days) and kind;
+   a day of the calendar shows only that day.
+5. In a file, *Play in rewind* opens the map a quarter of an hour before the incident; *Failure chain* shows what hangs on
+   the root today.
+6. Operators can mark an incident as maintenance (it then counts as maintenance in the calendar, the list and the nightly
+   report) and add a short note; *Not maintenance* takes the mark back.
+
+## Limits
+
+- The rewind reaches back as far as the minute log: 7 days (8 days are kept). The incident list and the calendar reach 90
+  days; the slots behind a file are kept 35 days (*Settings > Storage*), older files keep what was found then.
+- One look a minute in 5-minute slots: an outage shorter than a minute can be missed, and times are exact to the minute
+  only where the event journal has them.
+- A slot without a look is *unknown*, never "down": while Lanloom itself does not run, nothing is counted against a device.
+  An incident followed only by such slots stays open until a look finds the device again.
+- The probable root is only as good as the topology Lanloom knows. Enter dependencies by hand on the card where it does not
+  know them ([failure chain](failure-chain.md)).
+- The traffic in the rewind is what the board measured per trace; a step is exact to about a fifth.
+- Rule changes made outside Lanloom are seen only for connections that read the configuration of a controller, as often as
+  that connection reads it; the time of an event is the first read that showed the change. A rule that was changed and put
+  back between two reads is not seen at all, and a hand change within minutes of an editor change is taken over with it.
+
+## Privacy
+
+Everything stays on the Lanloom host: slot states, byte counts per trace, journal rows with device names, versions and
+the incident files. No addresses of the outside world are kept for this, nothing is sent anywhere, and the AI is not
+involved. Every role that sees the map may use the rewind and read incidents; marking an incident as maintenance needs the
+operator role and lands in the [audit log](settings.md) (action `incident.mark`).
+
+## See also
+
+- [Failure chain and outages](failure-chain.md) - the dependency graph the bundling uses
+- [Availability and stability](../AVAILABILITY.md) - the 5-minute slots
+- [Nightly report](../NIGHTLY-REPORT.md) - the section *Incidents of the night*
+- [Notifications](../NOTIFICATIONS.md) - planning a maintenance window
+- [Command palette](../PALETTE.md) - *Rewind to …*
