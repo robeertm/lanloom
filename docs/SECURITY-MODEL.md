@@ -86,9 +86,14 @@ Someone tampers with what users install: a dependency, the base image, the build
   distribution's security updates applied in every build.
 - **Dependency scan** (`scripts/dep_scan.py`): the pinned Python packages against the OSV database, and the built
   image (operating system and Python packages) with grype, in CI before an image is built for publishing, again on the
-  published image, and in the release gate. A critical finding stops the release unless an exception with a reason
-  and a review date covers it (`security/vulnerability-policy.json`); a high finding is listed with its reason. A
-  self-check proves the scanner still reports a known critical package; a scan that cannot run is never green.
+  published image, and in the release gate. A critical or high finding stops the release unless a valid exception
+  covers it (`security/vulnerability-policy.json`: advisory id, packages, kind, a reason that says why, checked date
+  and a review date at most 183 days later; an expired one counts as missing). The policy file cannot lower the rule
+  for critical or high. A self-check proves the scanner still reports a known critical and a known high package as
+  red; a scan that cannot run is never green. See [DEPENDENCY-SCAN.md](DEPENDENCY-SCAN.md).
+- **No set-user-ID files:** the build removes every set-user-ID and set-group-ID bit from the image and the self-test
+  checks it, so a local flaw in a tool such as mount cannot be used to gain rights, whatever options the container
+  is started with.
 - **Pinned tools and actions:** the scanner, SBOM and signing tools are pinned by version and SHA-256
   (`security/tools.json`); the CI actions of the build and test workflows are pinned to commit hashes.
 - **Signed images, no key anywhere:** each published image is signed keyless with Sigstore in the project's CI. The

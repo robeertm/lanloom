@@ -112,3 +112,16 @@ def test_containers_the_updater_creates_are_hardened():
     for path in sorted((ROOT / "updater").glob("*.py")) + sorted((ROOT / "lanloom").rglob("*.py")):
         for keys, node in dict_literals(path):
             assert "Privileged" not in keys and "CapAdd" not in keys, (path, node.lineno)
+
+
+def test_image_removes_every_set_user_id_bit_after_the_last_package_step():
+    """B10: no mount, su or passwd in the image can gain rights, whatever options the container runs with - that keeps
+    local flaws of those tools out of reach (see the exceptions in security/vulnerability-policy.json)."""
+    lines = dockerfile_lines()
+    runs = [i for i, l in enumerate(lines) if l.upper().startswith("RUN ")]
+    strip = [i for i in runs if re.search(r"find / -xdev -perm /6000 -type f -exec chmod a-s \{\} \+", lines[i])]
+    assert strip, "the set-user-ID strip step is missing"
+    last_pkg = max(i for i in runs if re.search(r"apt-get|pip install|useradd|groupadd", lines[i]))
+    assert strip[-1] >= last_pkg, "packages installed after the strip step could bring set-user-ID files back"
+    text = (ROOT / "lanloom" / "main.py").read_text()
+    assert "pins.setid_files()" in text                                # checked again by the self-test in the image

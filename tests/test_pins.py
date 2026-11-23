@@ -136,3 +136,22 @@ def test_the_notices_list_exactly_the_pinned_packages():
     assert len(listed) == len(rows)
     assert listed == pins.pinned()
     assert all(lic.strip() for _, _, lic in rows)
+
+
+def test_setid_files_finds_set_user_id_and_set_group_id_files(tmp_path):
+    import os
+    import stat
+    plain, suid, sgid = tmp_path / "plain", tmp_path / "suid", tmp_path / "sub" / "sgid"
+    sgid.parent.mkdir()
+    for f in (plain, suid, sgid):
+        f.write_text("x")
+    os.chmod(suid, 0o4755)
+    os.chmod(sgid, 0o2755)
+    (tmp_path / "link").symlink_to(suid)
+    if not (os.stat(suid).st_mode & stat.S_ISUID):
+        pytest.skip("file system does not keep set-user-ID bits")
+    assert pins.setid_files([str(tmp_path)]) == sorted([str(suid), str(sgid)])
+    os.chmod(suid, 0o755)
+    os.chmod(sgid, 0o755)
+    assert pins.setid_files([str(tmp_path)]) == []
+    assert pins.setid_files([str(tmp_path / "missing")]) == []

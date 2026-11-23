@@ -23,12 +23,15 @@ COPY requirements.txt .
 # Exactly the pinned list: pip itself first (its pin is the last line of requirements.txt), then every package without
 # resolving dependencies on its own, then `pip check`. A transitive package without a pin is not fetched unpinned - the
 # build stops. The self-test checks the result again inside the image (lanloom/pins.py, marker LANLOOM_IMAGE above).
+# The last step removes every set-user-ID and set-group-ID bit (mount, su, passwd ...): nothing in the image can gain
+# rights by starting a program, whatever options the container runs with. The self-test checks that too.
 RUN pip install --no-cache-dir --root-user-action=ignore "$(grep -E '^pip==' requirements.txt)" \
  && pip install --no-cache-dir --root-user-action=ignore --no-deps -r requirements.txt \
  && pip check \
  && groupadd --system --gid 10001 lanloom \
  && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin lanloom \
- && mkdir -p /data /state && chown 10001:10001 /data /state && chmod 0750 /data && chmod 0700 /state
+ && mkdir -p /data /state && chown 10001:10001 /data /state && chmod 0750 /data && chmod 0700 /state \
+ && find / -xdev -perm /6000 -type f -exec chmod a-s {} +
 
 COPY VERSION LICENSE THIRD-PARTY-NOTICES.md CHANGELOG.md ./
 COPY lanloom ./lanloom

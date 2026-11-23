@@ -2,10 +2,14 @@
 """Dependency scan: the pinned Python packages (OSV database) and the container image (operating system and Python
 packages, with grype). Policy (security/vulnerability-policy.json):
 
-  * critical  -> RED, unless an exception with a reason and a review date covers it (an expired one does not);
-  * high      -> notice, listed with its reason: an exception's reason, else the reason class
-                 ("no fixed package in the base distribution yet", "fix available: <version>");
-  * medium, low, unknown -> counted only (unknown is shown as a notice, so nothing hides behind a missing score).
+  * critical, high -> RED, unless a valid exception covers the finding: advisory id, the packages it applies to, the
+                     kind ("not-reachable" - the flaw does not reach Lanloom, or "must-wait" - no fixed package yet),
+                     a reason that says why, the date it was checked and a review date at most 183 days later.
+                     An expired exception counts as missing. A covered finding stays visible as a notice with its reason.
+  * unknown       -> notice (nothing hides behind a missing score);
+  * medium, low   -> counted only.
+The policy file states these rules too; a policy that would make critical or high anything but red is refused (exit 2),
+so the rule cannot be weakened by editing the file alone.
 
   dep_scan.py python [--requirements FILE]                 Python packages through the OSV API (no install)
   dep_scan.py image REF [--platform P ...] --tools DIR     image REF (registry:<ref>, docker:<ref>, sbom:<file>)
@@ -32,6 +36,13 @@ OSV = "https://api.osv.dev/v1"
 LEVELS = ("critical", "high", "medium", "low", "negligible", "unknown")
 BAIT_PACKAGE = ("PyYAML", "5.3.1")          # CVE-2020-14343 / GHSA-8q59-q68h-6hv4, critical (9.8)
 BAIT_ID = "GHSA-8q59-q68h-6hv4"
+BAIT_HIGH_PACKAGE = ("urllib3", "1.26.4")   # CVE-2021-33503 / GHSA-q2q7-5pp4-w6pg, high (7.5), no critical advisory
+BAIT_HIGH_ID = "GHSA-q2q7-5pp4-w6pg"
+RED_LEVELS = ("critical", "high")          # always red without a valid exception (same rule as the shared release gate)
+RULE_VALUES = ("red", "notice", "count")
+DEFAULT_RULES = {"critical": "red", "high": "red", "medium": "count", "low": "count", "negligible": "count", "unknown": "notice"}
+EXCEPTION_KINDS = ("not-reachable", "must-wait")
+EXCEPTION_MAX_DAYS = 183                    # review_by at most this many days after checked
 
 
 class ScanError(Exception):
@@ -211,25 +222,75 @@ def merge(findings: list) -> list:
 
 
 # ------------------------------------------------------------------ policy
+def _date(value, what: str, eid) -> datetime.date:
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(value or "")):
+        raise ScanError("exception %s needs %s as YYYY-MM-DD" % (eid, what))
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError:
+        raise ScanError("exception %s: %s %r is not a date" % (eid, what, value))
+
+
+def check_rules(rules: dict) -> dict:
+    """The rules of the policy file, completed with the defaults. Critical and high must be red."""
+    rules = dict(DEFAULT_RULES, **(rules or {}))
+    for level, value in rules.items():
+        if level not in LEVELS or value not in RULE_VALUES:
+            raise ScanError("policy rule %s: %s is not allowed (levels %s, values %s)" % (level, value, "/".join(LEVELS), "/".join(RULE_VALUES)))
+    weak = [lvl for lvl in RED_LEVELS if rules[lvl] != "red"]
+    if weak:
+        raise ScanError("policy would weaken the rule: %s must be red" % ", ".join(weak))
+    return rules
+
+
+def check_exception(e: dict) -> None:
+    eid = e.get("id")
+    if not str(eid or "").strip():
+        raise ScanError("an exception needs the advisory id")
+    pkgs = e.get("packages")
+    if not isinstance(pkgs, list) or not pkgs or not all(str(p).strip() for p in pkgs):
+        raise ScanError("exception %s needs the list of packages it applies to" % eid)
+    if e.get("kind") not in EXCEPTION_KINDS:
+        raise ScanError("exception %s needs kind %s" % (eid, " or ".join(EXCEPTION_KINDS)))
+    reason = str(e.get("reason", "")).strip()
+    if len(reason) < 20 or not re.search(r"\bbecause\b", reason):
+        raise ScanError("exception %s needs a reason that says why (\"does not reach Lanloom because ...\" or "
+                        "\"has to wait because ...\")" % eid)
+    checked, review = _date(e.get("checked"), "checked", eid), _date(e.get("review_by"), "review_by", eid)
+    if review < checked:
+        raise ScanError("exception %s: review_by lies before checked" % eid)
+    if (review - checked).days > EXCEPTION_MAX_DAYS:
+        raise ScanError("exception %s: review_by may be at most %d days after checked" % (eid, EXCEPTION_MAX_DAYS))
+
+
 def load_policy(path: Path) -> dict:
-    data = json.loads(path.read_text())
+    try:
+        data = json.loads(path.read_text())
+    except ValueError as exc:
+        raise ScanError("policy %s is not valid JSON: %s" % (path, exc))
+    data["rules"] = check_rules(data.get("rules"))
     for e in data.get("exceptions") or []:
-        if not str(e.get("reason", "")).strip() or not re.match(r"^\d{4}-\d{2}-\d{2}$", str(e.get("review_by", ""))):
-            raise ScanError("exception %s needs a reason and review_by (YYYY-MM-DD)" % e.get("id"))
+        check_exception(e)
     return data
 
 
 def evaluate(findings: list, policy: dict, today: datetime.date = None) -> dict:
     today = today or datetime.date.today()
+    rules = check_rules(policy.get("rules"))
+    exceptions = policy.get("exceptions") or []
+    used = set()
     red, notices, counted = [], [], {lvl: 0 for lvl in LEVELS}
     for f in sorted(findings, key=lambda f: (LEVELS.index(f["severity"]), f["package"], f["id"])):
         counted[f["severity"]] += 1
         ids = {f["id"], *f.get("aliases", [])}
-        exc = next((e for e in policy.get("exceptions") or [] if e["id"] in ids
+        exc = next((e for e in exceptions if e["id"] in ids
                     and (not e.get("packages") or f["package"] in e["packages"])), None)
         expired = exc is not None and datetime.date.fromisoformat(exc["review_by"]) < today
+        if exc is not None:
+            used.add(id(exc))
         if exc and not expired:
-            reason = "exception: %s (review by %s)" % (exc["reason"], exc["review_by"])
+            reason = "exception, %s: %s (checked %s, review by %s)" % (exc.get("kind", "not-reachable"), exc["reason"],
+                                                                     exc.get("checked", "?"), exc["review_by"])
         elif f["fix_state"] == "fixed" and f["fixed_in"]:
             reason = "fix available: %s" % ", ".join(f["fixed_in"][:3])
         elif f["fix_state"] in ("not-fixed", "wont-fix", "unknown") and f["type"] not in ("python",):
@@ -239,14 +300,16 @@ def evaluate(findings: list, policy: dict, today: datetime.date = None) -> dict:
         if expired:
             reason += "; the exception expired on %s" % exc["review_by"]
         row = dict(f, reason=reason, excepted=bool(exc and not expired))
-        if f["severity"] == "critical" and not row["excepted"]:
+        rule = rules[f["severity"]]
+        if rule == "red" and not row["excepted"]:
             red.append(row)
-        elif f["severity"] in ("critical", "high", "unknown"):
+        elif rule == "red" or rule == "notice":
             notices.append(row)
-    return {"red": red, "notices": notices, "counts": counted, "total": len(findings)}
+    unused = [e["id"] for e in exceptions if id(e) not in used]
+    return {"red": red, "notices": notices, "counts": counted, "total": len(findings), "unused_exceptions": unused}
 
 
-def render(title: str, result: dict) -> str:
+def render(title: str, result: dict, show_unused: bool = False) -> str:
     lines = ["== %s: %d findings (%s)" % (title, result["total"],
              ", ".join("%s %d" % (k, v) for k, v in result["counts"].items() if v) or "none")]
     for row in result["red"]:
@@ -255,7 +318,10 @@ def render(title: str, result: dict) -> str:
     for row in result["notices"]:
         lines.append("notice  %-8s %-22s %-28s %s [%s] - %s" % (row["severity"], row["id"], row["package"], row["version"],
                                                              "/".join(row["platforms"]), row["reason"]))
-    lines.append("== %s: %s" % (title, "RED (%d critical without a valid exception)" % len(result["red"]) if result["red"] else "GREEN"))
+    if show_unused:
+        for eid in result.get("unused_exceptions") or []:
+            lines.append("unused  exception %s matches no finding any more - remove it from the policy" % eid)
+    lines.append("== %s: %s" % (title, "RED (%d critical or high without a valid exception)" % len(result["red"]) if result["red"] else "GREEN"))
     return "\n".join(lines)
 
 
@@ -281,21 +347,33 @@ def cmd_image(a) -> tuple:
     return "Image %s" % a.ref, merge(found)
 
 
+def _bait_red(result: dict, bait_id: str, level: str) -> bool:
+    return any((r["id"] == bait_id or bait_id in r["aliases"]) and r["severity"] == level for r in result["red"])
+
+
 def cmd_bait(a) -> tuple:
-    """A known critical package must come back RED from both sources; otherwise the scan is broken (exit 2)."""
-    py = evaluate(scan_python([BAIT_PACKAGE]), {"exceptions": []})
-    ok_osv = any(r["id"] == BAIT_ID or BAIT_ID in r["aliases"] for r in py["red"])
-    ok_grype = True
+    """A known critical and a known high package must both come back RED from both sources; otherwise the scan or the
+    rule is broken (exit 2). The baits are evaluated under the shipped rules, without exceptions."""
+    rules = load_policy(a.policy)["rules"]
+    baits = ((BAIT_PACKAGE, BAIT_ID, "critical"), (BAIT_HIGH_PACKAGE, BAIT_HIGH_ID, "high"))
+    py = evaluate(scan_python([b[0] for b in baits]), {"rules": rules, "exceptions": []})
+    gr = None
     if a.tools:
         purl = Path(a.tools) / "bait.purl"
-        purl.write_text("pkg:pypi/%s@%s\n" % (BAIT_PACKAGE[0].lower(), BAIT_PACKAGE[1]))
-        gr = evaluate(from_grype(run_grype(a.tools, "purl:%s" % purl), "bait"), {"exceptions": []})
-        purl.unlink()
-        ok_grype = any(r["id"] == BAIT_ID or BAIT_ID in r["aliases"] for r in gr["red"])
-    print("bait %s==%s: OSV %s, grype %s" % (BAIT_PACKAGE[0], BAIT_PACKAGE[1], "RED (as expected)" if ok_osv else "NOT FOUND",
-                                             ("RED (as expected)" if ok_grype else "NOT FOUND") if a.tools else "skipped"))
-    if not (ok_osv and ok_grype):
-        raise ScanError("self-check failed: the known critical package was not reported")
+        purl.write_text("".join("pkg:pypi/%s@%s\n" % (b[0][0].lower(), b[0][1]) for b in baits))
+        try:
+            gr = evaluate(from_grype(run_grype(a.tools, "purl:%s" % purl), "bait"), {"rules": rules, "exceptions": []})
+        finally:
+            purl.unlink()
+    ok = True
+    for pkg, bid, level in baits:
+        ok_osv = _bait_red(py, bid, level)
+        ok_grype = gr is None or _bait_red(gr, bid, level)
+        ok = ok and ok_osv and ok_grype
+        print("bait %s==%s (%s): OSV %s, grype %s" % (pkg[0], pkg[1], level, "RED (as expected)" if ok_osv else "NOT RED",
+                                                    ("RED (as expected)" if ok_grype else "NOT RED") if gr is not None else "skipped"))
+    if not ok:
+        raise ScanError("self-check failed: a known critical or high package was not reported as RED")
     return None, None
 
 
@@ -322,7 +400,7 @@ def main(argv=None) -> int:
     except (ScanError, subprocess.TimeoutExpired, OSError) as exc:
         print("dep_scan: SCAN FAILED - %s" % exc, file=sys.stderr)
         return 2
-    print(render(title, result))
+    print(render(title, result, show_unused=(a.cmd == "image")))
     if a.json:
         a.json.write_text(json.dumps(dict(result, title=title), indent=1))
     if a.md:

@@ -10,6 +10,7 @@ Outside the image (a development checkout, the test runner) extra packages such 
 the "missing" and "wrong version" directions are meaningful there (see tests/test_pins.py)."""
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 from typing import Optional
@@ -111,3 +112,23 @@ def problems(want: Optional[dict] = None, have: Optional[dict] = None) -> list:
 
 def in_image() -> bool:
     return os.environ.get(IMAGE_MARKER) == "1"
+
+
+SETID_ROOTS = ("/usr", "/bin", "/sbin", "/lib", "/etc", "/opt", "/app")
+
+
+def setid_files(roots=SETID_ROOTS) -> list:
+    """Regular files with a set-user-ID or set-group-ID bit under the given roots (the Dockerfile removes them all, B10:
+    a mount, su or passwd that could gain rights would make local flaws in those tools reachable). Links are not followed."""
+    out = []
+    for root in roots:
+        for top, dirs, files in os.walk(root, followlinks=False):
+            for name in files:
+                path = os.path.join(top, name)
+                try:
+                    st = os.lstat(path)
+                except OSError:
+                    continue
+                if stat.S_ISREG(st.st_mode) and st.st_mode & (stat.S_ISUID | stat.S_ISGID):
+                    out.append(path)
+    return sorted(out)

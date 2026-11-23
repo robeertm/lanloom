@@ -1906,6 +1906,7 @@ def selftest() -> int:
         from . import pins
         if pins.in_image():                    # the image holds exactly the pinned package list (B8)
             problems += pins.problems()
+            problems += ["set-user-ID or set-group-ID file in the image: %s" % f for f in pins.setid_files()]   # B10
         if not auth.password_hashes_compatible():
             problems.append("password hashes: a stored hash does not verify or would be rewritten")
         if not whatsnew.entries():
