@@ -273,7 +273,7 @@
   --ll-pcb-tile-line: #8A9298;
   --ll-pcb-tile-hover: #4F7398;
   --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 1px 2px rgba(16, 24, 32, .12), 0 3px 10px rgba(16, 24, 32, .08);
-  --ll-pcb-tile-down: #EBC4C8;
+  --ll-pcb-tile-down: #C93838;
   --ll-pcb-icon-bg: #E3EAF1;
   --ll-pcb-icon: #2A5C8E;
   --ll-pcb-copper: #5F7192;
@@ -344,7 +344,7 @@
   --ll-pcb-tile-line: #6A7C87;
   --ll-pcb-tile-hover: #7FA0BC;
   --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 2px 10px rgba(0, 0, 0, .4);
-  --ll-pcb-tile-down: #5A2C34;
+  --ll-pcb-tile-down: #F06A6A;
   --ll-pcb-icon-bg: #2C363D;
   --ll-pcb-icon: #8CC4EE;
   --ll-pcb-copper: #9DB0C8;
@@ -416,7 +416,7 @@
     --ll-pcb-tile-line: #6A7C87;
     --ll-pcb-tile-hover: #7FA0BC;
     --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 2px 10px rgba(0, 0, 0, .4);
-    --ll-pcb-tile-down: #5A2C34;
+    --ll-pcb-tile-down: #F06A6A;
     --ll-pcb-icon-bg: #2C363D;
     --ll-pcb-icon: #8CC4EE;
     --ll-pcb-copper: #9DB0C8;
@@ -488,7 +488,7 @@
   --ll-pcb-tile-line: #8A9298;
   --ll-pcb-tile-hover: #4F7398;
   --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 1px 2px rgba(16, 24, 32, .12), 0 3px 10px rgba(16, 24, 32, .08);
-  --ll-pcb-tile-down: #EBC4C8;
+  --ll-pcb-tile-down: #C93838;
   --ll-pcb-icon-bg: #E3EAF1;
   --ll-pcb-icon: #2A5C8E;
   --ll-pcb-copper: #5F7192;
@@ -559,7 +559,7 @@
   --ll-pcb-tile-line: #6A7C87;
   --ll-pcb-tile-hover: #7FA0BC;
   --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 2px 10px rgba(0, 0, 0, .4);
-  --ll-pcb-tile-down: #5A2C34;
+  --ll-pcb-tile-down: #F06A6A;
   --ll-pcb-icon-bg: #2C363D;
   --ll-pcb-icon: #8CC4EE;
   --ll-pcb-copper: #9DB0C8;
@@ -631,7 +631,7 @@
     --ll-pcb-tile-line: #6A7C87;
     --ll-pcb-tile-hover: #7FA0BC;
     --ll-pcb-tile-shadow: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 2px 10px rgba(0, 0, 0, .4);
-    --ll-pcb-tile-down: #5A2C34;
+    --ll-pcb-tile-down: #F06A6A;
     --ll-pcb-icon-bg: #2C363D;
     --ll-pcb-icon: #8CC4EE;
     --ll-pcb-copper: #9DB0C8;
@@ -668,6 +668,9 @@ html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme=
   --ll-glass-bar: rgba(250, 251, 252, .84);
   --ll-glass-sheen-hi: rgba(255, 255, 255, .95);
   --ll-glass-sheen-lo: rgba(255, 255, 255, .22);
+  --ll-glass-sheen-ok: rgba(214, 240, 228, .95);
+  --ll-glass-sheen-warn: rgba(246, 236, 210, .95);
+  --ll-glass-sheen-down: rgba(249, 222, 222, .95);
   --ll-glass-glare: rgba(255, 255, 255, .60);
   --ll-glass-gloss: rgba(255, 255, 255, .26);
   --ll-glass-depth: rgba(16, 24, 32, .10);
@@ -685,6 +688,9 @@ html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme=
   --ll-glass-bar: rgba(20, 26, 30, .86);
   --ll-glass-sheen-hi: rgba(255, 255, 255, .13);
   --ll-glass-sheen-lo: rgba(255, 255, 255, .02);
+  --ll-glass-sheen-ok: rgba(63, 203, 154, .20);
+  --ll-glass-sheen-warn: rgba(242, 181, 58, .20);
+  --ll-glass-sheen-down: rgba(240, 106, 106, .20);
   --ll-glass-glare: rgba(255, 255, 255, .09);
   --ll-glass-gloss: rgba(255, 255, 255, .38);
   --ll-glass-depth: rgba(0, 0, 0, .30);
@@ -703,6 +709,9 @@ html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme=
     --ll-glass-bar: rgba(20, 26, 30, .86);
     --ll-glass-sheen-hi: rgba(255, 255, 255, .13);
     --ll-glass-sheen-lo: rgba(255, 255, 255, .02);
+    --ll-glass-sheen-ok: rgba(63, 203, 154, .20);
+    --ll-glass-sheen-warn: rgba(242, 181, 58, .20);
+    --ll-glass-sheen-down: rgba(240, 106, 106, .20);
     --ll-glass-glare: rgba(255, 255, 255, .09);
     --ll-glass-gloss: rgba(255, 255, 255, .38);
     --ll-glass-depth: rgba(0, 0, 0, .30);

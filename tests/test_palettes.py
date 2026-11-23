@@ -233,6 +233,31 @@ def test_glass_family_is_listed_and_shares_its_blocks():
     assert _palette_sets("summerglass") == _palette_sets("winterglass"), "one family: the two names are its light and its dark face"
 
 
+GLASS_STATE = ("--ll-glass-sheen-ok", "--ll-glass-sheen-warn", "--ll-glass-sheen-down")
+
+
+@pytest.mark.parametrize("label,tok", GLASS, ids=[m[0] for m in GLASS])
+def test_glass_state_shows_in_the_sheen_and_the_outline(label, tok):
+    """A map tile that is up, down or flapping says so in its own light: the top of its sheen takes the state colour,
+    the outline of a tile that is down is a real line, and the text on the tinted sheen stays readable."""
+    light, dark, auto = _glass_extras()
+    assert dark == auto
+    g = light if label.endswith("/light") else dark
+    tile = _over(tok["--ll-pcb-tile"], tok["--ll-bg"])
+    plain = _over(g["--ll-glass-sheen-hi"], tile)
+    for key in GLASS_STATE:
+        top = _over(g[key], tile)
+        for fg, need in (("--ll-text", 7), ("--ll-text-2", 4.5), ("--ll-text-3", 4.5)):
+            assert contrast(tok[fg], top) >= need, (label, key, fg, round(contrast(tok[fg], top), 2))
+        assert sum(abs(_rgba(top)[i] - _rgba(plain)[i]) for i in range(3)) >= 24, (label, key, "the state must be seen in the sheen")
+    got = contrast(tok["--ll-pcb-tile-down"], tile)
+    assert got >= 3.0, (label, "--ll-pcb-tile-down", round(got, 2))
+    css = read("css", "glass.css")
+    for sel in ('[data-status="up"]', '[data-status="down"]', '[data-status="partial"]'):
+        assert sel in css, sel
+    assert '[data-status="unknown"]' not in css, "an unknown tile keeps the plain white sheen and the neutral line"
+
+
 # ------------------------------------------------------------------ surfaces (no dark islands in light, no light islands in dark)
 SURFACES = ("--ll-bg", "--ll-surface", "--ll-surface-2", "--ll-surface-3", "--ll-pcb-board", "--ll-pcb-zone", "--ll-pcb-tile", "--ll-pcb-icon-bg",
             "--ll-pcb-badge-bg", "--ll-pcb-legend-bg")

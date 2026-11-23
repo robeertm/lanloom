@@ -23,7 +23,7 @@
     .site-card, .map-filter, .chip-btn, .mf-chip, .icon-btn, .btn--ghost, .ll-tile) {
   --ll-surface: var(--ll-glass-fill, var(--ll-surface-2));
   background-image:
-    linear-gradient(180deg, var(--ll-glass-sheen-hi, transparent) 0, var(--ll-glass-sheen-lo, transparent) 44px, transparent 120px),
+    linear-gradient(180deg, var(--ll-glass-sheen-top, var(--ll-glass-sheen-hi, transparent)) 0, var(--ll-glass-sheen-lo, transparent) 44px, transparent 120px),
     linear-gradient(112deg, transparent 38%, var(--ll-glass-glare, transparent) 50%, transparent 62%);
   background-size: 100% 100%, 260% 100%;
   background-position: 0 0, 130% 0;
@@ -35,6 +35,20 @@
     .site-card, .map-filter, .chip-btn, .mf-chip, .icon-btn, .btn--ghost, .ll-tile):hover { background-position: 0 0, -30% 0; }
 /* the big panes (a settings card is as tall as the window) keep their sheen and skip the glare */
 :where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.card, .device-list, .detail):hover { background-position: 0 0, 130% 0; }
+
+/* a map tile with a state puts that state into its light: the top of the sheen takes the colour and, for a tile that is up,
+   so does its line. An unknown tile keeps the plain white sheen and the neutral line; the fold tile of a large network has no
+   state of its own. Only the variables move, so a selected, chained or lensed tile keeps the border colour those rules set. */
+:where([data-palette="summerglass"], [data-palette="winterglass"]) .ll-tile[data-status="up"]:not([data-quiet]) {
+  --ll-glass-sheen-top: var(--ll-glass-sheen-ok, var(--ll-glass-sheen-hi, transparent));
+  --ll-pcb-tile-line: var(--ll-ok);
+}
+:where([data-palette="summerglass"], [data-palette="winterglass"]) .ll-tile[data-status="down"]:not([data-quiet]) {
+  --ll-glass-sheen-top: var(--ll-glass-sheen-down, var(--ll-glass-sheen-hi, transparent));
+}
+:where([data-palette="summerglass"], [data-palette="winterglass"]) .ll-tile[data-status="partial"]:not([data-quiet]) {
+  --ll-glass-sheen-top: var(--ll-glass-sheen-warn, var(--ll-glass-sheen-hi, transparent));
+}
 
 /* the bars at the top and, on a phone, at the bottom are frosted strips with a line of light along their edge */
 :where([data-palette="summerglass"], [data-palette="winterglass"]) .topbar {

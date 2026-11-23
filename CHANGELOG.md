@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- **SummerGlass and WinterGlass: a map tile shows its state in its light and its outline.** The top of a tile's sheen now takes the state colour (green for reachable, amber for flapping, red for down) and the outline of a reachable tile is green; a tile whose state is unknown keeps the plain white sheen and the neutral line, and the fold tile of a large network is unchanged. Selected, chained and lensed tiles keep their own border colour. Circuit green, Aurora, the list and the 3D view are unchanged.
+
+### Fixed
+- **The outline of a tile that is down was almost invisible in the glass themes.** Its colour reached only about 1.2:1 (dark) and 1.5:1 (light) against the tile; it is now the danger colour of the theme (at least 3:1), and a test covers the line and the text on the tinted sheen in all six glass modes.
+
 ## [1.63.1] – 2026-11-23
 
 1.63.0 below was not released on its own; it is part of this release.
