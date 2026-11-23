@@ -74,15 +74,39 @@ A short clip of the sample network - the map with its moving dots, the data path
 
 Every view in light and dark and in the colour themes *Circuit* and *Aurora*, plus the phone layout, is in the **[tour](docs/TOUR.md)** (the glass themes are shown [below](#colour-themes)); the same tour, with a viewer, is the static [landing page](docs/site/README.md) in `docs/site/`. A picture here opens its section of the tour.
 
-<table>
-<tr><td width="50%"><a href="docs/TOUR.md#overview"><img src="docs/site/img/overview-light-circuit.png" width="100%" alt="Overview, light, Circuit"></a><br><sub>Overview</sub></td><td width="50%"><a href="docs/TOUR.md#map"><img src="docs/site/img/map-light-circuit.png" width="100%" alt="Map, light, Circuit"></a><br><sub>Map</sub></td></tr>
-<tr><td width="50%"><a href="docs/TOUR.md#network"><img src="docs/site/img/network-light-circuit.png" width="100%" alt="Network, light, Circuit"></a><br><sub>Network</sub></td><td width="50%"><a href="docs/TOUR.md#devices"><img src="docs/site/img/devices-light-circuit.png" width="100%" alt="Devices, light, Circuit"></a><br><sub>Devices</sub></td></tr>
-<tr><td width="50%"><a href="docs/TOUR.md#data-paths"><img src="docs/site/img/data-paths-light-circuit.png" width="100%" alt="Data paths, light, Circuit"></a><br><sub>Data paths</sub></td><td width="50%"><a href="docs/TOUR.md#nightly-report"><img src="docs/site/img/nightly-reports-light-circuit.png" width="100%" alt="Nightly report, light, Circuit"></a><br><sub>Nightly report</sub></td></tr>
-<tr><td width="50%"><a href="docs/TOUR.md#control-room"><img src="docs/site/img/control-room-light-circuit.png" width="100%" alt="Control room, light, Circuit"></a><br><sub>Control room</sub></td><td width="50%"><a href="docs/TOUR.md#firewall"><img src="docs/site/img/firewall-light-circuit.png" width="100%" alt="Firewall, light, Circuit"></a><br><sub>Firewall</sub></td></tr>
-<tr><td width="50%"><a href="docs/TOUR.md#automations"><img src="docs/site/img/automations-light-circuit.png" width="100%" alt="Automations, light, Circuit"></a><br><sub>Automations</sub></td><td width="50%"><a href="docs/TOUR.md#inventory"><img src="docs/site/img/inventory-light-circuit.png" width="100%" alt="Inventory, light, Circuit"></a><br><sub>Inventory</sub></td></tr>
-<tr><td width="50%"><a href="docs/TOUR.md#energy"><img src="docs/site/img/energy-light-circuit.png" width="100%" alt="Energy, light, Circuit"></a><br><sub>Energy</sub></td><td width="50%"><a href="docs/TOUR.md#vulnerabilities"><img src="docs/site/img/vulnerabilities-light-circuit.png" width="100%" alt="Vulnerabilities, light, Circuit"></a><br><sub>Vulnerabilities</sub></td></tr>
-<tr><td width="50%"><a href="docs/TOUR.md#rewind-and-incident-files"><img src="docs/site/img/rewind-light-circuit.png" width="100%" alt="Rewind, light, Circuit"></a><br><sub>Rewind</sub></td><td width="50%"><a href="docs/TOUR.md#settings"><img src="docs/site/img/settings-light-circuit.png" width="100%" alt="Settings, light, Circuit"></a><br><sub>Settings</sub></td></tr>
-</table>
+<p><a href="docs/TOUR.md#overview"><img src="docs/site/img/overview-light-circuit.png" width="640" alt="Overview, light, Circuit"></a><br><sub>Overview</sub></p>
+
+<p><a href="docs/TOUR.md#map"><img src="docs/site/img/map-light-circuit.png" width="640" alt="Map, light, Circuit"></a><br><sub>Map</sub></p>
+
+<details>
+<summary>12 more pictures</summary>
+
+<p><a href="docs/TOUR.md#network"><img src="docs/site/img/network-light-circuit.png" width="640" alt="Network, light, Circuit"></a><br><sub>Network</sub></p>
+
+<p><a href="docs/TOUR.md#devices"><img src="docs/site/img/devices-light-circuit.png" width="640" alt="Devices, light, Circuit"></a><br><sub>Devices</sub></p>
+
+<p><a href="docs/TOUR.md#data-paths"><img src="docs/site/img/data-paths-light-circuit.png" width="640" alt="Data paths, light, Circuit"></a><br><sub>Data paths</sub></p>
+
+<p><a href="docs/TOUR.md#nightly-report"><img src="docs/site/img/nightly-reports-light-circuit.png" width="640" alt="Nightly report, light, Circuit"></a><br><sub>Nightly report</sub></p>
+
+<p><a href="docs/TOUR.md#control-room"><img src="docs/site/img/control-room-light-circuit.png" width="640" alt="Control room, light, Circuit"></a><br><sub>Control room</sub></p>
+
+<p><a href="docs/TOUR.md#firewall"><img src="docs/site/img/firewall-light-circuit.png" width="640" alt="Firewall, light, Circuit"></a><br><sub>Firewall</sub></p>
+
+<p><a href="docs/TOUR.md#automations"><img src="docs/site/img/automations-light-circuit.png" width="640" alt="Automations, light, Circuit"></a><br><sub>Automations</sub></p>
+
+<p><a href="docs/TOUR.md#inventory"><img src="docs/site/img/inventory-light-circuit.png" width="640" alt="Inventory, light, Circuit"></a><br><sub>Inventory</sub></p>
+
+<p><a href="docs/TOUR.md#energy"><img src="docs/site/img/energy-light-circuit.png" width="640" alt="Energy, light, Circuit"></a><br><sub>Energy</sub></p>
+
+<p><a href="docs/TOUR.md#vulnerabilities"><img src="docs/site/img/vulnerabilities-light-circuit.png" width="640" alt="Vulnerabilities, light, Circuit"></a><br><sub>Vulnerabilities</sub></p>
+
+<p><a href="docs/TOUR.md#rewind-and-incident-files"><img src="docs/site/img/rewind-light-circuit.png" width="640" alt="Rewind, light, Circuit"></a><br><sub>Rewind</sub></p>
+
+<p><a href="docs/TOUR.md#settings"><img src="docs/site/img/settings-light-circuit.png" width="640" alt="Settings, light, Circuit"></a><br><sub>Settings</sub></p>
+
+</details>
+
 
 ## Screenshots
 
@@ -90,35 +114,34 @@ All screenshots show the built-in demo network with invented names and addresses
 
 ### Setup wizard
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/wizard-1-account.png" width="100%" alt="Wizard step 1: account"><br><sub>1. Create the account with the one-time setup code</sub></td>
-<td width="50%"><img src="docs/screenshots/wizard-2-networks.png" width="100%" alt="Wizard step 2: networks"><br><sub>2. Detected networks: gateway, DNS, DHCP and the proposed ranges</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/wizard-3-scan.png" width="100%" alt="Wizard step 3: scan"><br><sub>3. Scan options: gentle or deep</sub></td>
-<td width="50%"><img src="docs/screenshots/wizard-4-progress.png" width="100%" alt="Wizard scan progress"><br><sub>First picture while the scan continues</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/wizard-5-review.png" width="100%" alt="Wizard step 4: review"><br><sub>4. Review the automatic classification</sub></td>
-<td width="50%"><img src="docs/screenshots/wizard-6-connect.png" width="100%" alt="Wizard step 5: connect"><br><sub>5. Suggested adapters with a read-only guide</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/wizard-7-done.png" width="100%" alt="Wizard step 6: done"><br><sub>6. Done: time to the first picture, rescan interval, update check</sub></td>
-<td></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/wizard-1-account.png" width="640" alt="Wizard step 1: account"><br><sub>1. Create the account with the one-time setup code</sub></p>
+
+<p><img src="docs/screenshots/wizard-2-networks.png" width="640" alt="Wizard step 2: networks"><br><sub>2. Detected networks: gateway, DNS, DHCP and the proposed ranges</sub></p>
+
+<details>
+<summary>5 more pictures</summary>
+
+<p><img src="docs/screenshots/wizard-3-scan.png" width="640" alt="Wizard step 3: scan"><br><sub>3. Scan options: gentle or deep</sub></p>
+
+<p><img src="docs/screenshots/wizard-4-progress.png" width="640" alt="Wizard scan progress"><br><sub>First picture while the scan continues</sub></p>
+
+<p><img src="docs/screenshots/wizard-5-review.png" width="640" alt="Wizard step 4: review"><br><sub>4. Review the automatic classification</sub></p>
+
+<p><img src="docs/screenshots/wizard-6-connect.png" width="640" alt="Wizard step 5: connect"><br><sub>5. Suggested adapters with a read-only guide</sub></p>
+
+<p><img src="docs/screenshots/wizard-7-done.png" width="640" alt="Wizard step 6: done"><br><sub>6. Done: time to the first picture, rescan interval, update check</sub></p>
+
+</details>
+
 
 ### Overview
 
 ![Overview start page, light theme](docs/screenshots/overview-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/overview-dark.png" width="100%" alt="Overview start page in dark theme"><br><sub>Health with the last 24 hours, key figures, noteworthy issues, new devices</sub></td>
-<td width="50%"><img src="docs/screenshots/overview-rail-dark.png" width="100%" alt="The Right now rail beside the overview"><br><sub>Key L: noteworthy issues, active conversations, changes, new devices</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/overview-dark.png" width="640" alt="Overview start page in dark theme"><br><sub>Health with the last 24 hours, key figures, noteworthy issues, new devices</sub></p>
+
+<p><img src="docs/screenshots/overview-rail-dark.png" width="640" alt="The Right now rail beside the overview"><br><sub>Key L: noteworthy issues, active conversations, changes, new devices</sub></p>
+
 
 ### The map
 
@@ -134,33 +157,30 @@ All screenshots show the built-in demo network with invented names and addresses
 
 The Network view has three faces: the board, a **3D** stack of boards (below) and a **tree** that folds, Internet, gateway, switches and access points, devices and guests, with the link (cable and port, wireless band, virtual), the live traffic as a number and the state as a word. It is also the text alternative of the picture. Everything can be done with the keyboard (`?` shows the keys), the spoken status for screen readers is throttled, and an automated check allows no serious accessibility finding before a release ([Accessibility](docs/ACCESSIBILITY.md)).
 
+<p><img src="docs/screenshots/network-tree-light.png" width="640" alt="Network tree with the card of an access point open"><br><sub>The chain as a tree; the chain of the line under the pointer is lit</sub></p>
+
 <table>
-<tr>
-<td width="60%"><img src="docs/screenshots/network-tree-light.png" width="100%" alt="Network tree with the card of an access point open"><br><sub>The chain as a tree; the chain of the line under the pointer is lit</sub></td>
-<td width="20%"><img src="docs/screenshots/network-tree-phone-dark.png" width="100%" alt="Network tree on a phone"><br><sub>On a phone the lines wrap</sub></td>
-<td width="20%"><img src="docs/screenshots/keyboard-help-light.png" width="100%" alt="Keyboard help"><br><sub>Key <code>?</code></sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/network-tree-phone-dark.png" width="150" alt="Network tree on a phone"><br><sub>On a phone the lines wrap</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/keyboard-help-light.png" width="150" alt="Keyboard help"><br><sub>Key <code>?</code></sub></td></tr>
 </table>
+
 
 ### The network in 3D
 
 The same chain as a stack of circuit boards that you can turn, tilt and zoom: Internet on top, then the gateway, switches and access points, devices at the bottom; copper traces with vias between the boards and the live traffic running along them as dots. It needs graphics acceleration; without it the browser gets a note and the flat board ([Network manual](docs/manual/network.md#the-network-in-3d)).
 
+<p><img src="docs/screenshots/network-3d-light.png" width="640" alt="The network as a stack of circuit boards in 3D"><br><sub>One board per step of the chain; the element in focus is named in the corner</sub></p>
+
 <table>
-<tr>
-<td width="78%"><img src="docs/screenshots/network-3d-light.png" width="100%" alt="The network as a stack of circuit boards in 3D"><br><sub>One board per step of the chain; the element in focus is named in the corner</sub></td>
-<td width="22%"><img src="docs/screenshots/network-3d-phone-dark.png" width="100%" alt="The 3D view on a phone"><br><sub>One finger turns, two zoom</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/network-3d-phone-dark.png" width="150" alt="The 3D view on a phone"><br><sub>One finger turns, two zoom</sub></td><td width="50%"></td></tr>
 </table>
+
 
 ### Cabling
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/connection-switch-light.png" width="100%" alt="Switch card with the devices on its ports"><br><sub>A switch: where it is plugged in and what hangs on each port</sub></td>
-<td width="50%"><img src="docs/screenshots/connection-conflict-dark.png" width="100%" alt="Device card with a manual entry that overrides the controller"><br><sub>A manual entry wins; the card says what the other source reports</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/connection-switch-light.png" width="640" alt="Switch card with the devices on its ports"><br><sub>A switch: where it is plugged in and what hangs on each port</sub></p>
+
+<p><img src="docs/screenshots/connection-conflict-dark.png" width="640" alt="Device card with a manual entry that overrides the controller"><br><sub>A manual entry wins; the card says what the other source reports</sub></p>
+
 
 ### Component card
 
@@ -176,50 +196,54 @@ The same chain as a stack of circuit boards that you can turn, tilt and zoom: In
 
 ![Firewall editor in change mode with a draft of three moves](docs/screenshots/firewall-draft-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/firewall-preview-light.png" width="100%" alt="Plain-language preview"><br><sub>Preview: what changes, what it may and may no longer do, what to watch out for</sub></td>
-<td width="50%"><img src="docs/screenshots/firewall-progress-dark.png" width="100%" alt="Change in progress"><br><sub>Backed up, changed, watched; undo for 24 hours</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/firewall-device-light.png" width="100%" alt="Device sheet: network, name and fixed address"><br><sub>Tap a device: move it, rename it, give it a fixed address</sub></td>
-<td width="50%"><img src="docs/screenshots/firewall-edits-dark.png" width="100%" alt="Preview of a rename and a new fixed address"><br><sub>Every field old → new; the address is checked before anything is written</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/netplan-light.png" width="100%" alt="Network plan: target network per device and progress"><br><sub>Network plan: target per device, progress, draft the moves</sub></td>
-<td width="50%"><img src="docs/screenshots/gateway-preview-dark.png" width="100%" alt="Preview of a new network, a port forward and a released fixed address"><br><sub>New network, port forward, fixed address; what uses a device by address</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/switch-ports-editor-light.png" width="100%" alt="Switch ports card: the faceplate of a sample switch with one port selected and the button Change port"><br><sub>Switch ports: the faceplate of a switch, a port selected, Change port</sub></td>
-<td width="50%"><img src="docs/screenshots/switch-port-preview-dark.png" width="100%" alt="Preview of a power cycle, a port switched off and a network change with warnings and confirmation checkboxes"><br><sub>Preview of port changes: devices that restart, switch off or change network</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/firewall-preview-light.png" width="640" alt="Plain-language preview"><br><sub>Preview: what changes, what it may and may no longer do, what to watch out for</sub></p>
+
+<p><img src="docs/screenshots/firewall-progress-dark.png" width="640" alt="Change in progress"><br><sub>Backed up, changed, watched; undo for 24 hours</sub></p>
+
+<details>
+<summary>6 more pictures</summary>
+
+<p><img src="docs/screenshots/firewall-device-light.png" width="640" alt="Device sheet: network, name and fixed address"><br><sub>Tap a device: move it, rename it, give it a fixed address</sub></p>
+
+<p><img src="docs/screenshots/firewall-edits-dark.png" width="640" alt="Preview of a rename and a new fixed address"><br><sub>Every field old → new; the address is checked before anything is written</sub></p>
+
+<p><img src="docs/screenshots/netplan-light.png" width="640" alt="Network plan: target network per device and progress"><br><sub>Network plan: target per device, progress, draft the moves</sub></p>
+
+<p><img src="docs/screenshots/gateway-preview-dark.png" width="640" alt="Preview of a new network, a port forward and a released fixed address"><br><sub>New network, port forward, fixed address; what uses a device by address</sub></p>
+
+<p><img src="docs/screenshots/switch-ports-editor-light.png" width="640" alt="Switch ports card: the faceplate of a sample switch with one port selected and the button Change port"><br><sub>Switch ports: the faceplate of a switch, a port selected, Change port</sub></p>
+
+<p><img src="docs/screenshots/switch-port-preview-dark.png" width="640" alt="Preview of a power cycle, a port switched off and a network change with warnings and confirmation checkboxes"><br><sub>Preview of port changes: devices that restart, switch off or change network</sub></p>
+
+</details>
+
 
 ### Controller configuration (read only)
 
 ![Firewall tab with a live controller configuration: zones, networks and clients](docs/screenshots/firewall-live-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/firewall-rules-dark.png" width="100%" alt="Zone matrix and firewall rules with hit counters"><br><sub>Zone matrix and rules in the controller's order, with hit counters</sub></td>
-<td width="50%"><img src="docs/screenshots/firewall-equipment-light.png" width="100%" alt="Network equipment with switch ports, wireless networks and port forwarding"><br><sub>Equipment with every port, wireless networks, port forwarding</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/firewall-rules-dark.png" width="640" alt="Zone matrix and firewall rules with hit counters"><br><sub>Zone matrix and rules in the controller's order, with hit counters</sub></p>
+
+<p><img src="docs/screenshots/firewall-equipment-light.png" width="640" alt="Network equipment with switch ports, wireless networks and port forwarding"><br><sub>Equipment with every port, wireless networks, port forwarding</sub></p>
+
 
 ### Firewall board and switch front panels (read only)
 
 ![The firewall board with blocked today, own rules, checks and the traffic between zones](docs/screenshots/firewall-board-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/firewall-ask-dark.png" width="100%" alt="May one reach the other? The answer names the deciding rule"><br><sub>The answer from the rules in their order, with the rules that cannot be judged</sub></td>
-<td width="50%"><img src="docs/screenshots/switch-front-tagged-light.png" width="100%" alt="Switch front panel with the details of a port: untagged network, tagged networks and power switched off"><br><sub>Front panels with link, power, VLAN, profile, tagged networks, the devices behind a port and the last 24 hours</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/firewall-checks-light.png" width="100%" alt="Checks with a suggestion"><br><sub>Checks come with what you can do about them</sub></td>
-<td width="50%"><img src="docs/screenshots/network-legend-light.png" width="100%" alt="Network view with the mode switch and the legend of lines and networks"><br><sub>Mode switch, and a legend with lines and networks in one strip</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/firewall-ask-dark.png" width="640" alt="May one reach the other? The answer names the deciding rule"><br><sub>The answer from the rules in their order, with the rules that cannot be judged</sub></p>
+
+<p><img src="docs/screenshots/switch-front-tagged-light.png" width="640" alt="Switch front panel with the details of a port: untagged network, tagged networks and power switched off"><br><sub>Front panels with link, power, VLAN, profile, tagged networks, the devices behind a port and the last 24 hours</sub></p>
+
+<details>
+<summary>2 more pictures</summary>
+
+<p><img src="docs/screenshots/firewall-checks-light.png" width="640" alt="Checks with a suggestion"><br><sub>Checks come with what you can do about them</sub></p>
+
+<p><img src="docs/screenshots/network-legend-light.png" width="640" alt="Network view with the mode switch and the legend of lines and networks"><br><sub>Mode switch, and a legend with lines and networks in one strip</sub></p>
+
+</details>
+
 
 <img src="docs/screenshots/phone-firewall-board.png" width="200" alt="Phone: the firewall board"> <img src="docs/screenshots/phone-switch-front.png" width="200" alt="Phone: a switch front panel"> <img src="docs/screenshots/phone-network-full.png" width="200" alt="Phone: the network in full screen">
 
@@ -227,12 +251,10 @@ The same chain as a stack of circuit boards that you can turn, tilt and zoom: In
 
 ![Firewall tab with a zone firewall source: zone cards and the zone matrix derived from the rules](docs/screenshots/zonefw-matrix-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/zonefw-checks-dark.png" width="100%" alt="Checks of the read firewall configuration, port forwarding, internet connections, VPN and other objects"><br><sub>Checks, port forwarding, VPN and other objects</sub></td>
-<td width="50%"><img src="docs/screenshots/zonefw-report-light.png" width="100%" alt="Nightly report section of the firewall: new rule, new port forwarding, checks"><br><sub>Nightly report: what changed on the firewall overnight</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/zonefw-checks-dark.png" width="640" alt="Checks of the read firewall configuration, port forwarding, internet connections, VPN and other objects"><br><sub>Checks, port forwarding, VPN and other objects</sub></p>
+
+<p><img src="docs/screenshots/zonefw-report-light.png" width="640" alt="Nightly report section of the firewall: new rule, new port forwarding, checks"><br><sub>Nightly report: what changed on the firewall overnight</sub></p>
+
 
 <img src="docs/screenshots/zonefw-phone.png" width="260" alt="Firewall checks on a phone">
 
@@ -240,12 +262,10 @@ The same chain as a stack of circuit boards that you can turn, tilt and zoom: In
 
 ![Firewall tab with a gateway firewall source: interfaces as zones and the zone matrix from the rules in evaluation order](docs/screenshots/gwfw-matrix-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/gwfw-rules-dark.png" width="100%" alt="Rules of the gateway firewall as sentences, with checks, port forwarding and VPN instances"><br><sub>Rules as sentences, checks, forwarding and VPN</sub></td>
-<td width="50%"><img src="docs/screenshots/gwfw-report-light.png" width="100%" alt="Nightly report section of the gateway firewall: a new rule from the internet side, a rule switched off, checks"><br><sub>Nightly report: what changed on the gateway overnight</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/gwfw-rules-dark.png" width="640" alt="Rules of the gateway firewall as sentences, with checks, port forwarding and VPN instances"><br><sub>Rules as sentences, checks, forwarding and VPN</sub></p>
+
+<p><img src="docs/screenshots/gwfw-report-light.png" width="640" alt="Nightly report section of the gateway firewall: a new rule from the internet side, a rule switched off, checks"><br><sub>Nightly report: what changed on the gateway overnight</sub></p>
+
 
 <img src="docs/screenshots/gwfw-phone.png" width="260" alt="Gateway firewall checks on a phone">
 
@@ -253,45 +273,37 @@ The same chain as a stack of circuit boards that you can turn, tilt and zoom: In
 
 ![Firewall tab with a router source: firewall zones, the zone matrix and the rules in configuration order](docs/screenshots/router-rules-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/router-wireless-dark.png" width="100%" alt="The router as network equipment, its wireless networks with security and state, and port forwarding"><br><sub>Wireless networks, the router and port forwarding</sub></td>
-<td width="50%"><img src="docs/screenshots/router-report-light.png" width="100%" alt="Nightly report section of the router: management open on the internet side, a new rule from there, a rule switched off"><br><sub>Nightly report: what changed on the router overnight</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/router-wireless-dark.png" width="640" alt="The router as network equipment, its wireless networks with security and state, and port forwarding"><br><sub>Wireless networks, the router and port forwarding</sub></p>
+
+<p><img src="docs/screenshots/router-report-light.png" width="640" alt="Nightly report section of the router: management open on the internet side, a new rule from there, a rule switched off"><br><sub>Nightly report: what changed on the router overnight</sub></p>
+
 
 <img src="docs/screenshots/router-phone.png" width="260" alt="Router checks on a phone">
 
 ### Access points and switches (read only)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/apctl-equipment-light.png" width="100%" alt="Network equipment of an access-point controller: gateway, switch with its front panel and uplink, access points with their state, wireless networks"><br><sub>Equipment with the switch front panel, access points and wireless networks</sub></td>
-<td width="50%"><img src="docs/screenshots/apctl-report-dark.png" width="100%" alt="Nightly report section of the access-point controller: an access point went offline, a new access rule, a firmware change, checks"><br><sub>Nightly report: what changed on the controller overnight</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/apctl-equipment-light.png" width="640" alt="Network equipment of an access-point controller: gateway, switch with its front panel and uplink, access points with their state, wireless networks"><br><sub>Equipment with the switch front panel, access points and wireless networks</sub></p>
+
+<p><img src="docs/screenshots/apctl-report-dark.png" width="640" alt="Nightly report section of the access-point controller: an access point went offline, a new access rule, a firmware change, checks"><br><sub>Nightly report: what changed on the controller overnight</sub></p>
+
 
 <img src="docs/screenshots/apctl-phone.png" width="260" alt="Equipment of an access-point controller on a phone">
 
 ### Home router and mesh (read only)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/homerouter-equipment-light.png" width="100%" alt="Network equipment of a home router: the router and a repeater with their state and uplink"><br><sub>The router and its mesh devices with model, firmware, address and uplink.</sub></td>
-<td width="50%"><img src="docs/screenshots/homerouter-report-dark.png" width="100%" alt="Nightly report section of the home router: a repeater got a new firmware, a device the router had not known"><br><sub>Nightly report: what changed on the home router since the last report.</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/homerouter-equipment-light.png" width="640" alt="Network equipment of a home router: the router and a repeater with their state and uplink"><br><sub>The router and its mesh devices with model, firmware, address and uplink.</sub></p>
+
+<p><img src="docs/screenshots/homerouter-report-dark.png" width="640" alt="Nightly report section of the home router: a repeater got a new firmware, a device the router had not known"><br><sub>Nightly report: what changed on the home router since the last report.</sub></p>
+
 
 <img src="docs/screenshots/homerouter-phone.png" width="260" alt="Equipment of a home router on a phone">
 
 ### Switching router (read only)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/router-switch-equipment-light.png" width="100%" alt="Network equipment of a switching router: the router with its four ports and a neighbouring switch, and the port forwarding"><br><sub>The router with its ports (link, speed, power over Ethernet, uplink), the neighbouring switch and the port forwarding.</sub></td>
-<td width="50%"><img src="docs/screenshots/router-switch-report-dark.png" width="100%" alt="Nightly report section of the switching router: a new filter rule, a newer release, a device the router had not known"><br><sub>Nightly report: what changed on the router since the last report.</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/router-switch-equipment-light.png" width="640" alt="Network equipment of a switching router: the router with its four ports and a neighbouring switch, and the port forwarding"><br><sub>The router with its ports (link, speed, power over Ethernet, uplink), the neighbouring switch and the port forwarding.</sub></p>
+
+<p><img src="docs/screenshots/router-switch-report-dark.png" width="640" alt="Nightly report section of the switching router: a new filter rule, a newer release, a device the router had not known"><br><sub>Nightly report: what changed on the router since the last report.</sub></p>
+
 
 <img src="docs/screenshots/router-switch-phone.png" width="260" alt="Equipment of a switching router on a phone">
 
@@ -299,63 +311,74 @@ The same chain as a stack of circuit boards that you can turn, tilt and zoom: In
 
 ![Component card of a hypervisor node: load, findings, guests with their newest backup, storage](docs/screenshots/hypervisor-node-dark.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/hypervisor-guest-light.png" width="100%" alt="Component card of a guest: node, network cards, backup, traffic of the last hour, guest firewall"><br><sub>A guest: node, network cards, backup, traffic, its firewall</sub></td>
-<td width="50%"><img src="docs/screenshots/hypervisor-firewall-light.png" width="100%" alt="Firewall tab with the hypervisor source: findings and firewall at datacenter, node and guest level"><br><sub>Firewall tab: findings, firewall at every level, guest network cards</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/hypervisor-guests-light.png" width="100%" alt="Guests card in change mode: start, network cards, firewall rules; guests that keep the network running carry a lock"><br><sub>Change guests: start or shut down, network cards, firewall; critical guests stay as they are</sub></td>
-<td width="50%"><img src="docs/screenshots/hypervisor-guest-preview-dark.png" width="100%" alt="Preview of guest changes: new rule, VLAN of a network card, start with its own confirmation"><br><sub>Preview: every field old → new; a start or shutdown needs its own tick</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/hypervisor-guest-light.png" width="640" alt="Component card of a guest: node, network cards, backup, traffic of the last hour, guest firewall"><br><sub>A guest: node, network cards, backup, traffic, its firewall</sub></p>
+
+<p><img src="docs/screenshots/hypervisor-firewall-light.png" width="640" alt="Firewall tab with the hypervisor source: findings and firewall at datacenter, node and guest level"><br><sub>Firewall tab: findings, firewall at every level, guest network cards</sub></p>
+
+<details>
+<summary>2 more pictures</summary>
+
+<p><img src="docs/screenshots/hypervisor-guests-light.png" width="640" alt="Guests card in change mode: start, network cards, firewall rules; guests that keep the network running carry a lock"><br><sub>Change guests: start or shut down, network cards, firewall; critical guests stay as they are</sub></p>
+
+<p><img src="docs/screenshots/hypervisor-guest-preview-dark.png" width="640" alt="Preview of guest changes: new rule, VLAN of a network card, start with its own confirmation"><br><sub>Preview: every field old → new; a start or shutdown needs its own tick</sub></p>
+
+</details>
+
 
 ### Data paths
 
 ![Data paths: Real cables view - every country's traffic runs over infrastructure (sea cables, land lines, a satellite hop to a remote island), bundled strands that get thicker with the traffic, key figures and the period switch](docs/screenshots/paths-cables-light.png)
 <sub>Real cables view of the sample network: only lines, never an arc. Sea cables: © OpenStreetMap contributors (ODbL), incomplete, community-mapped, with cable routes of U.S. waters and cable facts from open data (CC0); gaps and land paths are estimated, and which line a way takes is an estimate unless measured routes back it.</sub>
 
+<p><img src="docs/screenshots/paths-cables-dark.png" width="640" alt="Real cables view in the dark theme"><br><sub>Real cables, dark theme: measured ways full, estimated ones lighter, a satellite from the earth station to a remote destination. Sea cables: © OpenStreetMap contributors (ODbL), incomplete, community-mapped</sub></p>
+
 <table>
-<tr>
-<td width="66%"><img src="docs/screenshots/paths-cables-dark.png" width="100%" alt="Real cables view in the dark theme"><br><sub>Real cables, dark theme: measured ways full, estimated ones lighter, a satellite from the earth station to a remote destination. Sea cables: © OpenStreetMap contributors (ODbL), incomplete, community-mapped</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-paths-cables.png" width="100%" alt="Phone: Real cables view"><br><sub>On a phone the switch spans the width</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-paths-cables.png" width="150" alt="Phone: Real cables view"><br><sub>On a phone the switch spans the width</sub></td><td width="50%"></td></tr>
 </table>
+
 
 ![Data paths: Rain view - world map with arcs from the home country](docs/screenshots/paths-light.png)
 
 Country detail: click a country for the map zoomed on it, bubbles that add up to the figure at the top (traffic without a known city as a dashed, approximate bubble), history, cities, network operators, devices and destinations; cities and operators are an option that is off by default.
 
+<p><img src="docs/screenshots/paths-country-light.png" width="640" alt="Country detail: map with bubbles, key figures, history, cities and network operators"><br><sub>Country detail (sample network)</sub></p>
+
 <table>
-<tr>
-<td width="66%"><img src="docs/screenshots/paths-country-light.png" width="100%" alt="Country detail: map with bubbles, key figures, history, cities and network operators"><br><sub>Country detail (sample network)</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-paths-country.png" width="100%" alt="Phone: country detail"><br><sub>On a phone it fills the screen</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-paths-country.png" width="150" alt="Phone: country detail"><br><sub>On a phone it fills the screen</sub></td><td width="50%"></td></tr>
 </table>
+
 
 Who talks to whom: dashed lines between devices that talk to each other, and the card of a device with *Where does it talk to?*
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/map-talk-light.png" width="100%" alt="Map with dashed lines between devices that talk to each other"><br><sub>The chip Who talks to whom draws the conversations of the last 24 hours</sub></td>
-<td width="50%"><img src="docs/screenshots/talk-card-light.png" width="100%" alt="Card of a device with countries and devices it talks to"><br><sub>Where does it talk to? Countries and devices, by period</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/talk-internet-dark.png" width="100%" alt="Card of the Internet tile with sums per device"><br><sub>The Internet tile: who talks to the internet and how much</sub></td>
-<td width="50%"><img src="docs/screenshots/phone-talk-card.png" width="200" alt="Phone: card with Where does it talk to?"><br><sub>On a phone the card is a sheet</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/map-talk-light.png" width="640" alt="Map with dashed lines between devices that talk to each other"><br><sub>The chip Who talks to whom draws the conversations of the last 24 hours</sub></p>
+
+<p><img src="docs/screenshots/talk-card-light.png" width="640" alt="Card of a device with countries and devices it talks to"><br><sub>Where does it talk to? Countries and devices, by period</sub></p>
 
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/paths-full-dark.png" width="100%" alt="World map in full screen"><br><sub>Full screen with period switch and legend; Esc or back closes it</sub></td>
-<td width="50%"><img src="docs/screenshots/paths-lists-light.png" width="100%" alt="Unusual behaviour, countries and devices"><br><sub>Calm hints, countries and devices; a click selects</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/paths-zoom-dark.png" width="100%" alt="Zoomed world map around the home country"><br><sub>Zooming with the mouse wheel or a pinch: nearby countries get their own labels</sub></td>
-<td width="50%"><img src="docs/screenshots/netflow-settings-light.png" width="100%" alt="NetFlow / IPFIX receiver settings"><br><sub>NetFlow / IPFIX from the router: allowed exporters, port, receiver state and one block per exporter</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-talk-card.png" width="150" alt="Phone: card with Where does it talk to?"><br><sub>On a phone the card is a sheet</sub></td><td width="50%"></td></tr>
 </table>
+
+<details>
+<summary>1 more picture</summary>
+
+<p><img src="docs/screenshots/talk-internet-dark.png" width="640" alt="Card of the Internet tile with sums per device"><br><sub>The Internet tile: who talks to the internet and how much</sub></p>
+
+</details>
+
+
+<p><img src="docs/screenshots/paths-full-dark.png" width="640" alt="World map in full screen"><br><sub>Full screen with period switch and legend; Esc or back closes it</sub></p>
+
+<p><img src="docs/screenshots/paths-lists-light.png" width="640" alt="Unusual behaviour, countries and devices"><br><sub>Calm hints, countries and devices; a click selects</sub></p>
+
+<details>
+<summary>2 more pictures</summary>
+
+<p><img src="docs/screenshots/paths-zoom-dark.png" width="640" alt="Zoomed world map around the home country"><br><sub>Zooming with the mouse wheel or a pinch: nearby countries get their own labels</sub></p>
+
+<p><img src="docs/screenshots/netflow-settings-light.png" width="640" alt="NetFlow / IPFIX receiver settings"><br><sub>NetFlow / IPFIX from the router: allowed exporters, port, receiver state and one block per exporter</sub></p>
+
+</details>
+
 
 Country data: [IP Geolocation by DB-IP](https://db-ip.com) (CC BY 4.0). Base map: Natural Earth (public domain).
 
@@ -395,23 +418,21 @@ Every host Lanloom reads gets a health ring, round gauges and trends; a value th
 
 ![Nightly report: headline, sections with points to tick off, and the archive](docs/screenshots/reports-light.png)
 
+<p><img src="docs/screenshots/reports-dark.png" width="640" alt="Nightly report in the dark theme"><br><sub>Things that need a look can be ticked off; notes stay calm</sub></p>
+
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/reports-dark.png" width="100%" alt="Nightly report in the dark theme"><br><sub>Things that need a look can be ticked off; notes stay calm</sub></td>
-<td width="50%"><img src="docs/screenshots/report-settings-light.png" width="100%" alt="Report time, time zone, archive and optional delivery"><br><sub>Report time, archive and optional delivery (off by default)</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/report-settings-light.png" width="150" alt="Report time, time zone, archive and optional delivery"><br><sub>Report time, archive and optional delivery (off by default)</sub></td><td width="50%"></td></tr>
 </table>
+
 
 ### Notifications
 
 ![Settings, Notifications: rules per event with when, from which severity and on which channel](docs/screenshots/notify-rules-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/notify-maintenance-light.png" width="100%" alt="Planned maintenance: one-off or weekly, for all or some devices"><br><sub>A maintenance window pauses notifications and mark outages as maintenance</sub></td>
-<td width="50%"><img src="docs/screenshots/notify-history-dark.png" width="100%" alt="History of what the rules did with each event"><br><sub>History: sent, bundled, quiet hours, maintenance, flap, cool-down</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/notify-maintenance-light.png" width="640" alt="Planned maintenance: one-off or weekly, for all or some devices"><br><sub>A maintenance window pauses notifications and mark outages as maintenance</sub></p>
+
+<p><img src="docs/screenshots/notify-history-dark.png" width="640" alt="History of what the rules did with each event"><br><sub>History: sent, bundled, quiet hours, maintenance, flap, cool-down</sub></p>
+
 
 Calm by default: every event goes into the nightly report. Each person chooses per event *immediately*, *bundled every hour* or *nightly report only*, from which severity on, and on which channel – web push on their own devices (with VAPID, per device, removable) or the shared e-mail, webhook, push topic and chat bot channels. Quiet hours let only critical immediate events through; planned maintenance (one-off or weekly, for all or some devices) pauses everything; flap protection, a 12-hour cool-down, an all-clear only after an announced outage and a daily limit keep it quiet. An optional heartbeat calls an address of yours so an outside service notices when Lanloom itself is down. Details: [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md).
 
@@ -419,144 +440,142 @@ Calm by default: every event goes into the nightly report. Each person chooses p
 
 ![All sites: every site at a glance with its state, devices, internet and how it is seen](docs/screenshots/sites-dark.png)
 
+<p><img src="docs/screenshots/site-switch-light.png" width="640" alt="The site switcher next to the logo"><br><sub>The switcher next to the logo: every site released for you and All sites</sub></p>
+
 <table>
-<tr>
-<td width="60%"><img src="docs/screenshots/site-switch-light.png" width="100%" alt="The site switcher next to the logo"><br><sub>The switcher next to the logo: every site released for you and All sites</sub></td>
-<td width="40%" align="center"><img src="docs/screenshots/sites-phone-light.png" width="70%" alt="All sites on a phone"><br><sub>All sites on a phone</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/sites-phone-light.png" width="150" alt="All sites on a phone"><br><sub>All sites on a phone</sub></td><td width="50%"></td></tr>
 </table>
+
 
 ### Users and sign-in security
 
 ![Settings, Users: roles, second factor and last sign-in](docs/screenshots/access-users-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/access-audit-dark.png" width="100%" alt="Audit log with filters and chain check"><br><sub>Audit log: who did what, when and from where, with a checkable chain</sub></td>
-<td width="50%"><img src="docs/screenshots/access-second-step-light.png" width="100%" alt="Second step of the sign-in"><br><sub>Second step: app code, recovery code or passkey</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/access-audit-dark.png" width="640" alt="Audit log with filters and chain check"><br><sub>Audit log: who did what, when and from where, with a checkable chain</sub></p>
+
+<p><img src="docs/screenshots/access-second-step-light.png" width="640" alt="Second step of the sign-in"><br><sub>Second step: app code, recovery code or passkey</sub></p>
+
 
 ### Home-automation bridge
 
 The card of the hub shows what the bridge reads, which private data stays out (people, trackers, zones, cameras, calendars and notifications by default), how it spares the hub (no template rendering, budgets per minute, paused lookups after errors) and the busiest automations; a runaway automation and scripts that call each other in a loop are marked and go into the nightly report. In admin mode operators can see the last runs of an automation. See [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md).
 
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/hub-bridge-light.png" width="100%" alt="The bridge section on the hub's card: mode, privacy, sparing the hub, busiest automations"><br><sub>What is read, what stays out, how the hub is spared</sub></td>
-<td width="50%"><img src="docs/screenshots/hub-runs-dark.png" width="100%" alt="Last runs of an automation, a runaway automation and a script loop"><br><sub>Runaway automation, last runs, a script loop</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/hub-bridge-light.png" width="150" alt="The bridge section on the hub's card: mode, privacy, sparing the hub, busiest automations"><br><sub>What is read, what stays out, how the hub is spared</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/hub-runs-dark.png" width="150" alt="Last runs of an automation, a runaway automation and a script loop"><br><sub>Runaway automation, last runs, a script loop</sub></td></tr>
 </table>
+
 
 ### Add-on and sensors in the hub
 
 Lanloom can run as an add-on of a home-automation hub: opened from the hub's side panel, signed in with the hub account, updated by its add-on system. The optional MQTT output publishes a few figures (devices online, new devices, internet line, open issues, health, vulnerability hints, nightly report) as sensors through MQTT discovery - counts only, never names or addresses. See [Add-on and MQTT output](#add-on-and-mqtt-output).
 
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/mqtt-output-light.png" width="100%" alt="Settings, MQTT output: broker, state of the connection, the sensors with their current values"><br><sub>MQTT output: the sensors and what they carry right now</sub></td>
-<td width="50%"><img src="docs/screenshots/addon-updates-dark.png" width="100%" alt="Updates card in the add-on: updates come through the add-on system"><br><sub>In the add-on, updates come from the add-on system</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/mqtt-output-light.png" width="150" alt="Settings, MQTT output: broker, state of the connection, the sensors with their current values"><br><sub>MQTT output: the sensors and what they carry right now</sub></td><td width="50%"></td></tr>
 </table>
+
+<p><img src="docs/screenshots/addon-updates-dark.png" width="640" alt="Updates card in the add-on: updates come through the add-on system"><br><sub>In the add-on, updates come from the add-on system</sub></p>
+
 
 ### Search and commands
 
 Press `Ctrl K`, `⌘ K` or `/` anywhere, or use the Search button. Views and commands are matched in the page; devices, services, automations and hub entities are searched on the server. A comparison such as `> 20 °C` filters hub values, and the arrow to the right (or the dots on a phone) opens the actions of a hit.
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/palette-search-light.png" width="100%" alt="The search box with hits grouped into devices, services, automations and hub entities"><br><sub>Everything in one box, grouped by what it is</sub></td>
-<td width="50%"><img src="docs/screenshots/palette-values-dark.png" width="100%" alt="The value filter listing hub sensors above 20 degrees"><br><sub>A comparison filters hub values: highest first</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/palette-actions-light.png" width="100%" alt="The actions of a device hit: open and copy address"><br><sub>The actions of a hit; only what exists is offered</sub></td>
-<td width="50%"></td>
+<p><img src="docs/screenshots/palette-search-light.png" width="640" alt="The search box with hits grouped into devices, services, automations and hub entities"><br><sub>Everything in one box, grouped by what it is</sub></p>
 
-### One component, radio networks, sensors
+<p><img src="docs/screenshots/palette-values-dark.png" width="640" alt="The value filter listing hub sensors above 20 degrees"><br><sub>A comparison filters hub values: highest first</sub></p>
 
-Devices the hub also knows are drawn as one component with a network side and a hub side (matched by hardware address, by the address of their configuration page, or suggested by name); the hub's radio networks become dashed lanes with their coordinator, and every radio device is red when its radio has not heard it. The Sensors tab lists every sensor with search, shows what needs a visit (batteries now or soon, silent radio devices) and opens a large chart per sensor for 1 hour up to 30 days. See [docs/HUB-BRIDGE.md](docs/HUB-BRIDGE.md#one-component-network-side-and-hub-side).
+<details>
+<summary>5 more pictures</summary>
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/radio-networks-dark.png" width="100%" alt="The map with one tile per radio network on dashed lanes from the hub"><br><sub>Radio networks as lanes from the hub</sub></td>
-<td width="50%"><img src="docs/screenshots/hub-merged-light.png" width="100%" alt="Card of a device with the hub side: evidence of the match, room, firmware, entities"><br><sub>One component: the hub side on the card</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/onsite-light.png" width="100%" alt="On site: batteries to change now or soon and silent radio devices"><br><sub>On site: batteries and silent radio devices</sub></td>
-<td width="50%"><img src="docs/screenshots/sensor-page-dark.png" width="100%" alt="Sensor page with a minimum-to-maximum band and the mean over 7 days"><br><sub>Sensor page: 7 days from the hub's statistics</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/palette-actions-light.png" width="640" alt="The actions of a device hit: open and copy address"><br><sub>The actions of a hit; only what exists is offered</sub></p>
+
+<p><img src="docs/screenshots/radio-networks-dark.png" width="640" alt="The map with one tile per radio network on dashed lanes from the hub"><br><sub>Radio networks as lanes from the hub</sub></p>
+
+<p><img src="docs/screenshots/hub-merged-light.png" width="640" alt="Card of a device with the hub side: evidence of the match, room, firmware, entities"><br><sub>One component: the hub side on the card</sub></p>
+
+<p><img src="docs/screenshots/onsite-light.png" width="640" alt="On site: batteries to change now or soon and silent radio devices"><br><sub>On site: batteries and silent radio devices</sub></p>
+
+<p><img src="docs/screenshots/sensor-page-dark.png" width="640" alt="Sensor page with a minimum-to-maximum band and the mean over 7 days"><br><sub>Sensor page: 7 days from the hub's statistics</sub></p>
+
+</details>
+
 
 ### Automations in plain words
 
 The Automations tab explains every automation and script of the hub in plain words (When → Only if → Then, written by fixed rules, without AI, in every language of the app), shows its flow with the live state of every entity and checks it: missing or unavailable entities, runaways, two automations switching one entity in opposite directions, automations that start themselves or drop starts, and those that have not run for 30 days. The dependency board shows what sets an entity and what reads it, with a dot travelling whenever an automation runs; *Who switches what* names the cause of every change (an automation, a person - never who - or the device itself) and, from the runs the hub stored, the chain that led to it (sensor → automation → script → device) and the mode conflicts (dropped starts, restarts, full queues), the timeline covers the last 24 hours, the day plan puts every fixed time and sun trigger on today's axis with a now line, the rooms view lists devices with their live state, and *Hub health* bundles integrations with errors and unavailable entities - read only, nothing is ever healed or switched. See [docs/AUTOMATIONS.md](docs/AUTOMATIONS.md).
 
+<p><img src="docs/screenshots/automations-light.png" width="640" alt="The list of automations with tiles and findings"><br><sub>Every automation with its findings</sub></p>
+
+<p><img src="docs/screenshots/automations-item-dark.png" width="640" alt="One automation in plain words with its flow"><br><sub>In plain words: When, Only if, Then</sub></p>
+
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/automations-light.png" width="100%" alt="The list of automations with tiles and findings"><br><sub>Every automation with its findings</sub></td>
-<td width="50%"><img src="docs/screenshots/automations-item-dark.png" width="100%" alt="One automation in plain words with its flow"><br><sub>In plain words: When, Only if, Then</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/automations-chain-light.png" width="100%" alt="Effect chains: sensor, automation, script, device"><br><sub>What led to a switch: the effect chains</sub></td>
-<td width="50%"><img src="docs/screenshots/automations-mode-conflict-light.png" width="100%" alt="A mode conflict in the findings of an automation"><br><sub>A mode conflict from real runs</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/automations-plan-light.png" width="100%" alt="The day plan with time and sun triggers and the now line"><br><sub>The day plan with the now line</sub></td>
-<td width="50%"><img src="docs/screenshots/automations-board-dark.png" width="100%" alt="The dependency board of an entity: what sets it"><br><sub>Dependency board; a dot runs when an automation fires</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/automations-phone-dark.png" width="200" alt="The list of automations on the phone"><br><sub>On the phone</sub></td>
-<td width="50%"><img src="docs/screenshots/automations-plan-phone-light.png" width="200" alt="The day plan on the phone as an agenda"><br><sub>The day plan as an agenda</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/automations-phone-dark.png" width="150" alt="The list of automations on the phone"><br><sub>On the phone</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/automations-plan-phone-light.png" width="150" alt="The day plan on the phone as an agenda"><br><sub>The day plan as an agenda</sub></td></tr>
 </table>
+
+<details>
+<summary>4 more pictures</summary>
+
+<p><img src="docs/screenshots/automations-chain-light.png" width="640" alt="Effect chains: sensor, automation, script, device"><br><sub>What led to a switch: the effect chains</sub></p>
+
+<p><img src="docs/screenshots/automations-mode-conflict-light.png" width="640" alt="A mode conflict in the findings of an automation"><br><sub>A mode conflict from real runs</sub></p>
+
+<p><img src="docs/screenshots/automations-plan-light.png" width="640" alt="The day plan with time and sun triggers and the now line"><br><sub>The day plan with the now line</sub></p>
+
+<p><img src="docs/screenshots/automations-board-dark.png" width="640" alt="The dependency board of an entity: what sets it"><br><sub>Dependency board; a dot runs when an automation fires</sub></p>
+
+</details>
+
 
 ### Backup and moving to another host
 
 Settings › Backup saves the whole configuration into one file encrypted with your passphrase (Argon2id, AES-256-GCM): accounts and second factors, connections with their credentials, every name you set, "connected via" entries, drafts, settings and the audit log, optionally history. Automatic backups run on a schedule into the data volume, keep as many files as you choose, and the nightly report says when the newest one is too old. A restore shows first what it replaces, ends every session and works on a new host too, from the first-start page and across architectures (amd64 ↔ arm64). See [docs/BACKUP.md](docs/BACKUP.md).
 
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/backup-settings-light.png" width="100%" alt="Settings, Backup: back up now and automatic backups"><br><sub>Back up now or on a schedule</sub></td>
-<td width="50%"><img src="docs/screenshots/backup-restore-preview-light.png" width="100%" alt="Restore preview comparing now and the backup"><br><sub>Before a restore: what is replaced, what stays, who is signed out</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/backup-settings-light.png" width="150" alt="Settings, Backup: back up now and automatic backups"><br><sub>Back up now or on a schedule</sub></td><td width="50%"></td></tr>
 </table>
+
+<p><img src="docs/screenshots/backup-restore-preview-light.png" width="640" alt="Restore preview comparing now and the backup"><br><sub>Before a restore: what is replaced, what stays, who is signed out</sub></p>
+
 
 ### Storage, counter check and a light map
 
 Settings › Storage shows how much space each kind of data takes and how long it is kept – live history, data paths per hour and per day, availability and events, reports, audit log, scan history – each adjustable. A nightly clean-up removes what is past its retention and compacts the database; the nightly report warns before the disk runs full. Every hour a counter check compares meters that see the same traffic (the router's uplink with NetFlow, this host's interfaces with its connections) and reports traffic counted twice or not at all. The map draws at most 30 frames per second, slows down by itself on a weak device, stops when nobody looks, and is fetched only when something changed. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/storage-light.png" width="100%" alt="Settings, Storage: space per area, retention per kind of data, nightly clean-up, memory"><br><sub>Space per area, retention, nightly clean-up</sub></td>
-<td width="50%"><img src="docs/screenshots/counter-check-dark.png" width="100%" alt="Source view with the counter check and one hour counted twice"><br><sub>Counter check in the source view</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/storage-light.png" width="150" alt="Settings, Storage: space per area, retention per kind of data, nightly clean-up, memory"><br><sub>Space per area, retention, nightly clean-up</sub></td><td width="50%"></td></tr>
 </table>
+
+<p><img src="docs/screenshots/counter-check-dark.png" width="640" alt="Source view with the counter check and one hour counted twice"><br><sub>Counter check in the source view</sub></p>
+
 
 ### API, webhooks and external reports
 
 Settings › API gives every person their own API tokens for scripts and other programs: the scope is never more than the person's role, every token expires, only a fingerprint is stored, and each token has its own request limit. Administrators add webhooks that tell another program about new devices, devices going offline, the internet line, the nightly report or an old backup – every call signed with HMAC-SHA256 and a timestamp, retried with a growing pause, and listed in a delivery log. Other programs can deliver short reports of their own, which show up in the next nightly report. The reference is built from the OpenAPI description the app makes from its own code. See [docs/API.md](docs/API.md).
 
+<p><img src="docs/screenshots/api-webhooks-light.png" width="640" alt="Settings, API: webhooks with their state and the delivery log"><br><sub>Webhooks with their state and the delivery log</sub></p>
+
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/api-webhooks-light.png" width="100%" alt="Settings, API: webhooks with their state and the delivery log"><br><sub>Webhooks with their state and the delivery log</sub></td>
-<td width="50%"><img src="docs/screenshots/api-reference-dark.png" width="100%" alt="Settings, API: reference of the public API with scopes and an example"><br><sub>Reference of the public API, from the OpenAPI description</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/api-reference-dark.png" width="150" alt="Settings, API: reference of the public API with scopes and an example"><br><sub>Reference of the public API, from the OpenAPI description</sub></td><td width="50%"></td></tr>
 </table>
+
 
 ### Colour themes
 
 Settings > Appearance > Colour theme switches the accent palette of the whole app: the map, the traces, the data paths arcs, the firewall views, the charts and the live grades. **Circuit green** is the default and looks as before; **Aurora** uses turquoise, blue and violet on a cool ground. **SummerGlass** and **WinterGlass** are one glass family: every box is a pane of glass with a light edge along its top, a soft sheen and a soft shadow, a glare that crosses it when the pointer rests on it, and soft colour fields behind the panes that shine through - SummerGlass is its light face (sky blue, mint and a warm sun on a bright ground), WinterGlass its dark face (ice blue, teal and polar violet on gunmetal). Picking one of them picks its mode, and switching between light and dark switches between the two. The glass needs no blur, so it stays smooth on small machines, and the glare stands still when the system asks for reduced motion. Circuit green and Aurora work in light, dark and automatic mode, and the choice is remembered per device. Warning and error colours keep their meaning in every theme, and the text and graphic contrast of each theme and mode is checked against WCAG AA in the test suite.
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/theme-circuit-dark.png" width="100%" alt="The map in the Circuit green theme"><br><sub>Circuit green (default)</sub></td>
-<td width="50%"><img src="docs/screenshots/theme-aurora-dark.png" width="100%" alt="The same map in the Aurora theme"><br><sub>Aurora, the same view</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/theme-summerglass.png" width="100%" alt="The control room in the SummerGlass theme"><br><sub>SummerGlass (light)</sub></td>
-<td width="50%"><img src="docs/screenshots/theme-winterglass.png" width="100%" alt="The control room in the WinterGlass theme"><br><sub>WinterGlass (dark)</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/theme-circuit-dark.png" width="640" alt="The map in the Circuit green theme"><br><sub>Circuit green (default)</sub></p>
+
+<p><img src="docs/screenshots/theme-aurora-dark.png" width="640" alt="The same map in the Aurora theme"><br><sub>Aurora, the same view</sub></p>
+
+<details>
+<summary>2 more pictures</summary>
+
+<p><img src="docs/screenshots/theme-summerglass.png" width="640" alt="The control room in the SummerGlass theme"><br><sub>SummerGlass (light)</sub></p>
+
+<p><img src="docs/screenshots/theme-winterglass.png" width="640" alt="The control room in the WinterGlass theme"><br><sub>WinterGlass (dark)</sub></p>
+
+</details>
+
 
 ![Colour theme setting with a preview of each theme](docs/screenshots/colour-theme-picker-light.png)
 
@@ -577,110 +596,119 @@ Only colour values are accepted (hex colours, `rgb()`/`rgba()`, shadows made of 
 
 ![Settings, AI: local and cloud services, order and privacy](docs/screenshots/ai-settings-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/ai-explain-dark.png" width="100%" alt="Explain dialog with the answer, the service and the response time"><br><sub>Explain: a short answer, and where it was made</sub></td>
-<td width="50%"><img src="docs/screenshots/ai-preview-light.png" width="100%" alt="Preview of the exact text that is sent, with placeholders"><br><sub>Preview what is sent: placeholders instead of addresses and names</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/ai-explain-dark.png" width="640" alt="Explain dialog with the answer, the service and the response time"><br><sub>Explain: a short answer, and where it was made</sub></p>
+
+<p><img src="docs/screenshots/ai-preview-light.png" width="640" alt="Preview of the exact text that is sent, with placeholders"><br><sub>Preview what is sent: placeholders instead of addresses and names</sub></p>
+
 
 ![Another computer: one-time setup code and one command per operating system](docs/screenshots/ai-other-computer-light.png)
 
 ![Ask your network: answers with links to the devices and views concerned](docs/screenshots/ask-light.png)
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/report-plain-dark.png" width="100%" alt="Nightly report with the paragraph In plain words above the rule-based report"><br><sub>In plain words: an AI paragraph above the report, which stays the reference</sub></td>
-<td width="50%"><img src="docs/screenshots/identify-suggestion-light.png" width="100%" alt="AI suggestion for an unknown device with its reason, confirm or dismiss"><br><sub>Unknown device: a suggestion with its reason; nothing changes until you confirm</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/firewall-ai-suggestions-dark.png" width="100%" alt="AI suggestions for moving devices to other networks"><br><sub>Firewall: suggestions to pick from</sub></td>
-<td width="50%"><img src="docs/screenshots/firewall-ai-draft-light.png" width="100%" alt="The chosen suggestions in the draft bar, waiting for the preview"><br><sub>Taken over as a draft: the usual preview and confirmation follow</sub></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/report-plain-dark.png" width="640" alt="Nightly report with the paragraph In plain words above the rule-based report"><br><sub>In plain words: an AI paragraph above the report, which stays the reference</sub></p>
+
+<p><img src="docs/screenshots/identify-suggestion-light.png" width="640" alt="AI suggestion for an unknown device with its reason, confirm or dismiss"><br><sub>Unknown device: a suggestion with its reason; nothing changes until you confirm</sub></p>
+
+<details>
+<summary>2 more pictures</summary>
+
+<p><img src="docs/screenshots/firewall-ai-suggestions-dark.png" width="640" alt="AI suggestions for moving devices to other networks"><br><sub>Firewall: suggestions to pick from</sub></p>
+
+<p><img src="docs/screenshots/firewall-ai-draft-light.png" width="640" alt="The chosen suggestions in the draft bar, waiting for the preview"><br><sub>Taken over as a draft: the usual preview and confirmation follow</sub></p>
+
+</details>
+
 
 ### Inventory
 
 ![Inventory: warranty, end of updates, states and the reasons for "probably gone"](docs/screenshots/inventory-light.png)
 
+<p><img src="docs/screenshots/inventory-edit-light.png" width="640" alt="The sheet of one device: purpose, room, purchase, warranty, person, serial number"><br><sub>The sheet of one device: what it is for, where it stands, how long it is covered</sub></p>
+
+<p><img src="docs/screenshots/inventory-bulk-light.png" width="640" alt="Editing several devices at once"><br><sub>Several devices at once (own fields only)</sub></p>
+
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/inventory-edit-light.png" width="100%" alt="The sheet of one device: purpose, room, purchase, warranty, person, serial number"><br><sub>The sheet of one device: what it is for, where it stands, how long it is covered</sub></td>
-<td width="50%"><img src="docs/screenshots/inventory-bulk-light.png" width="100%" alt="Editing several devices at once"><br><sub>Several devices at once (own fields only)</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/inventory-dark.png" width="100%" alt="Inventory, dark theme, a device that is probably gone"><br><sub>A device that is probably gone, with the reasons</sub></td>
-<td width="50%"><img src="docs/screenshots/inventory-phone-dark.png" width="200" alt="Inventory on the phone"><br><sub>On the phone the table becomes cards</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/inventory-phone-dark.png" width="150" alt="Inventory on the phone"><br><sub>On the phone the table becomes cards</sub></td><td width="50%"></td></tr>
 </table>
+
+<details>
+<summary>1 more picture</summary>
+
+<p><img src="docs/screenshots/inventory-dark.png" width="640" alt="Inventory, dark theme, a device that is probably gone"><br><sub>A device that is probably gone, with the reasons</sub></p>
+
+</details>
+
 
 ### Export and import
 
 ![The export page: plan as PDF, SVG or draw.io, inventory as CSV or JSON, redact option, import of own fields](docs/screenshots/export-page-light.png)
 
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/export-plan-light.png" width="100%" alt="The network plan as a document: zones as boards, devices as pads"><br><sub>The plan as SVG, PDF or draw.io: zones as boards, devices as pads, lines in the gaps</sub></td>
-<td width="50%"><img src="docs/screenshots/export-pdf-print.png" width="100%" alt="One page of the PDF in the print-friendly look"><br><sub>One page of the PDF, print-friendly (state also in words)</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/export-import-light.png" width="100%" alt="Import of own fields: the check lists rows that would change and rows that are wrong"><br><sub>Import of own fields: check first, then apply</sub></td>
-<td width="50%"><img src="docs/screenshots/export-phone-dark.png" width="200" alt="The export page on a phone"><br><sub>On the phone the options and buttons stack</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/export-plan-light.png" width="150" alt="The network plan as a document: zones as boards, devices as pads"><br><sub>The plan as SVG, PDF or draw.io: zones as boards, devices as pads, lines in the gaps</sub></td><td width="50%"></td></tr>
 </table>
+
+<p><img src="docs/screenshots/export-pdf-print.png" width="640" alt="One page of the PDF in the print-friendly look"><br><sub>One page of the PDF, print-friendly (state also in words)</sub></p>
+
+<p><img src="docs/screenshots/export-import-light.png" width="640" alt="Import of own fields: the check lists rows that would change and rows that are wrong"><br><sub>Import of own fields: check first, then apply</sub></p>
+
+<table>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/export-phone-dark.png" width="150" alt="The export page on a phone"><br><sub>On the phone the options and buttons stack</sub></td><td width="50%"></td></tr>
+</table>
+
 
 ### Vulnerability hints
 
 ![Vulnerability hints: severity, exploited in the wild, certain or possible, why, and what to do](docs/screenshots/vulns-light.png)
 
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/vulns-card-light.png" width="100%" alt="The Vulnerabilities block in the card of a device"><br><sub>The block in the device card</sub></td>
-<td width="50%"><img src="docs/screenshots/vulns-phone-dark.png" width="200" alt="Vulnerability hints on the phone"><br><sub>On the phone, dark theme</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/vulns-card-light.png" width="150" alt="The Vulnerabilities block in the card of a device"><br><sub>The block in the device card</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/vulns-phone-dark.png" width="150" alt="Vulnerability hints on the phone"><br><sub>On the phone, dark theme</sub></td></tr>
 </table>
+
 
 ### Availability and stability
 
 ![Stability: 35 days per device, gaps, repair time, wobbly candidates](docs/screenshots/stability-light.png)
 
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/availability-card-light.png" width="100%" alt="The card of a wobbly device: availability in the last 24 hours, 35 daily bars and the last gaps"><br><sub>The card of a wobbly device</sub></td>
-<td width="50%"><img src="docs/screenshots/traffic-card-dark.png" width="100%" alt="Traffic of a router over 24 hours with exact values under the pointer"><br><sub>Traffic over 24 hours, exact values under the pointer</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/traffic-full-light.png" width="100%" alt="The traffic plot full screen"><br><sub>The plot full screen</sub></td>
-<td width="50%"><img src="docs/screenshots/tile-hover-light.png" width="100%" alt="The hover window of a map tile with traffic and availability"><br><sub>Hover window on the map</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/stability-phone-light.png" width="200" alt="The Stability list on the phone"><br><sub>Stability on the phone</sub></td>
-<td width="50%"><img src="docs/screenshots/availability-phone-dark.png" width="200" alt="The card of a device on the phone"><br><sub>The card on the phone</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/availability-card-light.png" width="150" alt="The card of a wobbly device: availability in the last 24 hours, 35 daily bars and the last gaps"><br><sub>The card of a wobbly device</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/traffic-card-dark.png" width="150" alt="Traffic of a router over 24 hours with exact values under the pointer"><br><sub>Traffic over 24 hours, exact values under the pointer</sub></td></tr>
 </table>
+
+<p><img src="docs/screenshots/traffic-full-light.png" width="640" alt="The traffic plot full screen"><br><sub>The plot full screen</sub></p>
+
+<p><img src="docs/screenshots/tile-hover-light.png" width="640" alt="The hover window of a map tile with traffic and availability"><br><sub>Hover window on the map</sub></p>
+
+<table>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/stability-phone-light.png" width="150" alt="The Stability list on the phone"><br><sub>Stability on the phone</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/availability-phone-dark.png" width="150" alt="The card of a device on the phone"><br><sub>The card on the phone</sub></td></tr>
+</table>
+
 
 ### Failure chain and outages
 
 ![The failure chain of a switch: the root framed, a stage mark on every part that hangs on it, the numbers by kind above the board](docs/screenshots/failure-chain-light.png)
 
+<p><img src="docs/screenshots/failure-list-light.png" width="640" alt="The list by stages with the reason of every part"><br><sub>The list by stages, with the reason of every part</sub></p>
+
+<p><img src="docs/screenshots/failure-sim-dark.png" width="640" alt="Simulated maintenance of a virtualization host: what stops red, what is only impaired yellow"><br><sub>Simulated maintenance: what stops red, what is impaired yellow</sub></p>
+
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/failure-list-light.png" width="100%" alt="The list by stages with the reason of every part"><br><sub>The list by stages, with the reason of every part</sub></td>
-<td width="50%"><img src="docs/screenshots/failure-sim-dark.png" width="100%" alt="Simulated maintenance of a virtualization host: what stops red, what is only impaired yellow"><br><sub>Simulated maintenance: what stops red, what is impaired yellow</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/failure-outage-light.png" width="100%" alt="The outage note above the board and the dashed parts behind the access point that is down"><br><sub>The outage automatic: a note and the parts it probably reaches</sub></td>
-<td width="50%"><img src="docs/screenshots/failure-card-light.png" width="100%" alt="The card section Dependencies with a dependency entered by hand"><br><sub>Dependencies on the card, entered by hand: hard, soft or none</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/failure-hover-light.png" width="100%" alt="Hovering a tile lights only the traces it needs on its way up"><br><sub>Hovering a tile: only the traces it needs</sub></td>
-<td width="50%"><img src="docs/screenshots/failure-palette-light.png" width="100%" alt="The command Show failure chain asks for the part in a second step"><br><sub>Search and commands: the part in a second step</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/failure-phone-outage-dark.png" width="300" alt="The outage note on a phone"><br><sub>The outage note on the phone</sub></td>
-<td width="50%"><img src="docs/screenshots/failure-phone-chain-dark.png" width="300" alt="The failure chain as a sheet on a phone"><br><sub>The chain as a sheet on the phone</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/failure-card-light.png" width="150" alt="The card section Dependencies with a dependency entered by hand"><br><sub>Dependencies on the card, entered by hand: hard, soft or none</sub></td><td width="50%"></td></tr>
 </table>
+
+<table>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/failure-phone-outage-dark.png" width="150" alt="The outage note on a phone"><br><sub>The outage note on the phone</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/failure-phone-chain-dark.png" width="150" alt="The failure chain as a sheet on a phone"><br><sub>The chain as a sheet on the phone</sub></td></tr>
+</table>
+
+<details>
+<summary>3 more pictures</summary>
+
+<p><img src="docs/screenshots/failure-outage-light.png" width="640" alt="The outage note above the board and the dashed parts behind the access point that is down"><br><sub>The outage automatic: a note and the parts it probably reaches</sub></p>
+
+<p><img src="docs/screenshots/failure-hover-light.png" width="640" alt="Hovering a tile lights only the traces it needs on its way up"><br><sub>Hovering a tile: only the traces it needs</sub></p>
+
+<p><img src="docs/screenshots/failure-palette-light.png" width="640" alt="The command Show failure chain asks for the part in a second step"><br><sub>Search and commands: the part in a second step</sub></p>
+
+</details>
+
 
 ### Rewind and incident files
 
@@ -697,39 +725,44 @@ interface - are noticed as soon as two reads in a row agree and listed under *Wh
 *Timeline & data state* (firmware jumps, own updates, new devices, long outages) answer "when does this happen?". The
 nightly report has a section *Incidents of the night*. See the [manual page](docs/manual/incidents.md).
 
+<p><img src="docs/screenshots/incidents-light.png" width="640" alt="The incidents page with the 90-day calendar, the heatmap of the last week and the list"><br><sub>Incidents: calendar, heatmap by hour, the list</sub></p>
+
+<p><img src="docs/screenshots/incident-file-light.png" width="640" alt="The file of an outage of the core switch with root, firmware jump before, timeline and measurements"><br><sub>An incident file: root, what changed before, timeline</sub></p>
+
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/incidents-light.png" width="100%" alt="The incidents page with the 90-day calendar, the heatmap of the last week and the list"><br><sub>Incidents: calendar, heatmap by hour, the list</sub></td>
-<td width="50%"><img src="docs/screenshots/incident-file-light.png" width="100%" alt="The file of an outage of the core switch with root, firmware jump before, timeline and measurements"><br><sub>An incident file: root, what changed before, timeline</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/rewind-7d-light.png" width="100%" alt="The rewind of 7 days at the outage of the core switch three days ago"><br><sub>Seven days back: the core switch and what went with it</sub></td>
-<td width="50%"><img src="docs/screenshots/incidents-chronicle-light.png" width="100%" alt="Timeline and data state with firmware jumps, own updates and new devices"><br><sub>Timeline &amp; data state, collected once a day</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/rewind-phone-dark.png" width="300" alt="The rewind on a phone"><br><sub>The rewind on the phone</sub></td>
-<td width="50%"><img src="docs/screenshots/incident-file-phone-dark.png" width="300" alt="An incident file on a phone"><br><sub>An incident file on the phone</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/incident-rule-changes-light.png" width="100%" alt="What changed before an outage: a zone pair opened from the internet, a new rule, a port forward switched on and a firmware jump"><br><sub>Rule changes made outside Lanloom in the day before an outage</sub></td>
-<td width="50%"><img src="docs/screenshots/now-rule-change-phone-light.png" width="300" alt="The change list on a phone with a rule that was moved"><br><sub>The same kind of change in the list of recent changes</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/rewind-phone-dark.png" width="150" alt="The rewind on a phone"><br><sub>The rewind on the phone</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/incident-file-phone-dark.png" width="150" alt="An incident file on a phone"><br><sub>An incident file on the phone</sub></td></tr>
 </table>
+
+<table>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/now-rule-change-phone-light.png" width="150" alt="The change list on a phone with a rule that was moved"><br><sub>The same kind of change in the list of recent changes</sub></td><td width="50%"></td></tr>
+</table>
+
+<details>
+<summary>3 more pictures</summary>
+
+<p><img src="docs/screenshots/rewind-7d-light.png" width="640" alt="The rewind of 7 days at the outage of the core switch three days ago"><br><sub>Seven days back: the core switch and what went with it</sub></p>
+
+<p><img src="docs/screenshots/incidents-chronicle-light.png" width="640" alt="Timeline and data state with firmware jumps, own updates and new devices"><br><sub>Timeline &amp; data state, collected once a day</sub></p>
+
+<p><img src="docs/screenshots/incident-rule-changes-light.png" width="640" alt="What changed before an outage: a zone pair opened from the internet, a new rule, a port forward switched on and a firmware jump"><br><sub>Rule changes made outside Lanloom in the day before an outage</sub></p>
+
+</details>
+
 
 ### Services, web interfaces and certificates
 
 ![Links: every web interface with the state of its probe and the certificate clock](docs/screenshots/links-light.png)
 
 <table>
-<tr>
-<td width="50%"><img src="docs/screenshots/services-card-light.png" width="100%" alt="The card of a device with its services, versions and states"><br><sub>The Services section of a device card</sub></td>
-<td width="50%"><img src="docs/screenshots/links-certs-light.png" width="100%" alt="The certificate clock: expired, red, yellow, hint and valid certificates"><br><sub>The certificate clock</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/links-phone-light.png" width="200" alt="The Links view on the phone"><br><sub>Links on the phone</sub></td>
-<td width="50%"><img src="docs/screenshots/services-phone-light.png" width="200" alt="The services of a device on the phone"><br><sub>The services of a device on the phone</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/services-card-light.png" width="150" alt="The card of a device with its services, versions and states"><br><sub>The Services section of a device card</sub></td><td width="50%"></td></tr>
 </table>
+
+<p><img src="docs/screenshots/links-certs-light.png" width="640" alt="The certificate clock: expired, red, yellow, hint and valid certificates"><br><sub>The certificate clock</sub></p>
+
+<table>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/links-phone-light.png" width="150" alt="The Links view on the phone"><br><sub>Links on the phone</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/services-phone-light.png" width="150" alt="The services of a device on the phone"><br><sub>The services of a device on the phone</sub></td></tr>
+</table>
+
 
 ### Devices and settings
 
@@ -740,63 +773,46 @@ nightly report has a section *Incidents of the night*. See the [manual page](doc
 ### On the phone
 
 <table>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/now-phone-dark.png" width="100%" alt="Phone: Now with the health ring"><br><sub>Now: health ring, sites, changes</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/focus-phone-dark.png" width="100%" alt="Phone: Focus, one device with its partners in a ring"><br><sub>Focus: one device, its partners in a ring</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/energy-phone-dark.png" width="100%" alt="Phone: energy flow"><br><sub>Energy: the dots carry watts</sub></td>
-</tr>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/phone-overview.png" width="100%" alt="Phone: overview start page"><br><sub>Overview start page</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-rail.png" width="100%" alt="Phone: the Right now rail"><br><sub>The Right now rail</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-map-light.png" width="100%" alt="Phone: map, light"><br><sub>Map, light</sub></td>
-</tr>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/phone-detail.png" width="100%" alt="Phone: component card"><br><sub>Component card</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-devices.png" width="100%" alt="Phone: device list"><br><sub>Device list</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-paths.png" width="100%" alt="Phone: data paths"><br><sub>Data paths</sub></td>
-</tr>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/phone-reports.png" width="100%" alt="Phone: nightly report"><br><sub>Nightly report</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-firewall-rules.png" width="100%" alt="Phone: firewall rules read from the controller"><br><sub>Firewall rules read from the controller</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-ask.png" width="100%" alt="Phone: Ask your network"><br><sub>Ask your network</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/now-phone-dark.png" width="150" alt="Phone: Now with the health ring"><br><sub>Now: health ring, sites, changes</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/focus-phone-dark.png" width="150" alt="Phone: Focus, one device with its partners in a ring"><br><sub>Focus: one device, its partners in a ring</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/energy-phone-dark.png" width="150" alt="Phone: energy flow"><br><sub>Energy: the dots carry watts</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-overview.png" width="150" alt="Phone: overview start page"><br><sub>Overview start page</sub></td></tr>
 </table>
+
+<details>
+<summary>8 more pictures</summary>
+
+<table>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-rail.png" width="150" alt="Phone: the Right now rail"><br><sub>The Right now rail</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-map-light.png" width="150" alt="Phone: map, light"><br><sub>Map, light</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-detail.png" width="150" alt="Phone: component card"><br><sub>Component card</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-devices.png" width="150" alt="Phone: device list"><br><sub>Device list</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-paths.png" width="150" alt="Phone: data paths"><br><sub>Data paths</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-reports.png" width="150" alt="Phone: nightly report"><br><sub>Nightly report</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-firewall-rules.png" width="150" alt="Phone: firewall rules read from the controller"><br><sub>Firewall rules read from the controller</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-ask.png" width="150" alt="Phone: Ask your network"><br><sub>Ask your network</sub></td></tr>
+</table>
+
+</details>
+
 
 <details>
 <summary>More phone screenshots</summary>
 
 <table>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/phone-map-dark.png" width="100%" alt="Phone: map, dark"><br><sub>Map, dark</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-connection.png" width="100%" alt="Phone: connection of a device"><br><sub>Connection of a device</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-identity.png" width="100%" alt="Phone: two addresses that may be one device"><br><sub>Two addresses that may be one device</sub></td>
-</tr>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/phone-paths-full.png" width="100%" alt="Phone: world map in full screen"><br><sub>World map in full screen</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-netflow-settings.png" width="100%" alt="Phone: NetFlow / IPFIX receiver settings"><br><sub>NetFlow / IPFIX receiver settings</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-onsite.png" width="100%" alt="Phone: sensors on site, batteries and silent radio devices"><br><sub>Sensors on site, batteries and silent radio devices</sub></td>
-</tr>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/phone-sensor-page.png" width="100%" alt="Phone: sensor page with the course of one sensor"><br><sub>Sensor page with the course of one sensor</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-storage.png" width="100%" alt="Phone: storage settings"><br><sub>Storage settings</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-api.png" width="100%" alt="Phone: webhooks in Settings, API"><br><sub>Webhooks in Settings, API</sub></td>
-</tr>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/phone-ai-explain.png" width="100%" alt="Phone: AI explanation of a device"><br><sub>AI explanation of a device</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-palette-search.png" width="100%" alt="Phone: search and commands"><br><sub>Search and commands</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-palette-values.png" width="100%" alt="Phone: value filter in the search"><br><sub>Value filter in the search</sub></td>
-</tr>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/phone-report-plain.png" width="100%" alt="Phone: nightly report in plain words"><br><sub>Nightly report in plain words</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-wizard-scan.png" width="100%" alt="Phone: wizard scan step"><br><sub>Wizard scan step</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-firewall-move.png" width="100%" alt="Phone: move a device to another network"><br><sub>Move a device to another network</sub></td>
-</tr>
-<tr>
-<td width="33%" align="center"><img src="docs/screenshots/phone-firewall-device.png" width="100%" alt="Phone: rename a device or give it a fixed address"><br><sub>Rename a device or give it a fixed address</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-firewall-preview.png" width="100%" alt="Phone: firewall preview"><br><sub>Firewall preview</sub></td>
-<td width="33%" align="center"><img src="docs/screenshots/phone-hypervisor-nic.png" width="100%" alt="Phone: move a guest's network card to another VLAN"><br><sub>Move a guest's network card to another VLAN</sub></td>
-</tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-map-dark.png" width="150" alt="Phone: map, dark"><br><sub>Map, dark</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-connection.png" width="150" alt="Phone: connection of a device"><br><sub>Connection of a device</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-identity.png" width="150" alt="Phone: two addresses that may be one device"><br><sub>Two addresses that may be one device</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-paths-full.png" width="150" alt="Phone: world map in full screen"><br><sub>World map in full screen</sub></td></tr>
 </table>
+
+<details>
+<summary>14 more pictures</summary>
+
+<table>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-netflow-settings.png" width="150" alt="Phone: NetFlow / IPFIX receiver settings"><br><sub>NetFlow / IPFIX receiver settings</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-onsite.png" width="150" alt="Phone: sensors on site, batteries and silent radio devices"><br><sub>Sensors on site, batteries and silent radio devices</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-sensor-page.png" width="150" alt="Phone: sensor page with the course of one sensor"><br><sub>Sensor page with the course of one sensor</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-storage.png" width="150" alt="Phone: storage settings"><br><sub>Storage settings</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-api.png" width="150" alt="Phone: webhooks in Settings, API"><br><sub>Webhooks in Settings, API</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-ai-explain.png" width="150" alt="Phone: AI explanation of a device"><br><sub>AI explanation of a device</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-palette-search.png" width="150" alt="Phone: search and commands"><br><sub>Search and commands</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-palette-values.png" width="150" alt="Phone: value filter in the search"><br><sub>Value filter in the search</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-report-plain.png" width="150" alt="Phone: nightly report in plain words"><br><sub>Nightly report in plain words</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-wizard-scan.png" width="150" alt="Phone: wizard scan step"><br><sub>Wizard scan step</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-firewall-move.png" width="150" alt="Phone: move a device to another network"><br><sub>Move a device to another network</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-firewall-device.png" width="150" alt="Phone: rename a device or give it a fixed address"><br><sub>Rename a device or give it a fixed address</sub></td></tr>
+<tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-firewall-preview.png" width="150" alt="Phone: firewall preview"><br><sub>Firewall preview</sub></td><td width="50%" align="center" valign="top"><img src="docs/screenshots/phone-hypervisor-nic.png" width="150" alt="Phone: move a guest's network card to another VLAN"><br><sub>Move a guest's network card to another VLAN</sub></td></tr>
+</table>
+
+</details>
+
 
 </details>
 
@@ -856,27 +872,22 @@ Devices are classified by deterministic rules (gateway or self role, DNS-SD type
 
 Every device card shows the maker (what the device says itself, otherwise the public IEEE address register that ships with the image and is never fetched at run time), model, firmware, IPv6 addresses and the origin of the hardware address. A private (random) address never gets a maker. Two addresses of one device (two network cards, cable and radio) are drawn as one component when the evidence is strong (same UPnP device id, same SNMP system name, same NetBIOS or mDNS name, neighbouring addresses on the same port); weaker cases are offered as a suggestion, and every grouping can be undone. The nightly report names the maker of new devices and does not report a second interface of a known device as new. Details: [docs/DISCOVERY.md](docs/DISCOVERY.md).
 
-<table>
-<tr>
-<td><img src="docs/screenshots/identity-light.png" width="380" alt="Device card with maker, model, firmware and a second interface, light"></td>
-<td><img src="docs/screenshots/identity-dark.png" width="380" alt="The same card, dark"></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/identity-light.png" width="170" alt="Device card with maker, model, firmware and a second interface, light">
+<img src="docs/screenshots/identity-dark.png" width="170" alt="The same card, dark"></p>
+
 
 ### Networks, VLANs, devices without an address, scan protection
 
 *Settings › Network* lists every network and VLAN Lanloom knows. It scans only what it reaches directly; behind a router it fills a network from the controller's data and sends nothing into it, unless you agree to a gentle scan across that router. Devices that only a controller or a switch knows (other VLANs, hardware addresses without an IP address) join the inventory without a scan, and a second network card without an address folds into its device when the evidence is strong. A protection list keeps printers off their raw printing ports, industrial controllers to the web ports and medical or payment systems completely passive. The catalog of what can be connected shows, per device, which source fits (read-only first); entries that are not available yet say so. Details: [docs/DISCOVERY.md](docs/DISCOVERY.md).
 
-<table>
-<tr>
-<td><img src="docs/screenshots/network-vlans-light.png" width="380" alt="Network map with a zone for each VLAN"></td>
-<td><img src="docs/screenshots/network-zones-light.png" width="380" alt="Settings: networks and VLANs with their reach"></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/network-connect-light.png" width="380" alt="What can be connected: planned entries show their steps"></td>
-<td><img src="docs/screenshots/phone-network-protect.png" width="200" alt="Phone: scan protection list"></td>
-</tr>
-</table>
+<p><img src="docs/screenshots/network-vlans-light.png" width="640" alt="Network map with a zone for each VLAN"></p>
+
+<p><img src="docs/screenshots/network-zones-light.png" width="170" alt="Settings: networks and VLANs with their reach"></p>
+
+<p><img src="docs/screenshots/network-connect-light.png" width="640" alt="What can be connected: planned entries show their steps"></p>
+
+<p><img src="docs/screenshots/phone-network-protect.png" width="170" alt="Phone: scan protection list"></p>
+
 
 ## Live data and integrations
 
