@@ -223,7 +223,8 @@ def test_glass_needs_no_blur():
     assert "backdrop-filter" not in css and "filter:" not in css, "the glass is light and layers, never a blur (budget of small machines)"
     assert "prefers-reduced-motion" in css and "transition" in css
     html = read("index.html")
-    assert html.index("css/handy.css") < html.index("css/glass.css"), "the glass is laid over the components, so it loads after them"
+    assert html.index("css/app.css") < html.index("css/energy.css") < html.index("css/glass.css") < html.index("css/handy.css"), \
+        "the glass is laid over the components, so it loads after them, and before the phone rules, which come last"
 
 
 def test_glass_family_is_listed_and_shares_its_blocks():
