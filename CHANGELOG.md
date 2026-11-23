@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- **The data path maps and the energy figure no longer draw a frame for every refresh of the screen.** On a 120 or 166 Hz monitor the moving dots of the world map (Rain and Real cables, also in the country sheet) and of the energy figure were redrawn 120-166 times a second, which kept the graphics card busy for a calm animation. One shared frame gate now caps them by the motion setting, like the network board: Auto 30, Full 60, Saver 15 frames per second, Off none. The old step-down on slow frames stays below that ceiling, the dots still move by the clock (same speed at any rate), pause out of view and in a hidden tab, and stand still with reduced motion.
+
 ## [1.62.0] – 2026-11-23
 
 1.60.0 and 1.61.0 below were not released on their own; they are part of this release.

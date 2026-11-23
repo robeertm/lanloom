@@ -229,8 +229,9 @@
     stage.appendChild(cv);
     const css = getComputedStyle(stage);
     const col = { out: css.getPropertyValue('--pw-dot-out').trim() || '#C98600', eu: css.getPropertyValue('--pw-dot-eu').trim() || '#0C7A6A' };
-    const anim = { raf: 0, ro: null, io: null, visible: true, level: 1, cv, stop: null };
-    let scale = 1, dpr = 1, last = 0, avg = 16.7, prev = 0, calmSince = 0;
+    const anim = { raf: 0, ro: null, io: null, visible: true, cv, stop: null };
+    let scale = 1, dpr = 1, wiped = false;
+    const gate = anim.gate = LL.frameGate();
     const size = () => {
       const r = stage.getBoundingClientRect(), rs = svg.getBoundingClientRect();
       dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -251,15 +252,12 @@
     const frame = ts => {
       anim.raf = requestAnimationFrame(frame);
       if (!cv.isConnected) { anim.stop(); return; }
-      if (document.hidden || !anim.visible) { prev = 0; return; }
-      if (prev) {
-        avg += (Math.min(200, ts - prev) - avg) * 0.05;
-        if (avg > 22 && anim.level < 3) { anim.level++; avg = 16.7; calmSince = ts; }
-        else if (avg < 18.5 && anim.level > 1 && ts - calmSince > 10000) { anim.level--; calmSince = ts; }
+      if (document.hidden || !anim.visible) { gate.reset(); return; }
+      if (!gate.draw(ts)) {
+        if (gate.off() && !wiped) { wiped = true; cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); }
+        return;
       }
-      prev = ts;
-      if (anim.level > 1 && ts - last < 1000 / (60 / anim.level) - 1) return;
-      last = ts;
+      wiped = false;
       const c = cv.getContext('2d'), vb = svg.viewBox.baseVal, kz = scale * W / vb.width;
       c.setTransform(1, 0, 0, 1, 0, 0);
       c.clearRect(0, 0, cv.width, cv.height);

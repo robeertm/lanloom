@@ -64,8 +64,12 @@
     }
     anim.paths.push({ path, dots, len: 0, off: Math.random() });
   }
+  const gate = LL.frameGate();
   function tick(ts) {
     anim.raf = 0;
+    if (document.hidden) { gate.reset(); return; }
+    // frame ceiling by the motion setting (O14); the dots move by the clock (dt below), so skipped frames cost nothing in speed
+    if (!gate.draw(ts) && !reduced()) { anim.raf = requestAnimationFrame(tick); return; }
     const live = anim.paths.filter(p => p.path.isConnected);
     if (!live.length) { anim.paths = []; return; }
     anim.paths = live;
