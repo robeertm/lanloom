@@ -57,6 +57,9 @@ TALK_HALF_S = 300                # live conversations fade with this half-life
 TALK_MIN = 2048
 MAX_TALK = 300
 SAVE_EVERY = 60
+SEEN_WRITE_S = 300                # "last seen" reaches the database at most this often (the exact time lives in memory)
+STATE_WRITE_S = 300               # state that only moved in its live numbers (load, rates) is written at most this often
+VOLATILE_ITEM = ("t", "rate", "tx", "rx")      # per-container fields that change with every report
 NAME_RX = re.compile(r"[^\w .@()+-]+", re.UNICODE)
 
 SCHEMA = """
@@ -111,11 +114,46 @@ class AgentHub:
         self._events: dict = {}            # (agent, key) -> True while a condition is announced
         self._runtimes: dict = {}          # proxy id -> Runtime (keeps the inspect cache)
         self.agents_cache = None
+        self._seen: dict = {}              # agent id -> [last seen, version, last seen as stored] (B9: written every 5 min)
+        self._stored: dict = {}            # agent id -> {"facts": digest, "state": digest, "stable": digest, "t": written}
         self._load()
 
     # ------------------------------------------------------------------ rows
     def _rows(self) -> list:
-        return self.store.query("SELECT * FROM agent_hosts ORDER BY created")
+        return [self._overlay(r) for r in self.store.query("SELECT * FROM agent_hosts ORDER BY created")]
+
+    def _overlay(self, row: dict) -> dict:
+        """The stored row with the exact "last seen" and version from memory (the database lags up to 5 minutes)."""
+        mem = self._seen.get(row["id"])
+        if mem is not None and (row["last_seen"] or 0) <= mem[0]:
+            row["last_seen"] = mem[0]
+            if mem[1] is not None:
+                row["version"] = mem[1]
+        return row
+
+    def touch(self, aid: str, now: float, version: Optional[str] = None) -> None:
+        """Note that a host reported (or a proxy answered). Written at once for the first contact, a new version or
+        when the stored time is older than SEEN_WRITE_S; otherwise only kept in memory until the next save."""
+        aid = str(aid)[:40]
+        mem = self._seen.get(aid)
+        if mem is None:
+            row = self.store.one("SELECT last_seen, version FROM agent_hosts WHERE id=?", (aid,))
+            if row is None:
+                return
+            mem = self._seen[aid] = [row["last_seen"] or 0, row["version"], row["last_seen"] or 0]
+        new_version = version is not None and version != mem[1]
+        mem[0] = max(mem[0], now)
+        if version is not None:
+            mem[1] = version
+        if new_version or not mem[2] or now - mem[2] >= SEEN_WRITE_S:
+            self._write_seen(aid, mem)
+
+    def _write_seen(self, aid: str, mem: list) -> None:
+        if mem[1] is None:
+            self.store.execute("UPDATE agent_hosts SET last_seen=? WHERE id=?", (mem[0], aid))
+        else:
+            self.store.execute("UPDATE agent_hosts SET last_seen=?, version=? WHERE id=?", (mem[0], mem[1], aid))
+        mem[2] = mem[0]
 
     def _load(self) -> None:
         for r in self._rows():
@@ -126,10 +164,15 @@ class AgentHub:
             st.setdefault("known_names", [])
             st["t"] = r["last_seen"] or 0
             self.live[r["id"]] = st
+            keep = _keep(st)
+            self._stored[r["id"]] = {"facts": _digest(r["facts"] or "{}"), "state": _digest(_dump(keep)),
+                                     "stable": _digest(_dump(_stable(keep))), "t": self.clock()}
 
     def reload(self) -> None:
         """After a restore: forget the in-memory state and read the restored entries."""
         self.live.clear()
+        self._seen.clear()
+        self._stored.clear()
         self.talk_acc.clear()
         self._events.clear()
         self._runtimes.clear()
@@ -138,7 +181,8 @@ class AgentHub:
         self.version += 1
 
     def _row(self, aid: str) -> Optional[dict]:
-        return self.store.one("SELECT * FROM agent_hosts WHERE id=?", (str(aid)[:40],))
+        row = self.store.one("SELECT * FROM agent_hosts WHERE id=?", (str(aid)[:40],))
+        return self._overlay(row) if row else None
 
     def entries(self) -> list:
         """All agents and proxies for the settings (never a token or its hash)."""
@@ -314,7 +358,7 @@ class AgentHub:
                 continue                        # older than the buffer can hold: dropped
             self.ingest_report(aid, rep, t, now)
             latest = max(latest, t)
-        self.store.execute("UPDATE agent_hosts SET last_seen=?, version=? WHERE id=?", (now, version, aid))
+        self.touch(aid, now, version)
         return {"ok": True, "server_version": __version__, "interval": REPORT_S}
 
     def ingest_report(self, aid: str, rep: dict, t: float, now: Optional[float] = None) -> None:
@@ -324,8 +368,14 @@ class AgentHub:
             fresh = t >= st.get("t", 0) - 1
             if isinstance(rep.get("host"), dict):
                 facts = self._facts(rep["host"])
-                self.store.execute("UPDATE agent_hosts SET facts=? WHERE id=?", (json.dumps(facts, separators=(",", ":")), aid))
-                self._resolve_device(aid, facts)
+                raw = _dump(facts)
+                rec = self._stored.setdefault(aid, {})
+                if rec.get("facts") != _digest(raw):           # the host facts rarely change: written only then
+                    self.store.execute("UPDATE agent_hosts SET facts=? WHERE id=?", (raw, aid))
+                    rec["facts"] = _digest(raw)
+                    self._resolve_device(aid, facts)
+                elif not self.device_of(aid):
+                    self._resolve_device(aid, facts)
             dev = self.device_of(aid)
             self._book_flows(aid, dev, rep.get("flows") or [], t, now)
             if not fresh:
@@ -386,7 +436,7 @@ class AgentHub:
                     break
         if not dev and facts.get("ips") and facts.get("macs") and not getattr(core, "demo", None):
             dev = self._add_device(facts)
-        if dev:
+        if dev and (self.agents_cache or {}).get(aid) != dev:
             self.store.execute("UPDATE agent_hosts SET device=? WHERE id=?", (dev, aid))
             self.agents_cache = None
         return dev
@@ -614,7 +664,7 @@ class AgentHub:
                     st["t"] = st["seen"] = now
                     self._apply_containers(r["id"], st, scrub.strip(part), now)
                     self._sample(r["id"], st, now)
-                self.store.execute("UPDATE agent_hosts SET last_seen=? WHERE id=?", (now, r["id"]))
+                self.touch(r["id"], now)
                 if not self.device_of(r["id"]):
                     self._resolve_device(r["id"], json.loads(r["facts"] or "{}"))
             except ct_mod.SourceError as exc:
@@ -679,12 +729,35 @@ class AgentHub:
         now = self.clock() if now is None else now
         self.store.execute("DELETE FROM agent_samples WHERE slot < ?", (int((now - KEEP_SAMPLE_DAYS * 86400) // SAMPLE_S),))
 
-    def save(self) -> None:
-        self._saved = self.clock()
+    def save(self, force: bool = False) -> int:
+        """Write the state of the hosts that changed, in one transaction (B9). A change in what lasts (units, timer
+        failures, known containers, listening ports, container states) is written at the next save; a change only in
+        the live numbers (load, rates, report times) at most every STATE_WRITE_S; ``force`` (stopping) writes every
+        change and every pending "last seen". Returns the number of rows written."""
+        now = self.clock()
+        self._saved = now
+        writes = []
         for aid, st in list(self.live.items()):
-            keep = {k: v for k, v in st.items() if k in ("system", "listen", "units", "overlay", "containers", "known_names",
-                                                         "flows_available", "tfail")}
-            self.store.execute("UPDATE agent_hosts SET state=? WHERE id=?", (json.dumps(keep, separators=(",", ":")), aid))
+            keep = _keep(st)
+            raw = _dump(keep)
+            full, stable = _digest(raw), _digest(_dump(_stable(keep)))
+            rec = self._stored.setdefault(aid, {})
+            if rec.get("state") == full:
+                continue
+            if rec.get("stable") != stable or force or now - rec.get("t", 0) >= STATE_WRITE_S:
+                writes.append((aid, raw, full, stable))
+        seen = [(aid, mem) for aid, mem in self._seen.items() if mem[0] > (mem[2] or 0)
+                and (force or now - (mem[2] or 0) >= SEEN_WRITE_S)]
+        if not writes and not seen:
+            return 0
+        with self.store.transaction() as tx:
+            for aid, raw, full, stable in writes:
+                tx.execute("UPDATE agent_hosts SET state=? WHERE id=?", (raw, aid))
+            for aid, mem in seen:
+                self._write_seen(aid, mem)
+        for aid, raw, full, stable in writes:
+            self._stored[aid].update(state=full, stable=stable, t=now)
+        return len(writes) + len(seen)
 
     async def loop(self) -> None:
         last_watch = last_prune = 0.0
@@ -705,6 +778,30 @@ class AgentHub:
             except Exception:
                 log.exception("agent loop failed")
             await asyncio.sleep(PROXY_EVERY)
+
+
+# ---------------------------------------------------------------------- saving (B9)
+def _dump(value) -> str:
+    return json.dumps(value, separators=(",", ":"))
+
+
+def _digest(raw: str) -> bytes:
+    return hashlib.blake2b(raw.encode("utf-8"), digest_size=16).digest()
+
+
+def _keep(st: dict) -> dict:
+    return {k: v for k, v in st.items() if k in ("system", "listen", "units", "overlay", "containers", "known_names",
+                                                 "flows_available", "tfail")}
+
+
+def _stable(keep: dict) -> dict:
+    """The part of a saved state that does not move with every report (no load or memory, no rates or report times)."""
+    out = {k: v for k, v in keep.items() if k != "system"}
+    ct = out.get("containers")
+    if isinstance(ct, dict) and ct.get("items"):
+        out["containers"] = dict(ct, items=[{k: v for k, v in c.items() if k not in VOLATILE_ITEM} for c in ct["items"]
+                                            if isinstance(c, dict)])
+    return out
 
 
 # ---------------------------------------------------------------------- helpers shared with the views

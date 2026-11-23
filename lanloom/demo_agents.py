@@ -201,11 +201,11 @@ def tick(core, now: float, el: float, rng) -> None:
             else:
                 rep["containers"] = {"available": False, "reason": "no_socket"}
             hub.ingest_report(aid, rep, now)
-            core.store.execute("UPDATE agent_hosts SET last_seen=? WHERE id=?", (now, aid))
+            hub.touch(aid, now)
         else:
             st = hub.live[aid]
             st["t"] = st["seen"] = now
             st["system"] = _system(aid, now, el)
             hub._apply_containers(aid, st, {"available": True, "runtime": "docker", "version": "27.3.1",
                                             "items": _containers(aid, now, el)}, now)
-            core.store.execute("UPDATE agent_hosts SET last_seen=? WHERE id=?", (now, aid))
+            hub.touch(aid, now)

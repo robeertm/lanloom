@@ -140,6 +140,8 @@ class Availability:
                 u = min(15, u + 1)
             else:
                 d = min(15, d + 1)
+            if cells[idx] == (u << 4) | d:
+                return                       # both counters are full for this slot: nothing new to store (B9)
             cells[idx] = (u << 4) | d
             self.dirty.add((subject, day))
             self.version += 1

@@ -2,8 +2,15 @@
 
 Inventory, settings, accounts, the event journal and the nightly reports live here. Live byte counters stay in memory.
 Secrets are stored encrypted (see crypto.py); this module never sees plaintext secrets.
+
+Write load (B9): small hosts run from SD cards and NAS disks, so nothing is written that is already stored.
+``set_setting`` keeps a checksum per key in memory and skips the write when the value is unchanged; every other write
+to the settings table through this connection (``execute``, a rolled-back transaction) drops those checksums, so the
+next ``set_setting`` writes again. Periodic writers put their rows into one transaction and write only changed rows.
 """
+import hashlib
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -11,6 +18,13 @@ from pathlib import Path
 from typing import Any, Optional
 
 SCHEMA_VERSION = 1
+
+# a statement that may change the settings table outside set_setting (drops the checksums, see the module docstring)
+_SETTINGS_WRITE = re.compile(r"\b(insert|replace|update|delete|drop|alter)\b[^;]*\bsettings\b", re.I | re.S)
+
+
+def _digest(raw: str) -> bytes:
+    return hashlib.blake2b(raw.encode("utf-8"), digest_size=16).digest()
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -261,6 +275,9 @@ class Store:
         if path != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        self._kv = {}                    # settings key -> checksum of the stored JSON text (B9)
+        self.skipped_writes = 0          # set_setting calls that found the stored value unchanged
+        self._data_version = None        # PRAGMA data_version when the checksums were last confirmed
         self._db = sqlite3.connect(path, check_same_thread=False, isolation_level=None, timeout=10)
         self._db.row_factory = sqlite3.Row
         with self._lock:
@@ -270,6 +287,7 @@ class Store:
             self._db.execute("PRAGMA synchronous=NORMAL")
             self._db.executescript(_SCHEMA)
             self._migrate()
+            self._data_version = self._db.execute("PRAGMA data_version").fetchone()[0]
 
     # ------------------------------------------------------------------ basics
     # columns added after 1.10 (users, roles, two-factor sign-in); the schema number stays 1 so an older version still
@@ -312,6 +330,8 @@ class Store:
 
     def execute(self, sql: str, args: tuple = ()) -> sqlite3.Cursor:
         with self._lock:
+            if self._kv and _SETTINGS_WRITE.search(sql):
+                self._kv.clear()         # a direct write to the settings table: the checksums no longer hold
             return self._db.execute(sql, args)
 
     def query(self, sql: str, args: tuple = ()) -> list:
@@ -337,7 +357,10 @@ class Store:
 
     # ------------------------------------------------------------------ settings
     def get_setting(self, key: str, default: Any = None) -> Any:
-        row = self.one("SELECT value FROM settings WHERE key=?", (key,))
+        with self._lock:
+            row = self._db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+            if row and self._db.in_transaction is False and self._sync():
+                self._kv[key] = _digest(row["value"])    # what is stored now (outside a transaction: committed)
         if not row:
             return default
         try:
@@ -345,8 +368,31 @@ class Store:
         except ValueError:
             return default
 
-    def set_setting(self, key: str, value: Any) -> None:
-        self.execute("INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)", (key, json.dumps(value)))
+    def set_setting(self, key: str, value: Any) -> bool:
+        """Store a value; returns False (and writes nothing) when exactly this value is stored already."""
+        raw = json.dumps(value)
+        digest = _digest(raw)
+        with self._lock:
+            self._sync()
+            if self._kv.get(key) == digest:
+                self.skipped_writes += 1
+                return False
+            self._db.execute("INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)", (key, raw))
+            self._kv[key] = digest
+            return True
+
+    def _sync(self) -> bool:
+        """Drop the checksums when another connection (a second Store on this file) committed since they were made."""
+        dv = self._db.execute("PRAGMA data_version").fetchone()[0]
+        if dv != self._data_version:
+            self._kv.clear()
+            self._data_version = dv
+        return True
+
+    def forget_settings(self) -> None:
+        """Drop the checksums (after the settings table was changed some other way)."""
+        with self._lock:
+            self._kv.clear()
 
     # ------------------------------------------------------------------ users
     def user_count(self) -> int:
@@ -394,6 +440,8 @@ class _Tx:
 
     def __exit__(self, exc_type, exc, tb):
         try:
+            if exc_type:
+                self.store._kv.clear()       # a set_setting inside the rolled-back transaction never happened
             self.store._db.execute("ROLLBACK" if exc_type else "COMMIT")
         finally:
             self.store._lock.release()

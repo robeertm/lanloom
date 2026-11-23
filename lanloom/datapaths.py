@@ -51,6 +51,7 @@ PERIODS = {"24h": ("hour", 24), "7d": ("day", 7), "30d": ("day", 30)}
 KEEP_HOURS = 49
 KEEP_DAYS = 31
 FLUSH_EVERY = 60.0
+SEEN_WRITE_S = 300.0              # paths_seen.last moves at most this often (B9)
 CACHE_S = 30.0
 NEW_MIN_BYTES = 1_000_000
 NEW_WARMUP_S = 3 * 86400
@@ -357,9 +358,14 @@ class DataPaths:
                 db.execute("INSERT INTO paths_city_day(day, device, cc, city, asn, tx, rx) VALUES(?,?,?,?,?,?,?) ON CONFLICT(day, device, cc, city, asn)"
                            " DO UPDATE SET tx=tx+excluded.tx, rx=rx+excluded.rx", (hour // 24, device, cc, city, asn, tx, rx))
             for (cc, city), (name, region, lat, lon) in places.items():
-                db.execute("INSERT OR REPLACE INTO paths_place(cc, city, name, region, lat, lon) VALUES(?,?,?,?,?,?)", (cc, city, name, region, lat, lon))
+                # names and places are written once, not again with every flush (B9: an unchanged row is left alone)
+                db.execute("INSERT INTO paths_place(cc, city, name, region, lat, lon) VALUES(?,?,?,?,?,?) ON CONFLICT(cc, city) DO UPDATE"
+                           " SET name=excluded.name, region=excluded.region, lat=excluded.lat, lon=excluded.lon"
+                           " WHERE name IS NOT excluded.name OR region IS NOT excluded.region OR lat IS NOT excluded.lat"
+                           " OR lon IS NOT excluded.lon", (cc, city, name, region, lat, lon))
             for asn, name in operators.items():
-                db.execute("INSERT OR REPLACE INTO paths_operator(asn, name) VALUES(?,?)", (asn, name))
+                db.execute("INSERT INTO paths_operator(asn, name) VALUES(?,?) ON CONFLICT(asn) DO UPDATE SET name=excluded.name"
+                           " WHERE name IS NOT excluded.name", (asn, name))
             for (hour, a, b), (ab, ba) in pairs.items():
                 db.execute("INSERT INTO paths_pair_hour(hour, a, b, ab, ba) VALUES(?,?,?,?,?) ON CONFLICT(hour, a, b)"
                            " DO UPDATE SET ab=ab+excluded.ab, ba=ba+excluded.ba", (hour, a, b, ab, ba))
@@ -371,7 +377,7 @@ class DataPaths:
                     db.execute("INSERT INTO paths_seen(device, cc, first, last) VALUES(?,?,?,?)", (device, cc, ts, ts))
                 elif ts - row["last"] > NEW_FORGET_S:       # silent for 30 days: counts as new again
                     db.execute("UPDATE paths_seen SET first=?, last=? WHERE device=? AND cc=?", (ts, ts, device, cc))
-                elif ts > row["last"]:
+                elif ts - row["last"] >= SEEN_WRITE_S:      # only the 30-day rule reads "last": every 5 min is enough
                     db.execute("UPDATE paths_seen SET last=? WHERE device=? AND cc=?", (ts, device, cc))
             hour = int(now // 3600)
             db.execute("DELETE FROM paths_hour WHERE hour < ?", (hour - self.keep_hours,))

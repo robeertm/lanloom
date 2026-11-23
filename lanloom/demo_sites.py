@@ -155,4 +155,4 @@ class BranchDemo:
         if AGENT in core.agents.live and now - getattr(self, "_agent_t", 0) >= 10:      # the agent reports every 10 s
             self._agent_t = now
             core.agents.ingest_report(AGENT, rep, now)
-            core.store.execute("UPDATE agent_hosts SET last_seen=? WHERE id=?", (now, AGENT))
+            core.agents.touch(AGENT, now)

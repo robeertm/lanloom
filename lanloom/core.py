@@ -464,11 +464,15 @@ class Core:
                 pass
         self._tasks.clear()
         self._source_tasks.clear()
-        for part in (self.availability, self.traffic_log):
+        for part in (self.availability, self.traffic_log, self.paths, self.energy):
             try:
                 part.flush()
             except Exception:
                 log.exception("history flush at stop failed")
+        try:
+            self.agents.save(force=True)          # pending host states and "last seen" times (B9)
+        except Exception:
+            log.exception("agent save at stop failed")
 
     # ------------------------------------------------------------------ inventory
     def _refresh_index(self) -> None:

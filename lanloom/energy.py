@@ -562,6 +562,13 @@ class EnergyBook:
             self.core.store.set_setting(DAYS_SETTING, days)
             self._saved_t = now
 
+    def flush(self, now: Optional[float] = None) -> None:
+        """Write the day totals counted since the last save (on stopping; an unchanged value writes nothing)."""
+        if self._days is None:
+            return
+        with self._lock:
+            self._save(self.clock() if now is None else now, force=True)
+
     def step(self, now: Optional[float] = None) -> None:
         """Count one sample. With a "today" counter in the hub that value is the day's total (the last one before midnight stays)."""
         now = self.clock() if now is None else now
