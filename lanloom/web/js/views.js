@@ -1471,8 +1471,10 @@
       if (!w.running || !s) return;
       if (s.state === 'running') {
         const p = paint(s);
-        LL.msg(msg, s.total ? t('settings.scan.progress_n', { phase: t('scan.phase.' + s.phase), done: s.done || 0, total: s.total, found: s.found || 0, pct: p })
-          : t('settings.scan.progress', { phase: t('scan.phase.' + s.phase), found: s.found || 0 }), 'info');
+        const eta = pct.eta();
+        const left = eta == null ? '' : t('settings.scan.eta', { time: eta >= 90 ? Math.round(eta / 60) + ' min' : eta + ' s' });
+        LL.msg(msg, (s.total ? t('settings.scan.progress_n', { phase: t('scan.phase.' + s.phase), done: s.done || 0, total: s.total, found: s.found || 0, pct: p })
+          : t('settings.scan.progress', { phase: t('scan.phase.' + s.phase), found: s.found || 0 })) + left, 'info');
         return;
       }
       w.stop();

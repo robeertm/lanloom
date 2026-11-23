@@ -10,10 +10,10 @@
   // same time, so their progress reports interleave and the plain phase position would jump back and forth.
   LL.SCAN_PHASES = PHASES;
   LL.scanMeter = function () {
-    let id = null, best = 0;
-    return function (s) {
+    let id = null, best = 0, t0 = 0;
+    const meter = function (s) {
       if (!s) return 0;
-      if (s.id !== id) { id = s.id; best = 0; }
+      if (s.id !== id) { id = s.id; best = 0; t0 = Date.now(); }
       if (s.state === 'done') { best = 100; return best; }
       const i = PHASES.indexOf(s.phase);
       const part = s.total > 0 ? Math.min(1, Math.max(0, (s.done || 0) / s.total)) : 0;
@@ -21,6 +21,12 @@
       best = Math.max(best, pct);
       return best;
     };
+    // estimated seconds left (linear from the elapsed time and the bar), null while too little is known
+    meter.eta = function () {
+      const el = (Date.now() - t0) / 1000;
+      return best >= 5 && best < 100 && el >= 5 ? Math.max(1, Math.round(el * (100 - best) / best)) : null;
+    };
+    return meter;
   };
 
   function stepKey() { try { return sessionStorage.getItem('ll-wiz') || 'networks'; } catch (e) { return 'networks'; } }

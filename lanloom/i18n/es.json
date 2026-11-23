@@ -5003,6 +5003,7 @@
  "settings.scan.now": "Escanear ahora",
  "settings.scan.progress": "Escaneando: {phase} · {found} encontrados",
  "settings.scan.progress_n": "Escaneando: {phase} {done}/{total} · {found} encontrados · {pct} %",
+ "settings.scan.eta": " · quedan ca. {time}",
  "settings.scan.started": "Escaneo iniciado.",
  "settings.scan.title": "Escaneo de red",
  "settings.sections": "Secciones de ajustes",

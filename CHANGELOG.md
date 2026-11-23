@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Remaining-time estimate for a running scan.** The status line under *Settings › General › Network scan* now ends with `about 1 min left` (estimated from the time so far and the bar; shown once the scan is 5 % in and 5 s old, in all six languages). The bar, phase, share and *Cancel* were already there; the page was checked in a real browser at 1512 and 390 px wide.
+
 ## [1.62.1] – 2026-11-23
 
 ### Changed

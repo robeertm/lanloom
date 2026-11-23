@@ -5003,6 +5003,7 @@
  "settings.scan.now": "Nu scannen",
  "settings.scan.progress": "Scannen: {phase} · {found} gevonden",
  "settings.scan.progress_n": "Scannen: {phase} {done}/{total} · {found} gevonden · {pct} %",
+ "settings.scan.eta": " · nog ca. {time}",
  "settings.scan.started": "Scan gestart.",
  "settings.scan.title": "Netwerkscan",
  "settings.sections": "Onderdelen van de instellingen",

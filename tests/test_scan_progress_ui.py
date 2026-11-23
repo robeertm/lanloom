@@ -59,6 +59,18 @@ def test_meter_starts_over_for_the_next_scan_and_ignores_unknown_phases():
     assert out[3] == 33                           # done above total is capped at the end of the phase
 
 
+def test_remaining_time_estimate():
+    eta = _run([[_s(1, "neighbors")]])["eta"]
+    assert eta[0] is None                         # nothing known yet
+    assert eta[1] == 98                           # 17 % after 20 s: 20 * 83 / 17 s left
+    assert eta[2] is None                         # done: nothing left
+
+
+@pytest.mark.parametrize("lang", sorted(p.stem for p in I18N.glob("*.json") if "." not in p.stem))
+def test_remaining_time_text(lang):
+    assert "{time}" in json.loads((I18N / (lang + ".json")).read_text(encoding="utf-8"))["settings.scan.eta"]
+
+
 def test_meters_are_independent():
     out = _run([[_s(1, "ports", 1, 1)], [_s(1, "neighbors", 0, 4)]])["out"]
     assert out == [[67], [0]]
