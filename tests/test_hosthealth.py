@@ -119,6 +119,35 @@ def test_snmp_host_resources_parse():
     assert out["temp"] == 61.5
 
 
+def _mem_storage(extra=()):
+    """hrStorage rows like the common open-source agent: physical memory 6 047 804 kB with total - MemFree used (lanloom#18 figures)."""
+    rows = [(1, snmp.HR_RAM, "Physical memory", 1024, 6_047_804, 6_047_804 - 422_928)] + list(extra)
+    cols = {snmp.OID_HR_STORAGE_TYPE: 1, snmp.OID_HR_STORAGE_DESCR: 2, snmp.OID_HR_STORAGE_UNITS: 3, snmp.OID_HR_STORAGE_SIZE: 4,
+            snmp.OID_HR_STORAGE_USED: 5}
+    return {c: _rows(c, [(r[0], r[k]) for r in rows]) for c, k in cols.items()}
+
+
+BUFCACHE = [(6, snmp.HR_OTHER, "Memory buffers", 1024, 6_047_804, 300_000), (7, snmp.HR_OTHER, "Cached memory", 1024, 2_234_320, 2_234_320)]
+
+
+def test_snmp_memory_gives_buffers_and_cache_back_without_the_ucd_table():
+    # lanloom#18: a firewall read 93 % (total - MemFree) while `free` said ~60 %; the agent serves no UCD memory table
+    assert snmp.parse_host_resources(_mem_storage(), [], [], [], [])["mem"] == 93.0            # nothing to give back: as reported
+    out = snmp.parse_host_resources(_mem_storage(BUFCACHE), [], [], [], [])
+    assert out["mem"] == 51.1                                                                   # (used - buffers - cache) / total
+    assert "volumes" not in out and out["disk"] is None                                         # the extra rows are no disks
+
+
+def test_snmp_memory_prefers_mem_available():
+    ucd = [(snmp.OID_UCD_MEM + ".5.0", 6_047_804), (snmp.OID_UCD_MEM + ".6.0", 422_928), (snmp.OID_UCD_MEM + ".27.0", 2_427_996)]
+    assert snmp.parse_host_resources(_mem_storage(BUFCACHE), [], [], ucd, [])["mem"] == 59.9     # MemAvailable, the `free` view
+    # UCD free without its own buffer/cache rows: the hrStorage rows of the same agent fill in
+    ucd = [(snmp.OID_UCD_MEM + ".5.0", 6_047_804), (snmp.OID_UCD_MEM + ".6.0", 422_928)]
+    assert snmp.parse_host_resources(_mem_storage(BUFCACHE), [], [], ucd, [])["mem"] == 51.1
+    bogus = [(snmp.OID_UCD_MEM + ".5.0", 6_047_804), (snmp.OID_UCD_MEM + ".6.0", 422_928), (snmp.OID_UCD_MEM + ".27.0", 0)]
+    assert snmp.parse_host_resources(_mem_storage(BUFCACHE), [], [], bogus, [])["mem"] == 51.1  # a zero MemAvailable is not believed
+
+
 def test_snmp_without_host_tables_is_empty():
     out = snmp.parse_host_resources({}, [], [], [], [])
     assert all(v is None for v in out.values())

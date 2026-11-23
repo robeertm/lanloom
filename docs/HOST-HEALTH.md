@@ -18,6 +18,11 @@ Lanloom uses what its sources already deliver; it asks nothing extra from your n
 | Network controller | processor and memory of routers, switches and access points | a controller connection |
 | Home hub | system sensors of the hub device that is merged with the network device (processor use, memory, swap, disk use, load, processor temperature) | the hub bridge; matched by unit and name only, a battery or a room temperature is never read as a host value |
 
+**Memory over SNMP** counts what the system cannot hand out right now. On the common open-source agent the physical memory row of HOST-RESOURCES-MIB
+says *total minus free*, so buffers and the page cache would count as used and a host with a large cache would look almost full.
+Lanloom therefore uses, in this order: *MemAvailable* (UCD `memSysAvail`, newer agents), the UCD free memory plus buffers and
+cache, or the physical memory row minus the *Memory buffers* and *Cached memory* rows the same agent lists.
+
 The SNMP connection reads the host tables once a minute (they change slowly); an agent without those tables is asked
 again after half an hour. Every five minutes the newest reading of each source is written as one sample
 (`host_samples`, 35 days, part of the *Availability* storage area and of a backup with history).

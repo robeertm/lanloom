@@ -376,3 +376,57 @@ def test_routes_rights_and_audit(client):
     r = call(client, "PUT", "/api/energy/settings", {"price_entity": "sensor.solar_power"}, role="admin")
     assert r.status_code == 400 and r.json()["error"] == "energy.err.entity"
     call(client, "PUT", "/api/energy/settings", {"price": None, "currency": "EUR"}, role="admin")
+
+
+def _energy_js_functions(*names):
+    """Source of named top-level helpers of energy.js (brace matched), to run them under node."""
+    js = (Path(__file__).resolve().parent.parent / "lanloom/web/js/energy.js").read_text(encoding="utf-8")
+    out = []
+    for name in names:
+        start = js.index("function %s(" % name)
+        depth, i = 0, js.index("{", start)
+        while True:
+            depth += {"{": 1, "}": -1}.get(js[i], 0)
+            i += 1
+            if depth == 0:
+                break
+        out.append(js[start:i])
+    return "\n".join(out)
+
+
+def _run_node(script):
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    proc = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=30)
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout.strip().split("\n")
+
+
+def test_cost_now_tile_shows_four_places_and_counts_the_home_without_a_grid_sensor():
+    # lanloom#18 (follow-up to #16): money() dropped its fourth argument, so the tile read "at €0.29"; and without a grid sensor
+    # "Cost now" was "—/h" while every lane had its own cost (a lane counts its full power when nothing measures the grid)
+    script = ("const LL = {locale: () => 'en-US', fmtNum: (v, d) => v.toFixed(d)};\n" + _energy_js_functions("money", "costNow") + "\n"
+              "const p = {value: 0.2916, currency: 'EUR'};\n"
+              "console.log(money(0.2916, 'EUR', 2, 4));\n"
+              "console.log(money(0.3, 'EUR', 2, 4));\n"
+              "console.log(money(12.345, 'EUR', 2));\n"
+              "console.log(money(null, 'EUR', 2, 4));\n"
+              "console.log(costNow({price: p, now: {grid_w: null, home_w: 303}}).toFixed(4));\n"
+              "console.log(costNow({price: p, now: {grid_w: 1000, home_w: 1500}}).toFixed(4));\n"
+              "console.log(costNow({price: p, now: {grid_w: -200, home_w: 500}}).toFixed(4));\n"
+              "console.log(String(costNow({price: null, now: {grid_w: 1000, home_w: 1500}})));\n"
+              "console.log(String(costNow({price: p, now: {grid_w: null, home_w: null}})));\n")
+    out = _run_node(script)
+    assert out[0] == "€0.2916"
+    assert out[1] == "€0.30"                  # at least two places
+    assert out[2] == "€12.35"                 # sums keep two places
+    assert out[3] == "—"
+    assert out[4] == "0.0884"                 # 303 W x 0.2916 without a grid reading: the whole home
+    assert out[5] == "0.2916"                 # with a grid reading: what the grid supplies, as before
+    assert out[6] == "0.0000"                 # exporting costs nothing now
+    assert out[7] == "null" and out[8] == "null"
+    js = (Path(__file__).resolve().parent.parent / "lanloom/web/js/energy.js").read_text(encoding="utf-8")
+    assert "costH(d, nowCost)" in js          # the tile uses the same places as the lanes (€0.065/h)

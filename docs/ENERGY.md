@@ -38,6 +38,8 @@ beats a typed number, a typed number beats an entity found by itself; without an
 Cost per hour of a lane is `watts / 1000 * price * grid share`, CO2 per hour `watts / 1000 * g/kWh * grid share`; the grid share is
 what the grid supplies of the home right now (`grid_share` in the answer, 0 to 1; 1 without a grid reading), so power from the roof or
 the battery costs nothing and emits nothing at the moment it is used.
+The *Cost now* tile is what the grid draw costs per hour (`max(0, grid) / 1000 * price`) and, without a grid reading, the whole
+home (`home / 1000 * price`), the same rule as the lanes; its unit price keeps up to four decimal places (*at €0.2916 per kWh*).
 
 **Today.** A "today" counter of the hub (energy entity named today/daily/heute) is used when there is one. Otherwise Lanloom counts
 the watts over time (trapezoid, gaps over 10 minutes are skipped) per local day. Cost counts only what came from the grid, minus the

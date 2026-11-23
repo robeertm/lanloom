@@ -330,3 +330,14 @@ def test_every_place_that_lists_languages_agrees_with_the_files():
     assert sorted(manager.LANG_NAMES) == langs, "LANG_NAMES in ai/manager.py (the language the AI answers in)"
     from lanloom.nightly import render
     assert all(render.WEEKDAYS.get(l) for l in langs), "weekday names for the delivered report (nightly/render.py)"
+
+
+def test_last_seen_label_says_it_is_the_last_scan_that_found_the_device():
+    # lanloom#18: "Last scan" read like the time of the latest scan and looked frozen for a device the scans miss while the
+    # presence row below it was fresh; the stored time is the last scan that found the device
+    labels = {}
+    for lang in ("en", "de", "es", "fr", "it", "nl"):
+        with open(os.path.join(I18N, "%s.json" % lang), encoding="utf-8") as f:
+            labels[lang] = json.load(f)["device.last_seen"]
+    assert labels["en"] == "Last found by a scan"
+    assert labels["de"] != "Letzte Suche" and labels["nl"] != "Laatste scan"

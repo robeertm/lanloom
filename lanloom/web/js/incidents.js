@@ -358,10 +358,14 @@
       if (!d || d.calm || !d.incident) { sec.remove(); return; }
       const i = d.incident;
       const kids = [];
-      if (d.is_root) kids.push(h('p', {}, h('strong', {}, t(i.open ? 'inc.what.root_open' : 'inc.what.root_was', { since: clock(i.start), ago: ago(i.start) }))));
+      // a root Lanloom only infers (members behind it dropped, it was never seen down itself) must not read as "it was down"
+      const guessRoot = d.is_root && i.root.observed === false;
+      if (guessRoot) kids.push(h('p', {}, h('strong', {}, t('inc.what.root_guess', { n: i.counts.members || 2, since: clock(i.start), ago: ago(i.start) })),
+        ' ', certChip(i.root.cert, true)));
+      else if (d.is_root) kids.push(h('p', {}, h('strong', {}, t(i.open ? 'inc.what.root_open' : 'inc.what.root_was', { since: clock(i.start), ago: ago(i.start) }))));
       else kids.push(h('p', {}, h('strong', {}, t(i.root.observed === false ? 'inc.what.member_guess' : 'inc.what.member', { name: rootName(i.root), since: clock(d.member ? d.member.from : i.start) })),
         ' ', certChip(d.member ? d.member.cert : i.root.cert, i.root.observed === false)));
-      if (i.counts.members && d.is_root) kids.push(h('p', { class: 'muted' }, t('inc.what.took', { n: i.counts.members })));
+      if (i.counts.members && d.is_root && !guessRoot) kids.push(h('p', { class: 'muted' }, t('inc.what.took', { n: i.counts.members })));
       kids.push(h('p', { class: 'muted inc-what__before' }, (d.before || []).length ? t('inc.what.before', { n: d.before.length, first: fill(d.before[0].key, d.before[0].vars) }) : t('inc.what.before_none')));
       kids.push(h('div', { class: 'btn-row btn-row--wrap' }, h('a', { class: 'btn btn--ghost btn--sm', href: '#/incidents/' + enc(i.id) }, t('inc.btn.file')), playButton(i, true), chainButton(i), riskButton(i)));
       box.replaceChildren(...kids);

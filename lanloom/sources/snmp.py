@@ -783,6 +783,7 @@ OID_HR_PROC_LOAD = "1.3.6.1.2.1.25.3.3.1.2"        # hrProcessorLoad (per proces
 OID_LA_LOAD = "1.3.6.1.4.1.2021.10.1.3"            # laLoad (UCD: 1, 5, 15 minutes as text)
 OID_UCD_MEM = "1.3.6.1.4.1.2021.4"                 # memory group (UCD, kB)
 OID_LM_TEMP = "1.3.6.1.4.1.2021.13.16.2.1.3"       # lmTempSensorsValue (milli degrees Celsius)
+HR_OTHER = "1.3.6.1.2.1.25.2.1.1"                  # hrStorageOther ("Memory buffers", "Cached memory" on common agents)
 HR_RAM = "1.3.6.1.2.1.25.2.1.2"
 HR_VIRTUAL = "1.3.6.1.2.1.25.2.1.3"
 HR_FIXED_DISK = "1.3.6.1.2.1.25.2.1.4"
@@ -804,16 +805,22 @@ def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd
     out = {"cpu": None, "cores": None, "load": None, "mem": None, "swap": None, "disk": None, "disk_mount": None, "temp": None}
     disk = None
     volumes = []
+    ram = None                                         # (used bytes, size bytes) of the physical memory row
+    reclaim_hr = 0                                     # bytes of buffers and cache the hrStorage table lists on its own
     for i, typ in list(types.items())[:MAX_HR_ROWS]:
         sz, us, u = size.get(i), used.get(i), units.get(i)
         if not isinstance(u, int) or u <= 0:
             continue
+        name = clip(descr.get(i) or "", 64) or ""
+        if typ == HR_OTHER and name.strip().lower() in ("memory buffers", "cached memory") and isinstance(us, int) and us >= 0:
+            reclaim_hr += us * u
+            continue
         share = _pct(us, sz)
         if share is None:
             continue
-        name = clip(descr.get(i) or "", 64) or ""
         if typ == HR_RAM and out["mem"] is None:
             out["mem"] = share
+            ram = (us * u, sz * u)
         elif typ == HR_VIRTUAL and "swap" in name.lower() and out["swap"] is None:
             out["swap"] = share
         elif typ == HR_FIXED_DISK and not any(name.startswith(m) for m in _SKIP_MOUNTS) and sz * u >= 256 << 20:
@@ -837,11 +844,20 @@ def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd
         if 0 <= v < 10000:
             out["load"] = round(v, 2)
             break
+    # memory in use = what the system could not hand out right now. On common agents "used" of the physical memory row is total
+    # minus MemFree, so buffers and the page cache count as used and a host with a big cache looks full (a firewall at 93 %
+    # that really uses 51-60 %). Best: MemAvailable (UCD memSysAvail, newer agents); next: UCD free plus buffers and cache;
+    # last: the hrStorage row minus the "Memory buffers" and "Cached memory" rows the same agent lists.
     ucd = _index_map([(o.rsplit(".", 1)[0], v) for o, v in ucd_rows if o.endswith(".0")], OID_UCD_MEM)
-    total, avail = ucd.get(5), ucd.get(6)
-    if isinstance(total, int) and total > 0 and isinstance(avail, int):
-        free = avail + sum(x for x in (ucd.get(14), ucd.get(15)) if isinstance(x, int))     # buffers and cache can be given back
-        out["mem"] = round(max(0.0, min(100.0, 100.0 * (1 - free / total))), 1)
+    total, avail, sys_avail = ucd.get(5), ucd.get(6), ucd.get(27)
+    ucd_reclaim = [x for x in (ucd.get(14), ucd.get(15)) if isinstance(x, int) and x >= 0]
+    if isinstance(total, int) and total > 0 and isinstance(sys_avail, int) and 0 < sys_avail <= total:
+        out["mem"] = round(max(0.0, min(100.0, 100.0 * (1 - sys_avail / total))), 1)
+    elif isinstance(total, int) and total > 0 and isinstance(avail, int):
+        back = sum(ucd_reclaim) if ucd_reclaim else reclaim_hr // 1024       # UCD counts in kB
+        out["mem"] = round(max(0.0, min(100.0, 100.0 * (1 - (avail + back) / total))), 1)     # buffers and cache can be given back
+    elif ram and ram[1] > 0 and reclaim_hr:
+        out["mem"] = round(max(0.0, min(100.0, 100.0 * (ram[0] - reclaim_hr) / ram[1])), 1)
     st, sa = ucd.get(3), ucd.get(4)
     if isinstance(st, int) and st > 0 and isinstance(sa, int) and 0 <= sa <= st:
         out["swap"] = round(100.0 * (1 - sa / st), 1)

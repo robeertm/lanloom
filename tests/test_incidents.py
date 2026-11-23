@@ -465,3 +465,16 @@ def test_a_fw_change_of_the_editor_and_a_rule_change_both_show(core):
     f = core.incidents.get(core.incidents.list(1)["items"][0]["id"])
     keys = [b["key"] for b in f["before"]]
     assert "inc.before.fw_change" in keys and "fwd.sub.rule_new" in keys
+
+
+def test_device_card_does_not_claim_a_guessed_root_was_down():
+    # lanloom#18: two clients behind an access point dropped, the point itself kept answering; the bundle names it as the
+    # likely shared root (observed False), but the device card said "It was down at ..." and "2 more parts went down with it"
+    js = (ROOT / "lanloom/web/js/incidents.js").read_text(encoding="utf-8")
+    assert "const guessRoot = d.is_root && i.root.observed === false;" in js
+    assert "t('inc.what.root_guess'" in js
+    assert "d.is_root && !guessRoot) kids.push" in js              # no "went down with it" for a guess
+    for lang in ("en", "de", "es", "fr", "it", "nl"):
+        cat = json.loads((ROOT / ("lanloom/i18n/%s.json" % lang)).read_text(encoding="utf-8"))
+        txt = cat["inc.what.root_guess"]
+        assert "{since}" in txt and "{ago}" in txt and "{n, plural," in txt, lang

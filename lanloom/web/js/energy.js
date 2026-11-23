@@ -39,10 +39,21 @@
     return t('energy.unit.w', { v: LL.fmtNum(w, a >= 10 ? 0 : 1) });
   };
   const kwh = v => (v == null ? '—' : t('energy.unit.kwh', { v: LL.fmtNum(v, v >= 100 ? 0 : v >= 10 ? 1 : 2) }));
-  function money(v, cur, digits) {
+  // digits = the places always shown, maxDigits = the most it may show (a unit price such as 0.2916 keeps its four places)
+  function money(v, cur, digits, maxDigits) {
     if (v == null || !isFinite(v)) return '—';
-    try { return new Intl.NumberFormat(LL.locale(), { style: 'currency', currency: cur || 'EUR', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v); }
-    catch (e) { return LL.fmtNum(v, digits) + ' ' + (cur || ''); }
+    const mx = maxDigits == null ? digits : Math.max(digits, maxDigits);
+    try { return new Intl.NumberFormat(LL.locale(), { style: 'currency', currency: cur || 'EUR', minimumFractionDigits: digits, maximumFractionDigits: mx }).format(v); }
+    catch (e) { return LL.fmtNum(v, mx) + ' ' + (cur || ''); }
+  }
+  // what the home costs per hour right now: what the grid supplies when a grid reading exists, otherwise the whole home
+  // (the same rule as the consumer rows, whose cost is their full power when nothing measures the grid)
+  function costNow(d) {
+    const n = d.now || {};
+    if (!d.price || !isFinite(d.price.value)) return null;
+    if (n.grid_w != null && isFinite(n.grid_w)) return Math.max(0, n.grid_w) / 1000 * d.price.value;
+    if (n.home_w != null && isFinite(n.home_w)) return Math.max(0, n.home_w) / 1000 * d.price.value;
+    return null;
   }
   const perHour = text => t('energy.unit.per_h', { v: text });
   const co2h = g => (g == null ? '—' : t('energy.unit.co2_g_h', { v: LL.fmtNum(g, g >= 100 ? 0 : 1) }));
@@ -217,10 +228,10 @@
     const n = d.now, td = d.today || {}, hs = d.home_source || {};
     const cur = d.price ? d.price.currency : null;
     const tile = (id, label, value, sub) => h('div', { class: 'en-kpi', dataset: { kpi: id } }, h('span', { class: 'en-kpi__label' }, label), h('b', { class: 'en-kpi__value' }, value), sub ? h('span', { class: 'en-kpi__sub muted' }, sub) : null);
-    const nowCost = d.price && n.grid_w != null ? Math.max(0, n.grid_w) / 1000 * d.price.value : null;
+    const nowCost = costNow(d);
     return h('div', { class: 'en-kpis' },
       tile('home', t('energy.kpi.home'), LL.fmtW(n.home_w), [hs.kind === 'sensor' && hs.label ? t('energy.home.from', { name: hs.label }) : null, n.solar_w > 1 ? t('energy.kpi.solar_now', { w: LL.fmtW(n.solar_w) }) : null].filter(Boolean).join(' · ') || null),
-      tile('cost', t('energy.kpi.cost_now'), d.price ? perHour(money(nowCost, cur, 2)) : '—', d.price ? t('energy.kpi.price', { price: money(d.price.value, cur, 2, 4) }) : t('energy.kpi.no_price')),
+      tile('cost', t('energy.kpi.cost_now'), costH(d, nowCost), d.price ? t('energy.kpi.price', { price: money(d.price.value, cur, 2, 4) }) : t('energy.kpi.no_price')),
       tile('today', t('energy.kpi.today'), kwh(td.kwh), td.cost != null ? money(td.cost, cur, 2) : null),
       tile('co2', t('energy.kpi.co2_today'), co2kg(td.co2_kg), t('energy.kpi.co2_rate', { g: LL.fmtNum(d.co2.g_kwh, 0) })));
   }
