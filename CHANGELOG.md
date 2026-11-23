@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.64.0] – 2026-11-23
+
+1.63.0 and 1.63.1 below were not released on their own; they are part of this release.
+
 ### Added
 - **A device can be marked as often switched off.** A television that leaves the network in standby on purpose, a console, a laptop or a printer in deep sleep no longer counts as an outage every time. The new section *Often switched off* on the device card (operators) has a tick *This device is often switched off or may sleep* and *Warn if it has not been seen for* (days, 14 unless changed, 0 = never). While a marked device does not answer, Lanloom books nothing for it: no outage or incident, no nightly-report line, no notification, its availability is not counted down, and because it gets no gap it can no longer count as evidence for a probable root further up. The card, the map tile, the tree and the device list show a grey *Off* instead of a red *Offline*, and the start page does not count it as offline. Only a device that stays away for the set days gets one report line (*... is marked as often switched off and has not been seen since ...*), once per absence. The mark moves along when a device first seen by its address gets its hardware address as id (the protection class now does too), it is removed when the device is forgotten, and a marked device is no longer removed on its own from the inventory as a provisional entry. Clearing the mark brings everything back; slots and incidents that were booked before stay as they are. The REST API knows the status `off` (`GET /api/v1/devices?status=off`) and the route `POST /api/devices/{id}/sleepy`. All six languages; [docs/AVAILABILITY.md](docs/AVAILABILITY.md) and the devices manual describe it.
 
