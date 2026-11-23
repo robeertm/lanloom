@@ -5003,7 +5003,7 @@
  "settings.scan.now": "Analyser maintenant",
  "settings.scan.progress": "Analyse en cours : {phase} · {found} trouvés",
  "settings.scan.progress_n": "Analyse en cours : {phase} {done}/{total} · {found} trouvés · {pct} %",
- "settings.scan.eta": " · encore env. {time}",
+ "settings.scan.eta": "· encore env. {time}",
  "settings.scan.started": "Analyse démarrée.",
  "settings.scan.title": "Analyse du réseau",
  "settings.sections": "Sections des réglages",

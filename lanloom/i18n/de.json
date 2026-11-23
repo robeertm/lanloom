@@ -5003,7 +5003,7 @@
  "settings.scan.now": "Jetzt suchen",
  "settings.scan.progress": "Suche läuft: {phase} · {found} gefunden",
  "settings.scan.progress_n": "Suche läuft: {phase} {done}/{total} · {found} gefunden · {pct} %",
- "settings.scan.eta": " · noch ca. {time}",
+ "settings.scan.eta": "· noch ca. {time}",
  "settings.scan.started": "Suche gestartet.",
  "settings.scan.title": "Netzsuche",
  "settings.sections": "Bereiche der Einstellungen",
