@@ -214,7 +214,7 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
   border-radius: var(--ll-radius-lg); box-shadow: var(--ll-shadow-2); display: flex; flex-direction: column; z-index: 30; overflow: hidden; }
 .detail__head { display: flex; gap: 12px; align-items: center; padding: 18px 18px 10px; }
 .detail__titles { flex: 1; min-width: 0; }
-.detail__titles h2 { font-size: var(--ll-fs-lg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail__titles h2 { font-size: var(--ll-fs-lg); overflow-wrap: anywhere; }
 .detail__titles .muted { font-size: var(--ll-fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .detail__chips { display: flex; gap: 6px; padding: 0 18px 14px; flex-wrap: wrap; border-bottom: 1px solid var(--ll-border); }
 .detail__body { overflow-y: auto; padding: 4px 18px 18px; flex: 1; }
