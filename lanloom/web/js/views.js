@@ -636,7 +636,7 @@
     const hide = !may ? null : h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: async () => { await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'PATCH', body: { hidden: !dev.hidden } }); LL.toast(t('device.saved'), 'ok'); LL.route(); } }, dev.hidden ? t('device.unhide') : t('device.hide'));
     // a leftover (hidden, or offline) can be removed for good; never this host or the gateway. A device that still
     // answers comes back with the next scan, as a new entry.
-    const forget = may && (dev.hidden || dev.status === 'down') && !dev.is_self && !dev.is_gateway ? h('button', { class: 'btn btn--danger-ghost btn--sm', type: 'button', onclick: async ev => {
+    const forget = may && (dev.hidden || dev.status === 'down' || dev.status === 'off') && !dev.is_self && !dev.is_gateway ? h('button', { class: 'btn btn--danger-ghost btn--sm', type: 'button', onclick: async ev => {
       if (!await askForget(dev.title || dev.ip || dev.mac || '')) return;
       try {
         await api('/api/devices/' + encodeURIComponent(dev.id), { method: 'DELETE' });
@@ -648,7 +648,7 @@
       } catch (e) { LL.toast(LL.errText(e), 'error'); }
     } }, t('device.forget')) : null;
     return h('div', {}, section(t('detail.device'), facts(rows)), LL.aiHintSection ? LL.aiHintSection(dev) : null, identitySection(dev, may),
-      LL.integrateSection ? LL.integrateSection(dev) : null, LL.protectSection ? LL.protectSection(dev, may) : null, LL.inventorySection ? LL.inventorySection(dev) : null, LL.vulnsSection ? LL.vulnsSection(dev) : null, ports ? section(t('device.ports'), ports) : null,
+      LL.integrateSection ? LL.integrateSection(dev) : null, LL.protectSection ? LL.protectSection(dev, may) : null, LL.sleepySection ? LL.sleepySection(dev, may) : null, LL.inventorySection ? LL.inventorySection(dev) : null, LL.vulnsSection ? LL.vulnsSection(dev) : null, ports ? section(t('device.ports'), ports) : null,
       ann.length ? section(t('device.announcements'), h('ul', { class: 'plain-list' }, ann)) : null, hide || forget ? h('div', { class: 'detail__foot' }, forget, hide) : null);
   }
 

@@ -284,6 +284,73 @@ def test_protect_mark_is_checked_and_needs_an_operator(app_client):
         assert req(app_client, "POST", path, role, {"mark": "industrial"}).status_code == 200
 
 
+# ---------------------------------------------------------------------- often switched off (lanloom#19)
+def test_operator_marks_a_device_often_switched_off(app_client, monkeypatch):
+    core_ = app_client.st.core
+    monkeypatch.setattr(core_, "device_status", lambda dev, last_scan=False: "down" if dev["id"] == CAM_ID else "up")
+    path = "/api/devices/%s/sleepy" % CAM_ID
+    before = req(app_client, "GET", "/api/devices", "viewer").json()
+    cam = next(d for d in (before["devices"] if isinstance(before, dict) else before) if d["id"] == CAM_ID)
+    assert cam["status"] == "down" and cam["sleepy"] is None
+    r = req(app_client, "POST", path, "operator", {"on": True, "warn_days": 7})
+    assert r.status_code == 200 and r.json()["sleepy"] == {"warn_days": 7} and r.json()["status"] == "off"
+    assert core_.sleepy_marks() == {CAM_ID: {"warn_days": 7}}
+    after = req(app_client, "GET", "/api/devices", "viewer").json()
+    cam = next(d for d in (after["devices"] if isinstance(after, dict) else after) if d["id"] == CAM_ID)
+    assert cam["status"] == "off" and cam["sleepy"] == {"warn_days": 7}
+    from lanloom import api_v1
+    assert api_v1.device_v1(cam)["status"] == "off"
+    rows = [e for e in app_client.st.audit.query({}, 50) if e["action"] == "device.sleepy"]
+    assert rows and rows[0]["actor"] == "user-operator" and rows[0]["target"] == CAM_ID and rows[0]["outcome"] == "ok"
+    # on again without days keeps the days; off clears the mark and the device is red "down" again
+    assert req(app_client, "POST", path, "operator", {"on": True}).json()["sleepy"] == {"warn_days": 7}
+    r = req(app_client, "POST", path, "operator", {"on": False})
+    assert r.status_code == 200 and r.json()["sleepy"] is None and r.json()["status"] == "down"
+    assert core_.sleepy_marks() == {}
+
+
+def test_sleepy_mark_is_checked_and_needs_an_operator(app_client):
+    path = "/api/devices/%s/sleepy" % CAM_ID
+    for bad in (366, -1, True, "7", 2.5):
+        r = req(app_client, "POST", path, "operator", {"on": True, "warn_days": bad})
+        assert r.status_code == 400 and r.json() == {"error": "sleepy.err.days"}, bad
+    r = req(app_client, "POST", "/api/devices/d-nothing/sleepy", "operator", {"on": True})
+    assert r.status_code == 404 and r.json()["error"] == "device.err.missing"
+    r = req(app_client, "POST", path, "viewer", {"on": True})
+    assert r.status_code == 403 and r.json()["error"] == "auth.err.role"
+    assert app_client.st.core.sleepy_marks() == {}
+    assert access.RULES[("POST", "/api/devices/{device_id}/sleepy")].role == "operator"
+    assert "device.sleepy" in access.AUDIT_ACTIONS
+    assert req(app_client, "POST", path, "operator", {"on": True, "warn_days": 0}).json()["sleepy"] == {"warn_days": 0}
+
+
+def test_marked_device_is_off_not_offline_in_the_overview(app_client, monkeypatch):
+    core_ = app_client.st.core
+    monkeypatch.setattr(core_, "device_status", lambda dev, last_scan=False: "down" if dev["id"] == CAM_ID else "up")
+    core_.set_sleepy(CAM_ID, True)
+    now = time.time()
+    assert next(d for d in core_.overview._load_devices(now) if d["id"] == CAM_ID)["status"] == "off"
+    summ = core_.overview.summary(now)
+    assert summ["devices"]["offline"] == 0
+    assert not [n for n in summ.get("notable") or [] if n.get("id") == "dev:" + CAM_ID]
+    assert {d["id"]: d["status"] for d in core_.devices()}[CAM_ID] == "off"
+
+
+def test_marks_follow_a_new_device_id_and_go_with_a_forgotten_device(app_client):
+    core_ = app_client.st.core
+    core_.set_sleepy(CAM_ID, True, 3)
+    core_.set_protect(CAM_ID, "passive")
+    core_._move_marks(CAM_ID, "d-024c4c0000ff")
+    assert core_.sleepy_marks() == {"d-024c4c0000ff": {"warn_days": 3}}
+    assert core_.protect_marks() == {"d-024c4c0000ff": "passive"}
+    core_._move_marks("d-024c4c0000ff", CAM_ID)
+    core_.set_sleepy(PRINTER_ID, True, 9)
+    core_._move_marks(CAM_ID, PRINTER_ID)                         # the mark the hardware-address row had already wins
+    assert core_.sleepy_marks() == {PRINTER_ID: {"warn_days": 9}}
+    assert core_.forget_device(PRINTER_ID)
+    assert core_.sleepy_marks() == {} and PRINTER_ID not in core_.protect_marks()
+
+
 def test_zone_consent_is_for_admins_and_follows_the_zone_list(app_client):
     zones_ = req(app_client, "GET", "/api/zones", "viewer").json()["zones"]
     behind = [z["cidr"] for z in zones_ if z["reach"] == "adapter"]

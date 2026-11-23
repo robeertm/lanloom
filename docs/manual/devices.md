@@ -63,6 +63,12 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
   scan, as a new entry. This host and the gateway cannot be forgotten.
 - **Protect a device from scanning** (operators): choose *Printer*, *Industrial*, *Passive only*, *No protection* or
   back to *Automatic* on the card.
+- **Often switched off** (operators): tick *This device is often switched off or may sleep* on the card of a television,
+  console, laptop or printer that leaves the network on purpose, and *Save*. While it does not answer it shows a grey
+  *Off*, raises no outage, no nightly-report line and no notification, and keeps its availability (see
+  [AVAILABILITY.md](../AVAILABILITY.md)). *Warn if it has not been seen for* (14 days unless changed, 0 = never) still
+  brings one report line for a device that is really gone. The mark stays until you clear it, also when the device later
+  gets its hardware address as id.
 - **Connect it** (admins): the *Can be connected* section offers *Connect* with the address filled in.
 - With an AI set up, *Ask AI what this is* on the card of an uncertain device sends the clues for a suggestion; you
   confirm or dismiss it (see [AI](ai.md)).
@@ -91,8 +97,8 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
 - **Stored:** devices, your own names and choices, the availability slots (35 days by default) and the traffic per
   minute (8 days) in Lanloom's database on the host, included in backups.
 - **Sent:** only to an AI service, and only after you set one up and switch it on (see [AI](ai.md#privacy)).
-- **Roles:** viewers read the list and the stability list. Operators rename, retype, hide, group, protect and forget
-  devices and run scans. Every change is in the audit log.
+- **Roles:** viewers read the list and the stability list. Operators rename, retype, hide, group, protect, mark as often switched
+  off and forget devices and run scans. Every change is in the audit log.
 
 ## See also
 

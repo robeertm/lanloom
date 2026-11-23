@@ -40,7 +40,7 @@
   const PHYS_DASH = { radio: '4 3', virtual: '0.5 3.5' };   // legend swatches; the traces get the same pattern from board.css
   const FILTER_KEYS = TRACE_KINDS.concat(['unmeasured', 'talk']);   // what the legend can hide: a line kind, every trace without a measurement, or the dashed "talks to" lines
   const HIDE_KEY = 'lanloom.board.hide.';
-  const STATUSES = ['up', 'down', 'unknown'];
+  const STATUSES = ['up', 'down', 'off', 'unknown'];   // off = a person marked it "often switched off" (never a problem)
   const ELL = '…';
   const SAFETY = 1.5;   // px reserve between canvas measurement and DOM rendering
   const EDGE = '__edge', OUTSIDE = '__outside';   // node at the board edge (exits), peer "somewhere outside"
@@ -70,6 +70,7 @@
     "board.grade.unknown": "Unknown",
     "board.status.up": "Online",
     "board.status.down": "Offline",
+    "board.status.off": "Off",
     "board.status.unknown": "Status unknown",
     "board.trace.uplink": "Uplink",
     "board.trace.lan": "LAN",

@@ -283,6 +283,8 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .device-row__svc .ll-badge { position: static; }
 .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ll-grade-unknown); }
 .status-dot--up { background: var(--ll-ok); } .status-dot--down { background: var(--ll-danger); }
+.status-dot--off { background: var(--ll-muted); }
+.sleepy-days { max-width: 8rem; }
 .settings-card { padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
 .settings-card h2 { font-size: var(--ll-fs-lg); }
 .settings-card h3 { font-size: var(--ll-fs-md); }

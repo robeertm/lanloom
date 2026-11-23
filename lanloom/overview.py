@@ -129,16 +129,20 @@ class Overview:
         down_since = watch.down_since if watch is not None else {}
         out = []
         last_scan = core._last_scan_id()                    # one query for all devices, not one per device
+        naps = core.sleepy_marks() if hasattr(core, "sleepy_marks") else {}    # "often switched off": grey, never counted down
         for dev in core.store.devices():
             if dev["id"] in members:
                 continue                                    # a second interface of a known device
             data = dev["data"]
+            status = core.device_status(dev, last_scan)
+            if status == "down" and dev["id"] in naps:
+                status = "off"
             out.append({
                 "id": dev["id"], "ip": dev["ip"], "title": dev.get("user_title") or dev["title"] or "",
                 "kind": dev.get("user_kind") or dev["kind"], "hidden": bool(dev["hidden"]),
                 "is_self": bool(data.get("is_self")), "is_gateway": bool(data.get("is_gateway")),
                 "certainty": "sure" if dev.get("user_kind") else data.get("certainty", "unknown"),
-                "first_seen": dev["first_seen"], "last_seen": dev["last_seen"], "status": core.device_status(dev, last_scan),
+                "first_seen": dev["first_seen"], "last_seen": dev["last_seen"], "status": status,
                 "origin": reg.origin_of(dev.get("mac")), "vendor": reg.lookup(dev.get("mac")) or "",
                 "was_up": wdev.get(dev["id"]) in ("up", "down", "gone"), "down_since": down_since.get(dev["id"]),
             })

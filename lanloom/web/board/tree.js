@@ -23,7 +23,7 @@
   'use strict';
 
   const GRADES = ['realtime', 'near', 'periodic', 'sluggish', 'interrupted', 'unknown'];
-  const STATUSES = ['up', 'down', 'unknown'];
+  const STATUSES = ['up', 'down', 'off', 'unknown'];
   const MEDIUM_RANK = { cable: 0, radio: 1, virtual: 2 };
   const KIND_RANK = { internet: 0, router: 1, switch: 2, ap: 3 };
   const OTHER_ID = 'tree:other';

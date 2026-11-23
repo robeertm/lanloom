@@ -201,6 +201,104 @@ def test_watch_journals_device_changes(tmp_path, monkeypatch):
     assert len(rep.journal.between(0, clock.t + 120)) == 5
 
 
+def test_watch_books_nothing_for_a_device_marked_often_switched_off(tmp_path, monkeypatch):
+    """lanloom#19: a television that leaves the network in standby on purpose is no outage - no slot, no event, no report
+    line - and only a long absence (the days set on its card) is reported, once."""
+    from lanloom import availability as av
+    clock = Clock(at(2026, 11, 15, 20, 0))
+    c, rep = make(tmp_path, clock)
+    tv = add_device(c, 30, "Living room TV", kind="tv")
+    lap = add_device(c, 20, "Office laptop")
+    c.set_sleepy(tv, True, 2)
+    status = {tv: "up", lap: "up"}
+    monkeypatch.setattr(c, "device_status", lambda dev, *_: status.get(dev["id"], "unknown"))
+    c.cadence["presence"] = SimpleNamespace(last=clock.t)
+    w = rep.watch
+    w.started = clock.t - START_GRACE_S - 1
+    w.observe(clock.t)
+    s0 = int(clock.t // av.SLOT_S)
+    assert av.ups_of(c.availability.cells("dev:" + tv, s0, s0)[0]) >= 1      # a good look is still booked
+    status[tv] = status[lap] = "down"
+    for _ in range(2):
+        clock.t += 600
+        w.observe(clock.t)
+    s = int(clock.t // av.SLOT_S)
+    assert av.downs_of(c.availability.cells("dev:" + tv, s, s)[0]) == 0
+    assert av.downs_of(c.availability.cells("dev:" + lap, s, s)[0]) >= 1
+    kinds = [(e["kind"], e["data"]["id"]) for e in rep.journal.between(0, clock.t)]
+    assert kinds == [("dev_offline", lap)]
+    status[lap] = "up"
+    clock.t += 2 * 86400 + 60
+    w.observe(clock.t)
+    long_off = [e for e in rep.journal.between(0, clock.t) if e["kind"] == "dev_long_off"]
+    assert len(long_off) == 1 and long_off[0]["data"]["days"] == 2 and long_off[0]["data"]["id"] == tv
+    clock.t += 60
+    w.observe(clock.t)
+    assert len([e for e in rep.journal.between(0, clock.t) if e["kind"] == "dev_long_off"]) == 1    # once per absence
+    assert not [e for e in rep.journal.between(0, clock.t) if e["data"].get("id") == tv and e["kind"] in ("dev_offline", "dev_gone")]
+
+
+def test_marked_device_back_after_a_short_nap_writes_no_back_row(tmp_path, monkeypatch):
+    clock = Clock(at(2026, 11, 15, 20, 0))
+    c, rep = make(tmp_path, clock)
+    tv = add_device(c, 30, "Living room TV", kind="tv")
+    c.set_sleepy(tv, True, 0)                                  # 0 = never warn
+    status = {tv: "up"}
+    monkeypatch.setattr(c, "device_status", lambda dev, *_: status.get(dev["id"], "unknown"))
+    c.cadence["presence"] = SimpleNamespace(last=clock.t)
+    w = rep.watch
+    w.started = clock.t - START_GRACE_S - 1
+    w.observe(clock.t)
+    status[tv] = "down"
+    clock.t += 30 * 86400
+    w.observe(clock.t)
+    clock.t += 60
+    w.observe(clock.t)
+    status[tv] = "up"
+    clock.t += 60
+    w.observe(clock.t)
+    assert rep.journal.between(0, clock.t) == []
+
+
+def test_an_outage_open_before_the_mark_still_gets_its_back_row(tmp_path, monkeypatch):
+    """Marking a device that is already reported offline must not leave that outage (and its notification) open forever."""
+    clock = Clock(at(2026, 11, 15, 20, 0))
+    c, rep = make(tmp_path, clock)
+    tv = add_device(c, 30, "Living room TV", kind="tv")
+    status = {tv: "up"}
+    monkeypatch.setattr(c, "device_status", lambda dev, *_: status.get(dev["id"], "unknown"))
+    c.cadence["presence"] = SimpleNamespace(last=clock.t)
+    w = rep.watch
+    w.started = clock.t - START_GRACE_S - 1
+    w.observe(clock.t)
+    status[tv] = "down"
+    clock.t += 60
+    w.observe(clock.t)                                          # dev_offline, before anyone marked it
+    c.set_sleepy(tv, True)
+    clock.t += 60
+    w.observe(clock.t)
+    status[tv] = "up"
+    clock.t += 60
+    w.observe(clock.t)
+    assert [e["kind"] for e in rep.journal.between(0, clock.t)] == ["dev_offline", "dev_back"]
+
+
+def test_devices_section_reports_a_long_absence_of_a_marked_device(tmp_path, monkeypatch):
+    clock = Clock(at(2026, 11, 16, 6, 30))
+    c, rep = make(tmp_path, clock)
+    tv = add_device(c, 30, "Living room TV", kind="tv")
+    monkeypatch.setattr(c, "device_status", lambda dev, *_: "down")
+    rep.journal.add("dev_long_off", {"id": tv, "title": "Living room TV", "kind": "tv", "since": at(2026, 11, 2, 21, 0),
+                                     "days": 14}, at(2026, 11, 16, 3, 0))
+    r = rep.assemble(at(2026, 11, 15, 6, 30), clock.t, None, "2026-11-16", [])
+    sec = section(r, "devices")
+    rr = render.Renderer("en", Z, "2026-11-16")
+    lines = {i["key"]: rr.line(i) for i in sec["items"]}
+    assert lines["report.devices.long_off"].startswith("Living room TV is marked as often switched off and has not been seen since")
+    assert lines["report.devices.long_off"].endswith("(14 days).")
+    assert [i["key"] for i in sec["items"] if i["point"]] == ["report.devices.long_off"]
+
+
 def test_watch_waits_after_a_start_and_survives_a_restart(tmp_path, monkeypatch):
     clock = Clock(at(2026, 11, 15, 20, 0))
     c, rep = make(tmp_path, clock)

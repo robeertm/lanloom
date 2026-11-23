@@ -21,6 +21,7 @@
  "board.grade.unknown": "Inconnu",
  "board.status.up": "En ligne",
  "board.status.down": "Hors ligne",
+ "board.status.off": "Éteint",
  "board.status.unknown": "État inconnu",
  "board.trace.uplink": "Liaison montante",
  "board.trace.lan": "LAN",

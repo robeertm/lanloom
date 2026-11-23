@@ -9,6 +9,8 @@ overnight, so a gentle watcher compares the live state once a minute and writes 
                                                      (not a second interface of a known device)
     dev_offline / dev_back     {id, title}           a known device stopped / started answering
     dev_gone                   {id, title, since}    offline for a day (once per absence)
+    dev_long_off               {id, title, kind, since, days}  a device marked "often switched off" was not seen for
+                                                     that many days (once per absence; it gets no offline/back rows)
     src_fail / src_ok          {id, name, key}       a connection (integration) failed / recovered
     app_start / app_stop       {version, prev?}      Lanloom itself (maintenance, never a fault)
     fw_change                  {plan, status, n, ...} a change the firewall editor wrote
@@ -128,6 +130,7 @@ class Watch:
         ids = set()
         looks = []                                     # (device id, answers) of this round, booked into the availability slots
         groups = core.identity_groups() if hasattr(core, "identity_groups") else {"members": {}}
+        naps = core.sleepy_marks() if hasattr(core, "sleepy_marks") else {}    # devices a person marked "often switched off"
         for dev in core.store.devices():
             did = dev["id"]
             ids.add(did)
@@ -150,14 +153,27 @@ class Watch:
                 continue
             before = self.dev.get(did)
             kind = dev.get("user_kind") or dev["kind"]
-            if not dev["data"].get("is_self"):
-                looks.append((did, status == "up"))
+            nap = naps.get(did)
+            if not dev["data"].get("is_self") and (status == "up" or not nap):
+                looks.append((did, status == "up"))      # a marked device that does not answer books nothing: slot unknown
             if status == "up":
-                if before in ("down", "gone"):
+                if before in ("down", "gone"):      # a marked device that went quiet is "down0": nobody was told, so no back row
                     self.journal.add("dev_back", {"id": did, "title": title, "kind": kind}, now)
                     n += 1
                 self.dev[did] = "up"
                 self.down_since.pop(did, None)
+            elif nap:
+                # marked "often switched off": no event, no slot - only a long absence is worth a word. It goes quiet as
+                # "down0" (nobody was told); a "down" from before the mark stays, so its open outage still gets its back row
+                if before != "gone":
+                    self.dev[did] = "down" if before == "down" else "down0"
+                since = self.down_since.setdefault(did, now)
+                days = int(nap.get("warn_days") or 0)
+                if days and before in ("down", "down0") and now - since >= days * 86400:
+                    self.journal.add("dev_long_off", {"id": did, "title": title, "kind": kind,
+                                                      "since": since, "days": days}, now)
+                    self.dev[did] = "gone"
+                    n += 1
             else:
                 if before == "up":
                     self.journal.add("dev_offline", {"id": did, "title": title, "kind": kind}, now)

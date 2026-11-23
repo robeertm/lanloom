@@ -87,7 +87,8 @@ DEVICE = s_obj({
     "vendor": s_str("manufacturer", nullable=True),
     "model": s_str(nullable=True),
     "firmware": s_str(nullable=True),
-    "status": s_str("up = answers now, down = stopped answering, unknown = not checked yet", ("up", "down", "unknown")),
+    "status": s_str("up = answers now, down = stopped answering, off = marked as often switched off and not answering "
+                     "right now, unknown = not checked yet", ("up", "down", "off", "unknown")),
     "hidden": s_bool("hidden from the map by a person"),
     "gateway": s_bool("the default gateway of a scanned network"),
     "hostnames": s_arr(s_str()),
@@ -196,7 +197,7 @@ def device_v1(d: dict) -> dict:
     return {"id": d["id"], "title": d.get("title") or "", "kind": d.get("kind") or "unknown", "ip": d.get("ip") or "",
             "mac": d.get("mac") or None, "ipv6": [str(x) for x in d.get("ipv6") or []], "vendor": d.get("vendor") or None,
             "model": d.get("model") or None, "firmware": d.get("firmware") or None,
-            "status": d.get("status") if d.get("status") in ("up", "down") else "unknown", "hidden": bool(d.get("hidden")),
+            "status": d.get("status") if d.get("status") in ("up", "down", "off") else "unknown", "hidden": bool(d.get("hidden")),
             "gateway": bool(d.get("is_gateway")), "hostnames": [str(x) for x in d.get("hostnames") or []],
             "services": [str(x) for x in d.get("services") or []], "sources": [str(x) for x in d.get("sources") or []],
             "zone": (d.get("zone") or {}).get("name") if isinstance(d.get("zone"), dict) else (d.get("zone") or None),
@@ -251,7 +252,7 @@ def register(app: FastAPI, state, err: Callable, read_limited: Callable) -> Regi
     @api.op("GET", BASE + "/devices", tag="devices", summary="All devices",
             params=(P("hidden", "query", s_bool(), desc="also list devices hidden from the map (default false)"),
                     P("kind", "query", s_str(), desc="only this kind, e.g. printer"),
-                    P("status", "query", s_str(enum=("up", "down", "unknown")), desc="only this status")),
+                    P("status", "query", s_str(enum=("up", "down", "off", "unknown")), desc="only this status")),
             response=s_obj({"count": s_int(), "devices": s_arr(DEVICE)}))
     async def devices(request: Request, hidden: bool = False, kind: str = "", status: str = ""):
         rows = [device_v1(d) for d in await asyncio.to_thread(state.core.devices)]

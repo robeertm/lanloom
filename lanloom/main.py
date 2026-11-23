@@ -925,6 +925,18 @@ def create_app(cfg=None, store: Optional[Store] = None) -> FastAPI:
         except ValueError as exc:
             return err(str(exc), 404 if str(exc) == "device.err.missing" else 400)
 
+    @app.post("/api/devices/{device_id}/sleepy")
+    async def device_sleepy(device_id: str, request: Request):
+        """Mark one device as often switched off (no outage, no report line, grey "off"); warn_days 0..365, 0 = never
+        report a long absence."""
+        data = await body(request)
+        on = data.get("on") is True
+        note(request, target=device_id, detail={"on": on})
+        try:
+            return state.core.set_sleepy(device_id, on, data.get("warn_days"))
+        except ValueError as exc:
+            return err(str(exc), 404 if str(exc) == "device.err.missing" else 400)
+
     @app.get("/api/protect")
     async def get_protect():
         return {"devices": await asyncio.to_thread(state.core.protect_list)}

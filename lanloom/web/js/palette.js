@@ -172,7 +172,7 @@
     if (hit.kind === 'automation' && hit.state) return h('span', { class: 'chip chip--' + (hit.state === 'on' ? 'ok' : 'muted') }, String(hit.state));
     if (hit.status && (hit.kind === 'device' || hit.kind === 'service' || hit.kind === 'guest')) {
       const s = hit.status === 'running' ? 'up' : hit.status;
-      return h('span', { class: 'status-dot status-dot--' + (['up', 'down'].includes(s) ? s : 'unknown'), title: t('board.status.' + (['up', 'down'].includes(s) ? s : 'unknown')) });
+      return h('span', { class: 'status-dot status-dot--' + (['up', 'down', 'off'].includes(s) ? s : 'unknown'), title: t('board.status.' + (['up', 'down', 'off'].includes(s) ? s : 'unknown')) });
     }
     return null;
   }

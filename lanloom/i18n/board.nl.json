@@ -21,6 +21,7 @@
  "board.grade.unknown": "Onbekend",
  "board.status.up": "Online",
  "board.status.down": "Offline",
+ "board.status.off": "Uit",
  "board.status.unknown": "Status onbekend",
  "board.trace.uplink": "Uplink",
  "board.trace.lan": "LAN",

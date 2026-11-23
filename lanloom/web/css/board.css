@@ -231,6 +231,8 @@
 .ll-tile[data-status="down"] .ll-led { box-shadow: 0 0 0 2px var(--ll-pcb-led-ring), 0 0 var(--ll-pcb-led-glow) var(--ll-danger); }
 .ll-tile[data-status="down"] { border-color: var(--ll-pcb-tile-down); }
 .ll-tile[data-status="down"] .ll-tile__icon { color: var(--ll-danger-text); background: var(--ll-danger-soft); }
+/* off: a person marked the device "often switched off" - a quiet grey lamp, no glow, never the danger colour */
+.ll-tile[data-status="off"] .ll-led { background: var(--ll-muted); box-shadow: 0 0 0 2px var(--ll-pcb-led-ring); }
 .ll-tile[data-kind="internet"] .ll-tile__icon, .ll-tile[data-kind="router"] .ll-tile__icon { color: var(--ll-pcb-trace-uplink); }
 .ll-tile[data-kind="self"] { border-color: var(--ll-accent); }
 

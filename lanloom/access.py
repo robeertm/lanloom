@@ -153,6 +153,7 @@ RULES = {
     ("DELETE", "/api/devices/{device_id}"): R(O, "device.forget"),
     ("POST", "/api/devices/{device_id}/identity"): R(O, "device.identity"),
     ("POST", "/api/devices/{device_id}/protect"): R(O, "device.protect"),
+    ("POST", "/api/devices/{device_id}/sleepy"): R(O, "device.sleepy"),
     ("GET", "/api/devices/{device_id}/integrate"): R(V),
     ("GET", "/api/integrate"): R(V),
     ("GET", "/api/protect"): R(V),

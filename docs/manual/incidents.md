@@ -48,7 +48,9 @@ and nothing is switched.
 - **Sure and probably.** Devices that go down within ten minutes of each other are looked at together. A part that hangs
   on another one in the [failure chain](failure-chain.md) is listed under it - *sure* over a sure link, *probably* over a
   likely one. When several parts went down while the part they all hang on kept answering (or is not watched), that part is
-  named as the **probable root**. Phones and computers come and go: they never start an incident on their own.
+  named as the **probable root**. Phones and computers come and go: they never start an incident on their own. A device
+  marked *often switched off* on its card gets no gap at all while it does not answer, so it starts no incident and never
+  counts as evidence for a probable root further up.
 - **What happened?** on the card of a device that is down, or was down in the last 24 hours: since when, the probable root,
   how many parts went with it and the latest change before, with *Open file*, *Play in rewind* and *Failure chain*.
 

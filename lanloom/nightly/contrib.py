@@ -134,7 +134,7 @@ def _devices_available(ctx: Ctx) -> bool:
 
 
 def _devices(ctx: Ctx) -> dict:
-    evs = ctx.events("dev_new", "dev_offline", "dev_back", "dev_gone")
+    evs = ctx.events("dev_new", "dev_offline", "dev_back", "dev_gone", "dev_long_off")
     items, new, gone, flaps = [], 0, 0, {}
     current = {d["id"]: d for d in ctx.core.store.devices()}
     for ev in evs:
@@ -158,6 +158,10 @@ def _devices(ctx: Ctx) -> dict:
             gone += 1
             items.append(item("gone:%s:%d" % (did, d.get("since") or ev["t"]), "report.devices.gone", "warn", True,
                               name=title, since_at=d.get("since") or ev["t"]))
+        elif ev["kind"] == "dev_long_off":     # marked "often switched off", not seen for its warn days (lanloom#19)
+            gone += 1
+            items.append(item("longoff:%s:%d" % (did, d.get("since") or ev["t"]), "report.devices.long_off", "warn", True,
+                              name=title, since_at=d.get("since") or ev["t"], n=int(d.get("days") or 0)))
         else:
             f = flaps.setdefault(did, {"title": title, "kind": d.get("kind") or "", "off": [], "back": []})
             f["off" if ev["kind"] == "dev_offline" else "back"].append(ev["t"])

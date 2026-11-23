@@ -315,7 +315,7 @@ class Inventory:
                          "successor": ({"id": hints["successor"]["id"], "title": hints["successor"]["title"] or hints["successor"]["ip"]}
                                        if hints["successor"] else None)}
         touched = bool(rec["confirmed"] or view.get("auto_title") != view.get("title") or view.get("auto_kind") != view.get("kind")
-                       or view["hidden"] or any(rec[k] for k in OWN_FIELDS) or did in ctx["manual"])
+                       or view["hidden"] or bool(view.get("sleepy")) or any(rec[k] for k in OWN_FIELDS) or did in ctx["manual"])
         protected = bool(view.get("is_gateway") or view.get("is_self") or view["kind"] in ("self", "internet") or did in ctx["family"]
                          or did in ctx["hub"] or view.get("merged_into"))
         provisional = not touched and rec["state"] != "decommissioned"

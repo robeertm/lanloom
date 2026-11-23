@@ -113,7 +113,8 @@ Authoritative and complete: `GET /api/v1/openapi.json`.
 ### Devices
 
 `GET /api/v1/devices` - all devices. Parameters (all optional): `hidden` (`true` also lists devices hidden from the map),
-`kind` (only this kind, for example `printer`), `status` (`up`, `down` or `unknown`).
+`kind` (only this kind, for example `printer`), `status` (`up`, `down`, `off` or `unknown`; `off` is a device marked as
+often switched off that does not answer right now).
 
 ```json
 {"count": 41, "devices": [

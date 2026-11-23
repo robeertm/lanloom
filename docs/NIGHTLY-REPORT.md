@@ -16,7 +16,7 @@ At the top one line: **All quiet**, or **N things need a look**. Below it one se
 | Section | What it reports | Needs a look when |
 | --- | --- | --- |
 | Internet | outages of the router's internet port (from SNMP counters of the gateway) with start, end and length; a switch to another uplink when an adapter reports one | an outage lasted a minute or longer, or the line is still down |
-| Devices | new devices, devices not seen for a day, devices that went offline and came back (with times) | a new device appeared, a device is gone for a day, network equipment or a server is still offline |
+| Devices | new devices, devices not seen for a day, devices that went offline and came back (with times); a device marked *often switched off* only appears once it has not been seen for the days set on its card ([details](AVAILABILITY.md)) | a new device appeared, a device is gone for a day, a device marked *often switched off* was not seen for its days, network equipment or a server is still offline |
 | Connections | availability of each connection (hub, broker, SNMP, controller, adapters) over the night | a connection has not answered for 30 minutes and is still down |
 | Availability | only once the history exists ([details](AVAILABILITY.md#in-the-nightly-report)): how many devices and connections had no gap in the last 7 days, the gaps in all, the typical repair time, and every wobbly device | a device or connection had three or more gaps in 7 days |
 | Web interfaces and services | web interfaces and services that stopped answering, answer with a server error, or have been gone for a day ([details](SERVICES.md)) | an interface is not answering or answers with a server error |

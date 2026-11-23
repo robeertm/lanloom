@@ -25,6 +25,7 @@ FLOW_KEEP = 3600.0
 PEER_TAU = 60.0          # weight of an outside peer / a seen port decays with this time constant (s) …
 PEER_KEEP = 600.0        # … and entries older than this are dropped
 PEER_MAX = 14            # outside peers per frame (the end-mark list shows 14 rows)
+SLEEPY_WARN_DAYS = 14    # a device marked "often switched off": warn after this many days without a sign of life
 DEFAULT_SETTINGS = {
     "rescan_hours": 6,          # 0 = never; automatic rescans are always gentle
     "rescan_cidrs": [],
@@ -509,6 +510,7 @@ class Core:
         last = self._last_scan_id()
         groups_key = (self.structure_version, id(self.registry()), id(getattr(self.registry(), "db", None)))
         cache, out = self._view_cache, []
+        naps = self.sleepy_marks()
         for r in self.store.query("SELECT * FROM devices ORDER BY ip"):
             sig = (r["last_seen"], r["last_scan"], r["user_title"], r["user_kind"], r["hidden"], r["kind"], r["title"],
                    r["confidence"], r["mac"], r["ip"], r["data"], groups_key)
@@ -521,6 +523,7 @@ class Core:
                 cache[r["id"]] = (sig, static)
                 view = dict(static)
             view["status"] = self.device_status(r, last)
+            self._sleepy_status(view, naps)
             out.append(view)
         self._apply_hub_kinds(out)
         out = [self._with_hint(v) for v in out]
@@ -634,6 +637,7 @@ class Core:
     def device_view(self, dev: dict, last_scan=False) -> dict:
         view = self._static_view(dev)
         view["status"] = self.device_status(dev, last_scan)
+        self._sleepy_status(view, self.sleepy_marks())
         if view["kind"] == "unknown" and self.hub:
             self._apply_hub_kinds([view], self.hub_merge())
         return self._with_hint(view)
@@ -714,6 +718,62 @@ class Core:
         self.store.set_setting("protect_marks", dict(list(marks.items())[-2000:]))
         self.structure_version += 1
         return self.device_view(self.store.device(device_id))
+
+    # ------------------------------------------------------------------ "often switched off" (lanloom#19)
+    def sleepy_marks(self) -> dict:
+        """Devices a person marked "often switched off": {id: {"warn_days": int}} (0 = never warn)."""
+        out = {}
+        for k, v in (self.store.get_setting("sleepy_marks", {}) or {}).items():
+            if isinstance(k, str) and isinstance(v, dict):
+                d = v.get("warn_days")
+                ok = isinstance(d, int) and not isinstance(d, bool) and 0 <= d <= 365
+                out[k] = {"warn_days": d if ok else SLEEPY_WARN_DAYS}
+        return out
+
+    def set_sleepy(self, device_id: str, on, warn_days=None) -> dict:
+        """Mark one device as often switched off (on=True, optional days before a long absence is reported) or clear it.
+        Only a person sets this mark; nothing in Lanloom sets it by itself."""
+        if not self.store.device(device_id):
+            raise ValueError("device.err.missing")
+        marks = self.sleepy_marks()
+        if on:
+            days = marks.get(device_id, {}).get("warn_days", SLEEPY_WARN_DAYS) if warn_days is None else warn_days
+            if not isinstance(days, int) or isinstance(days, bool) or not 0 <= days <= 365:
+                raise ValueError("sleepy.err.days")
+            marks[device_id] = {"warn_days": days}
+        else:
+            marks.pop(device_id, None)
+        self.store.set_setting("sleepy_marks", dict(list(marks.items())[-2000:]))
+        self.structure_version += 1
+        return self.device_view(self.store.device(device_id))
+
+    @staticmethod
+    def _sleepy_status(view: dict, naps: dict) -> None:
+        """A person said this device is often switched off: grey "off", never red "down"."""
+        nap = naps.get(view["id"])
+        view["sleepy"] = dict(nap) if nap else None
+        if nap and view["status"] == "down":
+            view["status"] = "off"
+
+    def _move_marks(self, old: str, new: str) -> None:
+        """A device first seen by address got its hardware address: the person's marks (protection class, often
+        switched off) follow it. A mark the hardware-address row had already wins."""
+        for key in ("protect_marks", "sleepy_marks"):
+            marks = self.store.get_setting(key, {}) or {}
+            if not isinstance(marks, dict) or old not in marks:
+                continue
+            mark = marks.pop(old)
+            if new not in marks:
+                marks[new] = mark
+            self.store.set_setting(key, marks)
+            self.structure_version += 1
+
+    def _drop_marks(self, device_id: str) -> None:
+        for key in ("protect_marks", "sleepy_marks"):
+            marks = self.store.get_setting(key, {}) or {}
+            if isinstance(marks, dict) and device_id in marks:
+                marks.pop(device_id, None)
+                self.store.set_setting(key, marks)
 
     def protected_map(self) -> dict:
         """{ip: {"class", "why", "source"}} for the scanner: what the inventory already knows about sensitive devices."""
@@ -811,6 +871,7 @@ class Core:
             self.availability.forget("dev:" + device_id)
             self.services.forget_device(device_id)
             self.hosthealth.forget(device_id)
+            self._drop_marks(device_id)
         self.store.execute("DELETE FROM phys_manual WHERE device_id=? OR parent_id=?", (device_id, device_id))
         self.inventory.forget(device_id)
         self.vulns.forget_device(device_id)
@@ -1163,6 +1224,7 @@ class Core:
         self._refresh_index()
         for old_id, new_id, merged in moved:       # outside the transaction: these take their own locks
             self.paths.rename_device(old_id, new_id)
+            self._move_marks(old_id, new_id)
             if merged:
                 self.availability.forget("dev:" + old_id)
                 self.hosthealth.forget(old_id)

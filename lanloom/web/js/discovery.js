@@ -171,6 +171,36 @@
     return sec;
   };
 
+  // "often switched off / may sleep" (lanloom#19): only a person sets it; while the device does not answer nothing is booked
+  LL.sleepySection = function (dev, may) {
+    const nap = dev.sleepy;
+    if (!nap && !may) return null;
+    const rows = [];
+    if (nap) rows.push(h('div', { class: 'dz-prot__main' }, h('span', { class: 'chip chip--muted' }, t('sleepy.chip')),
+      h('span', { class: 'muted' }, nap.warn_days ? t('sleepy.warns_after', { n: nap.warn_days }) : t('sleepy.never_warns'))));
+    rows.push(h('p', { class: 'muted fineprint' }, t('sleepy.lead')));
+    if (may) {
+      const on = h('input', { type: 'checkbox', checked: !!nap });
+      const days = h('input', { type: 'number', class: 'input sleepy-days', inputmode: 'numeric', min: '0', max: '365', step: '1',
+        value: String(nap ? nap.warn_days : 14), disabled: !nap });
+      on.addEventListener('change', () => { days.disabled = !on.checked; });
+      const msg = h('div', { class: 'msg', role: 'status' });
+      const save = h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: async () => {
+        const n = Number(days.value);
+        if (on.checked && (!Number.isInteger(n) || n < 0 || n > 365)) { LL.msg(msg, t('sleepy.err.days'), 'error'); return; }
+        save.disabled = true;
+        try {
+          await api('/api/devices/' + encodeURIComponent(dev.id) + '/sleepy', { method: 'POST', body: on.checked ? { on: true, warn_days: n } : { on: false } });
+          LL.toast(t('device.saved'), 'ok'); LL.route();
+        } catch (e) { LL.msg(msg, LL.errText(e), 'error'); save.disabled = false; }
+      } }, t('sleepy.save'));
+      rows.push(h('label', { class: 'check' }, on, h('span', {}, t('sleepy.on'))));
+      rows.push(LL.field(t('sleepy.warn_days'), days));
+      rows.push(msg, h('div', { class: 'btn-row' }, save));
+    }
+    return h('section', { class: 'detail__sec sleepy-sec' }, h('h3', {}, t('sleepy.section')), h('div', { class: 'stack-sm' }, rows));
+  };
+
   LL.integrateSection = function (dev) {
     const sec = h('section', { class: 'detail__sec', hidden: true }, h('h3', {}, t('integrate.section')));
     const admin = LL.can('admin');

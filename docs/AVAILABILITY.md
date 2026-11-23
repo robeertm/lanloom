@@ -20,6 +20,10 @@ Storage › *Availability and events*: 35, 90, 180 or 365 days).
 - When none of three or more devices answers at once, Lanloom's own network is the likelier cause than three faults at
   the same time: nothing is booked for that minute.
 - A device that is hidden, and the host Lanloom runs on, are not tracked.
+- A device marked **often switched off** on its card (a television in standby, a console, a laptop) books only its good
+  looks: while it does not answer the slot stays *unknown*, so it never loses availability, never starts an outage and shows
+  a grey *Off* instead of a red *Offline*. Only when it has not been seen for the days set on the card (14 unless changed,
+  0 = never) does the nightly report say so, once per absence.
 - The known services and web interfaces of the devices are looked at every 3 minutes and booked the same way (as
   `svc:<device>|<port>`, see [SERVICES.md](SERVICES.md)); the *Stability* list shows those with a history.
 
