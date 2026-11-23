@@ -578,3 +578,66 @@ def test_demo_fills_running_view_and_map(tmp_path, monkeypatch):
         assert cts and all(c.get("fold") for c in cts)
         assert core.paths.pairs("24h", now + 60)                   # conversations of the agents in the data paths
         assert len(core.agents.health(demo_agents.STORAGE, 24 * 7)["points"]) > 1000
+
+
+def _timer_unit(last, nxt, result="exit-code"):
+    return {"available": True, "failed": [{"name": "job.service", "sub": "failed", "since": last, "result": result}],
+            "timers": [{"name": "job.timer", "unit": "job.service", "active": True, "last": last, "next": nxt,
+                        "result": "success", "unit_state": "failed" if result != "success" else "inactive", "unit_result": result}],
+            "total": 5}
+
+
+def test_timer_failure_is_quiet_once_then_reported(app):
+    from lanloom import agents as am
+    hub, core = app.st.core.agents, app.st.core
+    sent = []
+    core.notify.emit = lambda eid, key, data=None, **kw: sent.append((eid, key, kw.get("resolve", False)))
+    now = time.time()
+    app.st.store.execute("INSERT INTO agent_hosts(id, kind, name, created, last_seen, facts) VALUES(?,?,?,?,?,?)",
+                         ("ag-t", "agent", "t", now, now, "{}"))
+    hub.live["ag-t"] = {"known_names": [], "t": 0}
+    day = 86400
+
+    def feed(at, last, nxt, result="exit-code"):
+        rep = _report(at)
+        rep["units"] = _timer_unit(last, nxt, result)
+        hub.ingest_report("ag-t", rep, at)
+        hub.watch(at)
+
+    feed(now, now - 60, now + day)                           # first failed run: quiet, shown as once
+    assert not [s for s in sent if s[0] == "host_unit_failed"]
+    run = hub.running(now)["hosts"]
+    h = [x for x in run if x["id"] == "ag-t"][0]
+    assert h["units"]["timers"][0]["verdict"] == "once" and h["units"]["failed"] == []
+    assert hub.summary(now)["failed_timers"] == 0
+    feed(now + 600, now - 60, now + day)                     # same run, still within two cycles
+    assert not [s for s in sent if s[0] == "host_unit_failed"]
+    feed(now + day, now + day - 60, now + 2 * day)           # the next run failed too -> a finding
+    assert ("host_unit_failed", "host_unit_failed:ag-t:job.service", False) in sent
+    feed(now + day + 600, now + day, now + 2 * day, "success")   # success resets
+    assert ("host_unit_failed", "host_unit_failed:ag-t:job.service", True) in sent
+    assert hub.live["ag-t"]["tfail"] == {}
+
+
+def test_timer_failure_lasting_longer_than_two_cycles_is_reported():
+    from lanloom import agents as am
+    now = 1_000_000.0
+    st = {"units": _timer_unit(now - 3600, now + 600)}      # cycle 70 min -> limit 2 h 20 min
+    am.track_timers(st, now)
+    assert am.effective_units(st, now)[1][0]["verdict"] == "once"
+    assert am.effective_units(st, now + 3600)[1][0]["verdict"] == "once"          # failed 2 h ago < 2 h 20 min
+    assert am.effective_units(st, now + 5400)[1][0]["verdict"] == "failed"         # 2 h 30 min
+    st2 = {"units": _timer_unit(now - 600, now + 600)}      # cycle 20 min -> limit 40 min
+    am.track_timers(st2, now)
+    assert am.effective_units(st2, now + 30 * 60)[1][0]["verdict"] == "once"
+    assert am.effective_units(st2, now + 50 * 60)[1][0]["verdict"] == "failed"
+    st3 = {"units": _timer_unit(now - 60, now + 60)}        # tiny cycle -> at least 15 min
+    am.track_timers(st3, now)
+    assert am.effective_units(st3, now + 10 * 60)[1][0]["verdict"] == "once"
+    assert am.effective_units(st3, now + 20 * 60)[1][0]["verdict"] == "failed"
+
+
+def test_failed_service_without_timer_stays_immediate():
+    from lanloom import agents as am
+    st = {"units": {"available": True, "failed": [{"name": "x.service"}], "timers": []}}
+    assert am.effective_units(st, 1.0)[0] == [{"name": "x.service"}]

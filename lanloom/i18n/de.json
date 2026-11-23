@@ -4660,6 +4660,8 @@
  "running.system": "System",
  "running.timer.failed": "Fehlgeschlagen",
  "running.timer.ok": "OK",
+ "running.timer.once": "Einmal fehlgeschlagen · nächster Lauf in {when}",
+ "running.timer.once.title": "Ein Lauf ist fehlgeschlagen. Gemeldet wird erst, wenn auch der nächste Lauf scheitert oder der Fehler länger als zwei Takte besteht.",
  "running.timers": "Timer",
  "running.title": "Läuft",
  "running.units.unavailable": "Der Dienstmanager lässt sich nicht lesen. Binde seinen System-Bus-Socket schreibgeschützt in den Agenten ein.",

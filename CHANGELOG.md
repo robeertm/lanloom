@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- **A timer's service that fails once is no longer an alarm.** A backup or fetch timer that trips over a short network gap and works at its next run used to raise *host unit failed*, count in the overview and appear under *timers failed* in the nightly report at the first failure. Now a failed run of a service started by a timer is only a finding when it fails a second time in a row, or when the fault lasts longer than two cycles (the cycle is the time between the last and the next run, at least 15 minutes, at most 3 hours; no new agent field, older agents work). Until then *Running* shows a quiet *Failed once · next in …* chip; a successful run resets it. Failed services without a timer stay a finding at once. The counter lives in the host's saved state, so a restart does not lose it. All six languages.
+
 ### Fixed
 - **The data path maps and the energy figure no longer draw a frame for every refresh of the screen.** On a 120 or 166 Hz monitor the moving dots of the world map (Rain and Real cables, also in the country sheet) and of the energy figure were redrawn 120-166 times a second, which kept the graphics card busy for a calm animation. One shared frame gate now caps them by the motion setting, like the network board: Auto 30, Full 60, Saver 15 frames per second, Off none. The old step-down on slow frames stays below that ceiling, the dots still move by the clock (same speed at any rate), pause out of view and in a hidden tab, and stand still with reduced motion.
 

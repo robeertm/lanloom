@@ -4660,6 +4660,8 @@
  "running.system": "Sistema",
  "running.timer.failed": "Fallito",
  "running.timer.ok": "OK",
+ "running.timer.once": "Fallito una volta · prossima esecuzione tra {when}",
+ "running.timer.once.title": "Un'esecuzione è fallita. Si segnala solo se fallisce anche la successiva o se il guasto dura più di due cicli.",
  "running.timers": "Timer",
  "running.title": "In esecuzione",
  "running.units.unavailable": "Il gestore dei servizi non può essere letto. Monta il socket del suo system bus in sola lettura nell'agent.",

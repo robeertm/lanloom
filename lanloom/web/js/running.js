@@ -26,7 +26,7 @@
 
   // ------------------------------------------------------------------ problems and filtering
   const badContainer = c => c.state === 'restarting' || c.state === 'dead' || c.health === 'unhealthy' || (c.state === 'exited' && Number(c.exit_code) > 0);
-  const badTimer = x => !!((x.unit_result && x.unit_result !== 'success') || x.unit_state === 'failed');
+  const badTimer = x => x.verdict ? x.verdict === 'failed' : !!((x.unit_result && x.unit_result !== 'success') || x.unit_state === 'failed');
   const items = host => (host.containers && host.containers.items) || [];
   const failedUnits = host => (host.units && host.units.failed) || [];
   const timers = host => (host.units && host.units.timers) || [];
@@ -211,7 +211,9 @@
       h('span', { class: 'ru-t__name', title: x.name }, x.name),
       h('span', { class: 'ru-t__when muted' }, ago(now, x.last)),
       h('span', { class: 'ru-t__when muted' }, x.next ? t('running.in', { age: LL.fmtAge(x.next - now) }) : '—'),
-      h('span', { class: 'chip ' + (badTimer(x) ? 'chip--danger' : 'chip--ok') }, t(badTimer(x) ? 'running.timer.failed' : 'running.timer.ok'))));
+      x.verdict === 'once'
+        ? h('span', { class: 'chip chip--warn', title: t('running.timer.once.title') }, t('running.timer.once', { when: x.next ? LL.fmtAge(x.next - now) : '—' }))
+        : h('span', { class: 'chip ' + (badTimer(x) ? 'chip--danger' : 'chip--ok') }, t(badTimer(x) ? 'running.timer.failed' : 'running.timer.ok'))));
     return section(t('running.timers'), list.length, h('ul', { class: 'ru-ts' }, rows));
   }
   function failedSection(list, now) {

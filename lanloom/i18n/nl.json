@@ -4660,6 +4660,8 @@
  "running.system": "Systeem",
  "running.timer.failed": "Mislukt",
  "running.timer.ok": "OK",
+ "running.timer.once": "Eén keer mislukt · volgende run over {when}",
+ "running.timer.once.title": "Eén run is mislukt. Pas gemeld als ook de volgende run mislukt of de fout langer dan twee cycli duurt.",
  "running.timers": "Timers",
  "running.title": "Actief",
  "running.units.unavailable": "De servicemanager kan niet worden gelezen. Koppel zijn systembus-socket alleen-lezen aan de agent.",

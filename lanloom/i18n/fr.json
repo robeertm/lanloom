@@ -4660,6 +4660,8 @@
  "running.system": "Système",
  "running.timer.failed": "Échec",
  "running.timer.ok": "OK",
+ "running.timer.once": "Échec isolé · prochain passage dans {when}",
+ "running.timer.once.title": "Une exécution a échoué. Signalé seulement si la suivante échoue aussi ou si la panne dure plus de deux cycles.",
  "running.timers": "Minuteurs",
  "running.title": "En cours",
  "running.units.unavailable": "Le gestionnaire de services ne peut pas être lu. Montez son socket de bus système en lecture seule dans l'agent.",

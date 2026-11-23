@@ -4660,6 +4660,8 @@
  "running.system": "System",
  "running.timer.failed": "Failed",
  "running.timer.ok": "OK",
+ "running.timer.once": "Failed once · next in {when}",
+ "running.timer.once.title": "One run failed. It is only reported if the next run fails too or the fault lasts more than two cycles.",
  "running.timers": "Timers",
  "running.title": "Running",
  "running.units.unavailable": "The service manager cannot be read. Mount its system bus socket read only into the agent.",

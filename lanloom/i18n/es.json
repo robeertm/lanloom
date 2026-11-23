@@ -4660,6 +4660,8 @@
  "running.system": "Sistema",
  "running.timer.failed": "Fallido",
  "running.timer.ok": "OK",
+ "running.timer.once": "Falló una vez · próxima ejecución en {when}",
+ "running.timer.once.title": "Una ejecución falló. Solo se avisa si falla también la siguiente o el fallo dura más de dos ciclos.",
  "running.timers": "Temporizadores",
  "running.title": "En ejecución",
  "running.units.unavailable": "No se puede leer el gestor de servicios. Monta en solo lectura su socket del bus del sistema en el agente.",

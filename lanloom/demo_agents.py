@@ -106,8 +106,8 @@ def _units(aid: str, now: float) -> dict:
                    "next": now + 20 * 3600, "result": "success", "unit_state": "failed", "unit_result": "exit-code"},
                   {"name": "nightly-backup.timer", "unit": "nightly-backup.service", "active": True, "last": now - 6 * 3600,
                    "next": now + 18 * 3600, "result": "success", "unit_state": "inactive", "unit_result": "success"},
-                  {"name": "logrotate.timer", "unit": "logrotate.service", "active": True, "last": now - 3 * 3600,
-                   "next": now + 21 * 3600, "result": "success", "unit_state": "inactive", "unit_result": "success"},
+                  {"name": "logrotate.timer", "unit": "logrotate.service", "active": True, "last": now - 1200,
+                   "next": now + 24 * 3600 - 1200, "result": "success", "unit_state": "inactive", "unit_result": "exit-code"},
                   {"name": "apt-daily.timer", "unit": "apt-daily.service", "active": True, "last": now - 9 * 3600,
                    "next": now + 3 * 3600, "result": "success", "unit_state": "inactive", "unit_result": "success"}]
         return {"available": True, "failed": failed, "timers": timers, "total": 212}

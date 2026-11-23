@@ -43,7 +43,7 @@ def _build(ctx: Ctx) -> list:
                               last_at=h.get("last_seen") or 0))
             continue
         failed = [u["name"] for u in h["units"]["failed"]]
-        timers = [x["name"] for x in h["units"]["timers"] if agents_mod.timer_failed(x) and x.get("unit") not in failed]
+        timers = [x["name"] for x in h["units"]["timers"] if x.get("verdict") == "failed" and x.get("unit") not in failed]
         if failed:
             items.append(item("hosts:%s:failed" % hid, "report.hosts.failed", "warn", True, host=name, n=len(failed),
                               names=_names(failed)))

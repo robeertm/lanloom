@@ -339,6 +339,8 @@ class AgentHub:
                     st[part] = rep[part]
             if isinstance(rep.get("containers"), dict) and not rep["containers"].get("bytes_only"):
                 self._apply_containers(aid, st, rep["containers"], t)
+            if "units" in rep:
+                track_timers(st, t)
             self._sample(aid, st, t)
         if now - self._saved > SAVE_EVERY:
             self.save()
@@ -532,8 +534,8 @@ class AgentHub:
                                          "items": sorted(items, key=_ct_order), "short_lived": max(0, hidden)},
                           "listen": [s for s in st.get("listen") or [] if not s.get("local")][:300],
                           "listen_local": sum(1 for s in st.get("listen") or [] if s.get("local")),
-                          "units": {"available": units.get("available", False), "failed": units.get("failed") or [],
-                                    "timers": sorted(units.get("timers") or [], key=lambda x: x.get("next") or 1e18),
+                          "units": {"available": units.get("available", False), "failed": effective_units(st, now)[0],
+                                    "timers": sorted(effective_units(st, now)[1], key=lambda x: x.get("next") or 1e18),
                                     "total": units.get("total")},
                           "overlay": st.get("overlay") or {"available": False}})
         return {"hosts": hosts, "server_version": __version__, "image": "%s:%s" % (IMAGE, __version__), "t": round(now, 1),
@@ -589,9 +591,9 @@ class AgentHub:
             items = visible(st, now)
             out["containers"] += sum(1 for c in items if c.get("state") == "running")
             out["unhealthy"] += sum(1 for c in items if c.get("health") == "unhealthy" or c.get("state") == "restarting")
-            units = st.get("units") or {}
-            out["failed_units"] += len(units.get("failed") or [])
-            out["failed_timers"] += sum(1 for x in units.get("timers") or [] if timer_failed(x))
+            failed, timers = effective_units(st, now)
+            out["failed_units"] += len(failed)
+            out["failed_timers"] += sum(1 for x in timers if x.get("verdict") == "failed" and x.get("unit") not in {u.get("name") for u in failed})
         return out
 
     # ------------------------------------------------------------------ background: proxies, events, saving
@@ -639,10 +641,11 @@ class AgentHub:
                 current.add((aid, "offline"))
             if not self._online(aid, now):
                 continue
-            for u in (st.get("units") or {}).get("failed") or []:
+            failed, timers = effective_units(st, now)
+            for u in failed:
                 current.add((aid, "unit:" + str(u.get("name"))[:120]))
-            for x in (st.get("units") or {}).get("timers") or []:
-                if timer_failed(x):
+            for x in timers:
+                if x.get("verdict") == "failed":
                     current.add((aid, "unit:" + str(x.get("unit") or x.get("name"))[:120]))
             for c in visible(st, now):
                 if c.get("health") == "unhealthy" or c.get("state") == "restarting":
@@ -680,7 +683,7 @@ class AgentHub:
         self._saved = self.clock()
         for aid, st in list(self.live.items()):
             keep = {k: v for k, v in st.items() if k in ("system", "listen", "units", "overlay", "containers", "known_names",
-                                                         "flows_available")}
+                                                         "flows_available", "tfail")}
             self.store.execute("UPDATE agent_hosts SET state=? WHERE id=?", (json.dumps(keep, separators=(",", ":")), aid))
 
     async def loop(self) -> None:
@@ -729,6 +732,65 @@ def visible(st: dict, now: float) -> list:
 def timer_failed(x: dict) -> bool:
     r = str(x.get("unit_result") or x.get("result") or "success")
     return r not in ("success", "") or x.get("unit_state") == "failed"
+
+
+TIMER_MIN_S, TIMER_MAX_S = 15 * 60, 3 * 3600      # a failure older than two cycles (within these bounds) counts
+
+
+def timer_cycle(x: dict) -> Optional[float]:
+    """The rhythm of a timer from its last and next run (no agent field needed), None when unknown."""
+    try:
+        d = float(x["next"]) - float(x["last"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return d if d > 0 else None
+
+
+def track_timers(st: dict, now: float) -> None:
+    """Remember per timer how many runs in a row failed: ``st["tfail"][unit] = {"since", "last", "n"}``. A success (or
+    a timer that is gone) forgets it. Lives in the state of the host, so it is saved with it."""
+    tf = st.setdefault("tfail", {})
+    seen = set()
+    for x in (st.get("units") or {}).get("timers") or []:
+        key = str(x.get("unit") or x.get("name"))
+        seen.add(key)
+        if not timer_failed(x):
+            tf.pop(key, None)
+            continue
+        rec = tf.get(key)
+        last = x.get("last")
+        if rec is None:
+            tf[key] = {"since": last or now, "last": last, "n": 1}
+        elif last and last != rec.get("last"):
+            rec["n"] = int(rec.get("n") or 1) + 1
+            rec["last"] = last
+    for key in [k for k in tf if k not in seen]:
+        tf.pop(key)
+
+
+def timer_verdict(x: dict, rec: Optional[dict], now: float) -> str:
+    """ok | once (one failed run, quiet until it repeats or lasts two cycles) | failed."""
+    if not timer_failed(x):
+        return "ok"
+    rec = rec or {"since": x.get("last") or now, "n": 1}
+    if int(rec.get("n") or 1) >= 2:
+        return "failed"
+    cycle = timer_cycle(x)
+    limit = TIMER_MAX_S if cycle is None else min(max(2 * cycle, TIMER_MIN_S), TIMER_MAX_S)
+    return "failed" if now - float(rec.get("since") or now) > limit else "once"
+
+
+def effective_units(st: dict, now: float):
+    """(failed units, timers with a ``verdict``) of one host. A failed service that a timer starts follows the timer's
+    verdict; services without a timer stay a finding at once."""
+    units = st.get("units") or {}
+    tf = st.get("tfail") or {}
+    timers = []
+    for x in units.get("timers") or []:
+        v = timer_verdict(x, tf.get(str(x.get("unit") or x.get("name"))), now)
+        timers.append(dict(x, verdict=v))
+    quiet = {x.get("unit") for x in timers if x["verdict"] != "failed" and x.get("unit")}
+    return [u for u in units.get("failed") or [] if u.get("name") not in quiet], timers
 
 
 _STATE_ORDER = {"restarting": 0, "running": 1, "paused": 2, "created": 3, "exited": 4, "dead": 5}
