@@ -13,7 +13,7 @@ same round and starts the 24 hours again; a key that changes too often only cost
 hide a problem. ``waiting`` rows do not set the overall level (they drown out nothing) and are listed on their own line.
 
 The memory lives in the settings (``waiting_notes``), so a restart does not start the 24 hours again; it is written at
-most once a minute (new rows at once). Without a round for more than ``GAP_S`` (6 hours, e.g. Lanloom was stopped),
+most every five minutes (new or changed rows at once; the "last" time only matters for the 6-hour gap). Without a round for more than ``GAP_S`` (6 hours, e.g. Lanloom was stopped),
 "unchanged" is no longer proven and the clock starts again.
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ from typing import Optional
 SETTING = "waiting_notes"
 THRESHOLD_S = 24 * 3600
 GAP_S = 6 * 3600
-SAVE_EVERY_S = 60
+SAVE_EVERY_S = 300
 MAX_ENTRIES = 500
 CLOCK_VARS = ("_dur", "_at")
 CLOCK_NAMES = ("age", "t", "now", "when")

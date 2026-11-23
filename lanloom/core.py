@@ -470,6 +470,10 @@ class Core:
             except Exception:
                 log.exception("history flush at stop failed")
         try:
+            self.reports.flush()                  # the exact heartbeat, so the next start tells the real downtime
+        except Exception:
+            log.exception("heartbeat at stop failed")
+        try:
             self.agents.save(force=True)          # pending host states and "last seen" times (B9)
         except Exception:
             log.exception("agent save at stop failed")

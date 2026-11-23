@@ -48,6 +48,7 @@ DEFAULTS = {
 PLAIN_WAIT_S = 240           # the AI paragraph may delay the delivery this long at most
 CATCH_UP_AFTER_S = 600       # a report made this much later than planned says "made at the next start"
 WATCH_EVERY_S = 60
+HEARTBEAT_WRITE_S = 300            # the heartbeat (only read to tell the downtime at the next start) is written this often
 LOOP_EVERY_S = 30
 DELIVERY_RETRIES = 3
 DELIVERY_RETRY_S = 900
@@ -211,7 +212,17 @@ class Reports:
             data["down_s"] = max(0, int(now - beat))
         self.journal.add("app_start", data, now)
         self.store.set_setting("report_last_version", __version__)
-        self.store.set_setting("report_heartbeat", now)
+        self.beat(now, force=True)
+
+    def beat(self, now: Optional[float] = None, force: bool = False) -> None:
+        """Note that Lanloom runs. In the database at most every HEARTBEAT_WRITE_S (B9); stopping writes the exact time."""
+        now = self.clock() if now is None else now
+        if force or now - getattr(self, "_beat_t", 0.0) >= HEARTBEAT_WRITE_S:
+            self.store.set_setting("report_heartbeat", now)
+            self._beat_t = now
+
+    def flush(self) -> None:
+        self.beat(force=True)
 
     async def loop(self) -> None:
         last_watch = 0.0
@@ -222,7 +233,7 @@ class Reports:
                     last_watch = now
                     if not self.core.demo:
                         self.watch.observe(now)
-                    self.store.set_setting("report_heartbeat", now)
+                    self.beat(now)
                 if now >= self._fail_until:
                     await self.run_due(now)
                     await self.retry_deliveries(now)

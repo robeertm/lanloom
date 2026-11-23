@@ -282,10 +282,19 @@ class Incidents:
             win = float(int(win // SLOT) * SLOT)
             items = self.compute(win - CONTEXT_S, now)
             items = [i for i in items if i["start"] >= win]
+            rows = {i["id"]: (i["id"], i["start"], i["end"], i["kind"], i["root"]["id"], json.dumps(i, separators=(",", ":")))
+                    for i in items}
             with self.store.transaction() as tx:
-                tx._db.execute("DELETE FROM incident WHERE start >= ?", (win,))
-                tx._db.executemany('INSERT OR REPLACE INTO incident(id, start, "end", kind, root, data) VALUES(?,?,?,?,?,?)',
-                                   [(i["id"], i["start"], i["end"], i["kind"], i["root"]["id"], json.dumps(i, separators=(",", ":"))) for i in items])
+                # only what changed is written (B9): the window is computed again every round, most incidents in it are
+                # the same as before
+                old = {r[0]: tuple(r) for r in tx._db.execute('SELECT id, start, "end", kind, root, data FROM incident WHERE start >= ?',
+                                                              (win,)).fetchall()}
+                gone = [(k,) for k in old if k not in rows]
+                if gone:
+                    tx._db.executemany("DELETE FROM incident WHERE id=?", gone)
+                changed = [r for k, r in rows.items() if old.get(k) != r]
+                if changed:
+                    tx._db.executemany('INSERT OR REPLACE INTO incident(id, start, "end", kind, root, data) VALUES(?,?,?,?,?,?)', changed)
                 tx._db.execute("DELETE FROM incident WHERE start < ?", (now - KEEP_DAYS * 86400,))
             if not state.get("full"):
                 self.store.set_setting(STATE, {"full": True, "t": now, "graph": size})
