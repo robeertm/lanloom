@@ -127,6 +127,60 @@
   window.addEventListener('load', everything);
   schedule();
 
+  // ------------------------------------------------------------------ swipe rows (O15)
+  // A row that scrolls sideways hides its scroll bar; a chip beyond the edge is simply not there for the user. Every such row carries
+  // data-swipe (marked here by selector, or in the markup by hand). While content lies beyond an edge, that edge fades out through a mask on the
+  // row itself (variables --sw-l / --sw-r, width token --ll-swipe-fade) - no extra box, so nothing counts as sticking out of the row. A row that
+  // fits has no fade and looks as before. When the row appears or its active chip changes, the chip is scrolled into view by scrollLeft.
+  const SWIPE_SEL = '.inv-chips, .map-filter, .nm-seg, .fw-draftbar__chips, .pf-row, .fw-matrix-wrap, .fw-table-wrap';
+  const ACTIVE = '.is-on, .is-active, [aria-current]:not([aria-current=false]), [aria-selected=true], [aria-pressed=true]';
+  // <swipe-sides>
+  function swipeSides(scrollLeft, scrollWidth, clientWidth, rtl) {
+    const max = Math.max(0, scrollWidth - clientWidth);
+    if (max <= 1) return { left: false, right: false };
+    // modern engines count scrollLeft from the start edge: 0 .. max in LTR, 0 .. -max in RTL
+    return rtl ? { left: max + scrollLeft > 1, right: -scrollLeft > 1 } : { left: scrollLeft > 1, right: max - scrollLeft > 1 };
+  }
+  // </swipe-sides>
+  const swipeRows = new Set();
+  const lastActive = new WeakMap();
+  function paintSwipe(el) {
+    if (!el.isConnected) { swipeRows.delete(el); return; }
+    const rtl = getComputedStyle(el).direction === 'rtl';
+    const s = swipeSides(el.scrollLeft, el.scrollWidth, el.clientWidth, rtl);
+    if (!s.left && !s.right) { el.removeAttribute('data-swipe-fade'); el.style.removeProperty('--sw-l'); el.style.removeProperty('--sw-r'); return; }
+    el.setAttribute('data-swipe-fade', '');
+    el.style.setProperty('--sw-l', s.left ? 'var(--ll-swipe-fade, 28px)' : '0px');
+    el.style.setProperty('--sw-r', s.right ? 'var(--ll-swipe-fade, 28px)' : '0px');
+  }
+  // the active chip lies fully in view (centred if possible), set like a finger would: scrollLeft, never scrollIntoView
+  function showActive(el) {
+    const a = el.querySelector(ACTIVE);
+    if (!a || el.scrollWidth <= el.clientWidth + 1) { lastActive.set(el, a || null); return; }
+    if (lastActive.get(el) === a) return;
+    lastActive.set(el, a);
+    const er = el.getBoundingClientRect(), ar = a.getBoundingClientRect();
+    if (ar.left >= er.left + 8 && ar.right <= er.right - 8) return;
+    el.scrollLeft += (ar.left + ar.width / 2) - (er.left + er.width / 2);
+  }
+  function swipeScan(top) {
+    for (const el of top.querySelectorAll(SWIPE_SEL + ', [data-swipe]')) {
+      if (!el.hasAttribute('data-swipe')) el.setAttribute('data-swipe', '');
+      if (!swipeRows.has(el)) { swipeRows.add(el); el.addEventListener('scroll', () => paintSwipe(el), { passive: true }); }
+    }
+  }
+  let swipeTimer = 0;
+  function swipeAll() {
+    swipeTimer = 0;
+    swipeScan(document);
+    for (const el of swipeRows) { paintSwipe(el); showActive(el); paintSwipe(el); }
+  }
+  function swipeSoon() { if (!swipeTimer) swipeTimer = window.setTimeout(() => (window.requestAnimationFrame || (f => f()))(swipeAll), 120); }
+  new MutationObserver(swipeSoon).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-current', 'aria-selected', 'aria-pressed'] });
+  window.addEventListener('resize', swipeSoon);
+  window.addEventListener('load', swipeSoon);
+  swipeSoon();
+
   // ------------------------------------------------------------------ keyboard guard
   const vv = window.visualViewport;
   let layer = null;
