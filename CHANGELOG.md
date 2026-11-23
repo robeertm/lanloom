@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Remaining-time estimate for a running scan.** The status line under *Settings › General › Network scan* now ends with `about 1 min left` (estimated from the time so far and the bar; shown once the scan is 5 % in and 5 s old, in all six languages). The bar, phase, share and *Cancel* were already there; the page was checked in a real browser at 1512 and 390 px wide.
 
 ### Changed
+- Roadmap preview pictures moved into `docs/roadmap-preview/` on the main branch (documentation only, no change to the program).
 - Core stage 2: the topology resolution (`lanloom/topology.py`) is now part of the documented core. `core-manifest.json` uses format 2 and lists pure Python modules next to the browser files; each declares its API level, uses the standard library only and imports nothing from the package (checked by a test). No behaviour change.
 
 ## [1.62.1] – 2026-11-23
