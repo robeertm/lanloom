@@ -77,6 +77,34 @@ every value within a multiple of it, so a change that makes something much slowe
 - **Compact live history.** One sample per second and trace takes 24 bytes; traces that went quiet are forgotten after
   the retention.
 
+## Write load
+
+Lanloom often runs from an SD card or on NAS disks, so it writes only what changed. The database runs in WAL mode with
+`synchronous=NORMAL`; on top of that:
+
+- A setting is written only when its value differs from the stored one (a checksum per key in memory; any other write to
+  the settings table, a rolled-back transaction or another connection on the file drops the checksums).
+- Periodic writers collect their rows in one transaction and write only the rows that changed: host agent states,
+  availability slots, data path sums, incidents, place and operator names.
+- Pure "last seen" times (host agents, the heartbeat that tells the downtime at the next start, data path countries,
+  the memory of long-waiting points) reach the database at most every 5 minutes; the exact time stays in memory and is
+  what every view shows. A host agent's state that only moved in its live numbers (load, rates) is written at most every
+  5 minutes, a lasting change (units, timer failures, containers, ports) at the next save.
+- Stopping writes everything that is pending, so a restart loses nothing.
+
+Measured with the real app over 30 minutes after a 2-minute start (log frames of 4 kB assigned to tables through
+`dbstat`, network namespace without a LAN):
+
+| Mode | Before | After |
+|---|---|---|
+| Sample network | 842 frames, 14 commits a minute (about 166 MB a day) | 14 frames, 0.3 commits a minute (about 3 MB a day) |
+| One device, idle | 911 frames, 15 commits a minute (about 180 MB a day) | 87 frames, 1.5 commits a minute (about 17 MB a day) |
+| One host agent, one hour of reports every 10 s | about 1,140 row writes | 26 row writes |
+
+Before, the notification state (written every 5 seconds, unchanged) made up about four fifths of all frames. What is
+left in the idle case is mostly real change: service probe results every 3 minutes, availability slots, the heartbeat.
+`tests/test_write_load.py` keeps these rules.
+
 ## Storage and retention
 
 *Settings › Storage* shows the space of each area and the retention of each kind of data:
