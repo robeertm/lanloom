@@ -103,6 +103,7 @@ def test_the_pinned_versions_are_the_installed_ones_here():
 def test_selftest_fails_in_a_marked_image_with_an_unpinned_package(monkeypatch, capsys):
     from lanloom import main
     monkeypatch.setenv(pins.IMAGE_MARKER, "1")
+    monkeypatch.setattr(pins, "setid_files", lambda: [])        # the test machine is not the image (see the test below)
     have = dict(pins.pinned(), sneaky="1.0")
     monkeypatch.setattr(pins, "installed", lambda: have)
     assert main.selftest() == 1
@@ -110,6 +111,18 @@ def test_selftest_fails_in_a_marked_image_with_an_unpinned_package(monkeypatch, 
     monkeypatch.setattr(pins, "installed", lambda: dict(pins.pinned()))
     assert main.selftest() == 0
     assert "selftest: ok" in capsys.readouterr().out
+
+
+def test_selftest_fails_in_a_marked_image_with_a_set_user_id_file(monkeypatch, capsys):
+    from lanloom import main
+    monkeypatch.setenv(pins.IMAGE_MARKER, "1")
+    monkeypatch.setattr(pins, "installed", lambda: dict(pins.pinned()))
+    monkeypatch.setattr(pins, "setid_files", lambda: ["/usr/bin/mount"])
+    assert main.selftest() == 1
+    assert "set-user-ID or set-group-ID file in the image: /usr/bin/mount" in capsys.readouterr().out
+    monkeypatch.delenv(pins.IMAGE_MARKER)
+    assert main.selftest() == 0                                  # outside the image (development machine) not checked
+    capsys.readouterr()
 
 
 def test_selftest_checks_the_list_only_in_the_image(monkeypatch, capsys):
