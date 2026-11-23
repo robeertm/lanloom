@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.63.1] – 2026-11-23
+
+1.63.0 below was not released on its own; it is part of this release.
+
+### Changed
+- Collects the changes on main since 1.62.1.
+
 ## [1.63.0] – 2026-11-23
 
 ### Added
