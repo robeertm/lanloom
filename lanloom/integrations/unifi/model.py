@@ -1123,7 +1123,7 @@ def topology_event(raw: dict, t: float) -> dict:
     ev = {"type": "topology", "source": "controller", "t": t, "devices": _unique(devices, 1000), "clients": _unique(clients, MAX_ITEMS)}
     if items(raw, "device"):                 # ports with their counters ride along every minute (link drops, exact rates)
         eq, ports, _ = _equipment_classic(raw)
-        ev["ports"] = [{k: p.get(k) for k in ("id", "device", "idx", "link", "rx_bytes", "tx_bytes", "rx_errors", "tx_errors")} for p in ports[:MAX_ITEMS]]
+        ev["ports"] = [{k: p.get(k) for k in ("id", "device", "idx", "link", "is_uplink", "rx_bytes", "tx_bytes", "rx_errors", "tx_errors")} for p in ports[:MAX_ITEMS]]
         ev["equipment"] = [{"id": e["id"], "ip": e.get("mgmt_ip"), "mac": norm_mac(d.get("mac")), "kind": e.get("kind")}
                            for e, d in zip(eq, [d for d in items(raw, "device") if norm_mac(d.get("mac"))])][:1000]
     return ev

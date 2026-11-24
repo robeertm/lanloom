@@ -435,6 +435,7 @@ def test_poll_events(make):
 @pytest.mark.parametrize("reply, scope", [
     ({"site_role": "readonly"}, "read_only"), ({"site_role": "admin"}, "can_write"), ({"is_super": True, "site_role": "readonly"}, "can_write"),
     ({"is_owner": True}, "can_write"), ({"site_role": "other"}, "unknown"), ({}, "unknown"),
+    ({"is_owner": True, "site_role": "readonly"}, "read_only"),     # a self-hosted controller reports both (#21): the site role decides
 ])
 def test_account_scope_of_a_view_only_account(make, reply, scope):
     fake = make("console")

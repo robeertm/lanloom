@@ -34,7 +34,7 @@ An API key does not tell Lanloom which rights it has, so the connection test can
 1. **Settings → Admins & Users → Create new**: a **local** account (no remote or cloud access), role **View Only** for the Network application.
 2. Enter user name and password in Lanloom.
 
-Lanloom checks the account's role on the site when you test or save the connection and **refuses an account that can change settings** (site administrator, owner or super administrator). Do not use your own administrator account.
+Lanloom checks the account's role on the site when you test or save the connection and **refuses an account that can change settings** (site administrator, owner or super administrator). The role on the site decides: an account with the role *View Only* is accepted even when a self-hosted controller also lists it as an owner; a super administrator is always refused. Do not use your own administrator account.
 
 ## Settings
 
@@ -204,7 +204,7 @@ The neutral security values map to the controller's fields: `open` is `security:
 |---|---|
 | API key was rejected | create a new key; check the address (console vs. self-hosted path) |
 | Account was rejected | user name or password wrong, or the account is not local |
-| This account can change settings | give it the view-only role, or create a separate view-only account |
+| This account can change settings | give it the view-only role on the site, or create a separate view-only account (a super administrator is always refused) |
 | Sign-in paused | wait 15 minutes after repeated refusals; check the password first |
 | Access denied for this account | the role lacks rights to the Network application |
 | TLS / certificate problem | tick *Accept a self-signed certificate* |

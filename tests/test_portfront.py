@@ -47,7 +47,7 @@ def test_a_port_that_was_never_up_is_no_flap_and_counters_starting_over_are_no_e
 def test_byte_counters_become_deltas_and_rates_and_a_restart_gives_nothing():
     w = portfront.PortWatch()
     assert w.feed(ports(tx=1000, rx=500), 100.0) == []
-    assert w.feed(ports(tx=7000, rx=1500), 160.0) == [("p1", 6000, 1000)]
+    assert w.feed(ports(tx=7000, rx=1500), 160.0) == [("p1", 6000, 1000, 60.0)]          # with the time between the readings
     assert w.stats("p1", 160.0)["rate"] == {"tx": 100, "rx": 17}
     assert w.feed(ports(tx=10, rx=10), 220.0) == []                          # counters started over
     assert w.stats("p1", 700.0)["rate"] is None                              # an old rate is not shown as live
@@ -149,6 +149,67 @@ def test_a_cable_device_alone_on_its_port_gets_its_exact_bytes_from_the_port_cou
     assert bare_core.spread["p:d-sw:d-office"] == [6000, 1000, 60]            # a = switch: what the switch sent is a -> b
     assert "p:d-sw:d-lab1" not in bare_core.spread                             # two devices share port 4: not exact, no booking
     assert "p:d-sw:d-office" in bare_core.port_exact
+
+
+def test_a_delta_is_spread_over_the_measured_time_between_the_readings(bare_core):
+    eq = [{"id": "e1", "ip": "192.168.50.2", "mac": "02:00:00:00:00:01"}]
+    base = [{"id": "pa", "device": "e1", "idx": 2, "link": True, "tx_bytes": 1000, "rx_bytes": 100}]
+    bare_core.book_ports(base, eq, 100.0)
+    bare_core.book_ports([dict(base[0], tx_bytes=2000, rx_bytes=200)], eq, 110.0)
+    assert bare_core.spread["p:d-sw:d-office"] == [1000, 100, 10]               # 10 s apart: 10 s wide, not a fixed minute (#21)
+    bare_core.spread.clear()
+    bare_core.book_ports([dict(base[0], tx_bytes=9000, rx_bytes=900)], eq, 410.0)
+    assert bare_core.spread["p:d-sw:d-office"][2] == 300                        # the five-minute full poll: five minutes wide
+    bare_core.spread.clear()
+    bare_core.book_ports([dict(base[0], tx_bytes=9500, rx_bytes=950)], eq, 410.0 + 7200)
+    assert bare_core.spread["p:d-sw:d-office"][2] == 900                        # a long gap is bounded
+
+
+@pytest.fixture()
+def uplink_core(monkeypatch):
+    c = core.Core(SimpleNamespace(data_dir=Path("/nonexistent/lanloom-test"), probe=True, demo=False), Store(":memory:"), None)
+    topo = {"nodes": {}, "links": {"d-sw": {"parent": "d-gw", "child": "d-sw", "port": "3", "own_port": "9", "medium": "wired", "band": None, "ssid": None, "source": "controller"},
+                                   "d-office": {"parent": "d-sw", "child": "d-office", "port": "2", "own_port": None, "medium": "wired", "band": None, "ssid": None, "source": "controller"}}}
+    monkeypatch.setattr(c, "topology", lambda: topo)
+    c.ip_to_device = {"192.168.50.1": "d-gw", "192.168.50.2": "d-sw"}
+    return c
+
+
+def test_the_uplink_port_of_a_switch_lights_the_cable_up_to_its_parent(uplink_core):
+    eq = [{"id": "e1", "ip": "192.168.50.2"}]
+    base = [{"id": "up", "device": "e1", "idx": 9, "link": True, "is_uplink": True, "tx_bytes": 1000, "rx_bytes": 100},
+            {"id": "pa", "device": "e1", "idx": 2, "link": True, "tx_bytes": 0, "rx_bytes": 0}]
+    uplink_core.book_ports(base, eq, 100.0)
+    uplink_core.book_ports([dict(base[0], tx_bytes=1500, rx_bytes=8100), dict(base[1], tx_bytes=10, rx_bytes=20)], eq, 160.0)
+    assert uplink_core.spread["p:d-gw:d-sw"] == [8000, 500, 60]       # swapped: what the uplink port receives came down from the parent
+    assert "p:d-gw:d-sw" in uplink_core.port_exact
+    assert uplink_core.spread["p:d-sw:d-office"] == [10, 20, 60]       # the device ports keep booking downwards
+
+
+def test_the_uplink_port_is_found_by_the_topology_alone_and_a_bundle_books_nothing(uplink_core):
+    eq = [{"id": "e1", "ip": "192.168.50.2"}]
+    base = [{"id": "up", "device": "e1", "idx": 9, "link": True, "tx_bytes": 0, "rx_bytes": 0}]
+    uplink_core.book_ports(base, eq, 100.0)
+    uplink_core.book_ports([dict(base[0], tx_bytes=5, rx_bytes=50)], eq, 160.0)
+    assert uplink_core.spread["p:d-gw:d-sw"] == [50, 5, 60]             # own port 9 of the topology, no flag from the controller
+    uplink_core.spread.clear()
+    bundle = [{"id": "u1", "device": "e1", "idx": 7, "link": True, "is_uplink": True, "tx_bytes": 0, "rx_bytes": 0},
+              {"id": "u2", "device": "e1", "idx": 8, "link": True, "is_uplink": True, "tx_bytes": 0, "rx_bytes": 0}]
+    uplink_core.book_ports(bundle, eq, 200.0)
+    uplink_core.book_ports([dict(p, tx_bytes=5, rx_bytes=5) for p in bundle], eq, 260.0)
+    assert "p:d-gw:d-sw" not in uplink_core.spread                       # two flagged ports, none is the topology's own port: ambiguous
+
+
+def test_the_parents_port_wins_over_the_childs_uplink_port(uplink_core):
+    eq = [{"id": "e0", "ip": "192.168.50.1"}, {"id": "e1", "ip": "192.168.50.2"}]
+    base = [{"id": "gw3", "device": "e0", "idx": 3, "link": True, "tx_bytes": 0, "rx_bytes": 0},
+            {"id": "up", "device": "e1", "idx": 9, "link": True, "is_uplink": True, "tx_bytes": 0, "rx_bytes": 0}]
+    uplink_core.book_ports(base, eq, 100.0)
+    uplink_core.book_ports([dict(base[0], tx_bytes=700, rx_bytes=70), dict(base[1], tx_bytes=71, rx_bytes=701)], eq, 160.0)
+    assert uplink_core.spread["p:d-gw:d-sw"] == [700, 70, 60]          # one booking per cable: the parent's port counts it
+    uplink_core.spread.clear()
+    uplink_core.book_ports([dict(base[1], tx_bytes=80, rx_bytes=800)], eq, 220.0)
+    assert "p:d-gw:d-sw" not in uplink_core.spread                       # the parent's port counted it a minute ago: no second source
 
 
 def test_host_flows_do_not_count_twice_on_a_link_the_port_counters_cover(bare_core, monkeypatch):

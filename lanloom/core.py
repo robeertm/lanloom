@@ -151,6 +151,7 @@ class Core:
         self.hitlog = fw_insight.HitLog(store)           # firewall hit counters over time: blocked today, hits of the last hour (S6)
         self._port_open: set = set()       # ports announced as unstable and not yet calm again
         self.port_exact: dict = {}         # physical trace id -> last time its bytes came from the port counters of a switch
+        self.port_exact_src: dict = {}     # physical trace id -> ("down" | "up", time): parent's port or the child's uplink port
         self._ports_light: dict = {}       # integration id -> last time the light poll carried ports
         self._topo_cache = None            # (key, resolved topology)
         self._topo_sig = ""
@@ -2088,21 +2089,45 @@ class Core:
         for child, link in topo["links"].items():
             if link["medium"] not in ("radio", "virtual") and link.get("port"):
                 kids.setdefault((link["parent"], link["port"]), []).append(child)
-        exact = []
-        for pid, d_tx, d_rx in deltas:
+        exact, ups = [], {}
+        for pid, d_tx, d_rx, dt in deltas:
             p = port_of.get(pid) or {}
             node = node_of.get(p.get("device"))
-            below = kids.get((node, str(p.get("idx")))) if node else None
+            if not node:
+                continue
+            below = kids.get((node, str(p.get("idx"))))
             if below and len(below) == 1:
-                exact.append((node, below[0], d_tx, d_rx))
+                exact.append((node, below[0], d_tx, d_rx, dt))
+            link = topo["links"].get(node)        # the cable from this device up to its parent (#21)
+            if link and link["medium"] not in ("radio", "virtual"):
+                own = str(p.get("idx")) == str(link.get("own_port") or "")
+                if own or p.get("is_uplink"):
+                    ups.setdefault(node, []).append((own, link["parent"], d_tx, d_rx, dt))
         if self.store.get_setting("port_noise", False):
             exact = self._without_noise(exact)
-        for node, child, d_tx, d_rx in exact:
-            trace = "p:%s:%s" % (node, child)
+        booked = {}
+        for node, child, d_tx, d_rx, dt in exact:
+            booked["p:%s:%s" % (node, child)] = (d_tx, d_rx, dt, "down")   # a = switch, b = the cable device: tx leaves the switch
+        for node, cands in ups.items():
+            if len(cands) > 1:                    # several uplink ports (a bundle): only the one the topology names
+                cands = [c for c in cands if c[0]]
+            if len(cands) != 1:
+                continue
+            _, parent, d_tx, d_rx, dt = cands[0]
+            trace = "p:%s:%s" % (parent, node)
+            if trace in booked:
+                continue                          # the parent's own port counts this cable already
+            if self.port_exact_src.get(trace, ("", 0))[0] == "down" and now - self.port_exact_src[trace][1] < 180:
+                continue
+            booked[trace] = (d_rx, d_tx, dt, "up")    # what the uplink port sends travels child -> parent: direction 1
+        for trace, (b0, b1, dt, src) in booked.items():
             old = self.spread.get(trace)
             carry0, carry1 = (old[0], old[1]) if old else (0, 0)
-            self.spread[trace] = [carry0 + d_tx, carry1 + d_rx, 60]    # a = switch, b = the cable device: tx leaves the switch
+            # spread over the measured time between the two readings (bounded: a long gap must not draw a rate for hours)
+            window = max(1, min(900, int(round(dt))))
+            self.spread[trace] = [carry0 + b0, carry1 + b1, window]
             self.port_exact[trace] = now
+            self.port_exact_src[trace] = (src, now)
 
     NOISE_MIN_PORTS = 3            # a network needs this many measured ports before a common floor means anything
 
@@ -2119,7 +2144,7 @@ class Core:
                 except (ValueError, KeyError):
                     continue
         groups = {}
-        for i, (_, child, d_tx, _) in enumerate(exact):
+        for i, (_, child, d_tx, *_) in enumerate(exact):
             try:
                 addr = ipaddress.ip_address(by_ip.get(child) or "")
             except ValueError:
@@ -2133,8 +2158,8 @@ class Core:
                 continue
             floor = min(exact[i][2] for i in idx)
             for i in idx:
-                node, child, d_tx, d_rx = exact[i]
-                out[i] = (node, child, max(0, d_tx - floor), d_rx)
+                node, child, d_tx, d_rx, *rest = exact[i]
+                out[i] = (node, child, max(0, d_tx - floor), d_rx, *rest)
         return out
 
     def net_tags(self) -> dict:

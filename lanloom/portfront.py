@@ -50,8 +50,9 @@ class PortWatch:
                                             if isinstance(e, list) and len(e) == 2 and _num(e[0]) is not None][-MAX_EVENTS:]
 
     def feed(self, ports, now: float = None) -> list:
-        """One reading of the ports of a controller. Returns [(port id, tx bytes, rx bytes)]: the bytes that passed the
-        port since its last reading (only where both readings carry counters and the counter did not start over)."""
+        """One reading of the ports of a controller. Returns [(port id, tx bytes, rx bytes, seconds)]: the bytes that
+        passed the port since its last reading and the time between the two readings (only where both readings carry
+        counters and the counter did not start over)."""
         now = time.time() if now is None else now
         out = []
         with self._lock:
@@ -72,7 +73,7 @@ class PortWatch:
                     dt = now - prev["t"]
                     if dt > 0 and None not in (tx, rx, prev["tx"], prev["rx"]) and tx >= prev["tx"] and rx >= prev["rx"]:
                         dtx, drx = tx - prev["tx"], rx - prev["rx"]
-                        out.append((pid, dtx, drx))
+                        out.append((pid, dtx, drx, dt))
                         self.rate[pid] = (dtx / dt, drx / dt, now)
                 self.last[pid] = {"link": link, "err": err, "tx": tx, "rx": rx, "t": now}
             self._prune(now)

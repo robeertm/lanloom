@@ -617,11 +617,10 @@ class UnifiWriter(ControllerAdapter):
         status, body = self._call("GET", "api/s/{site}/self")
         data = body.get("data") if isinstance(body, dict) else None
         me = data[0] if isinstance(data, list) and data and isinstance(data[0], dict) else {}
+        if str(me.get("site_role") or "") == "readonly":      # a view-only role on the site cannot write, whatever
+            return False, ["read_only"]                       # other flags the controller reports (#21)
         role = "superadmin" if me.get("is_super") else ("owner" if me.get("is_owner") else str(me.get("site_role") or ""))
-        ok, warnings = vet_write_account({"principal": self._user, "role": role})
-        if role == "readonly":
-            return False, ["read_only"]
-        return ok, warnings
+        return vet_write_account({"principal": self._user, "role": role})
 
     # ------------------------------------------------------------------ reading
     def _read_raw(self) -> dict:

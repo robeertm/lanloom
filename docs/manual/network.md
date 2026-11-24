@@ -37,7 +37,9 @@ in?".
 
   ![The same in the dark theme](../screenshots/ap-signal-dark.png)
 - **Exact traffic on cables.** Where one device sits alone on a switch port, the dots on its cable follow the counters of
-  that port instead of the host's own flows. Optional: *Settings > General > Appearance* can take the background noise out
+  that port instead of the host's own flows. The cable from a switch up to its parent follows the counters of the
+  switch's uplink port, and the rate of a cable measured this way also shows on the tile of the device at its lower end
+  (spread over the real time between two readings of the counters). Optional: *Settings > General > Appearance* can take the background noise out
   of these counters (what every device of one network receives anyway - broadcasts and multicast - is subtracted when at
   least three ports of the network are measured).
 - **Quiet devices.** A network with more than 12 devices folds the ones that idle by nature (smart devices, printers,

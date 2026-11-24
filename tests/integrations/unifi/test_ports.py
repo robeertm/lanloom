@@ -40,7 +40,9 @@ def test_the_light_poll_carries_ports_and_equipment_with_neutral_ids():
     st = model.to_neutral(raw_with_counters())
     assert {p["id"] for p in ev["ports"]} == {p["id"] for p in st["ports"]}
     assert {e["id"] for e in ev["equipment"]} == {e["id"] for e in st["equipment"]}
-    assert all(set(p) == {"id", "device", "idx", "link", "rx_bytes", "tx_bytes", "rx_errors", "tx_errors"} for p in ev["ports"])
+    assert all(set(p) == {"id", "device", "idx", "link", "is_uplink", "rx_bytes", "tx_bytes", "rx_errors", "tx_errors"} for p in ev["ports"])
+    sw = next(e["id"] for e in ev["equipment"] if e["ip"] == "192.168.50.2")
+    assert {(p["device"], p["idx"]) for p in ev["ports"] if p["is_uplink"]} == {(sw, 8)}   # the switch's own uplink port (#21)
     assert "ports" not in model.topology_event({"sta": fx.classic()["sta"]}, 1.0)          # no device list, no ports
 
 

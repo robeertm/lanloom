@@ -383,10 +383,13 @@ class UnifiReader:
             body = self._classic_self()
             data = body.get("data") if isinstance(body, dict) else None
             me = data[0] if isinstance(data, list) and data and isinstance(data[0], dict) else {}
-            if me.get("is_super") or me.get("is_owner") or str(me.get("site_role") or "") == "admin":
+            role = str(me.get("site_role") or "")
+            if me.get("is_super"):
                 return "can_write"
-            if str(me.get("site_role") or "") == "readonly":
-                return "read_only"
+            if role == "readonly":         # the role on the site decides: a self-hosted controller may also report
+                return "read_only"         # is_owner for a view-only account (#21)
+            if me.get("is_owner") or role == "admin":
+                return "can_write"
             return "unknown"
 
         return await asyncio.to_thread(check)

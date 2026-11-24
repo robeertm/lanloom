@@ -572,10 +572,13 @@ def _area_counts(snap: dict) -> dict:
 def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
     """component id -> live grade, component id -> short metric text."""
     grades, metrics = {}, {}
-    per_comp = {}
+    per_comp, per_cable = {}, {}
     for trace, (r0, r1) in rates.items():
         kind, _, rest = trace.partition(":")
-        if kind in ("f", "l"):
+        if kind == "p":                   # a cable: its rate belongs to the box at its lower end (#21)
+            _, _, child = rest.partition(":")
+            per_cable[child] = per_cable.get(child, 0) + r0 + r1
+        elif kind in ("f", "l"):
             a, _, b = rest.partition(":")
             for cid in (a, b):
                 per_comp[cid] = per_comp.get(cid, 0) + r0 + r1
@@ -585,6 +588,8 @@ def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
         elif kind == "q":
             integ, _, root = rest.partition(":")
             per_comp["topic:%s:%s" % (integ, root)] = r0 + r1
+    for child, rate in per_cable.items():  # the cable carries the box's own flows too: the larger one, never both added
+        per_comp[child] = max(per_comp.get(child, 0), rate)
     unit = core.rate_unit()
     host_grade = core._source_grade("host") if "host" in core.cadence else "unknown"
     for dev_id in list(core.ip_to_device.values()):

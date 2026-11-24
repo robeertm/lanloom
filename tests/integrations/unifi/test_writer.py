@@ -399,6 +399,11 @@ def test_health_refuses_a_read_only_account(fake):
     assert w.health() == (False, "account cannot write")
 
 
+def test_a_view_only_role_is_refused_even_when_the_controller_calls_it_owner(fake):
+    fake.self_reply = fx.classic_wrap([{"name": USER, "is_owner": True, "site_role": "readonly"}])
+    assert writer(fake).account() == (False, ["read_only"])
+
+
 def test_health_is_fine_with_a_site_admin(fake):
     assert writer(fake).health() == (True, "")
 

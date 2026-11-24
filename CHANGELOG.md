@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 - SummerGlass (light): boxes looked pressed in instead of bulging out, because the foot of a box was as bright as its top, or brighter (on a tile with a state, the tinted top was even darker than the body). A soft shade toward the foot (new token `--ll-glass-shade`, light face only; dark, WinterGlass dark and automatic stay unchanged) lets a box read as lit from above. The sheet of a map device gets it too, above its solid base. The *down* tint of a tile is a little lighter, and the green and amber text colours of the light glass face a touch darker, so the contrast on the shaded foot stays at 4.5:1 or better.
+- Controller read half: a view-only account was refused as "This account can change settings" when a self-hosted controller also listed it as an owner, so the source never started and the switch ports had no counters. The role on the site now decides; a super administrator is still refused. The write half applies the same order, so a view-only account is never taken as a write account.
+- Network view: the cable from a switch up to its parent now follows the counters of the switch's uplink port (flagged by the controller or named by the topology); before, only the parent's port could light it. When both ends are measured, the parent's port counts the cable once.
+- Map: the tile of a device on a measured cable showed "—" although the cable carried dots; the cable's rate now shows on the tile of the device at its lower end (its own flows are not added on top).
+- Network view: a port counter delta was always spread over 60 seconds, whatever the real time between the two readings; after a slow poll or on the five-minute fallback the cable read several times too high. It is now spread over the measured time (at most 15 minutes).
 
 ## [1.64.4] – 2026-11-24
 
