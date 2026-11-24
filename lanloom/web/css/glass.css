@@ -33,6 +33,17 @@
 :where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.card, .ov-kpi, .en-kpi, .pw-kpi, .au-tile, .au-pad, .au-ent, .au-board__chip,
     .detail, .device-list, .stepper__item, .setup-guide, .fc-bar, .rw-bar, .cr-hero, .cr-block, .cr-cell, .cr-nas, .cr-ups, .zf-zone, .rp-ch,
     .site-card, .map-filter, .chip-btn, .mf-chip, .icon-btn, .btn--ghost, .ll-tile):hover { background-position: 0 0, -30% 0; }
+/* the sheet of a map device floats over the live board: with the glass fill alone the tiles behind it shone through its rows. It keeps the
+   glass look (fill, sheen, glare) on top of a solid base, so the text is always read on the sheet and never on the board. */
+:where([data-palette="summerglass"], [data-palette="winterglass"]) .detail {
+  --ll-surface: var(--ll-surface-2);
+  background-image:
+    linear-gradient(180deg, var(--ll-glass-sheen-top, var(--ll-glass-sheen-hi, transparent)) 0, var(--ll-glass-sheen-lo, transparent) 44px, transparent 120px),
+    linear-gradient(112deg, transparent 38%, var(--ll-glass-glare, transparent) 50%, transparent 62%),
+    linear-gradient(var(--ll-glass-fill, transparent), var(--ll-glass-fill, transparent));
+  background-size: 100% 100%, 260% 100%, 100% 100%;
+  background-position: 0 0, 130% 0, 0 0;
+}
 /* the big panes (a settings card is as tall as the window) keep their sheen and skip the glare */
 :where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.card, .device-list, .detail):hover { background-position: 0 0, 130% 0; }
 

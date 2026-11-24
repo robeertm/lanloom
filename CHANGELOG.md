@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- SummerGlass and WinterGlass: the sheet of a map device (effect chains, radio signal, traffic) is no longer see-through; the board tiles behind it shone through its rows. It keeps the glass look on a solid base.
+
 ## [1.64.1] – 2026-11-24
 
 1.63.0, 1.63.1 and 1.64.0 below were not released on their own; they are part of this release.
