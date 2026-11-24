@@ -77,6 +77,7 @@ file (the build removes them, the self-test checks it). The full reason of each 
 | CVE-2026-119374 | libsqlite3-0 | not-reachable | 2027-02-23 |
 | CVE-2026-119379 | libsqlite3-0 | not-reachable | 2027-02-23 |
 | CVE-2026-107493 | libssl3t64, openssl, openssl-provider-legacy | not-reachable | 2027-02-23 |
+| CVE-2026-107494 | libssl3t64, openssl, openssl-provider-legacy | not-reachable | 2027-02-24 |
 | CVE-2026-107496 | libssl3t64, openssl, openssl-provider-legacy | not-reachable | 2027-02-23 |
 | CVE-2026-121482 | libssl3t64, openssl, openssl-provider-legacy | not-reachable | 2027-02-23 |
 | CVE-2026-124709 | libssl3t64, openssl, openssl-provider-legacy | not-reachable | 2027-02-23 |
