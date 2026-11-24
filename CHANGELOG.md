@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.64.3] – 2026-11-24
+
+1.64.2 below was not released on its own; it is part of this release.
+
 ### Fixed
 - Image scan: the new OpenSSL advisory CVE-2026-107494 (QUIC stack, no fixed package in the base distribution yet) is recorded as an exception that does not reach Lanloom, like the other QUIC advisories; the release build no longer stops on it.
 
