@@ -92,8 +92,21 @@
 .rs-axis { display: flex; gap: 8px; align-items: flex-start; min-width: 0; }
 .rs-axis__main { min-width: 0; flex: 1; }
 .rs-axis__head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: var(--ll-fs-sm); }
-.rs-axis__head .muted { font-size: var(--ll-fs-xs); }
-.rs-axis__why { margin: 2px 0 0; padding: 0 0 0 14px; font-size: var(--ll-fs-xs); color: var(--ll-text-2); overflow-wrap: anywhere; }
+/* every axis the same: status pill, one plain sentence, a small detail line, a link only where something can be changed (#20) */
+.rs-pill { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--ll-border);
+  background: var(--ll-surface-2); color: var(--ll-text-2); font-size: var(--ll-fs-2xs); font-weight: var(--ll-fw-semibold); line-height: 1.5; }
+.rs-pill--good { background: var(--ll-ok-soft); border-color: var(--ll-ok); color: var(--ll-ok-text); }
+.rs-pill--fair { border-color: var(--ll-grade-near); }
+.rs-pill--weak { background: var(--ll-warn-soft); border-color: var(--ll-warn); color: var(--ll-warn-text); }
+.rs-pill--bad { background: var(--ll-danger-soft); border-color: var(--ll-danger); color: var(--ll-danger-text); }
+.rs-pill--unknown { border-style: dashed; }
+.rs-pill--na { opacity: .7; }
+.rs-pill--impact { background: var(--ll-accent-soft); border-color: var(--ll-accent); color: var(--ll-accent-text); }
+.rs-axis__lead { margin: 3px 0 0; font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
+.rs-axis__detail { margin: 2px 0 0; font-size: var(--ll-fs-xs); color: var(--ll-text-2); overflow-wrap: anywhere; }
+.rs-axis__link, .link-btn.rs-axis__link { display: inline-block; margin-top: 3px; font-size: var(--ll-fs-xs); font-weight: var(--ll-fw-medium);
+  color: var(--ll-accent-text); text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 700px) { .rs-axis__link, .link-btn.rs-axis__link { min-height: 44px; display: inline-flex; align-items: center; margin-top: 0; } }
 .rs-ed { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px dashed var(--ll-border); }
 .rs-ed__h { margin: 0; font-size: var(--ll-fs-sm); }
 .rs-ed__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 12px; }

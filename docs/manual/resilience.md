@@ -21,8 +21,13 @@ scenario is a simulation.
   90 days (one value per day) with the change of the last week.
 - **Weak spots**: the ten parts with the highest risk. Each row shows the step that would help most and how big it is
   (*small step*, *some work*, *bigger project*), six small squares for the six axes (green good, yellow weak, red
-  missing, dashed unknown, faint: does not count here) and the risk level as a word with its number. *Why?* opens the
-  seven axes with their reasons and, for operators, the fields *Power source*, *Spare* and *Note*.
+  very weak, dashed unknown, faint: does not count here) and the risk level as a word with its number. Point at a square
+  to read the axis, its status and its rating, e.g. *Power: mains only · very weak*. *Why?* opens the seven axes, each
+  in the same layout: a status pill, one plain sentence, a small line with the details and, only where you can change
+  something, a link (the failure chain behind *Impact*, the *Spare* and *Power source* fields, the backup chains, the
+  *often switched off* option of a device). *Impact* leads with the devices that fail with the part and names the hub
+  devices, automations, entities and connections on a smaller line. For operators the fields *Power source*, *Spare*
+  and *Note* follow.
 - **Emergency scenarios**:
   - *Power cut* with a slider from 0 to 240 minutes: what is off at once (mains only), what runs on the battery backup and
     until when (the live runtime of the UPS minus the reserve for a clean shutdown), when the home automation hub stops,

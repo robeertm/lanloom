@@ -34,16 +34,31 @@ def test_impact_grows_with_what_hangs_on_it():
     many = rs.axis_impact({"sure": {"device": 40, "automation": 20, "entity": 400}, "likely": 0})
     assert 0 < few["weak"] < many["weak"] <= 1.0
     assert rs.axis_impact({"sure": {"entity": 20}, "likely": 0})["weak"] < rs.axis_impact({"sure": {"device": 20}, "likely": 0})["weak"]
-    assert few["why"][0]["key"] == "impact_sure" and few["why"][1] == {"key": "impact_likely", "vars": {"n": 1}}
+    assert few["why"] == [{"key": "impact_devices", "vars": {"n": 3}}, {"key": "impact_likely", "vars": {"n": 1}}]
 
 
 def test_impact_total_equals_its_breakdown():
     sure = {"device": 1, "hub_device": 1, "entity": 11, "connection": 2, "hub": 1, "automation": 3, "script": 1, "node": 2}
     ax = rs.axis_impact({"sure": sure, "likely": 0})
-    v = ax["why"][0]["vars"]
-    assert v["n"] == sum(sure.values()) == 22
-    assert v["devices"] + v["hub"] + v["autos"] + v["entities"] + v["links"] == v["n"]
-    assert (v["devices"], v["hub"], v["autos"], v["entities"], v["links"]) == (3, 1, 4, 11, 3)
+    head, also = ax["why"]
+    assert head == {"key": "impact_devices", "vars": {"n": 3}}
+    assert head["vars"]["n"] + sum(also["vars"].values()) == sum(sure.values()) == 22      # #15: the parts add up to the total
+    assert also["vars"] == {"hub_devices": 1, "automations": 4, "entities": 11, "connections": 3}
+    assert (ax["devices"], ax["autos"], ax["entities"], ax["links"]) == (3, 4, 11, 3)
+
+
+def test_impact_leads_with_the_devices_and_lists_the_rest():
+    """#20: the headline is about the devices, the other groups go on their own line (the browser drops the zeros)."""
+    big = rs.axis_impact({"sure": {"device": 29, "hub_device": 41, "entity": 457, "connection": 4}, "likely": 0})
+    assert big["why"][0] == {"key": "impact_devices", "vars": {"n": 29}}
+    also = big["why"][1]
+    assert also == {"key": "impact_also", "vars": {"hub_devices": 41, "automations": 0, "entities": 457, "connections": 4}}
+    assert 29 + sum(also["vars"].values()) == 531
+    small = rs.axis_impact({"sure": {"hub_device": 1, "entity": 3}, "likely": 2})
+    assert small["why"][0] == {"key": "impact_no_devices", "vars": {}}
+    assert small["why"][2] == {"key": "impact_likely", "vars": {"n": 2}}
+    assert rs.axis_impact({"sure": {"device": 2}, "likely": 0})["why"] == [{"key": "impact_devices", "vars": {"n": 2}}]
+    assert all(r["key"] != "impact_sure" for r in big["why"] + small["why"])
 
 
 def test_risk_counts_unknown_as_half_and_skips_what_does_not_count():

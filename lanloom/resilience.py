@@ -234,7 +234,12 @@ def axis_impact(counts: dict) -> dict:
         why.append(R("impact_none"))
         value = "none"
     else:
-        why.append(R("impact_sure", n=total, devices=devices, hub=hub, autos=autos, entities=entities, links=links))
+        # the headline is about the devices; the other groups go on a smaller line. The browser builds that line from
+        # fail.part.* and drops the zeros (a translation may not have an empty plural branch), so rs.why.impact_also is
+        # only ever rendered in web/js/resilience.js: rendered anywhere else it would show {parts} literally.
+        why.append(R("impact_devices", n=devices) if devices else R("impact_no_devices"))
+        if hub or autos or entities or links:
+            why.append(R("impact_also", hub_devices=hub, automations=autos, entities=entities, connections=links))
         if counts.get("likely"):
             why.append(R("impact_likely", n=counts["likely"]))
         value = "parts"

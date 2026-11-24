@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- Resilience, *Why?*: every axis now has the same layout — a status pill, one plain sentence, a small line with the details and, only where something can be changed, a link (the failure chain behind *Impact*, the *Spare* and *Power source* fields, the backup chains, the *often switched off* option of a device with long gaps).
+- Resilience, *Impact*: the headline names the devices that fail with the part ("When it fails, 29 devices fail with it.", or "No other device fails with it."); hub devices, automations, entities and connections follow on a smaller *Also affected* line that leaves out zeros and uses the right singular or plural for each group. The scenario cards name the entities too.
+
+### Fixed
+- Resilience, weak spots: hovering a red square always said "missing", also where the panel shows *mains only* or a measured availability. A square now names the axis, the status the panel shows and the rating its colour stands for (e.g. *Power: mains only · very weak*); the red rating reads *very weak*.
+
 ## [1.64.3] – 2026-11-24
 
 1.64.2 below was not released on its own; it is part of this release.

@@ -11,6 +11,27 @@
    .lensOn(), LL.resilienceSection(id) (the card). */
 (function () {
   'use strict';
+  // ---- pure helpers (no DOM, t() passed in; exported for tests/js/resilience_test.js)
+  const PARTS = ['devices', 'hub_devices', 'automations', 'entities', 'connections'];
+  function axisStep(a) {
+    if (a && a.counts === false) return 'na';
+    const w = a ? a.weak : null;
+    return w == null ? 'unknown' : w <= 0.15 ? 'good' : w <= 0.45 ? 'fair' : w <= 0.75 ? 'weak' : 'bad';
+  }
+  // the word of a square: the status the "Why?" panel shows plus the rating its colour stands for (never colour alone,
+  // docs/ACCESSIBILITY.md). A fully weak axis is not always missing: "mains only" and a low availability are rated fully
+  // weak too (#20). Unknown and "does not count" say it once.
+  function cellLabel(axis, a, tr) {
+    const step = axisStep(a), name = tr('rs.axis.' + axis);
+    if (!a || !a.value) return name + ': ' + tr('rs.weak.' + step);
+    const status = tr('rs.value.' + a.value);
+    return step === 'unknown' || step === 'na' ? name + ': ' + status : name + ': ' + status + ' · ' + tr('rs.weak.' + step);
+  }
+  // "41 hub devices · 457 entities · 4 connections": only the groups above zero, each with its own plural (fail.part.*)
+  function partsLine(c, tr) { return PARTS.filter(p => c && c[p]).map(p => tr('fail.part.' + p, { n: c[p] })).join(' · '); }
+  if (typeof module !== 'undefined' && module.exports) module.exports = { PARTS, axisStep, cellLabel, partsLine };
+  if (typeof window === 'undefined' || !window.Lanloom || !window.Lanloom.h) return;
+
   const LL = window.Lanloom;
   const { h, t, api } = LL;
   const LEVELS = ['low', 'moderate', 'elevated', 'high', 'critical'];
@@ -32,7 +53,12 @@
       h('i', { class: 'rs-risk__dot', 'aria-hidden': 'true' }), h('span', { class: 'rs-risk__word' }, levelWord(level)),
       risk == null ? null : h('span', { class: 'rs-risk__num' }, num(risk)));
   }
-  function why(r) { return LL.fillText('rs.why.' + r.key, r.vars || {}); }
+  // rs.why.impact_also carries the groups as numbers; its {parts} is filled here from fail.part.* (zeros dropped, one plural
+  // per group). This is the only place rs.why.* is rendered: anywhere else that line would show {parts} literally.
+  function why(r) {
+    const v = r.vars || {};
+    return LL.fillText('rs.why.' + r.key, r.key === 'impact_also' ? Object.assign({}, v, { parts: partsLine(v, t) }) : v);
+  }
   function partName(x) {
     if (!x) return '';
     if (x.id === 'internet' || x.kind === 'internet') return t('kind.internet');
@@ -45,9 +71,7 @@
   }
   function minutes(s) { return s == null ? '—' : t('rs.minutes', { n: Math.round(s / 60) }); }
   function weakCell(axis, a) {
-    const w = a ? a.weak : null, counts = !a || a.counts !== false;
-    const step = !counts ? 'na' : w == null ? 'unknown' : w <= 0.15 ? 'good' : w <= 0.45 ? 'fair' : w <= 0.75 ? 'weak' : 'bad';
-    const label = t('rs.axis.' + axis) + ': ' + t('rs.weak.' + step);
+    const step = axisStep(a), label = cellLabel(axis, a, t);
     return h('span', { class: 'rs-cell rs-cell--' + step, title: label, role: 'img', 'aria-label': label },
       h('span', { class: 'rs-cell__k', 'aria-hidden': 'true' }, t('rs.axis.short.' + axis)));
   }
@@ -139,13 +163,35 @@
       kids.push(h('ul', { class: 'rs-axes' }, d.axes.map(a => h('li', { class: 'rs-axis' },
         a.axis === 'impact' ? h('span', { class: 'rs-cell rs-cell--impact', 'aria-hidden': 'true' }, h('span', { class: 'rs-cell__k' }, t('rs.axis.short.impact'))) : weakCell(a.axis, a),
         h('div', { class: 'rs-axis__main' },
-          h('div', { class: 'rs-axis__head' }, h('strong', {}, t('rs.axis.' + a.axis)), h('span', { class: 'muted' }, t('rs.value.' + a.value))),
-          h('ul', { class: 'rs-axis__why' }, (a.why || []).map(r => h('li', {}, why(r)))))))));
+          h('div', { class: 'rs-axis__head' }, h('strong', {}, t('rs.axis.' + a.axis)),
+            a.value ? h('span', { class: 'rs-pill rs-pill--' + (a.axis === 'impact' ? 'impact' : axisStep(a)) }, t('rs.value.' + a.value)) : null),
+          ...axisText(a.why || []), axisLink(a, d, box))))));
     }
     if (d.fields && d.fields.note) kids.push(h('p', { class: 'rs-part__note' }, h('span', { class: 'muted' }, t('rs.field.note') + ': '), d.fields.note));
     if (d.editable && LL.can('operate')) kids.push(editor(d, box, opt));
     else if (d.fields && (d.fields.power || d.fields.spare)) kids.push(h('p', { class: 'muted' }, [d.fields.power ? t('rs.field.power') + ': ' + t('rs.power.' + d.fields.power) : '', d.fields.spare ? t('rs.field.spare') + ': ' + t('rs.spare.' + d.fields.spare) : ''].filter(Boolean).join(' · ')));
     box.replaceChildren(...kids);
+  }
+  // one layout on every axis: the first reason is the plain sentence, the others go on one small detail line (#20)
+  function axisText(list) {
+    if (!list.length) return [];
+    return [h('p', { class: 'rs-axis__lead' }, why(list[0])),
+      list.length > 1 ? h('p', { class: 'rs-axis__detail' }, list.slice(1).map(why).join(' · ')) : null];
+  }
+  // a link only where a person can really change something
+  function axisLink(a, d, box) {
+    const may = d.editable && LL.can('operate'), weak = a.weak == null ? 1 : a.weak, node = d.node || {};
+    const btn = (key, run) => h('button', { class: 'link-btn rs-axis__link', type: 'button', onclick: run }, t(key));
+    const field = name => () => {
+      const el = box.querySelector('select[name="' + name + '"]');
+      if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); }
+    };
+    if (a.axis === 'impact') return a.value === 'parts' && LL.failure ? btn('rs.part.show_chain', () => LL.failure.show(node.id, 'down')) : null;
+    if ((a.axis === 'spare' || a.axis === 'power') && may && weak >= 0.5) return btn('rs.part.link.' + a.axis, field(a.axis));
+    if (a.axis === 'backup' && a.value === 'none') return h('a', { class: 'rs-axis__link', href: '#/backups' }, t('rs.part.link.backup'));
+    if (a.axis === 'health' && a.value === 'measured' && weak >= 0.8 && node.kind === 'device' && !node.self)
+      return h('a', { class: 'rs-axis__link', href: '#/devices/' + enc(node.id) }, t('rs.part.link.sleepy'));
+    return null;
   }
   function editor(d, box, opt) {
     const f = d.fields || {};
@@ -181,13 +227,7 @@
 
   // ------------------------------------------------------------------ scenarios
   function countsLine(c) {
-    if (!c) return '';
-    const parts = [];
-    if (c.devices) parts.push(t('fail.part.devices', { n: c.devices }));
-    if (c.hub_devices) parts.push(t('fail.part.hub_devices', { n: c.hub_devices }));
-    if (c.automations) parts.push(t('fail.part.automations', { n: c.automations }));
-    if (c.connections) parts.push(t('fail.part.connections', { n: c.connections }));
-    return parts.join(' · ');
+    return partsLine(c, t);
   }
   function names(list) {
     if (!list || !list.length) return '';
