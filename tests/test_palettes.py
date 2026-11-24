@@ -218,6 +218,39 @@ def test_text_on_glass_stays_readable_over_every_tint(label, tok):
         assert contrast(tok["--ll-on-accent"], _over(g["--ll-glass-gloss"], tok["--ll-accent"])) >= 3, (label, "button label under the top of the gloss")
 
 
+@pytest.mark.parametrize("label,tok", GLASS, ids=[m[0] for m in GLASS])
+def test_a_pane_of_glass_is_lit_from_above(label, tok):
+    """A box lit from above bulges out when its top is brighter than its foot; with the foot as bright as the top (or brighter) the
+    eye reads it as lit from below, a dent. The head of a tile (plain or tinted by its state) must therefore be lighter than the
+    shaded foot, on a tile and on a big pane, and text on the foot keeps its contrast. The shade is light-face only."""
+    light, dark, auto = _glass_extras()
+    assert dark == auto
+    g = light if label.endswith("/light") else dark
+    assert "--ll-glass-shade" in g, "the foot shade is a token of its own (the depth token is a drop shadow in the dark face)"
+    if not label.endswith("/light"):
+        assert g["--ll-glass-shade"] == "transparent", "dark and auto need no shade"
+        return
+    assert _rgba(g["--ll-glass-shade"])[3] >= 0.08, "the shade must be seen"
+    tile = _over(tok["--ll-pcb-tile"], tok["--ll-bg"])
+    grounds = []
+    for base in (g["--ll-glass-top"], g["--ll-glass-bottom"]):
+        grounds.append(base)
+        grounds += [_over(g["--ll-glass-tint-%d" % i], base) for i in (1, 2, 3)]
+    for page in grounds:
+        pane = _over(g["--ll-glass-fill"], page)
+        for body, what in ((tile, "tile"), (pane, "pane")):
+            foot = _over(g["--ll-glass-shade"], body)
+            for key in ("--ll-glass-sheen-hi",) + GLASS_STATE:
+                head = _over(g[key], body)
+                assert _lum(head) - _lum(foot) >= 0.01, (label, what, key, "the head is lighter than the foot", round(_lum(head) - _lum(foot), 3))
+        foot = _over(g["--ll-glass-shade"], pane)
+        for fg, need in (("--ll-text", 7), ("--ll-text-2", 4.5), ("--ll-text-3", 4.5), ("--ll-accent-text", 4.5), ("--ll-danger-text", 4.5),
+                         ("--ll-warn-text", 4.5), ("--ll-ok-text", 4.5)):
+            assert contrast(tok[fg], foot) >= need, (label, fg, "on the shaded foot", page, round(contrast(tok[fg], foot), 3))
+    css = read("css", "glass.css")
+    assert css.count("var(--ll-glass-shade") >= 2, "the common box rule and the sheet of a device both lay the shade"
+
+
 def test_glass_needs_no_blur():
     css = read("css", "glass.css")
     assert "backdrop-filter" not in css and "filter:" not in css, "the glass is light and layers, never a blur (budget of small machines)"

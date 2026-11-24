@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- SummerGlass (light): boxes looked pressed in instead of bulging out, because the foot of a box was as bright as its top, or brighter (on a tile with a state, the tinted top was even darker than the body). A soft shade toward the foot (new token `--ll-glass-shade`, light face only; dark, WinterGlass dark and automatic stay unchanged) lets a box read as lit from above. The sheet of a map device gets it too, above its solid base. The *down* tint of a tile is a little lighter, and the green and amber text colours of the light glass face a touch darker, so the contrast on the shaded foot stays at 4.5:1 or better.
+
 ## [1.64.4] – 2026-11-24
 
 ### Changed

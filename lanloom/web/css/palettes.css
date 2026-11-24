@@ -248,10 +248,10 @@
   --ll-shadow-1: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 0 0 1px rgba(255, 255, 255, .45) inset, 0 1px 2px rgba(16, 24, 32, .12), 0 6px 18px rgba(16, 24, 32, .10);
   --ll-shadow-2: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 0 0 1px rgba(255, 255, 255, .45) inset, 0 4px 12px rgba(16, 24, 32, .14), 0 18px 44px rgba(16, 24, 32, .18);
   --ll-ok: #11875F;
-  --ll-ok-text: #0B6A4A;
+  --ll-ok-text: #0A6243;
   --ll-ok-soft: #DCF1E8;
   --ll-warn: #A06A00;
-  --ll-warn-text: #7E5300;
+  --ll-warn-text: #754D00;
   --ll-warn-soft: #F7EDD6;
   --ll-danger: #C93838;
   --ll-danger-text: #A82424;
@@ -463,10 +463,10 @@
   --ll-shadow-1: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 0 0 1px rgba(255, 255, 255, .45) inset, 0 1px 2px rgba(16, 24, 32, .12), 0 6px 18px rgba(16, 24, 32, .10);
   --ll-shadow-2: 0 1px 0 rgba(255, 255, 255, .95) inset, 0 0 0 1px rgba(255, 255, 255, .45) inset, 0 4px 12px rgba(16, 24, 32, .14), 0 18px 44px rgba(16, 24, 32, .18);
   --ll-ok: #11875F;
-  --ll-ok-text: #0B6A4A;
+  --ll-ok-text: #0A6243;
   --ll-ok-soft: #DCF1E8;
   --ll-warn: #A06A00;
-  --ll-warn-text: #7E5300;
+  --ll-warn-text: #754D00;
   --ll-warn-soft: #F7EDD6;
   --ll-danger: #C93838;
   --ll-danger-text: #A82424;
@@ -670,10 +670,11 @@ html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme=
   --ll-glass-sheen-lo: rgba(255, 255, 255, .22);
   --ll-glass-sheen-ok: rgba(214, 240, 228, .95);
   --ll-glass-sheen-warn: rgba(246, 236, 210, .95);
-  --ll-glass-sheen-down: rgba(249, 222, 222, .95);
+  --ll-glass-sheen-down: rgba(250, 228, 228, .95);
   --ll-glass-glare: rgba(255, 255, 255, .60);
   --ll-glass-gloss: rgba(255, 255, 255, .26);
   --ll-glass-depth: rgba(16, 24, 32, .10);
+  --ll-glass-shade: rgba(16, 24, 32, .10);
   --ll-glass-glow: rgba(31, 111, 168, .28);
 }
 
@@ -694,6 +695,7 @@ html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme=
   --ll-glass-glare: rgba(255, 255, 255, .09);
   --ll-glass-gloss: rgba(255, 255, 255, .38);
   --ll-glass-depth: rgba(0, 0, 0, .30);
+  --ll-glass-shade: transparent;
   --ll-glass-glow: rgba(111, 195, 245, .30);
 }
 
@@ -715,6 +717,7 @@ html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme=
     --ll-glass-glare: rgba(255, 255, 255, .09);
     --ll-glass-gloss: rgba(255, 255, 255, .38);
     --ll-glass-depth: rgba(0, 0, 0, .30);
+    --ll-glass-shade: transparent;
     --ll-glass-glow: rgba(111, 195, 245, .30);
   }
 }
