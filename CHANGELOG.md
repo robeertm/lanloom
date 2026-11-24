@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.64.1] – 2026-11-24
+
+1.63.0, 1.63.1 and 1.64.0 below were not released on their own; they are part of this release.
+
+### Changed
+- Collects the changes on main since 1.62.1.
+
 ## [1.64.0] – 2026-11-23
 
 1.63.0 and 1.63.1 below were not released on their own; they are part of this release.
