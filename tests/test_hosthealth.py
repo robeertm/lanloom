@@ -148,6 +148,18 @@ def test_snmp_memory_prefers_mem_available():
     assert snmp.parse_host_resources(_mem_storage(BUFCACHE), [], [], bogus, [])["mem"] == 51.1  # a zero MemAvailable is not believed
 
 
+def test_snmp_memory_gives_the_zfs_cache_back():
+    # lanloom#25: a ZFS storage box read 96 % while its own dashboard said ~24 %; the ZFS cache is in no "available" figure
+    ucd = [(snmp.OID_UCD_MEM + ".5.0", 6_047_804), (snmp.OID_UCD_MEM + ".6.0", 422_928),
+           (snmp.OID_UCD_MEM + ".27.0", 422_928)]
+    arc = [(snmp.OID_ZFS_ARC + ".0", 3_000_000)]                                              # the MIB counts in kB
+    assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [])["mem"] == 93.0           # as reported
+    assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [], arc)["mem"] == 43.4      # cache given back
+    assert snmp.parse_host_resources(_mem_storage(), [], [], [], [], arc)["mem"] == 43.4       # no UCD table at all
+    big = [(snmp.OID_ZFS_ARC + ".0", 99_000_000)]                                             # larger than the memory
+    assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [], big)["mem"] == 93.0      # not believed
+
+
 def test_snmp_without_host_tables_is_empty():
     out = snmp.parse_host_resources({}, [], [], [], [])
     assert all(v is None for v in out.values())

@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Storage boxes: a healthy ZFS storage box showed "Memory 96 %" and the whole box as "Problem" because the ZFS read cache (ARC) counted as used memory. Lanloom now reads the cache size from the box's vendor MIB over SNMP and counts it like buffers and cache as given back; a value that does not fit into the memory of the host is ignored. Boxes without ZFS are unchanged.
+
 ## [1.64.8] – 2026-11-25
 
 1.64.6 and 1.64.7 below were not released on their own; they are part of this release.

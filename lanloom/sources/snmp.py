@@ -783,6 +783,7 @@ OID_HR_PROC_LOAD = "1.3.6.1.2.1.25.3.3.1.2"        # hrProcessorLoad (per proces
 OID_LA_LOAD = "1.3.6.1.4.1.2021.10.1.3"            # laLoad (UCD: 1, 5, 15 minutes as text)
 OID_UCD_MEM = "1.3.6.1.4.1.2021.4"                 # memory group (UCD, kB)
 OID_LM_TEMP = "1.3.6.1.4.1.2021.13.16.2.1.3"       # lmTempSensorsValue (milli degrees Celsius)
+OID_ZFS_ARC = "1.3.6.1.4.1.50536.1.4.1"            # zfsArcSize of the storage-box vendor MIB (size of the ZFS cache, kB)
 HR_OTHER = "1.3.6.1.2.1.25.2.1.1"                  # hrStorageOther ("Memory buffers", "Cached memory" on common agents)
 HR_RAM = "1.3.6.1.2.1.25.2.1.2"
 HR_VIRTUAL = "1.3.6.1.2.1.25.2.1.3"
@@ -796,9 +797,25 @@ def _pct(used, size):
     return round(100.0 * used / size, 1) if isinstance(used, int) and isinstance(size, int) and size > 0 and 0 <= used <= size * 1.01 else None
 
 
-def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd_rows: list, temp_rows: list) -> dict:
+def _mem_pct(used, total):
+    return round(max(0.0, min(100.0, 100.0 * used / total)), 1) if total else None
+
+
+def _arc_bytes(rows, total_b):
+    """Size of the ZFS cache (ARC) in bytes from the vendor MIB of a ZFS storage box, which counts in kB. None when the
+    agent does not serve it or the value does not fit into the memory of the host: then nothing is given back."""
+    v = next((x for _o, x in rows or () if isinstance(x, int) and not isinstance(x, bool) and x > 0), None)
+    if v is None or not total_b:
+        return None
+    b = v * 1024
+    return b if b <= total_b else None
+
+
+def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd_rows: list, temp_rows: list,
+                         arc_rows=()) -> dict:
     """Raw walks -> ``{"cpu", "cores", "load", "mem", "swap", "disk", "disk_mount", "temp"}`` (percent, load average of
-    15 minutes, degrees Celsius; None where the agent does not tell). ``storage_rows``: {column oid: [(oid, value)]}."""
+    15 minutes, degrees Celsius; None where the agent does not tell). ``storage_rows``: {column oid: [(oid, value)]};
+    ``arc_rows``: the walk of the ZFS cache size, empty when the agent does not know it."""
     col = {k: _index_map(v, k) for k, v in storage_rows.items()}
     types, descr = col.get(OID_HR_STORAGE_TYPE, {}), col.get(OID_HR_STORAGE_DESCR, {})
     units, size, used = col.get(OID_HR_STORAGE_UNITS, {}), col.get(OID_HR_STORAGE_SIZE, {}), col.get(OID_HR_STORAGE_USED, {})
@@ -851,13 +868,19 @@ def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd
     ucd = _index_map([(o.rsplit(".", 1)[0], v) for o, v in ucd_rows if o.endswith(".0")], OID_UCD_MEM)
     total, avail, sys_avail = ucd.get(5), ucd.get(6), ucd.get(27)
     ucd_reclaim = [x for x in (ucd.get(14), ucd.get(15)) if isinstance(x, int) and x >= 0]
+    # The read cache of ZFS (the ARC) belongs to the ZFS kernel module and is no page cache: none of the three figures
+    # above knows it, so a box that fills its cache on purpose reads as almost full (a box at 24 % read 96 %). ZFS
+    # hands the cache back when a program needs the memory, so it does not count as in use (#25).
+    total_b = ram[1] if ram else (total * 1024 if isinstance(total, int) and total > 0 else None)
+    arc_b = _arc_bytes(arc_rows, total_b)
+    arc_kb = (arc_b // 1024) if arc_b else 0
     if isinstance(total, int) and total > 0 and isinstance(sys_avail, int) and 0 < sys_avail <= total:
-        out["mem"] = round(max(0.0, min(100.0, 100.0 * (1 - sys_avail / total))), 1)
+        out["mem"] = _mem_pct(total - sys_avail - arc_kb, total)
     elif isinstance(total, int) and total > 0 and isinstance(avail, int):
         back = sum(ucd_reclaim) if ucd_reclaim else reclaim_hr // 1024       # UCD counts in kB
-        out["mem"] = round(max(0.0, min(100.0, 100.0 * (1 - (avail + back) / total))), 1)     # buffers and cache can be given back
-    elif ram and ram[1] > 0 and reclaim_hr:
-        out["mem"] = round(max(0.0, min(100.0, 100.0 * (ram[0] - reclaim_hr) / ram[1])), 1)
+        out["mem"] = _mem_pct(total - avail - back - arc_kb, total)          # buffers and cache can be given back
+    elif ram and ram[1] > 0 and (reclaim_hr or arc_b):
+        out["mem"] = _mem_pct(ram[0] - reclaim_hr - (arc_b or 0), ram[1])
     st, sa = ucd.get(3), ucd.get(4)
     if isinstance(st, int) and st > 0 and isinstance(sa, int) and 0 <= sa <= st:
         out["swap"] = round(100.0 * (1 - sa / st), 1)
@@ -869,7 +892,7 @@ def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd
 
 def read_host_resources(client: SnmpClient) -> dict:
     """Host values of an agent that serves HOST-RESOURCES-MIB (servers, storage boxes, some routers). Tables the agent
-    lacks are simply missing; an agent with none of them gives ``{}``."""
+    lacks are simply missing; an agent with none of them gives ``{}``. A ZFS storage box also tells the size of its cache."""
     storage = {c: _walk_or_empty(client, c, limit=MAX_HR_ROWS) for c in (OID_HR_STORAGE_TYPE, OID_HR_STORAGE_DESCR, OID_HR_STORAGE_UNITS,
                                                                          OID_HR_STORAGE_SIZE, OID_HR_STORAGE_USED)}
     proc = _walk_or_empty(client, OID_HR_PROC_LOAD, limit=MAX_HR_ROWS)
@@ -878,7 +901,8 @@ def read_host_resources(client: SnmpClient) -> dict:
     la = _walk_or_empty(client, OID_LA_LOAD, limit=8)
     ucd = _walk_or_empty(client, OID_UCD_MEM, limit=40)
     temp = _walk_or_empty(client, OID_LM_TEMP, limit=64)
-    out = parse_host_resources(storage, proc, la, ucd, temp)
+    arc = _walk_or_empty(client, OID_ZFS_ARC, limit=2)         # a box with ZFS; others answer nothing here
+    out = parse_host_resources(storage, proc, la, ucd, temp, arc)
     return out if any(v is not None for v in out.values()) else {}
 
 
