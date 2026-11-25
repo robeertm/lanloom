@@ -208,7 +208,7 @@
       let r;
       try { r = await api('/api/ai/pairing', { method: 'POST', body: {} }); }
       catch (e) { codeBox.replaceChildren(h('div', { class: 'msg msg--error' }, LL.errText(e))); return; }   // a cancelled confirmation or a refusal is shown, not thrown into the console
-      const q ='?code=' + encodeURIComponent(r.code);
+      const q = '?code=' + encodeURIComponent(r.code);
       const cmd = (os) => os.shell === 'ps1' ? '& ([scriptblock]::Create((irm "' + origin + '/api/ai/installer/' + os.id + q + '")))'
         : 'curl -fsSL "' + origin + '/api/ai/installer/' + os.id + q + '" | sh';
       codeBox.replaceChildren(h('div', { class: 'ai-code' },
