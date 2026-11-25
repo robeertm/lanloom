@@ -135,6 +135,7 @@ a.change__link:hover { background: var(--ll-surface-2); }
 .ov-strip__axis { display: flex; justify-content: space-between; font-size: var(--ll-fs-2xs); }
 
 .ov-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.ov-kpis:has(> :nth-child(7):last-child) { grid-template-columns: repeat(7, minmax(0, 1fr)); }      /* seven tiles share one row, no lone tile under six */
 .ov-kpi { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; min-width: 0; background: var(--ll-surface); border: 1px solid var(--ll-border); border-radius: var(--ll-radius-lg);
   box-shadow: var(--ll-shadow-1); color: var(--ll-text); text-decoration: none; font: inherit; text-align: left; cursor: pointer; transition: border-color var(--ll-dur-fast) var(--ll-ease); }
 .ov-kpi:hover { border-color: var(--ll-border-strong); }
@@ -224,8 +225,9 @@ a.change__link:hover { background: var(--ll-surface-2); }
   .topbar--many .tab { padding: 0 8px; }
   .topbar--many .tabs { gap: 0; }
 }
-@media (max-width: 1400px) {
-  .ov-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1179px) {
+  .ov-kpis, .ov-kpis:has(> :nth-child(7):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ov-kpis > :last-child:nth-child(3n+1) { grid-column: 1 / -1; }      /* a tile left alone in the last row spans it, edges stay flush */
 }
 @media (max-width: 1000px) {
   .ov-health { grid-template-columns: minmax(0, 1fr); gap: 16px; }
@@ -236,7 +238,9 @@ a.change__link:hover { background: var(--ll-surface-2); }
   .rail-btn { width: 32px; height: 32px; }
   .topbar__right { gap: 6px; }
   .shell:not(.shell--dock) .rail { width: 100%; }
-  .ov-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ov-kpis, .ov-kpis:has(> :nth-child(7):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ov-kpis > :last-child:nth-child(3n+1) { grid-column: auto; }
+  .ov-kpis > :last-child:nth-child(odd) { grid-column: 1 / -1; }
   .ov-kpi { padding: 12px 14px; }
   .ov-kpi__value { font-size: var(--ll-fs-xl); }
   .ov-health { padding: 16px; }

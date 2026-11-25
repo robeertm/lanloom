@@ -1262,7 +1262,7 @@
       const flash = (text, kind) => LL.msg(updMsg, text, kind);
       const redraw = nu => { setUpdateState(nu); updSection.replaceWith(updCard(nu)); };
       const put = async body => { try { redraw(await api('/api/update/settings', { method: 'PUT', body })); LL.toast(t('settings.saved'), 'ok'); } catch (e) { flash(LL.errText(e), 'error'); } };
-      const channel = h('select', { class: 'input', 'aria-label': t('update.channel') }, ['stable', 'preview'].map(c => h('option', { value: c }, t('update.channel.' + c))));
+      const channel = h('select', { class: 'select', 'aria-label': t('update.channel') }, ['stable', 'preview'].map(c => h('option', { value: c }, t('update.channel.' + c))));
       channel.value = u.channel === 'preview' ? 'preview' : 'stable';
       channel.onchange = () => put({ channel: channel.value });
       const hold = h('input', { type: 'checkbox', checked: !!u.held });
