@@ -16,7 +16,7 @@ Seven axes per component, each a weakness 0 ... 1 (0 = good, None = unknown) wit
              automation 1, script 0.5, entity 0.05; a = log(1 + n) / log(1 + IMPACT_FULL), at most 1.
   spare      own field: live 0, cold 0.35, partial 0.5, none 1; the internet with a reserve line 0; nothing depends on it 0;
              no entry: unknown.
-  backup     backup chains that cover it (directly or through its host): ok with a restore checked in the last 90 days 0,
+  backup     backup chains that cover it (the devices a chain names, or the host of an agent timer; directly or through its host): ok with a restore checked in the last 90 days 0,
              ok 0.25, running 0.25, late 0.5, unknown 0.5, failed 0.9; a part that keeps data (storage, server, hub, broker,
              container, Lanloom itself, a host with guests or containers) without a chain 1; network gear without a chain: unknown; everything else does not count.
   power      own field (or derived): ups 0.1 (0.35 when the UPS asks for a new battery), battery 0.15, mains 1, unknown None.
@@ -255,6 +255,16 @@ def axis_spare(field: Optional[str], has_dependants: bool, reserve_line: Optiona
     if not has_dependants:
         return {"axis": "spare", "weak": 0.0, "value": "not_needed", "why": [R("spare_not_needed")]}
     return {"axis": "spare", "weak": None, "value": "unknown", "why": [R("spare_unknown")]}
+
+
+def cover_by_device(chains: list) -> dict:
+    """Backup chain rows by the devices they cover: a chain may name several (``devices``), the older single ``device`` still counts.
+    A chain that names none does not appear; the order of the chains is kept."""
+    out: dict = {}
+    for c in chains:
+        for d in (c.get("devices") or ([c["device"]] if c.get("device") else [])):
+            out.setdefault(d, []).append(c)
+    return out
 
 
 def axis_backup(cover: list, keeps_data: bool, net_gear: bool, now: float) -> dict:
@@ -629,10 +639,7 @@ class Resilience:
             return res
 
         # backup cover: direct, and through the host for guests and containers
-        by_dev = {}
-        for c in chains:
-            if c.get("device"):
-                by_dev.setdefault(c["device"], []).append(c)
+        by_dev = cover_by_device(chains)
 
         def cover_of(nid):
             out = [{"name": c["name"], "status": c["status"], "restore_t": c.get("restore_checked_t")} for c in by_dev.get(nid, [])]

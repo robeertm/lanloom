@@ -142,7 +142,7 @@ def card(core, dev: dict, now: float, readings: dict, backup_rows: list, ups_row
     vit = vitals({k: v for k, v in readings.items() if now - v["t"] <= 900})
     ct = containers(core, dev_id, now)
     vm = guests(core, dev_id)
-    mine = [b for b in backup_rows if b.get("device") == dev_id]
+    mine = [b for b in backup_rows if dev_id in (b.get("devices") or [b.get("device")])]
     ring_pct = vols[0]["pct"] if vols else None
     levels = [v["level"] for v in vols] + [x["level"] for x in vit.values()]
     if ct:

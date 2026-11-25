@@ -194,6 +194,50 @@ def test_delete_removes_everything_of_the_chain():
     assert w.live == {} and w.chains(T0) == []
 
 
+# ---- covered devices (lanloom#24)
+def test_a_declared_chain_names_the_devices_it_covers():
+    core, w = make()
+    core.store.upsert_device({"id": "d-1", "ip": "192.168.50.5", "mac": None, "data": {}, "kind": "server", "confidence": 0.9, "title": "Host"}, None)
+    chain(w, devices=["d-1", " d-2 ", "d-1", ""])
+    c = one(w)
+    assert c["devices"] == ["d-1", "d-2"] and c["device"] == "d-1"
+    assert c["device_titles"] == ["Host", "d-2"]                                  # an unknown id stays an id
+
+
+def test_changing_a_chain_replaces_the_devices_and_a_missing_field_clears_them():
+    core, w = make()
+    chain(w, devices=["d-1", "d-2"])
+    chain(w, devices=["d-3"])
+    assert one(w)["devices"] == ["d-3"]
+    chain(w)
+    c = one(w)
+    assert c["devices"] == [] and c["device"] is None
+
+
+def test_deleting_a_chain_leaves_no_device_rows():
+    core, w = make()
+    chain(w, devices=["d-1"])
+    assert w.delete_chain("nightly") is True
+    assert w.store.one("SELECT COUNT(*) AS n FROM backup_chain_devices")["n"] == 0
+
+
+def test_devices_input_errors_save_nothing():
+    core, w = make()
+    chain(w, devices=["d-1"])
+    for bad in (["d-%d" % i for i in range(21)], "d-1", [1], {"a": 1}):
+        with pytest.raises(ValueError, match="chain.err.devices"):
+            chain(w, name="Changed", devices=bad)
+    c = one(w)
+    assert c["name"] == "Nightly" and c["devices"] == ["d-1"]
+    assert len(bk.clean_devices({"devices": ["d-%d" % i for i in range(20)]})) == 20 and bk.clean_devices({}) == [] and bk.clean_devices({"devices": None}) == []
+
+
+def test_an_agent_chain_carries_its_host_as_devices():
+    core, w = agents_core([timer("restic-backup.timer", T0 - 5 * H, T0 + 19 * H)])
+    c = w.chains(T0)[0]
+    assert c["device"] == "d-test-3" and c["devices"] == ["d-test-3"]
+
+
 def test_runs_older_than_400_days_are_dropped():
     core, w = make()
     chain(w)

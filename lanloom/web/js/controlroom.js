@@ -269,6 +269,22 @@
     const amount = h('input', { type: 'number', min: '1', step: '1', inputmode: 'numeric', value: String(inDays ? hours / 24 : Math.round(hours)) });
     const unit = h('select', { class: 'select', 'aria-label': t('cr.ui.bk.f.unit') }, ['hours', 'days'].map(u => h('option', { value: u }, t('cr.ui.unit.' + u))));
     unit.value = inDays ? 'days' : 'hours';
+    const picked = new Set(chain && chain.devices ? chain.devices : []);
+    const filter = h('input', { type: 'search', class: 'input-sm', placeholder: t('cr.ui.bk.f.devices.filter') });
+    const devList = h('div', { class: 'cr-devpick choice-list choice-list--compact' });
+    let devices = null;
+    async function fillDevices() {
+      if (!devices) { try { devices = (await api('/api/devices')).devices || []; } catch (e) { devices = []; } }
+      const q = filter.value.trim().toLowerCase();
+      const rows = devices.filter(d => !q || ((d.user_title || d.title || '') + ' ' + (d.ip || '') + ' ' + d.id).toLowerCase().includes(q));
+      rows.sort((a, b) => (picked.has(b.id) ? 1 : 0) - (picked.has(a.id) ? 1 : 0));
+      devList.replaceChildren(...rows.slice(0, 60).map(d => {
+        const cb = h('input', { type: 'checkbox', checked: picked.has(d.id), onchange: () => { cb.checked ? picked.add(d.id) : picked.delete(d.id); } });
+        return h('label', { class: 'choice' }, cb, h('span', { class: 'choice__main' }, h('span', { class: 'choice__title' }, d.user_title || d.title || d.ip || d.id), h('span', { class: 'muted mono' }, d.ip || '')));
+      }));
+    }
+    filter.addEventListener('input', fillDevices);
+    fillDevices();
     const msg = h('div', { class: 'msg', role: 'alert' });
     let touchedId = editing;
     id.addEventListener('input', () => { touchedId = true; });
@@ -276,6 +292,7 @@
     const save = h('button', { class: 'btn btn--primary', type: 'button' }, t('cr.ui.bk.save'));
     const body = h('div', { class: 'stack cr-form' }, LL.field(t('cr.ui.bk.f.name'), name), LL.field(t('cr.ui.bk.f.id'), id, t('cr.ui.bk.f.id.hint')),
       h('div', { class: 'grid-2' }, LL.field(t('cr.ui.bk.f.source'), source), LL.field(t('cr.ui.bk.f.target'), target)),
+      LL.field(t('cr.ui.bk.f.devices'), h('div', { class: 'stack-sm' }, filter, devList), t('cr.ui.bk.f.devices.hint')),
       h('div', { class: 'field' }, h('span', { class: 'field__label' }, t('cr.ui.bk.f.expect')), h('div', { class: 'cr-form__expect' }, amount, unit), h('div', { class: 'field__hint' }, t('cr.ui.bk.f.expect.hint'))), msg);
     const dlg = LL.dialog(t(editing ? 'cr.ui.bk.edit' : 'cr.ui.bk.add'), body, save);
     save.addEventListener('click', async () => {
@@ -283,7 +300,7 @@
       const key = editing ? chain.id.replace(/^manual:/, '') : id.value.trim();
       const expect = Number(amount.value) * (unit.value === 'days' ? 24 : 1);
       try {
-        await api('/api/backups/chains/' + encodeURIComponent(key), { method: 'PUT', body: { name: name.value.trim(), source: source.value.trim(), target: target.value.trim(), expect_hours: expect } });
+        await api('/api/backups/chains/' + encodeURIComponent(key), { method: 'PUT', body: { name: name.value.trim(), source: source.value.trim(), target: target.value.trim(), expect_hours: expect, devices: [...picked] } });
         dlg.close(); LL.toast(t('cr.ui.bk.saved'), 'ok'); reload();
       } catch (e) { LL.msg(msg, LL.errText(e), 'error'); save.disabled = false; }
     });
@@ -311,7 +328,8 @@
     const compact = !!(opts && opts.compact), oldDays = opts && opts.oldDays;
     const lv = STATUS_LEVEL[c.status] || 'unknown';
     const route = [c.source, c.target].filter(Boolean).join(' → ');
-    const meta = [route, c.origin, c.kind ? word('cr.ui.bk.kind.', c.kind) : ''].filter(Boolean).join(' · ');
+    const covers = (c.device_titles || []).length ? t('cr.ui.bk.covers', { names: c.device_titles.join(', ') }) : '';
+    const meta = [route, covers, c.origin, c.kind ? word('cr.ui.bk.kind.', c.kind) : ''].filter(Boolean).join(' · ');
     const last = c.last_ok_t ? t('cr.ui.bk.last_ok', { age: LL.fmtAge(c.age_s != null ? c.age_s : Date.now() / 1000 - c.last_ok_t) }) : t('cr.ui.bk.no_ok');
     const lines = [last, t('cr.ui.bk.expect', { dur: LL.fmtAge(c.expect_s) })];
     if (c.last_fail_t && c.status === 'failed') lines.splice(1, 0, t('cr.ui.bk.last_fail', { age: LL.fmtAge(Date.now() / 1000 - c.last_fail_t) }));

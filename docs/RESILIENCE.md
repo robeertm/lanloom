@@ -15,7 +15,7 @@ anywhere, and no reading is invented: an axis without a source is *unknown* and 
 | Power source, spare, note | own fields per part (`resilience_parts` in the settings), written on the card or under *Why?* |
 | Battery runtime | the battery backups of the [control room](CONTROL-ROOM.md) (NUT or UPS-MIB), live |
 | Reserve line | the internet watch of the control room |
-| Backups and restore checks | the backup chains of the control room |
+| Backups and restore checks | the backup chains of the control room (a declared chain covers the devices it names) |
 | Availability | 5-minute slots of the last 35 days ([AVAILABILITY.md](AVAILABILITY.md)) |
 | Early warnings | host health ([HOST-HEALTH.md](HOST-HEALTH.md)) |
 | Vulnerabilities, end of updates, certificates | [VULNERABILITIES.md](VULNERABILITIES.md), the inventory, the services probe |
@@ -28,7 +28,7 @@ Each axis gives a weakness from 0 (good) to 1, or *unknown*, with its reasons.
 |---|---|
 | Impact | weighted number of parts that fail with it (device, infrastructure, container, connection, hub device, automation 1; script 0.5; entity 0.05): `a = log(1 + n) / log(1 + 80)`, at most 1 |
 | Spare | own field: second unit takes over 0, spare on the shelf 0.35, partly covered 0.5, none 1; nothing depends on it 0; the internet with a reserve line 0; not noted: unknown |
-| Backup | covering chain (directly or through its host): ok with a restore tried in the last 90 days 0, ok or running 0.25, late or unknown 0.5, failed 0.9; a part that keeps data (storage, server, hub, broker, container, Lanloom's host, a host with guests) without a chain 1; network gear without a chain: unknown; anything else does not count |
+| Backup | covering chain (the devices a chain names, or the host of an agent timer; directly or through its host): ok with a restore tried in the last 90 days 0, ok or running 0.25, late or unknown 0.5, failed 0.9; a part that keeps data (storage, server, hub, broker, container, Lanloom's host, a host with guests) without a chain 1; network gear without a chain: unknown; anything else does not count |
 | Power | UPS 0.1 (0.35 when the UPS asks for a new battery), own battery 0.15, mains only 1, unknown. PoE follows the switch it hangs on; guests, containers and connections follow their host; the device a UPS reports through is taken as on the UPS (derived, the card says so) |
 | Up to date | open vulnerability (exploited 1, critical/high 0.8, medium 0.5, low 0.2), no more updates 0.8 (ending soon 0.3), certificate red/expired 1, yellow 0.6 |
 | Watch | reachability (presence check by address) and a second source that reports from it (a connection, a host agent, the hub, an adapter): both 0, one 0.5, none 1 |

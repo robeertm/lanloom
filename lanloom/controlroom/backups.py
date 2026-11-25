@@ -2,7 +2,8 @@
 
 A **chain** is one thing that is backed up: a guest of a hypervisor, the backup of a home-automation hub, a timer of a host agent
 (names with backup, snapshot, dump, restic, borg), or a chain a person declared and whose script reports to Lanloom
-(``POST /api/backups/chains/{id}/run``). For every chain:
+(``POST /api/backups/chains/{id}/run``). A declared chain can name the **devices it covers**; Resilience and the storage cards use
+that to tell which device is backed up (a chain on a host also covers the guests it carries). For every chain:
 
 * ``ok``      - a success is known and younger than 1.5 times the expected interval, and the source of that knowledge is fresh;
 * ``late``    - the newest success is older than that;
@@ -40,9 +41,11 @@ RUN_SILENT_S = 3600.0              # a script that reported progress and then fe
 SOURCE_STALE_S = STALE_S
 NAME_WORDS = ("backup", "snapshot", "dump", "restic", "borg", "duplic", "rsync", "offsite")
 MAX_CHAINS = 300
+MAX_DEVICES = 20                   # devices one declared chain may name
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS backup_chains (id TEXT PRIMARY KEY, name TEXT NOT NULL, source TEXT NOT NULL DEFAULT '', target TEXT NOT NULL DEFAULT '',
     expect_s REAL NOT NULL, created REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS backup_chain_devices (chain TEXT NOT NULL, device TEXT NOT NULL, PRIMARY KEY (chain, device));
 CREATE TABLE IF NOT EXISTS backup_runs (chain TEXT NOT NULL, t REAL NOT NULL, ok INTEGER NOT NULL, bytes REAL, duration_s REAL);
 CREATE INDEX IF NOT EXISTS backup_runs_chain ON backup_runs(chain, t);
 CREATE TABLE IF NOT EXISTS backup_checks (chain TEXT PRIMARY KEY, t REAL NOT NULL);
@@ -51,6 +54,28 @@ CREATE TABLE IF NOT EXISTS backup_learn (chain TEXT PRIMARY KEY, bps REAL, dur_s
 """
 _DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 _ID_RX = re.compile(r"\A[a-z0-9][a-z0-9_-]{0,47}\Z")
+
+
+def clean_devices(data) -> list:
+    """The device ids a declared chain covers, from ``data["devices"]``: a list of text, trimmed, no blanks or doubles, in order.
+
+    Missing or ``None`` is an empty list; anything but a list, a non-text entry or more than ``MAX_DEVICES`` is ``chain.err.devices``.
+    Whether an id exists is not checked (devices come and go, like in a maintenance window)."""
+    raw = data.get("devices") if isinstance(data, dict) else None
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("chain.err.devices")
+    out: list = []
+    for x in raw:
+        if not isinstance(x, str):
+            raise ValueError("chain.err.devices")
+        x = x.strip()[:80]
+        if x and x not in out:
+            out.append(x)
+    if len(out) > MAX_DEVICES:
+        raise ValueError("chain.err.devices")
+    return out
 
 
 def expect_from_schedule(text) -> float:
@@ -123,7 +148,11 @@ class BackupWatch:
 
     # ------------------------------------------------------------------ chains a person declares
     def manual(self) -> list:
-        return [dict(r) for r in self.store.query("SELECT id, name, source, target, expect_s, created FROM backup_chains ORDER BY name")]
+        devs: dict = {}
+        for r in self.store.query("SELECT chain, device FROM backup_chain_devices ORDER BY rowid"):
+            devs.setdefault(r["chain"], []).append(r["device"])
+        return [dict(r, devices=devs.get(r["id"], []))
+                for r in self.store.query("SELECT id, name, source, target, expect_s, created FROM backup_chains ORDER BY name")]
 
     def save_chain(self, chain_id: str, data: dict, now: Optional[float] = None) -> dict:
         now = self.clock() if now is None else now
@@ -136,17 +165,21 @@ class BackupWatch:
         hours = num(data.get("expect_hours"))
         if hours is None or not 1 <= hours <= 24 * 90:
             raise ValueError("chain.err.expect")
+        devices = clean_devices(data)                                  # before anything is written: an error must not save half
         if not self.store.one("SELECT id FROM backup_chains WHERE id=?", (cid,)) and len(self.manual()) >= 60:
             raise ValueError("chain.err.many")
         self.store.execute("INSERT INTO backup_chains(id, name, source, target, expect_s, created) VALUES (?,?,?,?,?,?) "
                            "ON CONFLICT(id) DO UPDATE SET name=excluded.name, source=excluded.source, target=excluded.target, expect_s=excluded.expect_s",
                            (cid, name, str(data.get("source") or "")[:64], str(data.get("target") or "")[:64], hours * 3600.0, now))
+        self.store.execute("DELETE FROM backup_chain_devices WHERE chain=?", (cid,))       # the choice is replaced; a missing field means no devices
+        for d in devices:
+            self.store.execute("INSERT INTO backup_chain_devices(chain, device) VALUES (?,?)", (cid, d))
         return {"id": cid}
 
     def delete_chain(self, chain_id: str) -> bool:
         if not self.store.one("SELECT id FROM backup_chains WHERE id=?", (chain_id,)):
             return False
-        for t in ("backup_chains", "backup_runs", "backup_learn"):
+        for t in ("backup_chains", "backup_runs", "backup_learn", "backup_chain_devices"):
             self.store.execute("DELETE FROM %s WHERE %s=?" % (t, "id" if t == "backup_chains" else "chain"), (chain_id,))
         self.store.execute("DELETE FROM backup_checks WHERE chain IN (?, ?)", (chain_id, "manual:" + chain_id))      # keyed by the id of the list
         self.store.execute("DELETE FROM backup_ignored WHERE chain IN (?, ?)", (chain_id, "manual:" + chain_id))
@@ -359,7 +392,7 @@ class BackupWatch:
             bad = self.store.one("SELECT MAX(t) AS t FROM backup_runs WHERE chain=? AND ok=0", (c["id"],))
             out.append({"id": "manual:" + c["id"], "key": c["id"], "name": c["name"], "kind": "manual", "source": c["source"], "target": c["target"],
                         "last_ok": ok["t"] if ok else None, "fail": bad["t"] if bad else None, "running": c["id"] in self.live, "expect_s": c["expect_s"],
-                        "source_age": None, "ever": bool((ok and ok["t"]) or (bad and bad["t"])), "next_t": None, "origin": ""})
+                        "source_age": None, "ever": bool((ok and ok["t"]) or (bad and bad["t"])), "next_t": None, "origin": "", "devices": c["devices"]})
         return out
 
     # ------------------------------------------------------------------ the answer
@@ -384,8 +417,13 @@ class BackupWatch:
             skip = self.ignored_ids()
             checks = {r["chain"]: r["t"] for r in self.store.query("SELECT chain, t FROM backup_checks")}
             out = []
-            for c in raw[:MAX_CHAINS]:
+            raw = raw[:MAX_CHAINS]
+            titles: dict = {}
+            if any(c.get("devices") or c.get("device") for c in raw):
+                titles = {r["id"]: r["user_title"] or r["title"] or r["ip"] or r["id"] for r in self.store.devices()}
+            for c in raw:
                 cid = c["id"]
+                devs = c.get("devices") or ([c["device"]] if c.get("device") else [])
                 live_key = c.get("key") or cid
                 if c["kind"] != "manual":
                     self._track(cid, c["running"], None, now, ended_ok=c["last_ok"] is not None and not c["fail"])
@@ -404,7 +442,8 @@ class BackupWatch:
                             "last_ok_t": c["last_ok"], "last_fail_t": c["fail"], "age_s": None if age is None else round(age), "expect_s": c["expect_s"],
                             "next_t": c.get("next_t"), "progress": self._progress(live_key, now) if status == "running" else None,
                             "restore_checked_t": rc, "restore_hint": "never" if rc is None else ("old" if now - rc > RESTORE_OLD_DAYS * 86400 else "ok"),
-                            "device": c.get("device"), "editable": c["kind"] == "manual", "origin": c.get("origin") or "",
+                            "devices": devs, "device": devs[0] if devs else None,
+                            "device_titles": [titles.get(d, d) for d in devs], "editable": c["kind"] == "manual", "origin": c.get("origin") or "",
                             "target_free_pct": c.get("target_free"), "ignored": cid in skip and c["kind"] != "manual",
                             "ignored_t": skip[cid]["t"] if cid in skip and c["kind"] != "manual" else None})
         order = {"danger": 0, "warn": 1, "unknown": 2, "ok": 3}

@@ -10,7 +10,7 @@ probe targets (the only traffic the control room makes by itself).
 * ``GET /api/nas``                               storage-box cards
 * ``GET /api/ups``                               battery backups
 * ``GET /api/backups``                           backup chains with status, progress and "restore last checked"
-* ``PUT /api/backups/chains/{id}``               declare or change a chain {name, source, target, expect_hours}
+* ``PUT /api/backups/chains/{id}``               declare or change a chain {name, source, target, expect_hours, devices[]}
 * ``DELETE /api/backups/chains/{id}``            forget a declared chain
 * ``POST /api/backups/chains/{id}/run``          a script reports a run {ok, size?, duration_s?}
 * ``POST /api/backups/chains/{id}/progress``     a script reports progress {pct}

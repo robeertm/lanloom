@@ -223,6 +223,18 @@ def test_chain_input_errors(client):
         assert r.status_code == 404 and r.json()["error"] == "chain.err.missing", (method, path)
 
 
+def test_a_chain_names_its_devices_over_http(client):
+    body = {"name": "C", "expect_hours": 24, "devices": ["d-1"]}
+    assert call(client, "PUT", "/api/backups/chains/rt-cover", body, role="operator").status_code == 200
+    try:
+        rows = call(client, "GET", "/api/backups", role="viewer").json()["chains"]
+        assert next(c for c in rows if c["id"] == "manual:rt-cover")["devices"] == ["d-1"]
+        r = call(client, "PUT", "/api/backups/chains/rt-cover", dict(body, devices=["d-%d" % i for i in range(21)]), role="operator")
+        assert r.status_code == 400 and r.json()["error"] == "chain.err.devices"
+    finally:
+        call(client, "DELETE", "/api/backups/chains/rt-cover", role="operator")
+
+
 def test_restore_check_dates(client):
     call(client, "PUT", "/api/backups/chains/rt-date", {"name": "D", "expect_hours": 24}, role="operator")
     for t in (time.time() + 86400, "yesterday", 5.0):

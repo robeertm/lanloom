@@ -15,6 +15,15 @@ NOW = 1_800_000_000.0
 
 
 # ------------------------------------------------------------------ pure parts
+def test_cover_by_device_sorts_chains_by_every_device_they_name():
+    declared = {"name": "A", "devices": ["d-1", "d-2"]}
+    legacy = {"name": "B", "device": "d-1"}
+    none = {"name": "C"}
+    got = rs.cover_by_device([declared, legacy, none])
+    assert got == {"d-1": [declared, legacy], "d-2": [declared]}
+    assert rs.cover_by_device([none]) == {}
+
+
 def test_levels_score_and_grade():
     assert [rs.level_of(x) for x in (0, 14.9, 15, 29.9, 30, 44.9, 45, 59.9, 60, 100)] == [
         "low", "low", "moderate", "moderate", "elevated", "elevated", "high", "high", "critical", "critical"]

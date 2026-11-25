@@ -280,6 +280,7 @@
 .cr-howto p { margin: 0; }
 .cr-howto__cmd { display: block; padding: 10px 12px; border-radius: var(--ll-radius-sm); background: var(--ll-surface-3); font-family: var(--ll-font-mono); font-size: var(--ll-fs-xs); overflow-wrap: anywhere; white-space: pre-wrap; }
 .cr-form__expect { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.cr-devpick { max-height: 240px; overflow-y: auto; }
 
 /* the freshness of every source */
 .cr-srcs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }

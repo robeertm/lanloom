@@ -64,6 +64,9 @@ overload, unknown. The remaining runtime is the UPS's own estimate: shown as "le
 
 A **chain** is one thing that is backed up: a guest of a hypervisor, the backup of a home-automation hub, a timer of a host agent
 (names with backup, snapshot, dump, restic, borg ...), or a chain you declare and whose script reports to Lanloom.
+A declared chain can name the **devices it covers** (*Covers device(s)* in the form): [Resilience](RESILIENCE.md) and the storage
+card of such a device then count it as backed up, and the chain shows on its card. A chain on a host also covers the guests and
+containers it carries.
 
 | Status | Meaning |
 |---|---|
@@ -107,7 +110,7 @@ line, a UPS on battery, a backup that failed, is overdue, has none or cannot be 
 
 ## Data and outgoing connections
 
-Tables: `wan_slots`, `wan_log`, `ups_log`, `backup_chains`, `backup_runs`, `backup_checks`, `backup_learn` (all inside Lanloom's own
+Tables: `wan_slots`, `wan_log`, `ups_log`, `backup_chains`, `backup_chain_devices`, `backup_runs`, `backup_checks`, `backup_learn` (all inside Lanloom's own
 database and its backup). The only connections the control room opens by itself are the optional internet check (to targets an
 administrator picked; category `own-internet-check` in `security/egress.json`) and the connection to a UPS service you set up
 (`configured-source`). Both are listed in the telemetry check, and there is no telemetry.

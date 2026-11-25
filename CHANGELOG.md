@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 - Storage boxes: a healthy ZFS storage box showed "Memory 96 %" and the whole box as "Problem" because the ZFS read cache (ARC) counted as used memory. Lanloom now reads the cache size from the box's vendor MIB over SNMP and counts it like buffers and cache as given back; a value that does not fit into the memory of the host is ignored. Boxes without ZFS are unchanged.
+- Resilience: the backup axis said "none" for a device although backup chains you had set up covered it. A chain you declare could not name the device it saves, so the axis and the storage card never saw it. The chain form now has *Covers device(s)* (a filtered list, up to 20 devices); the backup axis and the storage card count such a chain for every device it names, and a chain on a host also covers its guests and containers. The chain card shows what it covers. The text is available in all six languages.
 
 ## [1.64.8] – 2026-11-25
 

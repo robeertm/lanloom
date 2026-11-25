@@ -55,7 +55,7 @@ On a phone the blocks sit in one column, with what needs a look first:
 gateway cannot be caught. Under *Internet > Outside check* pick a ready-made set or type a name to look up and up to four
 `host:port` connections; Lanloom then makes one lookup and a few connections every 20 seconds, nothing else.
 
-**Backups** (operators): *New backup* declares a chain (name, what, where, how often it should run). A script reports
+**Backups** (operators): *New backup* declares a chain (name, what, where, the devices it covers, how often it should run). The devices you pick are the ones Resilience counts as backed up; without them the chain is listed but covers nothing. A script reports
 every run with one request to the API; the token comes from *Settings > API*. A long run can report its progress and the
 page shows a bar. Backups of a hypervisor or a host agent appear by themselves. *Checked today* notes that you restored
 from a backup and looked at the result: a backup nobody restored is only a hope, and the page says so when the last
