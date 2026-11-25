@@ -225,6 +225,10 @@
   sheetKind('sites', 'now.sheet.sites', drawSites);
 
   // the phone's "More": every view of the navigation that is not in the bar, as a list
+  // the name of a view as the list shows it: the label of the tab, never its title (a tab with an unread mark carries that mark as its title)
+  const moreLabel = a => { const lab = a.querySelector('.tab__label'); return lab ? lab.textContent : (a.getAttribute('aria-label') || a.textContent); };
+  const moreBadge = a => { const b = a.querySelector('.tab__badge'); return b ? h('span', { class: 'more-list__badge', title: a.title || null }, b.textContent) : null; };
+
   LL.sheets.register('more', {
     title: 'now.more.title',
     render(body) {
@@ -233,7 +237,7 @@
         const icon = a.querySelector('.tab__icon');
         return h('li', {}, h('a', { class: 'more-list__item' + (a.classList.contains('is-active') ? ' is-active' : ''), href: a.getAttribute('href'),
           onclick: () => { LL.sheets.reset(); } },
-        h('span', { class: 'more-list__icon', 'aria-hidden': 'true', html: null }), h('span', { class: 'more-list__label' }, a.getAttribute('title') || a.textContent)));
+        h('span', { class: 'more-list__icon', 'aria-hidden': 'true', html: null }), h('span', { class: 'more-list__label' }, moreLabel(a)), moreBadge(a)));
       }).map((li, i) => { li.querySelector('.more-list__icon').innerHTML = (tabs[i].querySelector('.tab__icon') || {}).innerHTML || ''; return li; })),
       h('div', { class: 'btn-row btn-row--wrap more-list__foot' }, h('a', { class: 'btn btn--ghost btn--sm', href: '#/focus', onclick: () => LL.sheets.reset() }, t('nav.focus')),
         LL.energyPeek && LL.energyPeek.available ? h('a', { class: 'btn btn--ghost btn--sm', href: '#/energy', onclick: () => LL.sheets.reset() }, t('nav.energy')) : null));

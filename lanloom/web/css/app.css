@@ -58,7 +58,7 @@ input:focus, .select:focus { outline: none; border-color: var(--ll-accent); box-
 .check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; line-height: 1.4; }
 .check input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--ll-accent); flex: none; }
 .check--consent { padding-left: 28px; color: var(--ll-text-2); font-size: var(--ll-fs-sm); }
-.btn { font: inherit; font-weight: var(--ll-fw-semibold); display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 18px;
+.btn { font: inherit; font-weight: var(--ll-fw-semibold); background: var(--ll-surface-2); color: var(--ll-text); display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 18px;
   border-radius: var(--ll-radius-sm); border: 1px solid transparent; cursor: pointer; text-decoration: none; white-space: nowrap; transition: background var(--ll-dur-fast), border-color var(--ll-dur-fast); }
 .btn:disabled { opacity: .55; cursor: default; }
 .btn--primary { background: var(--ll-accent); color: var(--ll-on-accent); }

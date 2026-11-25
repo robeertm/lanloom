@@ -488,6 +488,7 @@
   let current = null;
 
   let routeSeq = 0, routedOnce = false, unknownOnce = false;
+  let bootRetry = 0;
   async function route() {
     if (LL.holdRoute && LL.holdRoute()) return;     // a sheet closed itself with the back step: nothing below changes
     const seq = ++routeSeq;
@@ -505,7 +506,15 @@
     }
     routedOnce = true;
     try { st = LL.state = await api('/api/state', { allow401: true }); if (st && st.rate_unit) LL.rateUnit = st.rate_unit === 'bits' ? 'bits' : 'bytes'; }
-    catch (e) { if (switching) return; app.replaceChildren(h('div', { class: 'boot-error' }, t('error.offline'))); return; }
+    catch (e) {
+      if (switching) return;
+      app.replaceChildren(h('div', { class: 'boot-error' }, t('error.offline')));
+      // heals itself: a dropped or cancelled first request (a slow start, a navigation that cut it off) must not leave the page on this
+      // message until the person reloads; asks again every few seconds while the message is still there
+      clearTimeout(bootRetry);
+      bootRetry = setTimeout(() => { if (document.querySelector('.boot-error')) route(); }, 4000);
+      return;
+    }
     if (switching || seq !== routeSeq) return;
     if (st && st.site && st.site.unknown) {
       // M1T: the page asked for a site that is empty, unknown or not released - the server says so instead of answering from

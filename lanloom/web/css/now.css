@@ -157,6 +157,8 @@
 .more-list__item.is-active { border-color: var(--ll-accent); }
 .more-list__icon { display: inline-flex; color: var(--ll-text-3); }
 .more-list__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.more-list__badge { margin-left: auto; flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+  background: var(--ll-accent); color: var(--ll-on-accent); font-size: var(--ll-fs-xs); font-weight: var(--ll-fw-semibold); }
 .more-list__foot { margin-top: 14px; }
 
 /* ---------------------------------------------------------------- pull to refresh */
