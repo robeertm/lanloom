@@ -194,7 +194,7 @@ def series(entity: dict, rng: str, state, ring: list, recorded: dict | None, now
     return out
 
 
-def entity_rows(snap: dict, states: dict, now: float | None = None) -> list:
+def entity_rows(snap: dict, states: dict, now: float | None = None, live: bool = True) -> list:
     """The sensors list: every entity the bridge keeps (private domains never reach it), compact rows."""
     now = time.time() if now is None else now
     devs = {d["id"]: d for d in (snap or {}).get("devices") or []}
@@ -208,7 +208,7 @@ def entity_rows(snap: dict, states: dict, now: float | None = None) -> list:
         out.append({"id": e["entity_id"], "name": e.get("name") or e["entity_id"], "state": st[0] if st else e.get("state"),
                     "unit": e.get("unit"), "domain": dom, "dc": e.get("dc"), "area": e.get("area") or d.get("area"),
                     "device": e.get("device_id"), "platform": e.get("platform"), "cat": e.get("cat"),
-                    "changed_s": round(now - st[1], 1) if st else None})
+                    "changed_s": round(now - st[1], 1) if st else None, "stale": not live})
         if len(out) >= MAX_LIST:
             break
     out.sort(key=lambda r: (str(r["name"]).lower(), r["id"]))

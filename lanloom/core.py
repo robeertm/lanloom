@@ -1668,7 +1668,7 @@ class Core:
         entry = self.hub.get(integ_id) or {}
         ctx = hubauto.Ctx(entry, now)
         head = {"integration": integ_id, "name": next((i["name"] for i in self.integrations() if i["id"] == integ_id), ""),
-                "connected": bool(ctx.snap), "admin": ctx.admin, "t": ctx.snap.get("t"), "now": now, "asked": asked == "asked"}
+                "connected": bool(ctx.snap) and self.hub_live(integ_id, now), "admin": ctx.admin, "t": ctx.snap.get("t"), "now": now, "asked": asked == "asked"}
         return dict(head, **hubauto.chain_view(ctx, entity, device, item))
 
     def hub_want_traces(self, integ_id: int, entity_id: str) -> dict:
@@ -1711,6 +1711,14 @@ class Core:
         self._merge_cache = (key, res)
         return res
 
+    def hub_live(self, integ_id: int, now: Optional[float] = None) -> bool:
+        """The hub connection delivers right now (see hubmerge.source_live): what its devices show is only then current."""
+        now = time.time() if now is None else now
+        key = "int:%d" % integ_id
+        st, cad = self.source_status.get(key), self.cadence.get(key)
+        return hubmerge.source_live(None if st is None else bool(st.get("ok")), cad.last if cad else None,
+                                    cad.cadence() if cad else None, now)
+
     def hub_radio(self, integ_id: int, now: Optional[float] = None) -> dict:
         """Radio networks, freshness per radio device (see hubmerge.radio_view); recomputed at most every 5 s."""
         entry = self.hub.get(integ_id) or {}
@@ -1718,10 +1726,11 @@ class Core:
         if not snap:
             return {"networks": [], "dev_net": {}, "state": {}}
         now = time.time() if now is None else now
+        live = self.hub_live(integ_id, now)
         hit = self._radio_cache.get(integ_id)
-        if hit and hit[0] == snap.get("t") and now - hit[1] < 5.0:
+        if hit and hit[0] == snap.get("t") and now - hit[1] < 5.0 and hit[2].get("live") == live:
             return hit[2]
-        res = hubmerge.radio_view(snap, entry.get("states") or {}, now)
+        res = hubmerge.radio_view(snap, entry.get("states") or {}, now, live)
         self._radio_cache[integ_id] = (snap.get("t"), now, res)
         return res
 
@@ -1770,8 +1779,9 @@ class Core:
                          "net": radio["dev_net"].get(d["id"]), "fresh": st["fresh"] if st else None,
                          "network_device": net_of.get(d["id"])})
         return {"integration": integ_id, "name": next((i["name"] for i in self.integrations() if i["id"] == integ_id), ""),
-                "connected": bool(snap), "t": snap.get("t"), "limited": bool(snap.get("limited")),
-                "areas": snap.get("areas") or [], "devices": devs, "entities": hubsensors.entity_rows(snap, states, now),
+                "connected": bool(snap) and radio["live"], "live": radio["live"], "t": snap.get("t"),
+                "age_s": None if not snap.get("t") else round(max(0.0, now - snap["t"]), 1), "limited": bool(snap.get("limited")),
+                "areas": snap.get("areas") or [], "devices": devs, "entities": hubsensors.entity_rows(snap, states, now, radio["live"]),
                 "onsite": hubmerge.onsite(snap, states, radio, now), "radio": radio["networks"],
                 "health": hubmerge.health(snap, radio),
                 "events": [{"platform": p, "per_min": n} for p, n in hubbridge.events_per_integration(entry, now)[:20]]}
@@ -1785,7 +1795,7 @@ class Core:
         entry = self.hub.get(integ_id) or {}
         ctx = hubauto.Ctx(entry, now)
         head = {"integration": integ_id, "name": next((i["name"] for i in self.integrations() if i["id"] == integ_id), ""),
-                "connected": bool(ctx.snap), "admin": ctx.admin, "t": ctx.snap.get("t"), "now": now}
+                "connected": bool(ctx.snap) and self.hub_live(integ_id, now), "admin": ctx.admin, "t": ctx.snap.get("t"), "now": now}
         if part == "tab":
             return dict(head, **hubauto.tab(ctx, self.hub_radio(integ_id, now)))
         if part == "item":

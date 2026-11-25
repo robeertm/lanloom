@@ -39,7 +39,12 @@ def _section(ctx: Ctx, integ: dict) -> dict | None:
     if not _relevant(snap):
         return None
     states = entry.get("states") or {}
-    radio = hubmerge.radio_view(snap, states, ctx.until)
+    live = ctx.core.hub_live(iid, ctx.until)
+    radio = hubmerge.radio_view(snap, states, ctx.until, live)
+    if not live:                # a silent source is one point of the source, not one point per device
+        return section(ID, "report.sec.hub_radio", "report.radio.summary_stale",
+                       [item("radio:%d:source_stale" % iid, "report.radio.source_stale", "warn", True, name=_short(integ["name"]))],
+                       name=integ["name"], n=sum(n["devices"] for n in radio["networks"]), nets=len(radio["networks"]))
     site = hubmerge.onsite(snap, states, radio, ctx.until)
     health = hubmerge.health(snap, radio)
     items = []

@@ -140,6 +140,8 @@ class RoamWatch:
         self.moves = []                # [t, from ap, to ap]
         self.clients = {}              # access point key -> {band: n}
         self.air = {}                  # client key -> {"ap", "band", "name", "signal", "weak_since"}
+        self.fed = None                # time of the last feed (None: never fed - nothing to doubt, as in the demo)
+        self.gap = None                # usual time between two feeds
 
     def feed(self, clients, now: float = None) -> None:
         """``clients``: [{"id", "ap", "band", "signal", "name"}] of the wireless clients now (``ap`` and ``id`` opaque
@@ -156,6 +158,9 @@ class RoamWatch:
             sig = wifisignal.clean(c.get("signal"))
             air[c["id"]] = {"ap": c["ap"], "band": band, "name": c.get("name"), "signal": sig, "weak_since": None}
         with self._lock:
+            if self.fed is not None and now > self.fed:
+                self.gap = (now - self.fed) if self.gap is None else 0.7 * self.gap + 0.3 * (now - self.fed)
+            self.fed = now
             for cid, ap in seen.items():
                 before = self.where.get(cid)
                 if before is not None and before != ap:
@@ -169,6 +174,14 @@ class RoamWatch:
             self.clients = per_ap
             self.air = air
             self.moves = [m for m in self.moves if now - m[0] <= WINDOW_S][-2000:]
+
+    def live(self, now: float = None) -> bool:
+        """The controller still delivers: the last feed is younger than max(120 s, 4 x the usual gap). A reading older than
+        that is no signal any more - the views show nothing (no "keine aktuellen Daten" guess, no growing "stuck since")."""
+        now = time.time() if now is None else now
+        with self._lock:
+            fed, gap = self.fed, self.gap
+        return fed is None or now - fed <= max(120.0, 4 * (gap or 0.0))
 
     def counts(self, ap: str, now: float = None) -> dict:
         now = time.time() if now is None else now
@@ -192,6 +205,8 @@ class RoamWatch:
         point for 10 minutes at -80 dBm or weaker). ``others``: another access point exists in the site - without one
         nothing can be stuck, there is nowhere to go. Empty when no client has a reading."""
         now = time.time() if now is None else now
+        if not self.live(now):
+            return {}
         with self._lock:
             mine = [dict(a) for a in self.air.values() if a["ap"] == ap and a["signal"] is not None]
         if not mine:
@@ -216,6 +231,8 @@ class RoamWatch:
         if len(aps) < 2:
             return []
         now = time.time() if now is None else now
+        if not self.live(now):
+            return []
         with self._lock:
             rows = [dict(a) for a in self.air.values() if a["weak_since"] is not None and a["ap"] in aps
                     and now - a["weak_since"] >= wifisignal.STICK_S]

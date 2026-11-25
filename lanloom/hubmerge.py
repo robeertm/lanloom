@@ -40,7 +40,8 @@ BATTERY_NOW = 10
 BATTERY_SOON = 25
 MAX_ONSITE = 2000
 UNAVAILABLE = "unavailable"
-SEVERITY = {"now": 0, "silent": 1, "soon": 2, "ok": 3}
+SEVERITY = {"now": 0, "silent": 1, "soon": 2, "ok": 3, "unknown": 4}
+LIVE_MIN_S = 120.0                # a source without news for longer than max(this, 4 x its usual rhythm) is not fresh
 
 
 def hub_key(integ_id: int, device_id: str) -> str:
@@ -154,6 +155,17 @@ def kind_of(hub_device: dict | None) -> str | None:
     return "iot"
 
 
+# ---------------------------------------------------------------------- freshness of the source (the hub connection)
+def source_live(ok, last, cadence_s, now: float) -> bool:
+    """True when the hub connection delivers: no failure recorded and the last event is younger than
+    max(120 s, 4 x the usual gap). Without any information (no event ever booked) there is nothing to doubt."""
+    if ok is False and (not last or now - last > 30):
+        return False
+    if not last:
+        return True
+    return now - last <= max(LIVE_MIN_S, 4 * (cadence_s or 0))
+
+
 # ---------------------------------------------------------------------- freshness of one hub device
 def _iso_age(value, now: float):
     if not isinstance(value, str) or not value or value in ("unknown", UNAVAILABLE) or len(value) > 40:
@@ -175,8 +187,13 @@ def _num(value):
     return v if v == v and abs(v) != float("inf") else None
 
 
-def device_state(entities: list, states: dict, now: float) -> dict:
-    """Freshness, battery and availability of one hub device from its entities (snapshot + live state changes)."""
+def device_state(entities: list, states: dict, now: float, live: bool = True) -> dict:
+    """Freshness, battery and availability of one hub device from its entities (snapshot + live state changes).
+    ``live`` False (the hub connection is not fresh): nothing is known any more - ``fresh`` is "unknown" with ``stale`` set,
+    no battery verdict, no live value."""
+    if not live:
+        return {"fresh": "unknown", "stale": True, "available": None, "last_seen_s": None, "battery": None,
+                "battery_low": False, "grade": "unknown"}
     available, any_entity, age, battery, low = False, False, None, None, False
     for e in entities:
         st = states.get(e["entity_id"])
@@ -201,7 +218,7 @@ def device_state(entities: list, states: dict, now: float) -> dict:
         fresh = "silent"
     else:
         fresh = "ok"
-    return {"fresh": fresh, "available": available if any_entity else None, "last_seen_s": None if age is None else round(age),
+    return {"fresh": fresh, "stale": False, "available": available if any_entity else None, "last_seen_s": None if age is None else round(age),
             "battery": None if battery is None else round(battery), "battery_low": bool(low), "grade": _grade(fresh, age)}
 
 
@@ -217,6 +234,8 @@ def _grade(fresh: str, age) -> str:
 
 def _onsite_cat(st: dict, radio) -> tuple:
     reasons = []
+    if st.get("stale"):
+        return "unknown", ["stale"]
     b = st["battery"]
     if st["battery_low"]:
         reasons.append("low")
@@ -234,7 +253,7 @@ def _onsite_cat(st: dict, radio) -> tuple:
 
 
 # ---------------------------------------------------------------------- radio networks
-def radio_view(snap: dict, states: dict, now: float | None = None) -> dict:
+def radio_view(snap: dict, states: dict, now: float | None = None, live: bool = True) -> dict:
     """Radio networks of one hub: ``{"networks": [...], "dev_net": {device: network key}, "state": {device: state}}``."""
     now = time.time() if now is None else now
     snap = snap or {}
@@ -244,7 +263,7 @@ def radio_view(snap: dict, states: dict, now: float | None = None) -> dict:
         if e.get("device_id") in devs:
             ents.setdefault(e["device_id"], []).append(e)
     areas = {a["id"]: a.get("name") for a in snap.get("areas") or []}
-    state = {did: device_state(ents.get(did, []), states or {}, now) for did, d in devs.items() if d.get("radio")}
+    state = {did: device_state(ents.get(did, []), states or {}, now, live) for did, d in devs.items() if d.get("radio")}
     children = {}
     for did, d in devs.items():
         if d.get("radio") and d.get("via") in devs:
@@ -292,7 +311,9 @@ def radio_view(snap: dict, states: dict, now: float | None = None) -> dict:
         coord = net["coordinator"]
         coord_state = state.get(coord) if coord else None
         anchor_silent = [m for m in anchors if state[m]["fresh"] == "silent"]
-        if (coord_state and coord_state["fresh"] == "silent") or (plain and len(silent) * 2 >= len(plain)) or (anchors and len(anchor_silent) == len(anchors)):
+        if not live:
+            health = "unknown"
+        elif (coord_state and coord_state["fresh"] == "silent") or (plain and len(silent) * 2 >= len(plain)) or (anchors and len(anchor_silent) == len(anchors)):
             health = "bad"
         elif silent or anchor_silent:
             health = "warn"
@@ -306,7 +327,7 @@ def radio_view(snap: dict, states: dict, now: float | None = None) -> dict:
                     "members": members, "area_names": areas})
     for n in out:
         n.pop("area_names", None)
-    return {"networks": out, "dev_net": dev_net, "state": state}
+    return {"networks": out, "dev_net": dev_net, "state": state, "live": live}
 
 
 def onsite(snap: dict, states: dict, radio: dict, now: float | None = None) -> dict:
@@ -319,9 +340,10 @@ def onsite(snap: dict, states: dict, radio: dict, now: float | None = None) -> d
     for e in snap.get("entities") or []:
         if e.get("device_id") in devs:
             ents.setdefault(e["device_id"], []).append(e)
-    items, counts = [], {"now": 0, "soon": 0, "silent": 0, "ok": 0}
+    live = (radio or {}).get("live", True)
+    items, counts = [], {"now": 0, "soon": 0, "silent": 0, "ok": 0, "unknown": 0}
     for did, d in devs.items():
-        st = (radio or {}).get("state", {}).get(did) or device_state(ents.get(did, []), states or {}, now)
+        st = (radio or {}).get("state", {}).get(did) or device_state(ents.get(did, []), states or {}, now, live)
         has_battery = st["battery"] is not None or any(e.get("dc") == "battery" for e in ents.get(did, []))
         if not d.get("radio") and not has_battery:
             continue
@@ -333,7 +355,7 @@ def onsite(snap: dict, states: dict, radio: dict, now: float | None = None) -> d
                       "battery": st["battery"], "battery_low": st["battery_low"], "last_seen_s": st["last_seen_s"],
                       "available": st["available"], "fresh": st["fresh"], "cat": cat, "reasons": reasons})
     items.sort(key=lambda i: (SEVERITY[i["cat"]], i["battery"] if i["battery"] is not None else 101, (i["name"] or "").lower()))
-    return {"counts": counts, "items": items[:MAX_ONSITE], "thresholds": {"now": BATTERY_NOW, "soon": BATTERY_SOON, "silent_h": SILENT_S // 3600}}
+    return {"counts": counts, "live": live, "items": items[:MAX_ONSITE], "thresholds": {"now": BATTERY_NOW, "soon": BATTERY_SOON, "silent_h": SILENT_S // 3600}}
 
 
 def health(snap: dict, radio: dict) -> dict:
@@ -352,5 +374,5 @@ def health(snap: dict, radio: dict) -> dict:
     ipstd = [i for i, d in devs.items() if d.get("radio") == "ipstd"]
     ip_silent = [i for i in ipstd if (st.get(i) or {}).get("fresh") == "silent"]
     ble = [i for i, d in devs.items() if d.get("radio") == "ble" and d.get("role") != "receiver"]
-    return {"receivers": receivers, "ble_devices": len(ble), "border_routers": routers,
+    return {"receivers": receivers, "ble_devices": len(ble), "border_routers": routers, "live": (radio or {}).get("live", True),
             "ipstd": {"devices": len(ipstd), "silent": len(ip_silent)}}

@@ -135,7 +135,7 @@ def _radio_overview(core, special: dict, comps: list, zone, add_trace) -> None:
             cid = "rn:%d:%s" % (integ_id, net["key"])
             comps.append({"id": cid, "zone": zid, "kind": "ap", "title": "", "title_key": "radio.kind." + net["kind"],
                           "subtitle": "", "subtitle_key": "comp.radio.sub", "vars": {"devices": net["devices"] + net["anchors"], "silent": net["silent"]},
-                          "status": "down" if net["health"] == "bad" else "up", "grade": "unknown", "metric": None, "badges": [],
+                          "status": {"bad": "down", "unknown": "unknown"}.get(net["health"], "up"), "grade": "unknown", "metric": None, "badges": [],
                           "radio": net["kind"]})
             add_trace("m:%d:%s" % (integ_id, net["key"]), hub_comp, cid, "radio", False, phys=_mesh_fact(net["kind"]))
 
@@ -166,7 +166,7 @@ def _radio_network(core, special: dict, merge: dict, comps: list, zone, add_trac
                     parent = "rd:%d:%s" % (integ_id, coord)
                     d = devs.get(coord) or {}
                     comps.append({"id": parent, "zone": zid, "kind": "ap", "title": d.get("name") or "", "title_key": "radio.role.coordinator",
-                                  "subtitle": d.get("model") or "", "status": "up", "grade": "unknown", "metric": None,
+                                  "subtitle": d.get("model") or "", "status": "up" if radio.get("live", True) else "unknown", "grade": "unknown", "metric": None,
                                   "badges": [], "radio": net["kind"]})
                     ids.add(parent)
                     add_trace("r:%d:%s" % (integ_id, coord), hub_comp, parent, "radio", False, phys=_mesh_fact(net["kind"]))
@@ -178,7 +178,7 @@ def _radio_network(core, special: dict, merge: dict, comps: list, zone, add_trac
                 parent = "rn:%d:%s" % (integ_id, net["key"])
                 comps.append({"id": parent, "zone": zid, "kind": "ap", "title": "", "title_key": "radio.kind." + net["kind"],
                               "subtitle": "", "subtitle_key": "comp.radio.sub", "vars": {"devices": net["devices"] + net["anchors"], "silent": net["silent"]},
-                              "status": "down" if net["health"] == "bad" else "up", "grade": "unknown", "metric": None,
+                              "status": {"bad": "down", "unknown": "unknown"}.get(net["health"], "up"), "grade": "unknown", "metric": None,
                               "badges": [], "radio": net["kind"]})
                 ids.add(parent)
                 add_trace("m:%d:%s" % (integ_id, net["key"]), hub_comp, parent, "radio", False, phys=_mesh_fact(net["kind"]))
