@@ -2,6 +2,37 @@
 backup is too old (schedule on, nothing newer than twice the interval) or the last scheduled run failed. A restore in
 the report window is mentioned. Never names a passphrase or a path outside the data volume."""
 from .nightly.contrib import Contribution, item, register, section
+from .resilience import cover_by_device
+
+CURRENT = ("ok", "running")
+
+
+def covered_by(chains: list, dev_id, host_id=None):
+    """The best current backup chain that covers this computer or the host it runs on (a guest of a hypervisor), else None.
+    Current = status ok or running and a known last good run; of several the one with the most recent good run wins."""
+    by_dev = cover_by_device(chains or [])
+    best = None
+    for did in (dev_id, host_id):
+        for c in by_dev.get(did, []) if did else []:
+            if c.get("status") in CURRENT and isinstance(c.get("last_ok_t"), (int, float)):
+                if best is None or c["last_ok_t"] > best["last_ok_t"]:
+                    best = c
+    return best
+
+
+def _covering_chain(ctx):
+    """The chain of the control room that covers this computer (or its host) right now; never raises."""
+    try:
+        core = ctx.core
+        cr = getattr(core, "controlroom", None)
+        own = core._own_id()
+        if cr is None or not own:
+            return None
+        link = (core.topology().get("links") or {}).get(own) or {}
+        host = link.get("parent") if link.get("medium") == "virtual" else None
+        return covered_by(cr.backups.chains(ctx.until), own, host)
+    except Exception:
+        return None
 
 
 def _available(ctx) -> bool:
@@ -39,6 +70,11 @@ def _build(ctx) -> dict:
     else:
         key = "backup.report.summary_never"
         vars_ = {}
+        chain = _covering_chain(ctx)
+        if chain:
+            key = "backup.report.summary_covered"
+            vars_ = {"chain": chain["name"], "age_dur": max(0, int(ctx.until - chain["last_ok_t"]))}
+            items.append(item("bk-covered", "backup.report.covered", "info", name=chain["name"]))
     return section("backup", "backup.report.title", key, items, **vars_)
 
 

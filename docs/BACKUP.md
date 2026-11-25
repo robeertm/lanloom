@@ -21,7 +21,7 @@ Switch on **Back up automatically**, choose how often (every 6 or 12 hours, dail
 - A backup on the same disk does not protect against a lost disk. Copy the files away now and then, or include the data volume in your host's own backup.
 - The stored files are listed with date, version, size and whether they contain history; each can be downloaded (with a fresh confirmation), restored or deleted.
 - **Back up now into the folder** writes one file immediately with the automatic settings.
-- The nightly report has a section **Backup**: the age of the newest backup, the files written that night, and a point to look at when automatic backups are on but the newest backup is older than twice the interval (at least 25 hours), or when the last automatic backup failed (for example a full volume).
+- The nightly report has a section **Backup**: the age of the newest backup, the files written that night, and a point to look at when automatic backups are on but the newest backup is older than twice the interval (at least 25 hours), or when the last automatic backup failed (for example a full volume). Until Lanloom has written a backup of its own, the section names a [backup chain](CONTROL-ROOM.md#backups) that covers this computer (or the hypervisor it runs on) and had a good run, for example *Covered by Nightly VM backup (last good run 11 h ago)*, instead of *No backup yet*; that is a note, never a point, and the first backup of its own takes over again.
 
 ![Stored backups](screenshots/backup-stored-dark.png)
 

@@ -430,6 +430,50 @@ def test_nightly_section_points_at_an_old_backup_and_a_failed_run(tmp_path, monk
         assert failed and failed[0]["vars"]["reason_key"] == "backup.err.no_key"
 
 
+def test_the_report_names_a_chain_that_covers_this_host(tmp_path, monkeypatch):
+    from lanloom import backup_report
+    from lanloom.nightly.contrib import Ctx
+    app = make_app(tmp_path, "a", monkeypatch)
+    with TestClient(app, base_url="http://lanloom.test"):
+        st = app.state.ll
+        core = st.core
+        core.store.upsert_device({"id": "d-host", "ip": "192.168.50.5", "mac": None, "data": {}, "kind": "server", "confidence": 1, "title": "Host"}, None)
+        core.store.upsert_device({"id": "d-self", "ip": "192.168.50.6", "mac": None, "data": {"is_self": True}, "kind": "server", "confidence": 1,
+                                  "title": "Me"}, None)
+        core._refresh_index()
+        core.set_manual_link("d-self", {"parent": "d-host", "medium": "virtual"})
+        now = time.time()
+        ctx = lambda: Ctx(core=core, journal=core.reports.journal, since=now - 86400, until=now, prev=None)
+        sec = backup_report._build(ctx())
+        assert sec["summary"]["key"] == "backup.report.summary_never"            # no chain yet
+        cr = core.controlroom.backups
+        cr.save_chain("pd", {"name": "Nightly VM backup", "expect_hours": 24, "devices": ["d-host"]}, now - 7200)
+        cr.report_run("pd", True, now=now - 11 * 3600)
+        sec = backup_report._build(ctx())
+        assert sec["summary"]["key"] == "backup.report.summary_covered" and sec["summary"]["vars"]["chain"] == "Nightly VM backup"
+        assert sec["summary"]["vars"]["age_dur"] == 11 * 3600
+        assert [i["key"] for i in sec["items"]] == ["backup.report.off", "backup.report.covered"] and not any(i["point"] for i in sec["items"])
+        # an own backup takes over again: the report says its age, without the note
+        b = st.backups
+        b.update_schedule({"enabled": True, "every_hours": 24, "keep": 3}, PASS)
+        b.run_now()
+        sec = backup_report._build(ctx())
+        assert sec["summary"]["key"] == "backup.report.summary" and not any(i["key"] == "backup.report.covered" for i in sec["items"])
+
+
+def test_covered_by_only_counts_a_current_chain():
+    from lanloom.backup_report import covered_by
+    def ch(name, devs, status="ok", t=1000.0):
+        return {"name": name, "devices": devs, "status": status, "last_ok_t": t}
+    chains = [ch("host", ["h"]), ch("other", ["x"])]
+    assert covered_by(chains, "me", "h")["name"] == "host"                       # the chain of the carrier counts
+    assert covered_by(chains, "me", None) is None and covered_by(chains, "me", "y") is None
+    assert covered_by([ch("late", ["me"], "late"), ch("failed", ["me"], "failed"), ch("never", ["me"], "ok", None)], "me", None) is None
+    assert covered_by([ch("run", ["me"], "running")], "me")["name"] == "run"
+    assert covered_by([ch("old", ["me"], t=1.0), ch("new", ["h"], t=9.0)], "me", "h")["name"] == "new"
+    assert covered_by([], "me", "h") is None
+
+
 def test_report_texts_and_error_texts_exist_in_every_language():
     import re
     from pathlib import Path

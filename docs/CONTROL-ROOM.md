@@ -66,7 +66,7 @@ A **chain** is one thing that is backed up: a guest of a hypervisor, the backup 
 (names with backup, snapshot, dump, restic, borg ...), or a chain you declare and whose script reports to Lanloom.
 A declared chain can name the **devices it covers** (*Covers device(s)* in the form): [Resilience](RESILIENCE.md) and the storage
 card of such a device then count it as backed up, and the chain shows on its card. A chain on a host also covers the guests and
-containers it carries.
+containers it carries. The nightly report's Backup section uses the same rule for the computer Lanloom runs on.
 
 | Status | Meaning |
 |---|---|
