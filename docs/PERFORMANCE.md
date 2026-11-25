@@ -134,7 +134,7 @@ Every hour two meters that see the same traffic are compared:
 
 | Comparison | Reference | Compared | Judged |
 |---|---|---|---|
-| Internet uplink vs. NetFlow | the router's uplink counter (SNMP) | bytes from NetFlow/IPFIX of the allowed exporters | with NetFlow on and at least 50 MB in the hour |
+| Internet uplink vs. NetFlow | the router's uplink counter (SNMP) | bytes from NetFlow/IPFIX of the allowed exporters | with NetFlow on; on the sum of the last 24 hours (at least 150 MB), each hour with at least 50 MB is shown |
 | This host | its interface counters | its connections to LAN devices and the internet | at least 20 MB; only "too much" |
 
 A ratio between 80 % and 125 % is plausible. Above means traffic is counted twice (for example two exporters
@@ -142,6 +142,14 @@ reporting the same flows, or a sampling rate applied twice), below means part of
 network missing). Connections never contain all of an interface's traffic (other protocols), so for this host only
 "too much" is a finding. Results show in the source view (the live grade button at the top) and in the nightly
 report; nothing is changed automatically. Only byte sums per hour are kept, no addresses.
+
+**Why the uplink is judged on a day.** Flow bytes are booked when the flow record arrives, and many routers export a
+flow only when its connection ends (some offer no active timeout at all). A long download, a stream or a push
+connection that stays open overnight then shows 0 % in the hours it is open and several hundred % in the hour it ends,
+although the day adds up. So the uplink comparison judges the rolling sum of the last 24 hours, quiet hours included.
+The table still shows the ratio of each hour; an hour that is off while the day adds up is marked *24 h ok*
+and raises no point. The nightly report names the uplink comparison only when the day sum is off, once, with the day
+ratio. Results stored before this change are still judged by their hour until the first new hour is compared.
 
 ## The map in the browser
 

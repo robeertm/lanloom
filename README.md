@@ -539,13 +539,13 @@ Settings › Backup saves the whole configuration into one file encrypted with y
 
 ### Storage, counter check and a light map
 
-Settings › Storage shows how much space each kind of data takes and how long it is kept – live history, data paths per hour and per day, availability and events, reports, audit log, scan history – each adjustable. A nightly clean-up removes what is past its retention and compacts the database; the nightly report warns before the disk runs full. Every hour a counter check compares meters that see the same traffic (the router's uplink with NetFlow, this host's interfaces with its connections) and reports traffic counted twice or not at all. The map draws at most 30 frames per second, slows down by itself on a weak device, stops when nobody looks, and is fetched only when something changed. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+Settings › Storage shows how much space each kind of data takes and how long it is kept – live history, data paths per hour and per day, availability and events, reports, audit log, scan history – each adjustable. A nightly clean-up removes what is past its retention and compacts the database; the nightly report warns before the disk runs full. Every hour a counter check compares meters that see the same traffic (the router's uplink with NetFlow, this host's interfaces with its connections) and reports traffic counted twice or not at all; the uplink is judged on the sum of the last 24 hours, so a router that exports a connection only when it ends does not raise false points. The map draws at most 30 frames per second, slows down by itself on a weak device, stops when nobody looks, and is fetched only when something changed. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 <table>
 <tr><td width="50%" align="center" valign="top"><img src="docs/screenshots/storage-light.png" width="150" alt="Settings, Storage: space per area, retention per kind of data, nightly clean-up, memory"><br><sub>Space per area, retention, nightly clean-up</sub></td><td width="50%"></td></tr>
 </table>
 
-<p><img src="docs/screenshots/counter-check-dark.png" width="640" alt="Source view with the counter check and one hour counted twice"><br><sub>Counter check in the source view</sub></p>
+<p><img src="docs/screenshots/counter-check-dark.png" width="640" alt="Source view with the counter check: an uplink hour that evens out over 24 hours and one host hour counted twice"><br><sub>Counter check in the source view</sub></p>
 
 
 ### API, webhooks and external reports

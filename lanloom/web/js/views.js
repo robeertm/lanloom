@@ -810,16 +810,32 @@
     api('/api/selfcheck/counters').then(c => {
       const pairs = Object.values(c.latest || {});
       if (!pairs.length) { box.replaceChildren(h('h3', {}, t('counters.title')), h('p', { class: 'muted' }, t(c.netflow ? 'counters.none_yet' : 'counters.none'))); return; }
+      // the uplink pair is judged on its rolling day (wstate); an hour that is off while the day adds up is only shifted
+      const chip = r => {
+        const day = r.wstate != null;
+        if (day && r.wstate === 'ok' && r.state !== 'ok') return h('span', { class: 'chip chip--muted' }, t('counters.state.shifted'));
+        const st = day ? r.wstate : r.state;
+        return h('span', { class: 'chip chip--' + (st === 'ok' ? 'ok' : 'warn') }, t('counters.state.' + st));
+      };
       const row = r => h('tr', {}, h('td', {}, t('counters.pair.' + r.pair)),
         h('td', { class: 'num' }, r.factor != null ? LL.fmtNum(r.factor * 100, 0) + '\u00a0%' : '—'),
-        h('td', {}, h('span', { class: 'chip chip--' + (r.state === 'ok' ? 'ok' : 'warn') }, t('counters.state.' + r.state))),
+        h('td', {}, chip(r)),
         h('td', { class: 'num' }, LL.fmtDate((r.hour + 1) * 3600)));
       const bad = (c.findings || []).slice(-6).reverse();
+      const pct = f => Math.round((f || 0) * 100);
+      const finding = r => r.wstate != null
+        ? t(r.wstate === 'double' ? 'counters.report.day_double' : 'counters.report.day_missing', { pair: t('counters.pair.' + r.pair), pct: pct(r.wfactor), at: LL.fmtDate((r.hour + 1) * 3600) })
+        : t('counters.finding.' + r.state, { pair: t('counters.pair.' + r.pair), pct: pct(r.factor), at: LL.fmtDate((r.hour + 1) * 3600) });
+      const up = (c.latest || {}).uplink_flows;
+      const dayLine = up && up.wfactor != null
+        ? h('p', { class: 'muted cc-day' }, t('counters.window', { pair: t('counters.pair.uplink_flows'), n: up.whours || c.window_h || 24, pct: pct(up.wfactor) }))
+        : null;
       box.replaceChildren(...[h('h3', {}, t('counters.title')), h('p', { class: 'muted' }, t('counters.explain', { low: Math.round(c.low * 100), high: Math.round(c.high * 100) })),
         h('table', { class: 'mini-table cc-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('counters.col.pair')), h('th', { class: 'num' }, t('counters.col.factor')), h('th', {}, t('counters.col.state')), h('th', { class: 'num' }, t('counters.col.hour')))),
           h('tbody', {}, pairs.map(row))),
+        dayLine, up ? h('p', { class: 'muted cc-day-why' }, t('counters.explain.day')) : null,
         bad.length ? h('div', { class: 'callout callout--warn' }, h('strong', {}, t('counters.findings', { n: bad.length })),
-          h('ul', { class: 'cc-list' }, bad.map(r => h('li', {}, t('counters.finding.' + r.state, { pair: t('counters.pair.' + r.pair), pct: Math.round((r.factor || 0) * 100), at: LL.fmtDate((r.hour + 1) * 3600) }))))) : null].filter(Boolean));
+          h('ul', { class: 'cc-list' }, bad.map(r => h('li', {}, finding(r))))) : null].filter(Boolean));
     }).catch(() => box.replaceChildren());
     return box;
   }

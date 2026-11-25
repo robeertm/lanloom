@@ -226,6 +226,7 @@ See [DATA-PATHS.md](DATA-PATHS.md#setting-up-netflow--ipfix).
 | Long downloads appear late and in one piece | set the router's active timeout to about 60 seconds |
 | "Records wait for a template" | NetFlow v9 and IPFIX send the record description every few minutes; until it arrives, records cannot be read. If the count keeps growing, the router repeats its templates less than once in six hours or not at all: set its template refresh (timeout or packet count) shorter |
 | The exporter's block stays at *Nothing received yet*, packets are dropped | the router sends from another of its addresses; the card lists it under *Flow packets from addresses that are not allowed*, press **Allow** |
+| Counter check shows 0 % in some hours and several hundred % in another | normal with a router that exports a flow only when its connection ends (no active timeout): the bytes of a long connection arrive in the hour it ended. Such an hour shows *24 h ok*; the uplink comparison judges the sum of the last 24 hours and reports only when that is off |
 | *Restarts* counts up in an exporter's block | the router restarted (its NetFlow v9 uptime went back); its templates were dropped and come again with its next packets |
 
 ## Scanning and devices

@@ -664,20 +664,30 @@ class Demo:
 
     @staticmethod
     def seed_storage(core, planned: list) -> None:
-        """Counter check results (one hour this night counted twice) and a database growth history for Settings >
-        Storage and the nightly report."""
+        """Counter check results and a database growth history for Settings > Storage and the nightly report.
+
+        One uplink hour this night is off (a late flow export) while its rolling day adds up, so it shows as balanced
+        over 24 h; one hour of this host counted a connection twice and stays a point of the nightly report."""
         import datetime as _dt
+        from .counters import judge_window
         end = int(planned[-1] // 3600)
         results = []
+        window = []
         for hour in range(end - 47, end):
             wan = int((180 + 140 * math.sin(hour / 3.8)) * 1e6) + 60_000_000
-            factor = 1.46 if hour == end - 4 else 0.93 + 0.05 * math.sin(hour)
+            factor = 1.46 if hour == end - 1 else 0.93 + 0.05 * math.sin(hour)
             state = "double" if factor > 1.25 else "ok"
+            window = (window + [[hour, wan, int(wan * factor)]])[-24:]
+            wf, wstate, whours, _, _ = judge_window(window)
             results.append({"hour": hour, "pair": "uplink_flows", "ref": wan, "val": int(wan * factor),
-                            "factor": round(factor, 3), "state": state})
+                            "factor": round(factor, 3), "state": state,
+                            "wfactor": round(wf, 3) if wf is not None else None, "wstate": wstate, "whours": whours})
             host = int(60e6 + 30e6 * math.cos(hour / 5))
-            results.append({"hour": hour, "pair": "host_flows", "ref": host, "val": int(host * 0.71), "factor": 0.71, "state": "ok"})
-        core.store.set_setting("counter_check", results[-48:])
+            hf = 1.31 if hour == end - 6 else 0.71
+            results.append({"hour": hour, "pair": "host_flows", "ref": host, "val": int(host * hf), "factor": hf,
+                            "state": "double" if hf > 1.25 else "ok"})
+        core.store.set_setting("counter_window", window)
+        core.store.set_setting("counter_check", results[-64:])
         tz = core.reports.tz()
         day0 = _dt.datetime.fromtimestamp(planned[-1], tz).date()
         size = 3_100_000

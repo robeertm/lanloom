@@ -61,6 +61,10 @@ Details and every router setting: [DATA-PATHS.md](../DATA-PATHS.md#setting-up-ne
 - Flows of the Lanloom host itself are skipped (the host source counts them exactly), traffic between two local devices
   is a conversation, not a data path.
 - Most routers export a flow when the connection ends or the active timeout runs out, so traffic appears with that delay.
+  Some routers have no active timeout and export long connections only when they end. The hourly curve of the data
+  paths is shifted then (a long download appears in the hour it ended); day totals, countries and shares stay right,
+  and the counter check compares the uplink over the last 24 hours, so a single hour at 0 % or several hundred % is
+  normal there ([counter check](../PERFORMANCE.md#counter-check)).
 
 ## Privacy
 

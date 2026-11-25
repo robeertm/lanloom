@@ -40,15 +40,20 @@ def _counters_available(ctx) -> bool:
 
 
 def _counters(ctx) -> dict:
+    from . import counters
     c = ctx.core.counters
     window = [r for r in c.results() if ctx.since < (int(r.get("hour") or 0) + 1) * 3600 <= ctx.until]
     groups: dict = {}
-    for r in window:
-        if r.get("state") == "ok":
-            continue
-        g = groups.setdefault((r["pair"], r["state"]), [])
-        g.append(r)
     items = []
+    for r in counters.judged(window):
+        state, factor = counters.effective(r)
+        if r.get("pair") in counters.DAY_PAIRS and "wstate" in r:
+            # judged on the rolling day: one point with the day ratio, not a count of hours
+            items.append(item("cc:%s:day_%s" % (r["pair"], state), "counters.report.day_%s" % state, "warn", point=True,
+                              pair_key="counters.pair." + r["pair"], pct=round((factor or 0) * 100),
+                              at_at=(int(r["hour"]) + 1) * 3600))
+            continue
+        groups.setdefault((r["pair"], state), []).append(r)
     for (pair, state), rows in sorted(groups.items()):
         worst = max(rows, key=lambda r: abs((r.get("factor") or 0) - 1))
         items.append(item("cc:%s:%s" % (pair, state), "counters.report.%s" % state, "warn", point=True,

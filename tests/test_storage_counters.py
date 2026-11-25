@@ -179,7 +179,10 @@ def test_hourly_evaluation_uplink_and_host(tmp_path):
     res = {r["pair"]: r for r in cc.results()}
     assert res["uplink_flows"]["state"] == "double" and res["uplink_flows"]["factor"] == 1.5
     assert res["host_flows"]["state"] == "ok"
-    assert [r["pair"] for r in cc.findings()] == ["uplink_flows"]
+    # one hour is judged on its rolling day: 100 MB of uplink traffic is too little to judge, so no finding yet
+    assert res["uplink_flows"]["wfactor"] == 1.5 and res["uplink_flows"]["wstate"] == "ok"
+    assert res["uplink_flows"]["whours"] == 1
+    assert cc.findings() == []
     # little traffic is not judged; a gap of hours is not judged
     cc.feed("wan", 1_000_000, t0 + 3700)
     cc.tick(t0 + 3 * 3600 + 5)
@@ -200,13 +203,136 @@ def test_counter_section_in_the_nightly_report(tmp_path):
     c = make(tmp_path)
     from lanloom import storage_report
     h = int(at(2026, 11, 17, 2) // 3600)
-    c.counters.save([{"hour": h, "pair": "uplink_flows", "ref": 1, "val": 2, "factor": 2.0, "state": "double"},
-                     {"hour": h + 1, "pair": "uplink_flows", "ref": 1, "val": 1, "factor": 1.0, "state": "ok"}])
+    c.counters.save([{"hour": h, "pair": "host_flows", "ref": 1, "val": 2, "factor": 2.0, "state": "double"},
+                     {"hour": h + 1, "pair": "host_flows", "ref": 1, "val": 1, "factor": 1.0, "state": "ok"},
+                     {"hour": h, "pair": "uplink_flows", "ref": 1, "val": 2, "factor": 2.0, "state": "double",
+                      "wfactor": 1.31, "wstate": "double", "whours": 24},
+                     {"hour": h + 1, "pair": "uplink_flows", "ref": 1, "val": 1, "factor": 1.0, "state": "ok",
+                      "wfactor": 1.02, "wstate": "ok", "whours": 24}])
     ctx = contrib.Ctx(core=c, journal=c.reports.journal, since=at(2026, 11, 16, 6, 30), until=at(2026, 11, 17, 6, 30), prev=None)
     assert storage_report._counters_available(ctx)
     sec = storage_report._counters(ctx)
+    # the host pair is judged per hour; the uplink pair by its latest window, which adds up again
     assert [(i["key"], i["vars"]["pct"]) for i in sec["items"]] == [("counters.report.double", 200)]
     assert sec["summary"]["key"] == "counters.report.summary_off"
+
+
+def _hour(cc, hour, wan, nf):
+    return cc.evaluate(hour, {"wan": wan, "netflow": nf, "host_if": 0, "host_flow": 0})
+
+
+def test_late_exporter_hours_balance_over_the_day(tmp_path):
+    """An exporter without active timeout: five hours of a long download show 0 %, the hour it ends brings it all."""
+    c = make(tmp_path)
+    c.store.set_setting("netflow_enabled", True)
+    cc = c.counters
+    h = int(at(2026, 11, 25, 0) // 3600)
+    for k in range(5):
+        assert _hour(cc, h + k, 100_000_000, 0)[0]["state"] == "missing"
+    last = _hour(cc, h + 5, 100_000_000, 600_000_000)[0]
+    assert last["state"] == "double" and last["factor"] == 6.0          # the hour alone looks counted six times
+    assert last["wstate"] == "ok" and last["wfactor"] == 1.0 and last["whours"] == 6
+    assert cc.findings() == []
+    assert cc.view()["findings"] == []
+    from lanloom import storage_report
+    ctx = contrib.Ctx(core=c, journal=c.reports.journal, since=at(2026, 11, 24, 6, 30), until=at(2026, 11, 25, 6, 30), prev=None)
+    assert storage_report._counters(ctx)["items"] == []
+
+
+def test_quiet_hours_count_in_the_day_window(tmp_path):
+    """Hours below the 50 MB threshold are not judged on their own, but their bytes belong to the day sum."""
+    c = make(tmp_path)
+    c.store.set_setting("netflow_enabled", True)
+    cc = c.counters
+    h = int(at(2026, 11, 25, 0) // 3600)
+    for k in range(8):                                   # a quiet night: 30 MB per hour, the flows still open
+        assert _hour(cc, h + k, 30_000_000, 0) == []
+    last = _hour(cc, h + 8, 60_000_000, 300_000_000)[0]  # the morning: the night's connections end
+    assert last["wstate"] == "ok" and last["wfactor"] == 1.0 and last["whours"] == 9
+    assert cc.findings() == []
+
+
+def test_a_day_that_is_really_double_counted_is_still_reported(tmp_path):
+    c = make(tmp_path)
+    c.store.set_setting("netflow_enabled", True)
+    cc = c.counters
+    h = int(at(2026, 11, 25, 0) // 3600)
+    for k in range(6):
+        row = _hour(cc, h + k, 100_000_000, 200_000_000)[0]
+    assert row["wstate"] == "double" and row["wfactor"] == 2.0
+    assert [r["hour"] for r in cc.findings()] == [h + 5]                # one point for the day, not six
+    from lanloom import storage_report
+    ctx = contrib.Ctx(core=c, journal=c.reports.journal, since=at(2026, 11, 24, 6, 30), until=at(2026, 11, 25, 6, 30), prev=None)
+    items = storage_report._counters(ctx)["items"]
+    assert [(i["key"], i["vars"]["pct"]) for i in items] == [("counters.report.day_double", 200)]
+    assert "n" not in items[0]["vars"]
+
+
+def test_a_day_with_flows_missing_is_reported_once(tmp_path):
+    c = make(tmp_path)
+    c.store.set_setting("netflow_enabled", True)
+    cc = c.counters
+    h = int(at(2026, 11, 25, 0) // 3600)
+    for k in range(4):
+        row = _hour(cc, h + k, 100_000_000, 40_000_000)[0]
+    assert row["wstate"] == "missing" and row["wfactor"] == 0.4
+    assert len(cc.findings()) == 1
+
+
+def test_the_window_keeps_24_hours_and_drops_older_ones(tmp_path):
+    c = make(tmp_path)
+    c.store.set_setting("netflow_enabled", True)
+    cc = c.counters
+    h = int(at(2026, 11, 20, 0) // 3600)
+    _hour(cc, h, 100_000_000, 900_000_000)                                # a burst more than a day ago
+    for k in range(25, 50):
+        row = _hour(cc, h + k, 100_000_000, 100_000_000)[0]
+    assert len(cc.window()) == counters.WINDOW_H
+    assert cc.window()[0][0] == h + 49 - counters.WINDOW_H + 1
+    assert row["wstate"] == "ok" and row["wfactor"] == 1.0 and row["whours"] == 24
+    assert len(cc.results()) <= counters.KEEP
+    # a clock jump back drops the hours that now lie in the future
+    _hour(cc, h + 30, 100_000_000, 100_000_000)
+    assert [e[0] for e in cc.window()] == [h + 26, h + 27, h + 28, h + 29, h + 30]
+
+
+def test_the_window_is_not_kept_without_netflow(tmp_path):
+    c = make(tmp_path)
+    cc = c.counters
+    _hour(cc, 100, 100_000_000, 0)
+    assert cc.window() == []
+
+
+def test_old_results_without_a_window_still_judge_by_the_hour(tmp_path):
+    c = make(tmp_path)
+    from lanloom import storage_report
+    h = int(at(2026, 11, 17, 2) // 3600)
+    c.counters.save([{"hour": h, "pair": "uplink_flows", "ref": 1, "val": 2, "factor": 2.0, "state": "double"},
+                     {"hour": h + 1, "pair": "uplink_flows", "ref": 1, "val": 1, "factor": 1.0, "state": "ok"}])
+    assert [r["hour"] for r in c.counters.findings()] == [h]
+    ctx = contrib.Ctx(core=c, journal=c.reports.journal, since=at(2026, 11, 16, 6, 30), until=at(2026, 11, 17, 6, 30), prev=None)
+    sec = storage_report._counters(ctx)
+    assert [(i["key"], i["vars"]["pct"]) for i in sec["items"]] == [("counters.report.double", 200)]
+    # once a result with a window follows, the old hours no longer count for that pair
+    c.counters.save([{"hour": h + 2, "pair": "uplink_flows", "ref": 1, "val": 1, "factor": 1.0, "state": "ok",
+                      "wfactor": 1.1, "wstate": "ok", "whours": 3}])
+    assert c.counters.findings() == []
+
+
+def test_effective_state_prefers_the_window_only_for_the_uplink():
+    assert counters.effective({"pair": "uplink_flows", "state": "double", "factor": 2.0, "wstate": "ok", "wfactor": 1.0}) == ("ok", 1.0)
+    assert counters.effective({"pair": "uplink_flows", "state": "double", "factor": 2.0}) == ("double", 2.0)
+    assert counters.effective({"pair": "host_flows", "state": "double", "factor": 2.0, "wstate": "ok"}) == ("double", 2.0)
+    assert counters.judge_window([]) == (None, "ok", 0, 0, 0)
+    assert counters.judge_window([[1, 10, 30]])[1] == "ok"                # too little traffic to judge
+
+
+def test_the_source_view_marks_a_shifted_hour_and_shows_the_day():
+    js = (WEB / "js" / "views.js").read_text()
+    i = js.index("function counterSection")
+    body = js[i:js.index("function openSources", i)]
+    assert "counters.state.shifted" in body and "chip--muted" in body
+    assert "counters.report.day_double" in body and "counters.window" in body and "counters.explain.day" in body
 
 
 def test_snmp_uplink_and_host_bytes_feed_the_meters(tmp_path):
