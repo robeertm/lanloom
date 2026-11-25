@@ -352,7 +352,7 @@ def test_onsite_categories_and_sort_order():
     assert "wlan" not in cats and "rx" not in cats and "c1" not in cats
     order = [hm.SEVERITY[i["cat"]] for i in res["items"]]
     assert order == sorted(order) and hm.SEVERITY["now"] < hm.SEVERITY["silent"] < hm.SEVERITY["soon"] < hm.SEVERITY["ok"]
-    assert res["counts"] == {"now": 2, "soon": 2, "silent": 2, "ok": 1}
+    assert res["counts"] == {"now": 2, "soon": 2, "silent": 2, "ok": 1, "unknown": 0}
 
 
 def test_a_silent_device_with_a_weak_battery_is_urgent():
@@ -409,7 +409,7 @@ def test_onsite_sort_by_battery_then_name():
 
 
 def test_onsite_without_radio_or_snapshot():
-    assert onsite_of(None)["items"] == [] and onsite_of({})["counts"] == {"now": 0, "soon": 0, "silent": 0, "ok": 0}
+    assert onsite_of(None)["items"] == [] and onsite_of({})["counts"] == {"now": 0, "soon": 0, "silent": 0, "ok": 0, "unknown": 0}
 
 
 # ---------------------------------------------------------------------- health()
@@ -433,4 +433,5 @@ def test_health_counts_receivers_border_routers_and_ip_standard():
 
 
 def test_health_of_nothing():
-    assert hm.health(None, None) == {"receivers": [], "ble_devices": 0, "border_routers": [], "ipstd": {"devices": 0, "silent": 0}}
+    assert hm.health(None, None) == {"receivers": [], "ble_devices": 0, "border_routers": [], "live": True,
+                                        "ipstd": {"devices": 0, "silent": 0}}

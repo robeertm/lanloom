@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Home-automation hub: a radio device counted as "ok" (and a battery as fine) for as long as an old value sat in the buffer, even after the connection to the hub had dropped. A source is now fresh only while no failure is recorded and its last event is younger than max(120 s, 4 x its usual rhythm). Otherwise the radio devices, the on-site list, the receiver list, the network tiles on the map and the nightly report show "No current data" - never "silent" or "offline", no battery verdict, no live value; the last snapshot stays visible with its age, and `connected` in the API now means a fresh connection. When the connection returns, everything is fresh at once.
+- Nightly report: a silent hub is one point of the source instead of one point per device.
+- Wireless signal: weak readings and "clinging to an access point" no longer stay on the faceplate (and keep growing) after the controller stopped delivering.
+
 ## [1.64.5] – 2026-11-25
 
 ### Fixed

@@ -1,7 +1,7 @@
 """W5: a hub's radio devices count as "ok" only while the hub connection is fresh. Fixed clock, no sleeping."""
 import datetime
 
-from lanloom import hubbridge as hb, hubmerge as hm, live, portfront
+from lanloom import core as core_mod, hubbridge as hb, hubmerge as hm, live, portfront
 from lanloom.nightly import render
 from test_hub_bridge_core import NOW, SINCE, UNTIL, add_hub, make_core
 from test_hub_merge import ent, hubdev, snap
@@ -81,7 +81,8 @@ def fed(tmp_path, last_age, ok=True):
     return c, rep, iid
 
 
-def test_core_hub_live_and_connected(tmp_path):
+def test_core_hub_live_and_connected(tmp_path, monkeypatch):
+    monkeypatch.setattr(core_mod.time, "time", lambda: NOW)
     c, _, iid = fed(tmp_path, 30)
     assert c.hub_live(iid, NOW) and c.hub_radio(iid, NOW)["state"]["a"]["fresh"] == "ok"
     c, _, iid = fed(tmp_path / "x", 600)
@@ -114,10 +115,10 @@ def test_nightly_stale_source_is_one_point_not_many(tmp_path):
 def test_roam_signal_is_not_shown_after_the_controller_went_quiet():
     r = portfront.RoamWatch()
     cl = [{"id": "c1", "ap": "ap1", "band": "5", "signal": -85, "name": "Phone"}]
-    for k in range(4):
+    for k in range(66):
         r.feed(cl, NOW + 10 * k)
-    t = NOW + 30
-    assert r.signal_view("ap1", True, t)["weakest"] and r.stuck({"ap1": "A", "ap2": "B"}, t + 700)
+    t = NOW + 655
+    assert r.signal_view("ap1", True, t)["weakest"] and r.stuck({"ap1": "A", "ap2": "B"}, t)
     late = t + 10_000
     assert not r.live(late) and r.signal_view("ap1", True, late) == {} and r.stuck({"ap1": "A", "ap2": "B"}, late) == []
     r.feed(cl, late)

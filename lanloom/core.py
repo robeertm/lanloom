@@ -1723,9 +1723,9 @@ class Core:
         """Radio networks, freshness per radio device (see hubmerge.radio_view); recomputed at most every 5 s."""
         entry = self.hub.get(integ_id) or {}
         snap = entry.get("snapshot")
-        if not snap:
-            return {"networks": [], "dev_net": {}, "state": {}}
         now = time.time() if now is None else now
+        if not snap:
+            return {"networks": [], "dev_net": {}, "state": {}, "live": self.hub_live(integ_id, now)}
         live = self.hub_live(integ_id, now)
         hit = self._radio_cache.get(integ_id)
         if hit and hit[0] == snap.get("t") and now - hit[1] < 5.0 and hit[2].get("live") == live:
