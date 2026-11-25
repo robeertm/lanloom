@@ -347,12 +347,18 @@ def axis_watch(reach: bool, fresh: Optional[str]) -> dict:
     return {"axis": "watch", "weak": 1.0, "value": "none", "why": why}
 
 
-def axis_health(stab: Optional[dict], warnings: list) -> dict:
+def axis_health(stab: Optional[dict], warnings: list, sleepy: bool = False) -> dict:
+    """``sleepy``: a person marked this device "often switched off" (lanloom#28). Its off times are no fault, so the
+    availability does not rate it and the axis does not count - also the history from before the mark. An early warning
+    of the host health is a real reading and still counts."""
     why, w, value = [], None, "unknown"
     share = None
-    if stab:
+    if stab and not sleepy:
         share = stab.get("share35") if stab.get("share35") is not None else stab.get("share7")
-    if share is not None:
+    if sleepy:
+        why.append(R("health_sleepy"))
+        value = "sleepy"
+    elif share is not None:
         pct = 100.0 * share
         w = 0.0 if pct >= 99.9 else 0.2 if pct >= 99 else 0.5 if pct >= 97 else 0.8 if pct >= 90 else 1.0
         inc = int(stab.get("incidents7") or 0)
@@ -368,6 +374,8 @@ def axis_health(stab: Optional[dict], warnings: list) -> dict:
         why.append(R("health_warning_eta" if isinstance(eta, (int, float)) else "health_warning", metric=str(h.get("metric") or ""),
                      eta_dur=int(eta * 3600) if isinstance(eta, (int, float)) else 0))
         value = "warning"
+    if value == "sleepy":
+        return {"axis": "health", "weak": None, "counts": False, "value": value, "why": why}
     return {"axis": "health", "weak": w, "value": value, "why": why}
 
 
@@ -675,7 +683,7 @@ class Resilience:
                          else "adapter" if d.get("adapter") else (srcs[0] if srcs else None))
                 prot = (d.get("protect") or {}).get("class")
                 ax["watch"] = axis_watch(bool(d.get("ip")) and prot != "passive", fresh)
-                ax["health"] = axis_health(stab.get(nid), warns.get(nid))
+                ax["health"] = axis_health(stab.get(nid), warns.get(nid), bool(d.get("sleepy")))
             elif kind == "node":
                 ax["currency"] = axis_currency([], None, [])
                 ax["watch"] = axis_watch(bool(info.get("ip")), "topology")

@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Resilience: a device marked *often switched off* still had its off times counted against it. Its *Health* showed the availability and the gaps from before the mark, the advice said to find the cause of its outages, and the *Is it often switched off?* link appeared although the box was already ticked. For a marked device *Health* now reads *off on purpose* and does not count towards the risk or the grade, so that advice and the link are gone; an early warning from a host agent still counts. The stored history stays and *Devices > Stability* still shows it. The *Availability* section of the nightly report no longer names a marked device as wobbly. The text is available in all six languages.
+
 ## [1.65.0] – 2026-11-25
 
 1.64.9 below was not released on its own; it is part of this release.

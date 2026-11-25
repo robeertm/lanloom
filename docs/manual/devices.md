@@ -66,7 +66,8 @@ the place to search for a device, to correct what Lanloom guessed, and to see ho
 - **Often switched off** (operators): tick *This device is often switched off or may sleep* on the card of a television,
   console, laptop or printer that leaves the network on purpose, and *Save*. While it does not answer it shows a grey
   *Off*, raises no outage, no nightly-report line and no notification, and keeps its availability (see
-  [AVAILABILITY.md](../AVAILABILITY.md)). *Warn if it has not been seen for* (14 days unless changed, 0 = never) still
+  [AVAILABILITY.md](../AVAILABILITY.md)). Its *Health* in the Resilience section reads *off on purpose* and does not
+  count towards the risk, also for gaps from before the mark. *Warn if it has not been seen for* (14 days unless changed, 0 = never) still
   brings one report line for a device that is really gone. The mark stays until you clear it, also when the device later
   gets its hardware address as id.
 - **Connect it** (admins): the *Can be connected* section offers *Connect* with the address filled in.

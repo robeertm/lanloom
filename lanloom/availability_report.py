@@ -2,14 +2,17 @@
 
 It names the wobbly ones (three or more gaps in 7 days, see availability.py) as points to look at and gives the typical
 repair time; a calm week is one line. The single outages of the night are in the "Devices" section already, this one is
-the trend behind them. Texts are i18n keys."""
+the trend behind them. A device a person marked "often switched off" is left out: its off times are no outages, also the
+gaps from before the mark (lanloom#28). Texts are i18n keys."""
 from .nightly.contrib import Contribution, item, register, section
 from .web_history import subject_names
 
 
 def _stability(ctx) -> dict:
     core = ctx.core
-    return core.availability.stability(subject_names(core), ctx.until)
+    names = subject_names(core)
+    naps = core.sleepy_marks() if hasattr(core, "sleepy_marks") else {}
+    return core.availability.stability({k: v for k, v in names.items() if not (k.startswith("dev:") and k[4:] in naps)}, ctx.until)
 
 
 def _available(ctx) -> bool:

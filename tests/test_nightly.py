@@ -238,6 +238,25 @@ def test_watch_books_nothing_for_a_device_marked_often_switched_off(tmp_path, mo
     assert not [e for e in rep.journal.between(0, clock.t) if e["data"].get("id") == tv and e["kind"] in ("dev_offline", "dev_gone")]
 
 
+def test_availability_section_leaves_out_a_device_marked_often_switched_off(tmp_path):
+    """lanloom#28: gaps from before the mark must not name a marked television as wobbly in the nightly report."""
+    from lanloom import availability as av, availability_report as ar
+    clock = Clock(at(2026, 11, 22, 12, 0))
+    c, rep = make(tmp_path, clock)
+    tv = add_device(c, 30, "Living room TV", kind="tv")
+    lap = add_device(c, 20, "Office laptop")
+    s0 = int(clock.t // av.SLOT_S)
+    for k, ch in enumerate("uudu" * 4 + "uu"):                  # four separate gaps for both
+        for dev in (tv, lap):
+            c.availability.sample("dev:" + dev, ch == "u", (s0 + k) * av.SLOT_S + 10)
+    ctx = SimpleNamespace(core=c, since=clock.t, until=(s0 + 20) * av.SLOT_S)
+    wob = lambda: sorted(i["vars"]["name"] for i in ar._build(ctx)["items"] if i["key"] == "avail.report.wobbly")
+    assert wob() == ["Living room TV", "Office laptop"]
+    c.set_sleepy(tv, True)
+    assert wob() == ["Office laptop"]
+    assert ar._build(ctx)["summary"]["vars"]["n"] == 4                    # only the laptop's gaps are in the sum
+
+
 def test_marked_device_back_after_a_short_nap_writes_no_back_row(tmp_path, monkeypatch):
     clock = Clock(at(2026, 11, 15, 20, 0))
     c, rep = make(tmp_path, clock)

@@ -32,7 +32,7 @@ Each axis gives a weakness from 0 (good) to 1, or *unknown*, with its reasons.
 | Power | UPS 0.1 (0.35 when the UPS asks for a new battery), own battery 0.15, mains only 1, unknown. PoE follows the switch it hangs on; guests, containers and connections follow their host; the device a UPS reports through is taken as on the UPS (derived, the card says so) |
 | Up to date | open vulnerability (exploited 1, critical/high 0.8, medium 0.5, low 0.2), no more updates 0.8 (ending soon 0.3), certificate red/expired 1, yellow 0.6 |
 | Watch | reachability (presence check by address) and a second source that reports from it (a connection, a host agent, the hub, an adapter): both 0, one 0.5, none 1 |
-| Health | availability over 35 days (>= 99.9 % 0, >= 99 % 0.2, >= 97 % 0.5, >= 90 % 0.8, below 1), +0.15 from three outages in 7 days; an early warning at least 0.6; no measurement: unknown |
+| Health | availability over 35 days (>= 99.9 % 0, >= 99 % 0.2, >= 97 % 0.5, >= 90 % 0.8, below 1), +0.15 from three outages in 7 days; an early warning at least 0.6; no measurement: unknown; a device marked *often switched off* is not rated by its availability (*off on purpose*, does not count, also its gaps from before the mark), only an early warning still counts |
 
 `weakness` is the weighted mean of the six axes after impact (spare 0.22, backup 0.20, power 0.16, health 0.16, watch 0.14,
 up to date 0.12; unknown counts as 0.5; an axis that does not count is left out). `risk = 100 × weakness × (0.3 + 0.7 × a)`.

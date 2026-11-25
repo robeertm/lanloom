@@ -115,6 +115,44 @@ def test_spare_backup_power_currency_watch_health():
     assert rs.axis_health({"share35": 1.0, "incidents7": 0}, [{"metric": "disk", "eta_h": 30}])["weak"] == 0.6
 
 
+def test_a_device_marked_often_switched_off_is_not_rated_by_its_availability():
+    """lanloom#28: the mark from #19 promises the availability is not counted down; Health took the old gaps anyway and the
+    advice said to find the cause of its outages."""
+    tv = {"share35": 0.7936, "share7": 0.7936, "incidents7": 4}
+    measured = rs.axis_health(tv, [])
+    assert measured["weak"] == 1.0 and measured["value"] == "measured" and measured.get("counts", True)
+    off = rs.axis_health(tv, [], sleepy=True)
+    assert off == {"axis": "health", "weak": None, "counts": False, "value": "sleepy", "why": [{"key": "health_sleepy", "vars": {}}]}
+    assert rs.axis_health(None, [], sleepy=True)["counts"] is False          # also without any history
+    warned = rs.axis_health(tv, [{"metric": "disk", "eta_h": 12}], sleepy=True)   # an early warning is a real reading
+    assert warned["value"] == "warning" and warned["weak"] == 0.6 and warned.get("counts", True)
+    assert "health_avail" not in [r["key"] for r in warned["why"]]
+    axes = {"impact": {"weak": 0.05}, "spare": {"weak": None}, "backup": {"weak": None, "counts": False, "value": "not_rated"},
+            "power": {"weak": 0.0, "value": "own"}, "currency": {"weak": 0.0}, "watch": {"weak": 0.0, "value": "two"}, "health": measured}
+    assert rs.recommendation(axes, False)["key"] == "health"
+    risk_before = rs.risk_of(axes, 0.05)[0]
+    axes["health"] = off
+    rec = rs.recommendation(axes, False)
+    assert rec is None or rec["axis"] != "health"
+    assert rs.risk_of(axes, 0.05)[0] < risk_before
+
+
+def test_marking_a_device_reaches_its_resilience_card(demo):
+    app, as_ = demo
+    core = app.state.ll.core
+    dev = ip(app, 15)
+    try:
+        core.set_sleepy(dev, True)
+        core.resilience.invalidate()
+        part = as_("viewer").get("/api/resilience/part/" + dev).json()
+        health = next(a for a in part["axes"] if a["axis"] == "health")
+        assert health["value"] == "sleepy" and health["counts"] is False and health["why"][0]["key"] == "health_sleepy"
+        assert not part.get("rec") or part["rec"]["key"] != "health"
+    finally:
+        core.set_sleepy(dev, False)
+        core.resilience.invalidate()
+
+
 def test_recommendation_follows_the_biggest_share():
     axes = {"impact": {"weak": 1.0}, "spare": {"weak": 1.0, "value": "none"}, "backup": {"weak": 0.0}, "power": {"weak": 0.1, "value": "ups"},
             "currency": {"weak": 0.0}, "watch": {"weak": 0.0}, "health": {"weak": 0.0}}

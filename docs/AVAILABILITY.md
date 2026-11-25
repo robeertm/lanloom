@@ -23,7 +23,9 @@ Storage › *Availability and events*: 35, 90, 180 or 365 days).
 - A device marked **often switched off** on its card (a television in standby, a console, a laptop) books only its good
   looks: while it does not answer the slot stays *unknown*, so it never loses availability, never starts an outage and shows
   a grey *Off* instead of a red *Offline*. Only when it has not been seen for the days set on the card (14 unless changed,
-  0 = never) does the nightly report say so, once per absence.
+  0 = never) does the nightly report say so, once per absence. Gaps it had before the mark stay in its history and in the
+  *Stability* list, but they no longer rate it: the *Availability* section of the nightly report leaves it out and its
+  *Health* in Resilience says *off on purpose* and does not count ([RESILIENCE.md](RESILIENCE.md)).
 - The known services and web interfaces of the devices are looked at every 3 minutes and booked the same way (as
   `svc:<device>|<port>`, see [SERVICES.md](SERVICES.md)); the *Stability* list shows those with a history.
 
@@ -85,8 +87,9 @@ maintenance*; each opens the card at that section.
 ## In the nightly report
 
 The section **Availability** appears once there is a history: how many devices and connections were without a gap over the
-last 7 days, the gaps in all, the typical repair time, and every wobbly device as a point to look at. The single outages
-of the night are in the *Devices* section; this one is the trend behind them.
+last 7 days, the gaps in all, the typical repair time, and every wobbly device as a point to look at. A device marked
+*often switched off* is not part of this section. The single outages of the night are in the *Devices* section; this one
+is the trend behind them.
 
 ## What is stored
 
