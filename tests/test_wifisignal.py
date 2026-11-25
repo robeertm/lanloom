@@ -45,8 +45,12 @@ def test_the_limit_is_minus_80_inclusive_and_one_better_reading_starts_over():
     assert len(r.signal_view("A", True, T0 + 600)["stuck"]) == 1
     feed(r, T0 + 660, -79)
     assert r.signal_view("A", True, T0 + 660)["stuck"] == []
-    feed(r, T0 + 720, -85)
-    assert r.signal_view("A", True, T0 + 720 + 599)["stuck"] == []              # the clock started again at 720
+    for k in range(12, 21):                                                      # the controller keeps delivering (W5: a view
+        feed(r, T0 + 60 * k, -85)                                                # of a stale source shows nothing at all)
+    assert r.signal_view("A", True, T0 + 720 + 539)["stuck"] == []              # the clock started again at 720
+    for k in (21, 22):
+        feed(r, T0 + 60 * k, -85)
+    assert len(r.signal_view("A", True, T0 + 720 + 600)["stuck"]) == 1
 
 
 def test_a_missing_reading_a_move_or_a_gap_start_over():
