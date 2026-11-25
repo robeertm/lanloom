@@ -50,6 +50,7 @@
  "board.kind.container": "Container",
  "board.kind.self": "Deze host",
  "board.kind.unknown": "Onbekend apparaat",
+ "board.metric.split": "ontvangen {down}, verzonden {up} {unit}",
  "board.tile.aria": "{title}, {kind}, {status}, live gegevens: {grade}",
  "board.zone.other": "Overig",
  "board.zone.count": "{count, plural, one {# component} other {# componenten}}",

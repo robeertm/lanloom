@@ -99,6 +99,7 @@
     "board.kind.container": "Container",
     "board.kind.self": "This host",
     "board.kind.unknown": "Unknown device",
+    "board.metric.split": "received {down}, sent {up} {unit}",
     "board.tile.aria": "{title}, {kind}, {status}, live data: {grade}",
     "board.zone.other": "Other",
     "board.zone.count": "{count, plural, one {# component} other {# components}}"
@@ -121,6 +122,13 @@
     let dec = '.';
     try { const p = new Intl.NumberFormat(locale || undefined).formatToParts(1.1).find(x => x.type === 'decimal'); if (p) dec = p.value; } catch (e) { /* keep the point */ }
     return dec === '.' ? s : s.replace(/(\d)\.(\d)/g, '$1' + dec + '$2');
+  }
+
+  // "↓7.3 ↑434 kB/s" (the split rate of a tile) in words for a screen reader; any other text stays as it is
+  const SPLIT_RATE = /^\u2193(\S+) \u2191(\S+) (.+)$/;
+  function speakMetric(s, t) {
+    const m = SPLIT_RATE.exec(String(s));
+    return m ? t('board.metric.split', { down: m[1], up: m[2], unit: m[3] }) : String(s);
   }
 
   // ------------------------------------------------------------------ binary byte units ("64 KiB")
@@ -152,6 +160,8 @@
     if (!s) return '';
     if (max <= 4) return '';
     if (textWidth(f, s) <= max) return s;
+    const split = SPLIT_RATE.exec(s);     // a split rate on a narrow tile loses "/s" before it loses a letter of its unit
+    if (split) { const short = '\u2193' + split[1] + ' \u2191' + split[2] + ' ' + split[3].replace(/\/s$/, ''); if (textWidth(f, short) <= max) return short; }
     let lo = 0, hi = s.length;
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (textWidth(f, s.slice(0, m).trimEnd() + ELL) <= max) lo = m; else hi = m - 1; }
     if (!lo) return textWidth(f, ELL) <= max ? ELL : '';
@@ -479,7 +489,7 @@
       // the name starts with exactly what the tile shows (title, address, live number, badges) and adds what only the colours say
       // afterwards: kind, status, live grade (a screen reader user also hears the visible text; a voice control user can say it)
       const metric = e.metricFull ? e.metricFull : (c.metric ? localiseMetric(String(c.metric), this.locale) : '');
-      const shown = [c.title || c.id, c.subtitle, metric].concat(e.badgeText || []).filter(Boolean).join(' ');
+      const shown = [c.title || c.id, c.subtitle, speakMetric(metric, this.t)].concat(e.badgeText || []).filter(Boolean).join(' ');
       const s = this.t('board.tile.aria', {
         title: shown,
         kind: this.t('board.kind.' + (e.kind || 'unknown')),
@@ -1175,5 +1185,5 @@
     };
   }
 
-  LL.Board = { mount, formatBytes, fitText, STRINGS, FILTER_KEYS, parseHidden, visibleKinds, traceShown, zoneLabel, zoneToggles, version: '1.1.0' };
+  LL.Board = { mount, speakMetric, formatBytes, fitText, STRINGS, FILTER_KEYS, parseHidden, visibleKinds, traceShown, zoneLabel, zoneToggles, version: '1.1.0' };
 })(typeof self !== 'undefined' ? self : this);

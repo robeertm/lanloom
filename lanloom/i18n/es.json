@@ -4911,6 +4911,8 @@
  "settings.pw.changed": "Contraseña cambiada. Se cerró la sesión en las demás sesiones.",
  "settings.pw.current": "Contraseña actual",
  "settings.pw.new": "Contraseña nueva",
+ "settings.rate_split": "Mostrar recibido y enviado por separado",
+ "settings.rate_split.hint": "Las tarjetas muestran dos números, por ejemplo «↓7,3 ↑434 kB/s»: ↓ es lo que recibe el equipo y ↑ lo que envía. La unidad de la dirección mayor se escribe una sola vez. Desactivado muestra una suma.",
  "settings.rate_unit": "Unidad de tráfico",
  "settings.rate_unit.bits": "Bits por segundo (kbit/s, Mbit/s)",
  "settings.rate_unit.bytes": "Bytes por segundo (kB/s, MB/s)",

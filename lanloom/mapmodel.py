@@ -449,7 +449,7 @@ def _containers(core, comps: list, zones: dict, zone, add_trace) -> None:
     if hub is None:
         return
     from .agents import container_component
-    unit = core.rate_unit()
+    unit, split = core.rate_unit(), core.rate_split()
     drawn = {c["id"]: c for c in comps}
     for host_id, items in hub.containers_by_device().items():
         host = drawn.get(host_id)
@@ -465,7 +465,7 @@ def _containers(core, comps: list, zones: dict, zone, add_trace) -> None:
         zones[zid]["fold"] = host_id
         host["folds"] = len(items)
         for aid, c in items[:MAX_CONTAINERS_ON_MAP]:
-            comp = container_component(aid, host_id, c, lambda r: live.human_rate(r, unit))
+            comp = container_component(aid, host_id, c, lambda down, up: live.human_rate_split(down, up, unit) if split else live.human_rate(down + up, unit))
             comp["zone"] = zid
             comps.append(comp)
             add_trace("ct:%s>%s" % (host_id, comp["id"]), host_id, comp["id"], "virtual", False)
@@ -572,25 +572,36 @@ def _area_counts(snap: dict) -> dict:
 def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
     """component id -> live grade, component id -> short metric text."""
     grades, metrics = {}, {}
-    per_comp, per_cable = {}, {}
+    per_comp, per_cable = {}, {}          # component id -> [received, sent] in bytes per second (a trace's direction 0 is a -> b)
+
+    def add(table: dict, cid: str, down: float, up: float) -> None:
+        cur = table.setdefault(cid, [0, 0])
+        cur[0] += down
+        cur[1] += up
+
     for trace, (r0, r1) in rates.items():
         kind, _, rest = trace.partition(":")
-        if kind == "p":                   # a cable: its rate belongs to the box at its lower end (#21)
+        if kind == "p":                   # a cable: its rate belongs to the box at its lower end (#21), which is its end b
             _, _, child = rest.partition(":")
-            per_cable[child] = per_cable.get(child, 0) + r0 + r1
+            add(per_cable, child, r0, r1)
         elif kind in ("f", "l"):
             a, _, b = rest.partition(":")
-            for cid in (a, b):
-                per_comp[cid] = per_comp.get(cid, 0) + r0 + r1
-        elif kind == "u":
-            _, _, router = rest.partition(":")
-            per_comp["internet"] = per_comp.get("internet", 0) + r0 + r1
+            add(per_comp, a, r1, r0)      # at end a direction 0 leaves the box
+            add(per_comp, b, r0, r1)
+        elif kind == "u":                 # internet -> router: direction 0 is what comes in from outside
+            add(per_comp, "internet", r0, r1)
         elif kind == "q":
             integ, _, root = rest.partition(":")
-            per_comp["topic:%s:%s" % (integ, root)] = r0 + r1
-    for child, rate in per_cable.items():  # the cable carries the box's own flows too: the larger one, never both added
-        per_comp[child] = max(per_comp.get(child, 0), rate)
+            per_comp["topic:%s:%s" % (integ, root)] = [r0, r1]
+    for child, pair in per_cable.items():  # the cable carries the box's own flows too: the larger one, never both added
+        if sum(pair) > sum(per_comp.get(child, (0, 0))):
+            per_comp[child] = pair
     unit = core.rate_unit()
+    split = core.rate_split()
+
+    def text(pair) -> str:
+        return live.human_rate_split(pair[0], pair[1], unit) if split else live.human_rate(sum(pair), unit)
+
     host_grade = core._source_grade("host") if "host" in core.cadence else "unknown"
     for dev_id in list(core.ip_to_device.values()):
         recent_flow = now - core.flow_seen.get(dev_id, 0) < 5
@@ -599,8 +610,8 @@ def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
         else:
             seen = core.presence.get(dev_id)
             grades[dev_id] = live.grade_for(PRESENCE_INTERVAL, now - seen) if seen else "unknown"
-        if per_comp.get(dev_id, 0) >= 1:
-            metrics[dev_id] = live.human_rate(per_comp[dev_id], unit)
+        if sum(per_comp.get(dev_id, (0, 0))) >= 1:
+            metrics[dev_id] = text(per_comp[dev_id])
     router_id = core.ip_to_device.get(core.gateway_ip or "")
     for integ_id, frame in core.snmp.items():
         g = core._source_grade("int:%d" % integ_id)
@@ -610,8 +621,8 @@ def live_overlay(core, now: float, rates: dict, comps: list = None) -> tuple:
         grades[target] = g
         if dev and dev == router_id:
             grades["internet"] = g
-    if per_comp.get("internet", 0) >= 1:
-        metrics["internet"] = live.human_rate(per_comp["internet"], unit)
+    if sum(per_comp.get("internet", (0, 0))) >= 1:
+        metrics["internet"] = text(per_comp["internet"])
         if router_id:
             metrics[router_id] = metrics["internet"]
     for integ_id, entry in core.hub.items():

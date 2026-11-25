@@ -50,6 +50,7 @@
   "board.kind.container": "Container",
   "board.kind.self": "This host",
   "board.kind.unknown": "Unknown device",
+  "board.metric.split": "received {down}, sent {up} {unit}",
   "board.tile.aria": "{title}, {kind}, {status}, live data: {grade}",
   "board.zone.other": "Other",
   "board.zone.count": "{count, plural, one {# component} other {# components}}",

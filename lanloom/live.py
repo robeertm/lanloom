@@ -59,6 +59,26 @@ def human_rate(bps: float, unit: str = "bytes") -> str:
     return (human_bits(bps) if unit == "bits" else human_bytes(bps)) + "/s"
 
 
+RATE_SPLIT = "\u2193%s \u2191%s %s"      # "↓7.3 ↑434 kB/s": received, sent, one shared unit (a tile has ~114 px)
+
+
+def human_rate_split(down: float, up: float, unit: str = "bytes") -> str:
+    """Two directions in one short text. The unit comes from the larger direction and is written once,
+    so the smaller one may read 0 ("↓0 ↑300 Mbit/s") instead of growing the tile."""
+    down, up = max(0.0, float(down)), max(0.0, float(up))
+    factor = 8 if unit == "bits" else 1
+    big = max(down, up) * factor
+    names = ("Gbit", "Mbit", "kbit", "bit") if unit == "bits" else ("GB", "MB", "kB", "B")
+    for name, f in zip(names, (1e9, 1e6, 1e3, 1)):
+        if big >= f or f == 1:
+            def num(v):
+                v = v * factor / f
+                if round(v, 1) == 0:
+                    return "0"
+                return "%.0f" % v if v >= 10 or f == 1 else "%.1f" % v
+            return RATE_SPLIT % (num(down), num(up), name + "/s")
+
+
 class Quantizer:
     def __init__(self, q: int = Q_START):
         self.q = q

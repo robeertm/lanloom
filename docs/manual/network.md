@@ -41,7 +41,8 @@ in?".
   switch's uplink port, and the rate of a cable measured this way also shows on the tile of the device at its lower end
   (spread over the real time between two readings of the counters). Optional: *Settings > General > Appearance* can take the background noise out
   of these counters (what every device of one network receives anyway - broadcasts and multicast - is subtracted when at
-  least three ports of the network are measured).
+  least three ports of the network are measured). With *Show received and sent apart* the tile shows both directions of the
+  cable (`↓` received at the device, `↑` sent by it).
 - **Quiet devices.** A network with more than 12 devices folds the ones that idle by nature (smart devices, printers,
   media players) into one tile *N quiet devices*; a click unfolds them (remembered per network). A device that is down or
   interrupted never folds, and a card opened by address or from the search unfolds its network.

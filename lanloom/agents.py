@@ -912,7 +912,7 @@ def container_component(aid: str, host_dev: str, c: dict, rate_text=None) -> dic
     if c.get("project"):
         comp["badges"] = [c["project"][:16]]
     if rate_text and state == "running" and c.get("rate") and sum(c["rate"]) > 0:
-        comp["metric"] = rate_text(sum(c["rate"]))
+        comp["metric"] = rate_text(c["rate"][1], c["rate"][0])   # received, sent (the pair is [tx, rx])
     return comp
 
 

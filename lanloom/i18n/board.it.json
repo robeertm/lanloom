@@ -50,6 +50,7 @@
  "board.kind.container": "Container",
  "board.kind.self": "Questo host",
  "board.kind.unknown": "Dispositivo sconosciuto",
+ "board.metric.split": "ricevuti {down}, inviati {up} {unit}",
  "board.tile.aria": "{title}, {kind}, {status}, dati live: {grade}",
  "board.zone.other": "Altro",
  "board.zone.count": "{count, plural, one {# componente} other {# componenti}}",

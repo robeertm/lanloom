@@ -50,6 +50,7 @@
   "board.kind.container": "Container",
   "board.kind.self": "Dieser Rechner",
   "board.kind.unknown": "Unbekanntes Gerät",
+  "board.metric.split": "empfangen {down}, gesendet {up} {unit}",
   "board.tile.aria": "{title}, {kind}, {status}, Live-Daten: {grade}",
   "board.zone.other": "Sonstiges",
   "board.zone.count": "{count, plural, one {# Komponente} other {# Komponenten}}",

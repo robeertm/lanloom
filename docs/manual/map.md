@@ -13,6 +13,9 @@ there, what talks to what, and what is down, in one picture.
 
 - **Components** for devices, hubs, controllers and the internet edge; the dot at a component is its live grade (see
   the pill at the top right).
+- The rate on a tile is one number by default. *Settings > General > Appearance > Show received and sent apart* splits it
+  into two, for example `↓7.3 ↑434 kB/s`: ↓ is what the box receives, ↑ what it sends. The unit of the larger direction is
+  written once, so the smaller one may read `0`; the tile keeps its size.
 - **Traces** for connections. Moving dots are measured bytes; nothing is animated that was not measured. The line
   styles tell the kind of link (cable, radio, service, flow, integration, uplink).
 - **Zones** are the areas of the board, one per network or VLAN, titled with its name, VLAN number and range.

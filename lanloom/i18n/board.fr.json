@@ -50,6 +50,7 @@
  "board.kind.container": "Conteneur",
  "board.kind.self": "Cet hôte",
  "board.kind.unknown": "Appareil inconnu",
+ "board.metric.split": "reçu {down}, envoyé {up} {unit}",
  "board.tile.aria": "{title}, {kind}, {status}, données en direct : {grade}",
  "board.zone.other": "Autres",
  "board.zone.count": "{count, plural, one {# composant} other {# composants}}",

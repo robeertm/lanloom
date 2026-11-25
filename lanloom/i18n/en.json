@@ -4911,6 +4911,8 @@
  "settings.pw.changed": "Password changed. Other sessions were signed out.",
  "settings.pw.current": "Current password",
  "settings.pw.new": "New password",
+ "settings.rate_split": "Show received and sent apart",
+ "settings.rate_split.hint": "Tiles show two numbers, for example ↓7.3 ↑434 kB/s: ↓ is what the box receives, ↑ what it sends. The unit of the larger direction is written once. Off shows one sum.",
  "settings.rate_unit": "Traffic unit",
  "settings.rate_unit.bits": "Bits per second (kbit/s, Mbit/s)",
  "settings.rate_unit.bytes": "Bytes per second (kB/s, MB/s)",

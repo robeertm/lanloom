@@ -4911,6 +4911,8 @@
  "settings.pw.changed": "Passwort geändert. Andere Sitzungen wurden abgemeldet.",
  "settings.pw.current": "Aktuelles Passwort",
  "settings.pw.new": "Neues Passwort",
+ "settings.rate_split": "Empfangen und Gesendet getrennt zeigen",
+ "settings.rate_split.hint": "Die Kacheln zeigen zwei Zahlen, zum Beispiel „↓7,3 ↑434 kB/s“: ↓ ist, was das Gerät empfängt, ↑ was es sendet. Die Einheit der größeren Richtung steht nur einmal. Aus zeigt eine Summe.",
  "settings.rate_unit": "Einheit für Datenraten",
  "settings.rate_unit.bits": "Bits pro Sekunde (kbit/s, Mbit/s)",
  "settings.rate_unit.bytes": "Bytes pro Sekunde (kB/s, MB/s)",

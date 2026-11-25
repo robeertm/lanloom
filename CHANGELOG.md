@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- Tiles can show the received and the sent rate apart (`↓7.3 ↑434 kB/s`) instead of one sum: *Settings > General > Appearance > Show received and sent apart* (off by default, so nothing changes until it is switched on). The unit of the larger direction is written once so the text fits the tile; the arrows are read out in words for screen readers. Applies to devices, containers, the router and the internet tile, in all six languages.
+
 ## [1.64.9] – 2026-11-25
 
 ### Fixed

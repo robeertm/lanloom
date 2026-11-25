@@ -4911,6 +4911,8 @@
  "settings.pw.changed": "Mot de passe modifié. Les autres sessions ont été déconnectées.",
  "settings.pw.current": "Mot de passe actuel",
  "settings.pw.new": "Nouveau mot de passe",
+ "settings.rate_split": "Afficher séparément reçu et envoyé",
+ "settings.rate_split.hint": "Les cartes affichent deux nombres, par exemple « ↓7,3 ↑434 ko/s » : ↓ est ce que l'appareil reçoit, ↑ ce qu'il envoie. L'unité de la direction la plus grande n'est écrite qu'une fois. Désactivé affiche une somme.",
  "settings.rate_unit": "Unité de trafic",
  "settings.rate_unit.bits": "Bits par seconde (kbit/s, Mbit/s)",
  "settings.rate_unit.bytes": "Octets par seconde (ko/s, Mo/s)",

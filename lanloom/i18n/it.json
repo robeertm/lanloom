@@ -4911,6 +4911,8 @@
  "settings.pw.changed": "Password cambiata. Le altre sessioni sono state chiuse.",
  "settings.pw.current": "Password attuale",
  "settings.pw.new": "Nuova password",
+ "settings.rate_split": "Mostra separati ricevuti e inviati",
+ "settings.rate_split.hint": "Le schede mostrano due numeri, ad esempio «↓7,3 ↑434 kB/s»: ↓ è ciò che il dispositivo riceve, ↑ ciò che invia. L'unità della direzione maggiore compare una sola volta. Disattivato mostra una somma.",
  "settings.rate_unit": "Unità del traffico",
  "settings.rate_unit.bits": "Bit al secondo (kbit/s, Mbit/s)",
  "settings.rate_unit.bytes": "Byte al secondo (kB/s, MB/s)",

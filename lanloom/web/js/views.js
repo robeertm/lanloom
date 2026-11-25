@@ -1202,12 +1202,17 @@
       await api('/api/settings', { method: 'PUT', body: { rate_unit: unit.value } }); LL.rateUnit = unit.value; LL.toast(t('settings.saved'), 'ok'); } },
       ['bytes', 'bits'].map(v => h('option', { value: v }, t('settings.rate_unit.' + v))));
     unit.value = s.rate_unit === 'bits' ? 'bits' : 'bytes';
+    // received and sent rate apart on the tiles of the map ("↓7.3 ↑434 kB/s"); off by default
+    const split = h('input', { type: 'checkbox', checked: !!s.rate_split, onchange: async () => {
+      try { await api('/api/settings', { method: 'PUT', body: { rate_split: split.checked } }); LL.toast(t('settings.saved'), 'ok'); }
+      catch (e) { split.checked = !split.checked; LL.toast(LL.errText(e), 'error'); } } });
     // background noise (broadcast, multicast) out of the exact counters read at switch ports; off by default
     const noise = h('input', { type: 'checkbox', checked: !!s.port_noise, onchange: async () => {
       try { await api('/api/settings', { method: 'PUT', body: { port_noise: noise.checked } }); LL.toast(t('settings.saved'), 'ok'); }
       catch (e) { noise.checked = !noise.checked; LL.toast(LL.errText(e), 'error'); } } });
     page.append(card(t('settings.appearance'), [h('div', { class: 'grid-2' }, LL.field(t('settings.language'), lang), LL.field(t('settings.theme'), theme)),
       paletteField(), h('div', { class: 'grid-2' }, LL.field(t('settings.rate_unit'), unit, t('settings.rate_unit.hint')), motionField()),
+      h('div', { class: 'stack-sm' }, h('label', { class: 'check' }, split, h('span', {}, t('settings.rate_split'))), h('p', { class: 'field__hint' }, t('settings.rate_split.hint'))),
       h('div', { class: 'stack-sm' }, h('label', { class: 'check' }, noise, h('span', {}, t('settings.port_noise'))), h('p', { class: 'field__hint' }, t('settings.port_noise.hint')))]));
     if (LL.pathsSettingsCard) page.append(LL.pathsSettingsCard(s));
     if (LL.pathsDetailSettingsCard) page.append(LL.pathsDetailSettingsCard(s));

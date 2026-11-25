@@ -4911,6 +4911,8 @@
  "settings.pw.changed": "Wachtwoord gewijzigd. Andere sessies zijn uitgelogd.",
  "settings.pw.current": "Huidig wachtwoord",
  "settings.pw.new": "Nieuw wachtwoord",
+ "settings.rate_split": "Ontvangen en verzonden apart tonen",
+ "settings.rate_split.hint": "De tegels tonen twee getallen, bijvoorbeeld ↓7,3 ↑434 kB/s: ↓ is wat het apparaat ontvangt, ↑ wat het verzendt. De eenheid van de grootste richting staat maar één keer. Uit toont één som.",
  "settings.rate_unit": "Verkeerseenheid",
  "settings.rate_unit.bits": "Bits per seconde (kbit/s, Mbit/s)",
  "settings.rate_unit.bytes": "Bytes per seconde (kB/s, MB/s)",

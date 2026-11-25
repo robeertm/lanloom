@@ -769,6 +769,15 @@ def test_rate_unit_setting_is_validated_and_shown_in_state(client):
     assert client.put("/api/settings", json={"rate_unit": "bytes"}, headers=HDR).json()["rate_unit"] == "bytes"
 
 
+def test_rate_split_setting_is_validated(client):
+    _login(client)
+    assert client.get("/api/settings").json()["rate_split"] is False
+    assert client.put("/api/settings", json={"rate_split": True}, headers=HDR).json()["rate_split"] is True
+    assert client.get("/api/settings").json()["rate_split"] is True
+    r = client.put("/api/settings", json={"rate_split": "ja"}, headers=HDR)
+    assert r.status_code >= 400 or r.json()["rate_split"] is True
+
+
 # ---------------------------------------------------------------------------------------------- hidden and forgotten devices
 def test_card_of_a_hidden_device_opens_and_is_gone_after_forget(core):
     feed(core)

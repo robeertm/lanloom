@@ -33,6 +33,7 @@ DEFAULT_SETTINGS = {
     "language": None,
     "setup_done": False,
     "uplink_iface": "",
+    "rate_split": False,        # tiles show received and sent rate apart (↓ ↑) instead of one sum
     "rate_unit": "bytes",       # traffic rates as bytes per second (MB/s) or bits per second (Mbit/s)
     "home_country": "",         # data paths: ISO code of the home country ("" = the browser's region)
     "paths_own_networks": [],   # data paths: own networks and tunnels beyond the LAN (never "unassigned")
@@ -52,7 +53,7 @@ DEFAULT_SETTINGS = {
     "paths_routes_peeringdb": False,  # exchange points from PeeringDB (fetches three public lists; off by default)
 }
 # settings of the instance, not of one site (a further site reads and writes them in the home store)
-INSTANCE_SETTINGS = frozenset({"update_check", "language", "setup_done", "rate_unit", "paths_detail", "paths_routes",
+INSTANCE_SETTINGS = frozenset({"update_check", "language", "setup_done", "rate_unit", "rate_split", "paths_detail", "paths_routes",
                                "paths_routes_targets", "paths_routes_interval_h", "paths_routes_peeringdb"})
 NETFLOW_LAN_REFRESH = 300.0
 
@@ -293,9 +294,12 @@ class Core:
         unit = self._setting_store("rate_unit").get_setting("rate_unit", "bytes")
         return unit if unit in live.RATE_UNITS else "bytes"
 
+    def rate_split(self) -> bool:
+        return self._setting_store("rate_split").get_setting("rate_split", False) is True
+
     def update_settings(self, patch: dict) -> dict:
         allowed = {"rescan_hours": int, "update_check": bool, "language": (str, type(None)), "setup_done": bool,
-                   "uplink_iface": str, "rate_unit": str, "home_country": str, "paths_own_networks": list,
+                   "uplink_iface": str, "rate_unit": str, "rate_split": bool, "home_country": str, "paths_own_networks": list,
                    "paths_no_internet": list, "netflow_enabled": bool, "netflow_port": int, "netflow_exporters": list,
                    "netflow_lan_networks": list, "adapter_inventory": bool, "port_noise": bool, "service_probe": bool,
                    "paths_detail": bool, "paths_routes": bool, "paths_routes_targets": int, "paths_routes_interval_h": int,
