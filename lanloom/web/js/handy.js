@@ -132,7 +132,7 @@
   // data-swipe (marked here by selector, or in the markup by hand). While content lies beyond an edge, that edge fades out through a mask on the
   // row itself (variables --sw-l / --sw-r, width token --ll-swipe-fade) - no extra box, so nothing counts as sticking out of the row. A row that
   // fits has no fade and looks as before. When the row appears or its active chip changes, the chip is scrolled into view by scrollLeft.
-  const SWIPE_SEL = '.inv-chips, .map-filter, .nm-seg, .fw-draftbar__chips, .pf-row, .fw-matrix-wrap, .fw-table-wrap';
+  const SWIPE_SEL = '.inv-chips, .map-filter, .settings-subnav, .nm-seg, .fw-draftbar__chips, .pf-row, .fw-matrix-wrap, .fw-table-wrap';
   const ACTIVE = '.is-on, .is-active, [aria-current]:not([aria-current=false]), [aria-selected=true], [aria-pressed=true]';
   // <swipe-sides>
   function swipeSides(scrollLeft, scrollWidth, clientWidth, rtl) {

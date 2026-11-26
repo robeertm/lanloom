@@ -51,7 +51,7 @@
         withOwner ? h('span', { role: 'cell', 'data-label': t('api.tokens.owner') }, tk.owner) : null,
         h('span', { role: 'cell', class: 'acc-cell--main' }, h('strong', {}, tk.name), h('span', { class: 'mono muted api-prefix' }, tk.prefix + '…')),
         h('span', { role: 'cell', 'data-label': t('api.tokens.scope') }, h('span', { class: 'chip role-chip ' + (SCOPE_CHIP[tk.scope] || '') }, t('api.scope.' + tk.scope))),
-        h('span', { role: 'cell', 'data-label': t('api.tokens.expires') }, expiresText(tk)),
+        h('span', { role: 'cell', class: 'api-cell--when', 'data-label': t('api.tokens.expires') }, expiresText(tk)),
         h('span', { role: 'cell', 'data-label': t('api.tokens.used') }, tk.last_used ? h('span', {}, LL.fmtDate(tk.last_used), tk.last_ip ? h('span', { class: 'mono muted api-ip' }, ' · ' + tk.last_ip) : null) : h('span', { class: 'muted' }, t('api.tokens.never'))),
         h('span', { role: 'cell', class: 'acc-cell--act' }, h('button', { class: 'btn btn--ghost btn--sm', type: 'button', onclick: () => onRevoke(tk) }, t('api.tokens.revoke'))))));
   }
@@ -95,6 +95,12 @@
   }
 
   // ------------------------------------------------------------------ webhooks
+  // an address breaks after a dot, slash or dash (never in the middle of a word): a <wbr> follows each of them
+  function breakAtDots(text) {
+    const out = [];
+    String(text || '').split(/([./-])/).forEach(part => { if (!part) return; out.push(part); if (/^[./-]$/.test(part)) out.push(h('wbr')); });
+    return out;
+  }
   function hookState(hk) {
     if (hk.sample) return h('span', { class: 'chip chip--demo' }, t('api.hooks.sample'));
     if (!hk.enabled) return h('span', { class: 'chip chip--muted' }, t('api.hooks.off'));
@@ -171,11 +177,12 @@
     };
     const list = !view.webhooks.length ? h('p', { class: 'muted' }, t('api.hooks.none')) :
       h('div', { class: 'acc-table api-table api-table--hooks', role: 'table', 'aria-label': t('api.hooks.title') },
-        h('div', { class: 'acc-row acc-row--head', role: 'row' }, ['api.hooks.name', 'api.hooks.target', 'api.hooks.events', 'api.hooks.state', ''].map(k => h('span', { role: 'columnheader' }, k ? t(k) : ''))),
+        h('div', { class: 'acc-row acc-row--head', role: 'row' }, ['api.hooks.name', 'api.hooks.target', 'api.hooks.state', ''].map(k => h('span', { role: 'columnheader' }, k ? t(k) : ''))),
         view.webhooks.map(hk => h('div', { class: 'acc-row', role: 'row' },
-          h('span', { role: 'cell', class: 'acc-cell--main' }, h('strong', {}, hk.name)),
-          h('span', { role: 'cell', class: 'mono', 'data-label': t('api.hooks.target') }, hk.target, hk.https ? null : h('span', { class: 'chip chip--warn api-nohttps', title: t('api.hooks.http_hint') }, t('api.hooks.http'))),
-          h('span', { role: 'cell', 'data-label': t('api.hooks.events') }, hk.events.map(e => t('webhooks.ev.' + e)).join(', ')),
+          // the name with its events as small chips below it (a column of their own wrapped over five lines)
+          h('span', { role: 'cell', class: 'acc-cell--main' }, h('strong', {}, hk.name),
+            h('span', { class: 'api-evs', 'aria-label': t('api.hooks.events') }, hk.events.map(e => h('span', { class: 'chip api-ev' }, t('webhooks.ev.' + e))))),
+          h('span', { role: 'cell', class: 'mono api-target', 'data-label': t('api.hooks.target') }, breakAtDots(hk.target), hk.https ? null : h('span', { class: 'chip chip--warn api-nohttps', title: t('api.hooks.http_hint') }, t('api.hooks.http'))),
           h('span', { role: 'cell', 'data-label': t('api.hooks.state') }, hookState(hk), hk.pending ? h('span', { class: 'muted' }, ' ' + t('api.hooks.pending', { n: hk.pending })) : null),
           h('span', { role: 'cell', class: 'acc-cell--act api-acts' },
             h('button', { class: 'btn btn--ghost btn--sm', type: 'button', disabled: view.demo || hk.sample, title: view.demo ? t('api.hooks.demo_hint') : null, onclick: async ev => {

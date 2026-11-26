@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Phone, header: with several sites the site name has a row of its own under the logo and the buttons and wraps instead of being cut to two letters ("Ho…"); the pin and the arrow stay visible and the live capsule keeps its text where it fits.
+- Phone, footer: the version and *What's new?* no longer take a bar of 84 px under every page. They sit at the end of the *More* sheet, and the *More* button carries the dot when there is something new.
+- Phone, *More* sheet: it opens at full height, so all tiles are whole and in view (half open, the last of fifteen tiles was cut in two).
+- Phone, outage note: one line (title, *Details*, close) instead of a quarter of the screen; the sentence and *Show the chain* open below on a tap.
+- Search: countries (*Data paths of …*) come after the devices and other hits, in a group of their own, with the globe symbol of the data paths instead of the map symbol; *Data paths* itself carries the globe too. Typing "cam" now lists the cameras first.
+- Device sheet: the traffic plot shows a placeholder of its own height while the first answer is on its way (it was an empty area for seconds on a busy device).
+- *How fresh is the data?* dialog: the source table wraps inside its cells, so a longer language (French) no longer scrolls the dialog sideways.
+- Phone: close buttons of sheets, dialogs and panels are 44 px themselves, also in browsers that do not count the invisible hit area.
+- Automations: the search field has a short placeholder that fits a phone (the full sentence stays as its label).
+- Network: on wide screens the filter bar wraps into a second row instead of running out of the picture; on a phone it keeps the swipe row with its faded edge.
+- Settings: the section tabs fill whole rows edge to edge instead of leaving a half-empty last row; on a phone they are one swipe row with a faded edge.
+- Settings › API: a webhook address breaks at dots and slashes, never inside a word; its events sit as small chips under the name; the *Expires* chip of a token stays on one line.
+- Automations, plain words: a condition that holds other conditions is told as one clause ("… and (the door is closed or the lock is locked), then …") instead of its list heading ("… and all of this holds:, then …"). One new text for the "not" clause, in all six languages.
+- Audit log: detail keys and values are words, not raw fields: a key without a text is spelled out ("Scans kept"), a timestamp becomes a date, and the settings keys of the storage page and the maintenance periods have texts in all six languages.
+- Sensors: the list and the sensor page no longer show the raw entity id as a second line; the list names the device instead (search still finds the id).
+
 ## [1.66.1] – 2026-11-26
 
 ### Fixed

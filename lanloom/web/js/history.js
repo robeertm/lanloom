@@ -164,12 +164,15 @@
     let range = opts.range || (opts.live ? 'live' : '1h'), data = null;
     const canvas = h('canvas', { class: 'tplot', height: String(height), role: 'img', 'aria-label': t('plot.aria') });
     const readout = h('div', { class: 'tplot__read muted', 'aria-live': 'off' }, t('plot.hint'));
+    // until the first answer is there the plot shows a placeholder of its own height (the answer can take seconds on a busy device), never an empty area
+    const skel = h('div', { class: 'skeleton tplot__skel', role: 'status', style: 'height:' + height + 'px' }, h('span', { class: 'muted' }, t('plot.loading')));
+    canvas.hidden = true; readout.hidden = true;                    // the placeholder stands in until the first picture is drawn
     const stats = h('div', { class: 'tplot__stats muted' });
     const tabs = h('div', { class: 'seg plot-tabs', role: 'tablist', 'aria-label': t('plot.range') });
     const names = { live: 'plot.live', '1h': 'plot.r1h', '6h': 'plot.r6h', '24h': 'plot.r24h', '7d': 'plot.r7d' };
     const full = opts.full ? null : h('button', { class: 'icon-btn plot-full-btn', type: 'button', title: t('plot.full'), 'aria-label': t('plot.full'), onclick: () => LL.plotFull(id, range === 'live' ? '1h' : range, opts.title) }, '⤢');
     const alt = LL.a11y ? LL.a11y.tableAlt(t('a11y.table.traffic_caption'), [t('a11y.table.time'), t('a11y.table.up'), t('a11y.table.down')], []) : null;
-    const hist = h('div', { class: 'tplot__hist' }, canvas, readout, stats, alt);
+    const hist = h('div', { class: 'tplot__hist' }, skel, canvas, readout, stats, alt);
     const wrap = h('div', { class: 'tplot-wrap' }, h('div', { class: 'tplot__bar' }, tabs, full), opts.live || null, hist);
     function drawTabs() {
       tabs.replaceChildren(...(opts.live ? ['live'] : []).concat(RANGES).map(r => h('button', { type: 'button', role: 'tab', class: 'seg__btn' + (r === range ? ' is-active' : ''),
@@ -177,7 +180,9 @@
     }
     async function load() {
       if (range === 'live') return;
-      try { data = await plotData(id, range); } catch (e) { data = null; readout.textContent = LL.errText(e); return; }
+      if (!data || data.range !== range) { skel.hidden = false; canvas.hidden = true; readout.hidden = true; }    // the first picture of this range is still on its way
+      try { data = await plotData(id, range); } catch (e) { data = null; skel.hidden = true; readout.hidden = false; readout.textContent = LL.errText(e); return; }
+      skel.hidden = true;
       fw.ok();
       paint();
     }

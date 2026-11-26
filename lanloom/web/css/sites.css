@@ -90,7 +90,12 @@
   .site-switch { max-width: 160px; }
 }
 @media (max-width: 700px) {
-  .site-switch { flex: 0 1 auto; max-width: 180px; height: 32px; padding: 0 8px; gap: 4px; }   /* shrinks first: the name is cut, the buttons stay */
+  /* a phone: the site has a row of its own under the logo and the buttons, its whole name readable (it was cut to "Ho…" between five buttons) */
+  .topbar:has(.site-switch) { flex-wrap: wrap; align-content: center; row-gap: 4px; height: auto; min-height: calc(52px + env(safe-area-inset-top));
+    padding-top: calc(6px + env(safe-area-inset-top)); padding-bottom: 6px; }
+  .topbar .site-switch { order: 5; flex: 1 0 100%; width: 100%; max-width: none; height: auto; min-height: 36px; padding: 4px 12px; gap: 8px; justify-content: flex-start; text-align: left; white-space: normal; }
+  .topbar .site-switch__name { flex: 1 1 auto; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.25; }
+  .topbar .site-switch__caret { margin-left: auto; }
   .site-menu { width: auto; }                                   /* left and right 8 px: the whole width of the phone */
   .site-grid { grid-template-columns: minmax(0, 1fr); }
   .site-extra { grid-template-columns: minmax(0, 1fr); }
@@ -98,12 +103,4 @@
   .site-card__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .site-card__actions .btn { flex: 1 1 auto; justify-content: center; }
   .site-add, .site-ctl__row { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 420px) {
-  .topbar:has(.site-switch) { gap: 8px; padding-left: 8px; padding-right: 8px; }
-  .topbar:has(.site-switch) .topbar__right { gap: 6px; }
-  .topbar:has(.site-switch) .grade-pill__text { display: none; }          /* the dot keeps the live state; the site name needs the room */
-  .topbar:has(.site-switch) .grade-pill { padding: 0 11px; }
-  .site-switch { padding: 0 8px; }
-  .site-switch__pin, .site-switch__caret { display: none; }
 }

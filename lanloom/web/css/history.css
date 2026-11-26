@@ -27,6 +27,8 @@
 .plot-tabs { max-width: 100%; }
 .plot-tabs .seg__btn { padding: 0 11px; min-height: 28px; }
 .tplot { display: block; width: 100%; touch-action: pan-y; }
+.tplot__skel { display: flex; align-items: center; justify-content: center; font-size: var(--ll-fs-xs); }
+.tplot__skel[hidden] { display: none; }
 .tplot__hist { display: flex; flex-direction: column; gap: 4px; }
 .tplot__read { font-size: var(--ll-fs-xs); min-height: 1.3em; font-variant-numeric: tabular-nums; }
 .tplot__stats { font-size: var(--ll-fs-xs); }

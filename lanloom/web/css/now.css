@@ -2,7 +2,8 @@
 
 /* ---------------------------------------------------------------- the phone's bar: "Now" and "More" only there */
 .tab--now, .tab--more { display: none; }
-.tab--more { border: 0; background: none; font: inherit; cursor: pointer; }
+.tab--more { border: 0; background: none; font: inherit; cursor: pointer; position: relative; }
+.tab--more .wn-dot { position: absolute; top: 8px; left: calc(50% + 6px); box-shadow: 0 0 0 2px var(--ll-surface); }
 @media (max-width: 700px) {
   .tabs .tab--now, .tabs .tab--more { display: flex; }
   .tabs .tab--extra { display: none; }
@@ -160,6 +161,7 @@
 .more-list__badge { margin-left: auto; flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
   background: var(--ll-accent); color: var(--ll-on-accent); font-size: var(--ll-fs-xs); font-weight: var(--ll-fw-semibold); }
 .more-list__foot { margin-top: 14px; }
+@media (max-width: 480px) { .more-list > li:last-child:nth-child(odd) { grid-column: 1 / -1; } }   /* two columns and an odd number: the last tile fills its row, none stands half alone */
 
 /* ---------------------------------------------------------------- pull to refresh */
 .ptr { height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--ll-text-2); font-size: var(--ll-fs-xs); transition: height .15s ease; }

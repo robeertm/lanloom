@@ -109,8 +109,18 @@
       h('p', { class: 'au-plain__rule fineprint' }, t('auto.plain.rule')));
   }
   // the whole automation in one or two sentences ("When ..., and only if ..., then ...")
+  // a condition that holds other conditions ("all of this holds:" with a list below) is told as one clause in the sentence: its parts joined, never its heading
+  const COMPOSITE = /\.c\.(all|and|or|not)$/;
+  function leadSay(spec, inner) {
+    const subs = spec && COMPOSITE.test(spec.k) ? (spec.sub || []).filter(Boolean) : [];
+    if (!subs.length) return say(spec);
+    const kind = spec.k.slice(spec.k.lastIndexOf('.') + 1);
+    const parts = list(subs.map(x => leadSay(x, true)), kind === 'or' ? 'disjunction' : 'conjunction', 4);
+    const text = kind === 'not' ? t('auto.plain.lead_not', { parts }) : parts;
+    return (kind === 'or' && subs.length > 1) || (inner && (kind === 'not' || subs.length > 1)) ? '(' + text + ')' : text;      // "A and (B or C)": an "or" never runs into its neighbours
+  }
   function lead(ex) {
-    const w = ex.when.map(say), o = ex.only.map(say);
+    const w = ex.when.map(say), o = ex.only.map(x => leadSay(x));
     const flat = ex.then.filter(s => !(s.sub || s.then));          // nested steps (choices, repeats) are told below, not in one sentence
     const d = flat.map(say).concat(flat.length < ex.then.length ? [t('auto.plain.lead_more')] : []);
     if (!d.length) return t('auto.plain.nothing');
@@ -119,6 +129,8 @@
     const when = list(w, 'disjunction', 3);
     return o.length ? t('auto.plain.lead_only', { when, only: list(o, 'conjunction', 3), then }) : t('auto.plain.lead', { when, then });
   }
+
+  LL.autoLead = lead;                             // the one-sentence summary (tests/js/automations_lead_test.js)
 
   // ------------------------------------------------------------------ small pieces
   const verbText = v => (LL.strings['auto.verb.' + v] ? t('auto.verb.' + v) : v);
@@ -192,7 +204,7 @@
     }
 
     // ---------------------------------------------------------------- list
-    const qIn = h('input', { type: 'search', class: 'input', placeholder: t('auto.search'), 'aria-label': t('auto.search'), value: filt.q });
+    const qIn = h('input', { type: 'search', class: 'input', placeholder: t('auto.search_ph'), 'aria-label': t('auto.search'), value: filt.q });
     const areaSel = h('select', { class: 'select', 'aria-label': t('auto.filter.area') });
     const stateSel = h('select', { class: 'select', 'aria-label': t('auto.filter.state') },
       ['', 'on', 'off', 'script'].map(v => h('option', { value: v }, t('auto.filter.state.' + (v || 'all')))));

@@ -67,6 +67,7 @@ a.fc-row__name:hover { text-decoration: underline; }
 .fc-outage__title { color: var(--ll-warn-text); }
 .fc-outage__tools { flex: none; display: flex; align-items: center; gap: 6px; }
 .fc-outage__tools .btn--icon, .fc-outage__tools .btn--ghost { min-width: 32px; padding: 0 8px; }
+.fc-outage__more { display: none; }
 .fc-hint-box:empty { display: none; }
 .fc-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; margin: 6px 0 2px; border-radius: var(--ll-radius-sm);
   background: var(--ll-warn-soft); color: var(--ll-text); overflow-wrap: anywhere; }
@@ -100,7 +101,16 @@ a.fc-row__name:hover { text-decoration: underline; }
   .fc-bar--sim { border-top-color: var(--ll-danger); }
   .fc-list { max-height: none; overflow: visible; }
   .fc-bar__tools { width: 100%; justify-content: space-between; }
-  .fc-outage { flex-wrap: wrap; }
-  .fc-outage__tools { width: 100%; justify-content: flex-end; }
+  /* the outage note takes one line (it was a quarter of the screen): icon, title, "Details" and the cross; the sentence and "Show the chain" open below */
+  .fc-outage { flex-wrap: wrap; align-items: center; padding: 4px 4px 4px 12px; }
+  .fc-outage__icon { margin-top: 0; }
+  .fc-outage__text { flex: 1 1 0; }
+  .fc-outage__tools { display: contents; }
+  .fc-outage__more { display: inline-flex; order: 2; transition: transform var(--ll-dur) var(--ll-ease); }
+  .fc-outage__tools .btn--icon:not(.fc-outage__more) { order: 3; }
+  .fc-outage.is-open .fc-outage__more { transform: rotate(180deg); }
+  .fc-outage:not(.is-open) .fc-outage__text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }      /* closed: the first line of the sentence, then an ellipsis */
+  .fc-outage:not(.is-open) .fc-outage__tools > .btn:not(.btn--icon) { display: none; }
+  .fc-outage.is-open .fc-outage__tools > .btn:not(.btn--icon) { order: 4; flex: 1 0 100%; margin: 0 8px 6px 0; }
   .fc-ed__row { grid-template-columns: 1fr; gap: 4px; }
 }

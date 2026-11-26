@@ -94,6 +94,11 @@ a.change__link:hover { background: var(--ll-surface-2); }
 .map-col > .board-host { height: auto; flex: 1; min-height: 0; }
 .map-filter { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--ll-border); background: var(--ll-surface); }
 .map-filter::-webkit-scrollbar { display: none; }
+/* a wide screen shows every chip: the bar wraps into a second row instead of running out of the picture (a phone keeps the swipe row with its faded edge) */
+@media (min-width: 701px) {
+  .map-filter { flex-wrap: wrap; row-gap: 6px; overflow: visible; }
+  .map-filter .mf-chip { max-width: min(100%, 420px); }
+}
 .mf-chip { flex: none; display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: var(--ll-radius-pill); border: 1px solid var(--ll-border); background: var(--ll-surface);
   color: var(--ll-text-2); font: inherit; font-size: var(--ll-fs-xs); font-weight: var(--ll-fw-medium); white-space: nowrap; cursor: pointer; text-decoration: none; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
 .mf-chip:hover { border-color: var(--ll-border-strong); color: var(--ll-text); }

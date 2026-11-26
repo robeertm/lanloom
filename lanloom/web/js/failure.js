@@ -310,6 +310,9 @@
       h('span', { class: 'fc-outage__icon', 'aria-hidden': 'true' }),
       h('div', { class: 'fc-outage__text' }, h('strong', { class: 'fc-outage__title' }, t('fail.out.title', { n: roots.length })), ' ', h('span', {}, text.join(' '))),
       h('div', { class: 'fc-outage__tools' },
+        h('button', { class: 'btn btn--ghost btn--icon btn--sm fc-outage__more', type: 'button', 'aria-expanded': note.classList.contains('is-open') ? 'true' : 'false',
+          'aria-label': t('fail.out.more'), title: t('fail.out.more'),
+          onclick: ev => { const b = ev.currentTarget, on = note.classList.toggle('is-open'); b.setAttribute('aria-expanded', on ? 'true' : 'false'); } }, '▾'),   // phones: one line, the rest opens on a tap
         h('button', { class: 'btn btn--sm', type: 'button', onclick: () => F.show(roots[0].id, 'down') }, t('fail.out.show')),
         h('button', { class: 'btn btn--ghost btn--icon btn--sm', type: 'button', 'aria-label': t('fail.out.close'), title: t('fail.out.close'),
           onclick: () => { try { sessionStorage.setItem(hideKey(), outSig()); } catch (e) { /* private mode */ } apply(); render(); } }, '✕')));

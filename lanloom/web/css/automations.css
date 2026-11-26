@@ -321,7 +321,7 @@ a.au-plan__name:hover { color: var(--ll-accent-text); }
   .au-tools { flex-wrap: wrap; }
   .au-tools .input { flex: 1 1 100%; }
   .au-tools .select { flex: 1 1 calc(50% - 5px); max-width: none; min-width: 0; }      /* two per row: at 16 px the labels ("All rooms", "Any finding") need the room */
-  .au-tools .input::placeholder { text-overflow: ellipsis; }
+  .au-tools .input, .au-tools .input::placeholder { text-overflow: ellipsis; }
   .au-tools--tl .input { max-width: none; }
   .au-row { grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; padding: 10px 12px; }
   .au-row__icon { width: 30px; height: 30px; }

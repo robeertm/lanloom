@@ -41,7 +41,8 @@
     entity: '<circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>',
     more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
-    back: '<path d="M14 6l-6 6 6 6"/>'
+    back: '<path d="M14 6l-6 6 6 6"/>',
+    globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5S9.4 5.9 12 3.5z"/>'
   };
   function svg(name, size) {
     const el = h('span', { class: 'cmdk__icon', 'aria-hidden': 'true' });
@@ -76,7 +77,7 @@
   // ------------------------------------------------------------------ built-in commands
   const VIEWS = [['map', 'nav.map'], ['network', 'nav.network'], ['paths', 'nav.paths'], ['devices', 'nav.devices'], ['firewall', 'nav.firewall'], ['reports', 'nav.reports']];
   VIEWS.forEach(([k, label], i) => LL.registerCommand({
-    id: 'go.' + k, group: 'views', order: i, label: () => t('cmdk.go', { name: t(label) }), keywords: () => t('cmdk.kw.' + k), run: () => LL.go('#/' + k) }));
+    id: 'go.' + k, group: 'views', order: i, icon: k === 'paths' ? 'globe' : null, label: () => t('cmdk.go', { name: t(label) }), keywords: () => t('cmdk.kw.' + k), run: () => LL.go('#/' + k) }));
   // the Running view exists once a host agent or container source is paired
   [['running', 'nav.running', 4.4]].forEach(([k, label, order]) => LL.registerCommand({
     id: 'go.' + k, group: 'views', order, available: () => !!(LL.state && LL.state.agents > 0), label: () => t('cmdk.go', { name: t(label) }),
@@ -247,9 +248,12 @@
           const arg = c.cmd.parse(q);
           return arg ? Object.assign({}, c, { arg, title: c.cmd.parsedLabel ? c.cmd.parsedLabel(arg) : c.title }) : null;
         }).filter(Boolean);
-        add('cmd', t('cmdk.group.cmd'), v ? [] : parsed.concat(local.filter(x => !parsed.some(p => p.cmd.id === x.cmd.id))));
+        // places ("Data paths of Cameroon") come after the devices and the rest: "cam" means the cameras first, then the countries
+        const own = local.filter(x => !x.cmd.late), places = local.filter(x => x.cmd.late);
+        add('cmd', t('cmdk.group.cmd'), v ? [] : parsed.concat(own.filter(x => !parsed.some(p => p.cmd.id === x.cmd.id))));
         const cmp = v ? ((input.value.match(VALUE_RX) || [''])[0]).replace(/\s+/g, ' ') : '';
         GROUP_ORDER.slice(1).forEach(g => add(g, t('cmdk.group.' + g), (server.groups[g] || []).slice(0, SHOW_TYPED[g]).map(hit => ({ kind: 'hit', hit })), v && g === 'entities' ? cmp : null));
+        if (!v) add('countries', t('cmdk.group.countries'), places);
       }
       rows = out;
     }
@@ -290,7 +294,7 @@
       if (more) more.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' + ICON.more + '</svg>';
       return h('li', { role: 'option', id: 'cmdk-o' + i, class: 'cmdk__item' + (r.recent ? ' is-recent' : ''), 'aria-selected': 'false', dataset: { i: String(i) },
         onmousemove: () => { if (sel !== i) { sel = i; mark(); } }, onclick: () => choose(i) },
-        svg(hit ? hit.kind : (r.cmd && r.cmd.group === 'views' ? 'view' : 'cmd')),
+        svg(hit ? hit.kind : ((r.cmd && r.cmd.icon) || (r.cmd && r.cmd.group === 'views' ? 'view' : 'cmd'))),
         h('span', { class: 'cmdk__main' }, h('span', { class: 'cmdk__title' }, marked(title, q)), hit ? h('span', { class: 'cmdk__sub' }, hitSub(hit)) : null),
         hit ? hitEnd(hit) : null, more);
     }

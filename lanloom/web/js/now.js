@@ -231,6 +231,7 @@
 
   LL.sheets.register('more', {
     title: 'now.more.title',
+    full: true,                                    // every tile whole and in view: half open, the last tile of fifteen was cut in two
     render(body) {
       const tabs = [...document.querySelectorAll('.tabs a.tab')];
       body.replaceChildren(h('ul', { class: 'more-list' }, tabs.map(a => {
@@ -241,12 +242,14 @@
       }).map((li, i) => { li.querySelector('.more-list__icon').innerHTML = (tabs[i].querySelector('.tab__icon') || {}).innerHTML || ''; return li; })),
       h('div', { class: 'btn-row btn-row--wrap more-list__foot' }, h('a', { class: 'btn btn--ghost btn--sm', href: '#/focus', onclick: () => LL.sheets.reset() }, t('nav.focus')),
         LL.energyPeek && LL.energyPeek.available ? h('a', { class: 'btn btn--ghost btn--sm', href: '#/energy', onclick: () => LL.sheets.reset() }, t('nav.energy')) : null));
+      const ver = LL.versionFoot ? LL.versionFoot() : null;     // the version and "What's new?" (they have no bar of their own on a phone)
+      if (ver) body.append(ver);
     }
   });
   // the button at the end of the phone's bar
   LL.moreButton = function () {
     const b = h('button', { class: 'tab tab--more', type: 'button', 'aria-label': t('now.more.title'), title: t('now.more.title'), 'aria-haspopup': 'dialog',
-      onclick: () => LL.sheets.open('more') }, h('span', { class: 'tab__icon', 'aria-hidden': 'true' }), h('span', { class: 'tab__label' }, t('nav.more')));
+      onclick: () => LL.sheets.open('more') }, h('span', { class: 'tab__icon', 'aria-hidden': 'true' }), h('span', { class: 'tab__label' }, t('nav.more')), LL.whatsNewDot ? LL.whatsNewDot() : null);
     b.querySelector('.tab__icon').innerHTML = LL.NAV_MORE_ICON;
     return b;
   };

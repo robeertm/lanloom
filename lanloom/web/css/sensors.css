@@ -81,7 +81,6 @@ a.sn-row:hover { background: var(--ll-surface-2); }
 .sn-ent__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .sn-ent__titles h1 { margin: 0 0 4px; }
 .sn-ent__sub { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: var(--ll-fs-sm); }
-.sn-ent__id { color: var(--ll-text-3); }
 .sn-ent__now { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .sn-ent__value { font-size: 30px; font-weight: var(--ll-fw-bold, 700); font-variant-numeric: tabular-nums; }
 .sn-ent__card { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }

@@ -498,16 +498,22 @@
     return card(t('audit.title'), [h('div', { class: 'row-between audit-head' }, h('p', { class: 'muted' }, t('audit.lead')), chain),
       h('div', { class: 'audit-filters' }, actor, action, outcome, period, q, exportA), rows, h('div', { class: 'btn-row' }, more)], 'settings-card--wide');
   }
-  function actionText(a) { const k = 'audit.action.' + a; return LL.strings[k] ? t(k) : a; }
+  function actionText(a) { const k = 'audit.action.' + a; return LL.strings[k] ? t(k) : String(a).replace(/[._]+/g, ' ').replace(/^./, c => c.toUpperCase()); }
+  // the detail of an entry as words: a key without a text of its own is spelled out ("scans_keep" -> "Scans keep"), a number that is a point in time
+  // becomes a date, a list of changes names each key by its text; a raw key or a raw timestamp never reaches the page
+  const dKey = k => (LL.strings['audit.d.' + k] ? t('audit.d.' + k) : (s => s.charAt(0).toUpperCase() + s.slice(1))(String(k).replace(/[_.-]+/g, ' ')));
+  const dVal = (k, v) => (typeof v === 'number' && v >= 1e9 && v < 4e9 ? LL.fmtDate(v) : typeof v === 'number' ? LL.fmtNum(v) : String(v));
   function detailText(d) {
     if (!d || typeof d !== 'object') return '';
     const parts = [];
     for (const [k, v] of Object.entries(d)) {
       if (v == null || v === '' || v === false || (Array.isArray(v) && !v.length)) continue;
-      if (v === true) { parts.push(LL.strings['audit.d.' + k] ? t('audit.d.' + k) : k); continue; }
-      const val = Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? Object.entries(v).map(([a, b]) => a + ' ' + (Array.isArray(b) ? b.join('→') : b)).join(', ') : String(v));
-      parts.push((LL.strings['audit.d.' + k] ? t('audit.d.' + k) : k) + ': ' + val);
+      if (v === true) { parts.push(dKey(k)); continue; }
+      const val = Array.isArray(v) ? v.map(x => dVal(k, x)).join(', ')
+        : (typeof v === 'object' ? Object.entries(v).map(([a, b]) => dKey(a) + ' ' + (Array.isArray(b) ? b.map(x => dVal(a, x)).join('→') : dVal(a, b))).join(', ') : dVal(k, v));
+      parts.push(dKey(k) + ': ' + val);
     }
     return parts.join(' · ');
   }
+  LL.auditDetailText = detailText;
 })();

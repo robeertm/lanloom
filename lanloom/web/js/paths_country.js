@@ -590,6 +590,6 @@
   // ------------------------------------------------------------------ command palette: "Data paths of <country>", typed only
   const m = world();
   Object.keys(Object.assign({}, m.countries, m.points)).filter(c => /^[A-Z]{2}$/.test(c)).forEach(cc => LL.registerCommand({
-    id: 'paths.country.' + cc, group: 'views', order: 40, typedOnly: true, label: () => t('cmdk.paths_country', { name: name(cc) }),
+    id: 'paths.country.' + cc, group: 'views', order: 40, typedOnly: true, late: true, icon: 'globe', label: () => t('cmdk.paths_country', { name: name(cc) }),
     keywords: () => cc + ' ' + t('cmdk.kw.paths_country'), run: () => LL.go('#/paths/' + cc) }));
 })();

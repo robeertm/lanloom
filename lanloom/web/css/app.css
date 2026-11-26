@@ -231,6 +231,11 @@ input:focus, .select:focus, select.input:focus { outline: none; border-color: va
 .mini-table th { text-align: left; color: var(--ll-text-3); font-weight: var(--ll-fw-medium); font-size: var(--ll-fs-xs); padding: 4px 6px; border-bottom: 1px solid var(--ll-border); }
 .mini-table td { padding: 6px; border-bottom: 1px solid var(--ll-border); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mini-table td.truncate { max-width: none; }
+/* the sources of the live grade: a longer language (French headings, grade names) wraps inside its cell, the dialog never scrolls sideways */
+.lg-table { table-layout: auto; }
+.lg-table th, .lg-table td { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; vertical-align: top; }
+.lg-table td.num { white-space: nowrap; }
+.lg-table .grade-chip { height: auto; min-height: 24px; padding-top: 2px; padding-bottom: 2px; white-space: normal; text-align: left; }
 .plain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--ll-fs-sm); overflow-wrap: anywhere; }
 .link-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--ll-fs-sm); }
 .trace-sw { display: inline-block; width: 18px; height: 3px; border-radius: 2px; margin-right: 8px; vertical-align: middle; background: var(--ll-pcb-trace-lan); }
@@ -446,7 +451,7 @@ input:focus, .select:focus, select.input:focus { outline: none; border-color: va
 .wn-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ll-accent); flex: none; }
 .wn-dot[hidden] { display: none; }
 .ver-chip .wn-dot { position: absolute; top: -3px; right: -3px; box-shadow: 0 0 0 2px var(--ll-bg, var(--ll-surface)); }
-.ver-foot { display: none; text-align: center; font-size: var(--ll-fs-xs); padding: 16px 16px 24px; }
+.ver-foot { display: none; text-align: center; font-size: var(--ll-fs-xs); padding: 14px 0 0; }   /* only inside the phone's "More" sheet */
 .ver-foot__link { position: relative; background: none; border: 0; padding: 0 12px 0 0; font: inherit; color: var(--ll-accent-text, var(--ll-accent)); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .ver-foot__link .wn-dot { position: absolute; top: 1px; right: 0; }
 @media (max-width: 700px) { .ver-chip { display: none; } .ver-foot { display: block; } }

@@ -145,8 +145,8 @@
     const demoBar = LL.state && LL.state.demo_view ? h('div', { class: 'demo-bar', role: 'status' },
       h('span', { class: 'demo-bar__text' }, h('strong', {}, t('setup.demo.bar_title')), ' ', t('setup.demo.bar_text')),
       h('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => LL.demoView(false) }, t('setup.demo.leave'))) : null;
-    const verFoot = active === 'map' || active === 'network' || !LL.versionFoot ? null : LL.versionFoot();   // phones: the version sits at the end of the page, not in the header
-    app.replaceChildren(h('div', { class: 'frame' }, skip, header, demoBar, notes, LL.shellBody ? LL.shellBody(main, active) : main, verFoot));
+    // phones: the version and "What's new?" sit at the end of the "More" sheet (js/now.js), not in a bar that takes 84 px of every page
+    app.replaceChildren(h('div', { class: 'frame' }, skip, header, demoBar, notes, LL.shellBody ? LL.shellBody(main, active) : main));
     // a new page starts at its content: the focused tab of the old page is gone, the keyboard and screen reader land in the new view
     if (!frame.first) main.focus({ preventScroll: true });
     frame.first = false;
@@ -877,7 +877,7 @@
     const rows = (f.overall.sources || []).map(s => h('tr', {}, h('td', {}, s.kind ? s.name : t(s.name)), h('td', {}, h('span', { class: 'grade-chip', dataset: { grade: s.grade } }, h('i'), t('board.grade.' + s.grade))),
       h('td', { class: 'num' }, s.cadence_s != null ? LL.fmtAge(s.cadence_s) : '—'), h('td', { class: 'num' }, s.age_s != null ? LL.fmtAge(s.age_s) : '—')));
     Object.assign(dlgRef, dialog(t('live.title'), h('div', {}, stateRow, h('p', { class: 'muted' }, t('live.explain')), clockRow,
-      h('table', { class: 'mini-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('live.source')), h('th', {}, t('live.grade')), h('th', { class: 'num' }, t('live.cadence')), h('th', { class: 'num' }, t('live.age')))),
+      h('table', { class: 'mini-table lg-table' }, h('thead', {}, h('tr', {}, h('th', {}, t('live.source')), h('th', {}, t('live.grade')), h('th', { class: 'num' }, t('live.cadence')), h('th', { class: 'num' }, t('live.age')))),
         h('tbody', {}, rows.length ? rows : [h('tr', {}, h('td', { colspan: '4', class: 'muted' }, t('live.none')))])),
       h('ul', { class: 'grade-legend' }, GRADES.map(g => h('li', {}, h('span', { class: 'grade-chip', dataset: { grade: g } }, h('i'), t('board.grade.' + g)), ' ', t('live.def.' + g)))),
       counterSection())));
@@ -1032,6 +1032,7 @@
     wnOnce();
     return h('button', { class: 'ver-chip', type: 'button', title: t('whatsnew.title'), 'aria-label': `v${verText()}, ` + t('whatsnew.title'), onclick: openWhatsNew }, `v${verText()}`, wnDot());
   };
+  LL.whatsNewDot = wnDot;                         // the mark "something new" on the phone's "More" button, in step with the others
   LL.versionFoot = () => {
     if (!verText() || !LL.state.authenticated) return null;
     wnOnce();

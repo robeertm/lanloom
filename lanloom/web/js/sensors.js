@@ -90,7 +90,7 @@
           out.append(h('a', { class: 'sn-row', href: '#/sensors/' + integ + '/' + encodeURIComponent(e.id) },
             h('span', { class: 'sn-row__dot sn-dot--' + (e.state === 'unavailable' ? 'down' : d.fresh === 'silent' ? 'down' : 'up') }),
             h('span', { class: 'sn-row__main' }, h('span', { class: 'sn-row__name' }, e.name),
-              h('span', { class: 'sn-row__sub mono' }, e.id + (d.name && d.name !== e.name ? ' · ' + d.name : ''))),   // one text: the ellipsis clips it
+              d.name && d.name !== e.name ? h('span', { class: 'sn-row__sub' }, d.name) : null),   // the device it belongs to; the raw entity id stays out of sight (search still finds it)
             h('span', { class: 'sn-row__val' + (e.state === 'unavailable' ? ' is-down' : '') }, LL.hubValue(e.state, e.unit)),
             h('span', { class: 'sn-row__age muted' }, e.changed_s != null ? LL.fmtAge(e.changed_s) : '')));
         });
@@ -206,8 +206,8 @@
     }
     function drawHead() {
       const e = data.entity;
-      head.replaceChildren(h('div', { class: 'sn-ent__titles' }, h('h1', {}, e.name),
-        h('div', { class: 'muted sn-ent__sub' }, [e.device, e.area, e.radio ? LL.radioKindText(e.radio) : null].filter(Boolean).join(' · '), h('span', { class: 'mono sn-ent__id' }, e.id))),
+      head.replaceChildren(h('div', { class: 'sn-ent__titles' }, h('h1', { title: e.id }, e.name),
+        h('div', { class: 'muted sn-ent__sub' }, [e.device, e.area, e.radio ? LL.radioKindText(e.radio) : null].filter(Boolean).join(' · '))),
         h('div', { class: 'sn-ent__now' }, h('span', { class: 'sn-ent__value' + (e.state === 'unavailable' ? ' is-down' : '') }, LL.hubValue(e.state, e.unit)),
           h('span', { class: 'muted' }, e.changed_s != null ? t('sensorview.changed', { age: LL.fmtAge(e.changed_s) }) : t('sensorview.current')),
           e.fresh ? freshChip(e.fresh) : null));
