@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.66.0] – 2026-11-26
+
 ### Added
 - Network board: an optional **Bus layout** (chip in the filter row, kept per browser, `#/network?bus=1`). The boxes are cut by parent and medium instead of by network (*LAN on <switch>*, *Wireless on <access point>*, *Guests on <host>*), the rows follow the chain from the internet edge, and on wide screens every parent has one line that runs along the top of its box with a short drop to each device, so the dots of all its devices travel on one bus instead of many lines side by side. Devices without a known parent stay in their network box; in this layout the quiet devices are not folded. Off by default; the usual board, the tree, the 3D view and the export are unchanged. Available in all six languages.
 
