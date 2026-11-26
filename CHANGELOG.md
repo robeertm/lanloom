@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.66.2] – 2026-11-26
+
+1.66.1 below was not released on its own; it is part of this release.
+
 ### Fixed
 - Phone, header: with several sites the site name has a row of its own under the logo and the buttons and wraps instead of being cut to two letters ("Ho…"); the pin and the arrow stay visible and the live capsule keeps its text where it fits.
 - Phone, footer: the version and *What's new?* no longer take a bar of 84 px under every page. They sit at the end of the *More* sheet, and the *More* button carries the dot when there is something new.
