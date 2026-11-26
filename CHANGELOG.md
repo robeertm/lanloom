@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.66.1] – 2026-11-26
+
 ### Fixed
 - Storage boxes: the ZFS cache fix of 1.64.9 did nothing on a box whose firmware answers 0 at the documented place of the cache size and serves the figure as a scalar beside it, so memory stayed at 84 % ("Busy") instead of the real ~23 % and the early warning "Memory grows slowly" was a false alarm. Lanloom now asks that second place as a fallback when the first gives nothing usable (zero, missing or larger than the memory of the host) and takes only that exact scalar, never a table row. Boxes that answer at the documented place are unchanged.
 
