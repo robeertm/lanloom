@@ -291,9 +291,29 @@
         LL.deepLink(here(selected));
         loadTalk(); drawFilter();
       }
+      // bus layout (board/tiers.js): one box per parent and medium instead of one per network, rows by depth in the chain, so the
+      // traces of one switch or access point share one trunk; only on the board of the Network view, kept per browser (?bus=1)
+      const busOk = kind === 'network' && !!(LL.Tiers && LL.Tiers.regroup);
+      let busOn = busOk && (LL.query.get('bus') === '1' || LL.prefs.get('ll-netbus', '') === '1');
+      const busName = c => c.title || (c.title_key ? t(c.title_key, c.vars || {}) + (c.title_suffix ? ' ' + c.title_suffix : '') : '') || c.subtitle || c.id;
+      let busMemo = null;
+      const base = d => {
+        if (!busOn || face !== 'board') return d;
+        if (!busMemo || busMemo.d !== d) busMemo = { d, v: LL.Tiers.regroup(d, { name: busName }) };
+        return busMemo.v;
+      };
+      function toggleBus() {
+        busOn = !busOn;
+        LL.prefs.set('ll-netbus', busOn ? '1' : '');
+        if (busOn) LL.query.set('bus', '1'); else LL.query.delete('bus');
+        LL.query.delete('zone');                         // the boxes are cut anew: an area of the other layout no longer exists
+        LL.deepLink(here(selected));
+        remount();
+        LL.announce(t(busOn ? 'mapfilter.bus_on' : 'mapfilter.bus_off'), { now: true });
+      }
       // the tree filters on its own (it keeps the chain above a match) and has no fold tile: it lists every device
       const noQuiet = v => (v.components.some(c => c.quiet_more) ? Object.assign({}, v, { components: v.components.filter(c => !c.quiet_more) }) : v);
-      const feed = d => (face === 'tree' || face === '3d' ? noQuiet(localise(d)) : show(d));
+      const feed = d => (face === 'tree' || face === '3d' ? noQuiet(localise(d)) : show(base(d)));
       const treeFilter = () => ({ zone: LL.query.get('zone') || '', only: LL.query.get('only') || '' });
       // containers fold under their host (E4): the board hides them until the host is opened (remembered per host)
       const foldIds = () => data.components.filter(c => c.folds).map(c => c.id);
@@ -305,7 +325,7 @@
         redraw();
       }
       // the legend of the board toggles the areas too: it gets the areas of the whole view (the filtered view only holds one)
-      const zoneList = () => localise(data).zones.filter(z => !z.fold);
+      const zoneList = () => localise(base(data)).zones.filter(z => !z.fold);
       const syncZones = () => { if (board && board.setZoneFilter) board.setZoneFilter(LL.query.get('zone') || null, zoneList()); };
       function redraw() {
         LL.foldHosts = foldIds();
@@ -316,7 +336,7 @@
         if (LL.resilience) LL.resilience.refresh();
       }
       function drawFilter() {
-        const zones = localise(data).zones.filter(z => z.id !== 'edge' && !z.fold);
+        const zones = localise(base(data)).zones.filter(z => z.id !== 'edge' && !z.fold);
         const zone = LL.query.get('zone'), only = LL.query.get('only');
         const set = setFilter;
         const chip = (label, on, fn, extra) => h('button', { class: 'mf-chip' + (on ? ' is-on' : '') + (extra || ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', onclick: fn }, label);
@@ -333,6 +353,7 @@
           face !== 'board' || !LL.resilience ? null : chip(t('rs.lens.chip'), LL.resilience.lensOn(), () => LL.resilience.toggleLens(), ' mf-chip--lens'),   // the risk lens (js/resilience.js, key B)
           face === 'board' && LL.rewind ? LL.rewind.chip() : null,
           face === 'board' && talkOn && talkInfo && !talkInfo.pairs.length ? h('span', { class: 'mf-talk muted' }, t('talk.none')) : null,
+          face === 'board' && busOk ? Object.assign(chip(t('mapfilter.bus'), busOn, toggleBus, ' mf-chip--bus'), { title: t('mapfilter.bus_title') }) : null,
           face === 'board' && LL.foldHosts.length ? chip(t('mapfilter.containers'), LL.allUnfolded(), () => LL.setAllUnfolded(!LL.allUnfolded()), ' mf-chip--containers') : null,
           h('span', { class: 'mf-sep', 'aria-hidden': 'true' }),
           zones.length > 1 ? chip(t('mapfilter.all'), !zone, () => set('zone', null)) : null,
@@ -340,7 +361,7 @@
           zones.length > 1 ? h('span', { class: 'mf-sep', 'aria-hidden': 'true' }) : null,
           chip(t('mapfilter.problems'), only === 'problems', () => set('only', only === 'problems' ? null : 'problems'), ' mf-chip--problems')].filter(Boolean));
         if (fPath.length) { let e = filterBar; for (const i of fPath) e = e && e.children[i]; if (e && e.focus) e.focus({ preventScroll: true }); }
-        const n = filtered(data).components.filter(c => c.zone !== 'edge').length;
+        const n = filtered(base(data)).components.filter(c => c.zone !== 'edge').length;
         if ((zone || only) && !n) filterBar.append(h('span', { class: 'mf-empty muted' }, t(only ? 'mapfilter.none_problems' : 'mapfilter.none')));
       }
       function mountViewer() {
@@ -361,7 +382,8 @@
         if (note) host.appendChild(note);
         if (face === 'tree') return LL.Tree.mount(host, { view: feed(data), t: LL.t, locale: LL.locale(), filter: treeFilter, onSelect: id => onSelectId(id) });
         return LL.Board.mount(host, { view: feed(data), theme: LL.effectiveTheme(), t: LL.t, locale: LL.locale(), onSelect: pick,
-          zones: zoneList(), zone: LL.query.get('zone') || null, onZone: id => setFilter('zone', LL.query.get('zone') === id ? null : id) });
+          zones: zoneList(), zone: LL.query.get('zone') || null, onZone: id => setFilter('zone', LL.query.get('zone') === id ? null : id),
+          reshape: busOn && LL.Tiers.busRoutes ? (routes, lay, view) => LL.Tiers.busRoutes(routes, lay, view) : null });
       }
       // a tile picked in the full screen first leaves it (the card opens on the page); the fold tile stays in it
       const pick = id => {

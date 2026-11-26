@@ -76,6 +76,22 @@ kept in the browser. See [Accessibility](../ACCESSIBILITY.md).
 
 ![The network as a tree](../screenshots/network-tree-light.png)
 
+### Bus layout
+
+On the board, the chip **Bus layout** in the filter row cuts the boxes by parent instead of by network: one box per
+switch, access point or host and medium, titled *LAN on …*, *Wireless on …* or *Guests on …*. The rows follow the chain:
+the internet edge first, then what hangs on the gateway, then what hangs on each switch and access point, then what
+hangs behind those. Inside a box the devices keep their order (switch port first). On a wide screen every parent then
+has **one** line: it comes down into the top of the box and runs along it as a bus, and every device drops onto it with
+a short upside-down T; a second row of tiles hangs on the same line through a gap between the columns. The dots of all
+devices of a box travel on that line, so a busy parent shows more dots than a quiet one. On a phone the boxes are cut
+the same way and the lines keep their rails.
+
+A device whose parent is not known stays in the box of its network at the end, nothing is guessed. The fold of quiet
+devices (*+N quiet devices*) belongs to the network boxes, so in this layout every device is shown. Area chips and
+the area filter follow the boxes of the layout that is shown. The choice is kept in the browser and can be given in the
+address (`#/network?bus=1`). The export (PDF, SVG, diagram file) keeps the usual picture.
+
 ### The network in 3D
 
 The third face, **3D**, shows the same chain as a stack of circuit boards: the Internet on top, then the gateway, then

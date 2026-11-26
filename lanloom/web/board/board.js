@@ -592,7 +592,7 @@
           if (have.has(n.id)) return;
           routes.push(Router.fallbackRoute(n, this.layout.tiles[n.a], this.layout.tiles[n.b])); fb++;
         });
-        this.applyRoutes(compact ? routes : this.bundle(routes, spec));
+        this.applyRoutes(compact ? routes : this.reshape(this.bundle(routes, spec)));
         this.routed = true;
         this.ensureMarks();
         this.stats.routeMs = ms == null ? Math.round(performance.now() - t0) : ms;
@@ -657,6 +657,12 @@
       });
       this.stats.bundled = out.filter(r => r.bundles).length;
       return out;
+    }
+
+    // host hook: the drawn routes may be shaped once more (bus layout of the Network view: board/tiers.js); the cached routes stay raw
+    reshape(routes) {
+      if (typeof this.o.reshape !== 'function') return routes;
+      try { return this.o.reshape(routes, this.layout, this.view) || routes; } catch (e) { return routes; }
     }
 
     applyRoutes(list, partial) {

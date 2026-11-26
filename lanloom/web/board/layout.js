@@ -30,7 +30,7 @@
 
   // Group components into zones (unknown zone ids land in a synthetic "other" zone at the end)
   function groupZones(view) {
-    const zones = (view.zones || []).map((z, i) => ({ id: String(z.id), title: z.title || '', kind: z.kind || null, span: z.span === 'full' ? 'full' : null, order: Number.isFinite(z.order) ? z.order : i, idx: i, items: [] }));
+    const zones = (view.zones || []).map((z, i) => ({ id: String(z.id), title: z.title || '', kind: z.kind || null, span: z.span === 'full' ? 'full' : null, order: Number.isFinite(z.order) ? z.order : i, tier: Number.isFinite(z.tier) ? z.tier : null, idx: i, items: [] }));
     const byId = new Map(zones.map(z => [z.id, z]));
     let other = null;
     (view.components || []).forEach(c => {
@@ -143,6 +143,8 @@
           y += zoneHeight(m, rows) + m.zoneGap;
           return;
         }
+        // zones with a tier (bus layout, board/tiers.js): every tier starts a row of its own, so the rows follow the chain
+        if (row.length && z.tier != null && row[row.length - 1].tier !== z.tier) flush();
         const need = zoneWidth(m, Math.min(z.items.length, 2));
         const now = row.reduce((s, r) => s + zoneWidth(m, Math.min(r.items.length, 2)), 0) + row.length * m.zoneGap;
         if (row.length && now + need > inner) flush();

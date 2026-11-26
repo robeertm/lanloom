@@ -61,6 +61,7 @@ two seconds or more, times such as "seen 5 s ago" may look shifted by that much.
 | `#/map`, `#/network` | the board ([map](map.md), [network](network.md)) |
 | `#/map/<component>` | the board with the card of that component (the page switches to the other board if needed) |
 | `#/map?zone=<area>`, `#/map?only=problems` | the board filtered |
+| `#/network?bus=1` | the network board in the [bus layout](network.md#bus-layout) (one box and one line per parent) |
 | `#/devices/<device>` | the [device list](devices.md) with that device's card |
 | `#/devices?show=new` | the device list filtered (`new`, `unsure`, `offline`) |
 | `#/devices?view=stability` | the stability list |
