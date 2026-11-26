@@ -22,7 +22,7 @@ Lanloom uses what its sources already deliver; it asks nothing extra from your n
 says *total minus free*, so buffers and the page cache would count as used and a host with a large cache would look almost full.
 Lanloom therefore uses, in this order: *MemAvailable* (UCD `memSysAvail`, newer agents), the UCD free memory plus buffers and
 cache, or the physical memory row minus the *Memory buffers* and *Cached memory* rows the same agent lists.
-A storage box with ZFS keeps its read cache outside the page cache, so Lanloom reads the cache size from the vendor MIB of the box and counts it like buffers and cache as handed back; ZFS never releases a small part, so the figure can sit a few percent below the *Services* number of the box's own memory dashboard.
+A storage box with ZFS keeps its read cache outside the page cache, so Lanloom reads the cache size from the vendor MIB of the box (the documented place first; firmware that answers 0 there and serves the figure as a scalar beside it is read there) and counts it like buffers and cache as handed back; ZFS never releases a small part, so the figure can sit a few percent below the *Services* number of the box's own memory dashboard.
 
 The SNMP connection reads the host tables once a minute (they change slowly); an agent without those tables is asked
 again after half an hour. Every five minutes the newest reading of each source is written as one sample

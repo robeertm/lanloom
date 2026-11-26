@@ -160,6 +160,40 @@ def test_snmp_memory_gives_the_zfs_cache_back():
     assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [], big)["mem"] == 93.0      # not believed
 
 
+def test_snmp_memory_takes_the_zfs_cache_from_the_scalar_when_the_documented_place_says_zero():
+    # lanloom#25 (1.65.1 field test): newer firmware answers 0 at the documented place and serves the size as a scalar elsewhere
+    ucd = [(snmp.OID_UCD_MEM + ".5.0", 6_047_804), (snmp.OID_UCD_MEM + ".6.0", 422_928), (snmp.OID_UCD_MEM + ".27.0", 422_928)]
+    zero = (snmp.OID_ZFS_ARC + ".0", 0)
+    scalar = (snmp.OID_ZFS_ARC_SCALAR, 3_000_000)
+    assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [], [zero])["mem"] == 93.0           # zero alone: nothing to give back
+    assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [], [zero, scalar])["mem"] == 43.4    # the scalar fills in
+    assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [], [scalar])["mem"] == 43.4
+    other = (snmp.OID_ZFS_ARC_SCALAR[:-2] + ".1.1", 3_000_000)                                           # a table row beside it
+    assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [], [other])["mem"] == 93.0
+    first = (snmp.OID_ZFS_ARC + ".0", 1_000_000)                                                         # the documented place wins
+    assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [], [first, scalar])["mem"] == 76.5
+    huge = (snmp.OID_ZFS_ARC + ".0", 99_000_000)                                                         # does not fit: next place
+    assert snmp.parse_host_resources(_mem_storage(), [], [], ucd, [], [huge, scalar])["mem"] == 43.4
+
+
+def test_read_host_resources_asks_the_scalar_place_too():
+    asked = []
+
+    class Agent:
+        def walk(self, base, **kw):
+            asked.append(base)
+            if base == snmp.OID_HR_PROC_LOAD:
+                return [(snmp.OID_HR_PROC_LOAD + ".1", 10)]
+            if base == snmp.OID_ZFS_ARC:
+                return [(snmp.OID_ZFS_ARC + ".0", 0)]
+            if base == snmp.OID_ZFS_ARC_SCALAR[:-2]:
+                return [(snmp.OID_ZFS_ARC_SCALAR, 3_000_000)]
+            return []
+
+    out = snmp.read_host_resources(Agent())
+    assert snmp.OID_ZFS_ARC in asked and snmp.OID_ZFS_ARC_SCALAR[:-2] in asked and out["cpu"] == 10.0
+
+
 def test_snmp_without_host_tables_is_empty():
     out = snmp.parse_host_resources({}, [], [], [], [])
     assert all(v is None for v in out.values())

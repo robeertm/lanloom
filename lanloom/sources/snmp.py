@@ -784,6 +784,7 @@ OID_LA_LOAD = "1.3.6.1.4.1.2021.10.1.3"            # laLoad (UCD: 1, 5, 15 minut
 OID_UCD_MEM = "1.3.6.1.4.1.2021.4"                 # memory group (UCD, kB)
 OID_LM_TEMP = "1.3.6.1.4.1.2021.13.16.2.1.3"       # lmTempSensorsValue (milli degrees Celsius)
 OID_ZFS_ARC = "1.3.6.1.4.1.50536.1.4.1"            # zfsArcSize of the storage-box vendor MIB (size of the ZFS cache, kB)
+OID_ZFS_ARC_SCALAR = "1.3.6.1.4.1.50536.1.3.1.0"   # where newer firmware serves the same figure (a scalar, kB); the documented place answers 0 there
 HR_OTHER = "1.3.6.1.2.1.25.2.1.1"                  # hrStorageOther ("Memory buffers", "Cached memory" on common agents)
 HR_RAM = "1.3.6.1.2.1.25.2.1.2"
 HR_VIRTUAL = "1.3.6.1.2.1.25.2.1.3"
@@ -802,13 +803,18 @@ def _mem_pct(used, total):
 
 
 def _arc_bytes(rows, total_b):
-    """Size of the ZFS cache (ARC) in bytes from the vendor MIB of a ZFS storage box, which counts in kB. None when the
-    agent does not serve it or the value does not fit into the memory of the host: then nothing is given back."""
-    v = next((x for _o, x in rows or () if isinstance(x, int) and not isinstance(x, bool) and x > 0), None)
-    if v is None or not total_b:
+    """Size of the ZFS cache (ARC) in bytes from the vendor MIB of a ZFS storage box, which counts in kB. The documented
+    place is read first; some firmware answers 0 there and serves the figure as a scalar elsewhere, which is the fallback
+    (only that exact scalar, never a row of a table beside it). None when the agent serves neither or the value does not
+    fit into the memory of the host: then nothing is given back."""
+    if not total_b:
         return None
-    b = v * 1024
-    return b if b <= total_b else None
+    primary = [x for o, x in rows or () if o == OID_ZFS_ARC or str(o).startswith(OID_ZFS_ARC + ".")]
+    scalar = [x for o, x in rows or () if o == OID_ZFS_ARC_SCALAR]
+    for v in primary + scalar:
+        if isinstance(v, int) and not isinstance(v, bool) and v > 0 and v * 1024 <= total_b:
+            return v * 1024
+    return None
 
 
 def parse_host_resources(storage_rows: dict, proc_rows: list, la_rows: list, ucd_rows: list, temp_rows: list,
@@ -902,6 +908,7 @@ def read_host_resources(client: SnmpClient) -> dict:
     ucd = _walk_or_empty(client, OID_UCD_MEM, limit=40)
     temp = _walk_or_empty(client, OID_LM_TEMP, limit=64)
     arc = _walk_or_empty(client, OID_ZFS_ARC, limit=2)         # a box with ZFS; others answer nothing here
+    arc += [r for r in _walk_or_empty(client, OID_ZFS_ARC_SCALAR[:-2], limit=2) if r[0] == OID_ZFS_ARC_SCALAR]   # newer firmware
     out = parse_host_resources(storage, proc, la, ucd, temp, arc)
     return out if any(v is not None for v in out.values()) else {}
 
