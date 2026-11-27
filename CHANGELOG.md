@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.66.4] – 2026-11-27
+
 ### Fixed
 - Phone, failure chain: the bar no longer floats over the board. It sits under the board, above the tab bar, and takes its own room, so every tile and every legend entry of Network and Map stays reachable with a finger (a floating sheet of up to 62 % of the screen had covered more than a hundred of them).
 - Phone, keyboard: a field at the end of a card or page that is not a full-screen layer (the name and type of a device, the field of a firewall rule) now moves above the keyboard; the scroller gets as much room at its end as the keyboard hides.
