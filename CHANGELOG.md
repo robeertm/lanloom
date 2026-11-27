@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.66.3] – 2026-11-27
+
+1.66.1 and 1.66.2 below were not released on their own; they are part of this release.
+
 ### Fixed
 - Network board, bus layout: every line is horizontal and vertical, with as few bends as the picture allows (two for a line straight down from its parent), and none runs through a tile. The boxes of a row follow the order of their parents and share the row so that each lies under its parent; a block of tiles moves under the parent, and a device that has children of its own stands at the end of its box, so its line to them runs straight down. Before, the line from a host into its box of guests zigzagged along the whole row and the line from a repeater into its radio box was a diagonal across a neighbouring box. The other traces of the bus layout lose their slanted pieces too (they became corners). A line whose way is blocked by the tiles of a box in between takes one detour, never a zigzag. The other layouts of the board are unchanged.
 - Phone, failure chain from a device card: the chain sheet now starts where the card's head ends, so the card's name and its close button stay in view and can be tapped (with the site name on its own header row the sheet covered the close button completely).
