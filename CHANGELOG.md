@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- `scripts/drittlizenzen.py` keeps `THIRD-PARTY-NOTICES.md` in step with what ships: `--check` names every pinned package, bundled font or data file without a notice, `--write` rewrites the package table from `requirements.txt`. A new test (`tests/test_third_party_notices.py`) turns red when a dependency is missing.
+- Trademark notice in the README: product names are used for identification only and imply no affiliation or endorsement.
+
 ## [1.66.3] – 2026-11-27
 
 1.66.1 and 1.66.2 below were not released on their own; they are part of this release.

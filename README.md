@@ -1025,4 +1025,6 @@ Lanloom is **source-available**, not open source.
 
 See [LICENSE](LICENSE); the license text is what counts. Third-party components and their licenses are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The cable data of the *Real cables* view (`lanloom/data/cables-osm.json.gz`) is © OpenStreetMap contributors and stays available under the [Open Database License 1.0](https://opendatacommons.org/licenses/odbl/1-0/), separately from the code; `lanloom/data/cables-open.json.gz` holds cable lines of U.S. waters (NOAA Office for Coastal Management, BOEM) and cable facts (Wikidata), both CC0 1.0; see [lanloom/data/CABLES-LICENSE.md](lanloom/data/CABLES-LICENSE.md).
 
+All product and company names mentioned in this project are trademarks or registered trademarks of their respective owners. Their use here is for identification only and does not imply any affiliation, endorsement or sponsorship.
+
 © 2026 Robert Manuwald
