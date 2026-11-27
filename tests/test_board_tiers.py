@@ -36,8 +36,9 @@ def test_boxes_are_named_by_parent_and_medium_and_sorted_by_depth():
     assert ids[:3] == ["edge", "bus:gw:cable", "bus:sw1:cable"]
     assert ids.index("bus:sw2:cable") < ids.index("bus:ap:radio") < ids.index("guests:vh") < ids.index("net:192.168.50.0/24")
     assert ids[-1] == "net:192.168.50.0/24"
-    # the order inside a box is the order of the server (switch port first)
-    assert zones["bus:sw1:cable"]["items"] == ["sw2", "ap", "nas", "vh", "pc1", "pc2", "tv"]
+    # the order inside a box is the order of the server (switch port first); devices with children of their own go to the end,
+    # so they stand in the last row with nothing below them
+    assert zones["bus:sw1:cable"]["items"] == ["pc1", "pc2", "tv", "sw2", "ap", "nas", "vh"]
 
 
 def test_regroup_is_pure_and_dissolves_the_quiet_fold_only():

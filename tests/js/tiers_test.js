@@ -112,7 +112,8 @@ out.trunk_bus = bundledAt(r, 'sw1');
   // one way out of the parent: all children start with the same stretch, down to the bus line of the box
   const box = ly.zones.find(z => z.id === 'bus:sw1:cable');
   const firstTop = Math.min(...mine.map(x => ly.tiles[x.b].y));
-  const shared = pts => { const o = []; for (const q of pts) { o.push(q); if (q[1] > box.y && q[1] < firstTop) break; } return JSON.stringify(o); };
+  // one way out of the parent: the pad and the vertical line below it are the same for every child
+  const shared = pts => JSON.stringify([pts[0], pts[1][0]]);
   const ways = new Set(mine.map(x => shared(x.pts)));
   for (const x of mine) {
     const k = ly.tiles[x.b], e = x.pts[x.pts.length - 1];
@@ -133,7 +134,11 @@ out.trunk_bus = bundledAt(r, 'sw1');
     }
   }
   const others = shaped.filter(x => !x.bus).map(x => x.id).sort();
-  const untouched = bundled.filter(x => !shaped.find(y => y.id === x.id && y.bus)).every(x => JSON.stringify(x) === JSON.stringify(shaped.find(y => y.id === x.id)));
+  // the other traces keep their ends and pads; at most their slanted pieces became corners (rectify)
+  const untouched = bundled.filter(x => !shaped.find(y => y.id === x.id && y.bus)).every(x => {
+    const y = shaped.find(q => q.id === x.id);
+    return JSON.stringify(x.padA) === JSON.stringify(y.padA) && JSON.stringify(x.padB) === JSON.stringify(y.padB) && JSON.stringify(x.pts[0]) === JSON.stringify(y.pts[0]) && JSON.stringify(x.pts[x.pts.length - 1]) === JSON.stringify(y.pts[y.pts.length - 1]);
+  });
   out.bus = { kids: kids.length, on_bus: mine.filter(x => x.bus).length, ways: ways.size, rows: new Set(mine.map(x => ly.tiles[x.b].y)).size,
     members: [...new Set(mine.map(x => x.members))], issues: issues.slice(0, 8), untouched, others: others.length,
     guests: shaped.filter(x => x.bus === 'guests:vh').length, phone: T.busRoutes(bundled, Object.assign({}, ly, { compact: true }), r) === bundled };

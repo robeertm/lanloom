@@ -30,7 +30,7 @@
 
   // Group components into zones (unknown zone ids land in a synthetic "other" zone at the end)
   function groupZones(view) {
-    const zones = (view.zones || []).map((z, i) => ({ id: String(z.id), title: z.title || '', kind: z.kind || null, span: z.span === 'full' ? 'full' : null, order: Number.isFinite(z.order) ? z.order : i, tier: Number.isFinite(z.tier) ? z.tier : null, idx: i, items: [] }));
+    const zones = (view.zones || []).map((z, i) => ({ id: String(z.id), title: z.title || '', kind: z.kind || null, span: z.span === 'full' ? 'full' : null, order: Number.isFinite(z.order) ? z.order : i, tier: Number.isFinite(z.tier) ? z.tier : null, parent: z.parent ? String(z.parent) : null, idx: i, items: [] }));
     const byId = new Map(zones.map(z => [z.id, z]));
     let other = null;
     (view.components || []).forEach(c => {
@@ -67,18 +67,80 @@
     return cols;
   }
 
+  /* Bus layout (zones with a parent): a block of several tile rows is hung on ONE vertical line in a column gap (or beside the
+     block), and that line should start right under the parent tile, so the way from the parent to the tiles has no detour.
+     The block is moved sideways, as little as possible and never out of its box, until such a line lies under the parent. */
+  function underParent(m, x0, gridW, cols, gap, box, parent, clear) {
+    const lo = parent.x + 14, hi = parent.x + parent.w - 14;
+    if (hi <= lo) return null;
+    const offs = [-m.padX / 2];
+    for (let k = 1; k < cols; k++) offs.push(k * (m.tileW + gap) - gap / 2);
+    offs.push(gridW + m.padX / 2);
+    const xmin = box.x + m.padX, xmax = box.x + box.w - m.padX - gridW;
+    if (xmax < xmin) return null;
+    // aim at the middle of the parent first (a line near the edge of the tile looks like an accident), the whole tile second;
+    // the line must run down to the box without meeting a tile of a box in between (clear)
+    const mid = parent.x + parent.w / 2;
+    let best = null;
+    [[Math.max(lo, mid - 40), Math.min(hi, mid + 40)], [lo, hi]].forEach(([a, b]) => {
+      if (best !== null) return;
+      offs.forEach(o => {
+        for (let xl = Math.ceil(a / 4) * 4; xl <= b; xl += 4) {
+          const nx = xl - o;
+          if (nx < xmin - 0.01 || nx > xmax + 0.01 || (clear && !clear(xl))) continue;
+          if (best === null || Math.abs(nx - x0) < Math.abs(best - x0)) best = nx;
+        }
+      });
+    });
+    return best === null ? null : Math.round(best);
+  }
+
+  /* Widths of the boxes of a row (left to right, parents' middles pxs): the border between two boxes lies in the middle between their
+     parents, as far as the minimum widths allow. The widths add up to the row exactly. */
+  function alignedWidths(m, mins, pxs, inner) {
+    const n = mins.length, end = m.margin + inner, ws = [];
+    let left = m.margin;
+    for (let i = 0; i < n - 1; i++) {
+      const lowest = left + mins[i];
+      let highest = end - (n - 1 - i) * m.zoneGap;
+      for (let j = i + 1; j < n; j++) highest -= mins[j];
+      const target = (pxs[i] + pxs[i + 1]) / 2 - m.zoneGap / 2;
+      const e = Math.round(Math.min(Math.max(target, lowest), Math.max(lowest, highest)));
+      ws.push(e - left);
+      left = e + m.zoneGap;
+    }
+    ws.push(end - left);
+    return ws;
+  }
+
   // Place the tiles of one zone into its box
   function placeTiles(m, z, box, cols, centre, tiles) {
+    const parentTile = z.parent ? tiles[z.parent] : null;
     const innerW = box.w - 2 * m.padX;
     const n = z.items.length, rows = Math.ceil(n / cols);
-    let gap = m.gapX, x0 = box.x + m.padX;
-    if (cols > 1) {
-      const spare = innerW - cols * m.tileW - (cols - 1) * m.gapX;
-      gap = Math.min(m.maxGapX, m.gapX + Math.max(0, spare) / (cols - 1));
+    const spread = () => {
+      let gap = m.gapX, x0 = box.x + m.padX;
+      if (cols > 1) {
+        const spare = innerW - cols * m.tileW - (cols - 1) * m.gapX;
+        gap = Math.min(m.maxGapX, m.gapX + Math.max(0, spare) / (cols - 1));
+      }
+      return { gap, gridW: cols * m.tileW + (cols - 1) * gap };
+    };
+    let { gap, gridW } = spread();
+    const home = (g, w) => (centre || cols === 1 ? box.x + Math.round((box.w - w) / 2) : box.x + m.padX + Math.round((innerW - w) / 2));
+    let x0 = home(gap, gridW);
+    // bus layout (zones with a parent): a block of several rows hangs on one vertical line in a column gap; that line should start
+    // under the parent tile. First by moving the block, then (tight columns) with more room to move.
+    if (parentTile && Math.ceil(n / cols) > 1 && cols > 1) {
+      const clear = x => !Object.values(tiles).some(t => t.id !== parentTile.id && x > t.x - 3 && x < t.x + t.w + 3 && t.y + t.h > parentTile.y + parentTile.h && t.y < box.y);
+      let hit = underParent(m, x0, gridW, cols, gap, box, parentTile, clear);
+      if (hit === null && gap > m.gapX) {
+        const tight = cols * m.tileW + (cols - 1) * m.gapX;
+        hit = underParent(m, home(m.gapX, tight), tight, cols, m.gapX, box, parentTile, clear);
+        if (hit !== null) { gap = m.gapX; gridW = tight; }
+      }
+      if (hit !== null) x0 = hit;
     }
-    const gridW = cols * m.tileW + (cols - 1) * gap;
-    if (centre || cols === 1) x0 = box.x + Math.round((box.w - gridW) / 2);
-    else x0 = box.x + m.padX + Math.round((innerW - gridW) / 2);
     // vertical: rows start at the top, a shorter zone in a row keeps its tiles at the top
     z.items.forEach((c, i) => {
       const r = Math.floor(i / cols), k = i % cols;
@@ -117,15 +179,25 @@
       let row = [];
       const flush = () => {
         if (!row.length) return;
+        // bus layout: the boxes of a row follow the order of their parents in the row above (a box never lies on the far side of its parent)
+        const px = z => { const t = z.parent && tiles[z.parent]; return t ? t.x + t.w / 2 : null; };
+        if (row.some(z => px(z) != null)) {
+          row = row.map((z, i) => ({ z, i, x: px(z) })).sort((a, b) => (a.x == null) - (b.x == null) || (a.x != null && b.x != null && a.x - b.x) || a.i - b.i).map(e => e.z);
+        }
         const cols = packRow(m, row, inner);
+        // bus layout: no more columns than the rows need (10 tiles in 2 rows are 5 + 5, not 6 + 4) — the spare room lets the block move under its parent
+        row.forEach((z, i) => { if (z.parent && cols[i] > 1) { const r = Math.ceil(z.items.length / cols[i]); cols[i] = Math.ceil(z.items.length / r); } });
         const widths = cols.map(c => zoneWidth(m, c));
         const used = widths.reduce((s, w) => s + w, 0) + (row.length - 1) * m.zoneGap;
         const spare = Math.max(0, inner - used), total = widths.reduce((s, w) => s + w, 0);
         const h = Math.max(...row.map((z, i) => zoneHeight(m, Math.ceil(z.items.length / cols[i]))));
+        // bus layout: the spare room is shared so that every box reaches under its parent (the middle between two parents is the border)
+        const pxs = row.map(px);
+        const aligned = row.length > 1 && pxs.every(v => v != null) ? alignedWidths(m, widths, pxs, inner) : null;
         let x = m.margin;
         row.forEach((z, i) => {
           const last = i === row.length - 1;
-          const w = last ? (m.margin + inner - x) : Math.round(widths[i] + spare * widths[i] / total);
+          const w = aligned ? aligned[i] : last ? (m.margin + inner - x) : Math.round(widths[i] + spare * widths[i] / total);
           addZone(z, { x, y, w, h }, cols[i], false);
           x += w + m.zoneGap;
         });

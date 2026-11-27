@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Network board, bus layout: every line is horizontal and vertical, with as few bends as the picture allows (two for a line straight down from its parent), and none runs through a tile. The boxes of a row follow the order of their parents and share the row so that each lies under its parent; a block of tiles moves under the parent, and a device that has children of its own stands at the end of its box, so its line to them runs straight down. Before, the line from a host into its box of guests zigzagged along the whole row and the line from a repeater into its radio box was a diagonal across a neighbouring box. The other traces of the bus layout lose their slanted pieces too (they became corners). A line whose way is blocked by the tiles of a box in between takes one detour, never a zigzag. The other layouts of the board are unchanged.
+
 ## [1.66.2] – 2026-11-26
 
 1.66.1 below was not released on its own; it is part of this release.
