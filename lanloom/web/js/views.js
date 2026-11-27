@@ -1155,7 +1155,7 @@
   function settingsSubnav(active) {
     const homeOnly = p => p[0] !== 'ai' || !LL.atHome || LL.atHome();        // the AI assistant works on the home site
     const allowed = p => homeOnly(p) && (p[3] === 'viewer' || LL.can(p[3] === 'admin' ? 'admin' : 'operate'));
-    return h('nav', { class: 'seg settings-subnav', 'aria-label': t('settings.sections') }, SETTINGS_PAGES.filter(allowed).map(([k, sub, label]) =>
+    return h('nav', { class: 'seg settings-subnav', 'data-swipe': '', 'aria-label': t('settings.sections') }, SETTINGS_PAGES.filter(allowed).map(([k, sub, label]) =>
       h('a', { href: k === 'sites' ? '#/sites' : '#/settings' + (sub ? '/' + sub : ''), class: 'seg__btn' + (k === active ? ' is-active' : ''), 'aria-current': k === active ? 'page' : null }, t(label))));
   }
   LL.settingsSubnav = settingsSubnav;
