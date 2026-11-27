@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Phone, failure chain: the bar no longer floats over the board. It sits under the board, above the tab bar, and takes its own room, so every tile and every legend entry of Network and Map stays reachable with a finger (a floating sheet of up to 62 % of the screen had covered more than a hundred of them).
+- Phone, keyboard: a field at the end of a card or page that is not a full-screen layer (the name and type of a device, the field of a firewall rule) now moves above the keyboard; the scroller gets as much room at its end as the keyboard hides.
+- Phone, fingertips: the grip of a sheet, *Right now* and *About this view*, the *Plan a maintenance window* line, the rows of the sensor list, the container rows and device names of a device card, the *See all changes* link and the two source links under the maps are 44 px high; the site row of the two-row header is 44 px, and the rows of the header have 8 px between them so each capsule keeps a fingertip.
+- Phone, data paths map: a line is thinner than a finger, so a tap beside it picks the nearest line within a fingertip; the map and its lines no longer take the keyboard focus on a phone (there is no Tab key), the country list under the map stays the full-size way in.
+- Phone, Automations: a tile whose filter is already set brings the list up to the top instead of doing nothing.
+- Phone, Settings: the sub navigation is marked as a swipe row from the start.
+
 ## [1.66.3] – 2026-11-27
 
 1.66.1 and 1.66.2 below were not released on their own; they are part of this release.

@@ -70,7 +70,7 @@ directly, and the dependencies **entered by hand**.
   An entry decides the pair: Lanloom's own guess for these two is replaced, in both directions. *Remove* takes it back.
   The target can also be the **Internet**: a service that only works with the internet (weather, voice control, a cloud
   camera). The emergency scenario *Internet down* of the [resilience](resilience.md) page names it.
-- **On a phone** the bar is a sheet above the tab bar with the list open; the cross closes it.
+- **On a phone** the bar sits under the board, above the tab bar, with the list open; the board shrinks above it and stays usable. The cross closes it.
 - **Where an outage reaches automations,** open *Automations*: the marked rows are the ones to look at first.
 
 ## Limits

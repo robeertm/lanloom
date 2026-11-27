@@ -95,3 +95,22 @@ def test_taps_that_would_change_nothing_do_something():
     assert "grip.setAttribute('aria-expanded', which === 'full' ? 'true' : 'false')" in sheet
     views = read("js", "views.js")
     assert "(location.hash || '') === '#/map' && LL.route" in views
+
+
+def test_walk_fixes_of_762_stay_in_place():
+    """The 196 findings of the repaired phone walk (Koordinator #762) came from few roots; each fix is pinned where the product holds it."""
+    fail = read("css", "failure.css")
+    phone = fail[fail.index("phones: the bar is docked under the board"):]
+    assert ".fc-slot:has(> .fc-bar) { order: 2" in phone and "position: fixed" not in phone[:phone.index("@media (max-width: 700px)")], \
+        "the chain bar takes its own room under the board on a phone; a floating sheet hid 125 tiles and legend entries"
+    js = read("js", "handy.js")
+    assert "function lift(" in js and "roomed" in js and "lift(f, bottom)" in js, "a scroller that reaches under the keyboard gets room at its end"
+    css = read("css", "handy.css")
+    for sel in (".sheet__grip { height: 44px", ".rail-btn { min-width: 44px", "a.talk__name, a.sheet-link", ".ct-row, a.sn-row", ".pc-attr a, .cb-attr a", ".nt-form summary"):
+        assert sel in css, sel
+    sites = read("css", "sites.css")
+    assert "row-gap: 8px" in sites[sites.index(".topbar:has(.site-switch)"):][:200] and "min-height: 44px" in sites[sites.index(".topbar .site-switch {"):][:200]
+    infra = read("js", "paths_infra.js")
+    assert "const FINGER = 22" in infra and "if (!phone) a.tabindex = '0'" in infra, "on a phone no map line is a control of its own, the finger picks the nearest"
+    assert "setAttribute('tabindex', '0')" in read("js", "paths.js") and "max-width: 700px" in read("js", "paths.js")
+    assert "'data-swipe': ''" in read("js", "views.js")
