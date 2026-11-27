@@ -312,7 +312,7 @@
     const on = [];
     const listen = (el, type, fn, opt) => { el.addEventListener(type, fn, opt); on.push([el, type, fn, opt]); };
     // keyboard: + / - zoom at the centre, 0 shows the whole world (the map takes the focus with Tab)
-    svg.setAttribute('tabindex', '0');
+    if (!(window.matchMedia && window.matchMedia('(max-width: 700px)').matches)) svg.setAttribute('tabindex', '0');      // a phone has no Tab key: the map is a picture there, its lines are picked by the finger (js/paths_infra.js)
     listen(svg, 'keydown', ev => {
       if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
       const b = svg.getBoundingClientRect(), cx = b.left + b.width / 2, cy = b.top + b.height / 2;

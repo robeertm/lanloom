@@ -235,7 +235,8 @@
     const count = x => (x.ccs.size === 1 ? cname([...x.ccs][0]) : t('infra.edge.targets', { n: x.ccs.size }));
     /* one shared sign for all lines (no <title> per line): the text sits in data-tip, a line is reachable by keyboard */
     const tipOf = (txt, parts) => [txt].concat(parts).filter(Boolean).join('\n');
-    const tipAttrs = (txt, parts) => { const tx = tipOf(txt, parts); return { 'data-tip': tx, tabindex: '0', role: 'img', 'aria-label': tx.replace(/\n/g, ', ') }; };
+    const phone = !!(window.matchMedia && window.matchMedia('(max-width: 700px)').matches);      // a line is 1-9 px wide: on a phone the finger picks the nearest one (see the click handler), no line is a control of its own
+    const tipAttrs = (txt, parts) => { const tx = tipOf(txt, parts); const a = { 'data-tip': tx, role: 'img', 'aria-label': tx.replace(/\n/g, ', ') }; if (!phone) a.tabindex = '0'; return a; };
     for (const x of [...edges.entries()].sort((a, b) => a[1].b - b[1].b)) {
       const [k, v] = x, e = v.e, p = e.p, a = names.get(key2(p[0])), z = names.get(key2(p[p.length - 1]));
       if (v.b >= maxB * 0.03) [a && [p[0], a], z && [p[p.length - 1], z]].forEach(q => { if (q) nodes.set(q[1], q[0]); });
@@ -335,7 +336,25 @@
   document.addEventListener('mouseout', ev => { if (hitOf(ev)) hideTip(); });
   document.addEventListener('focusin', ev => { const p = hitOf(ev); if (p) { const b = p.getBoundingClientRect(); showTip(p, b.left + b.width / 2, b.top + b.height / 2); } });
   document.addEventListener('focusout', ev => { if (hitOf(ev)) hideTip(); });
-  document.addEventListener('click', ev => { const p = hitOf(ev); if (p) { clearTimeout(away); showTip(p, ev.clientX, ev.clientY); away = setTimeout(hideTip, 4000); } else if (tip && !(ev.target.closest && ev.target.closest('.cb-tip'))) hideTip(); }, true);
+  /* the line nearest to a tap, within a fingertip (22 px): lines are thinner than a finger, so a tap beside one still picks it */
+  const FINGER = 22;
+  function nearest(ev) {
+    const svg = ev.target && ev.target.closest ? ev.target.closest('svg') : null;
+    if (!svg || !svg.querySelector('.in-layer')) return null;
+    let best = null, bd = FINGER;
+    svg.querySelectorAll('.in-layer path[data-tip], .in-layer .in-satellite[data-tip]').forEach(el => {
+      const m = el.getScreenCTM();
+      if (!m) return;
+      const pts = [];
+      if (el.getTotalLength) {
+        const L = el.getTotalLength(), n = Math.max(2, Math.min(24, Math.ceil(L / 12)));
+        for (let i = 0; i <= n; i++) pts.push(el.getPointAtLength(L * i / n));
+      } else { const b = el.getBBox(); pts.push({ x: b.x + b.width / 2, y: b.y + b.height / 2 }); }
+      for (const q of pts) { const d = Math.hypot(q.x * m.a + q.y * m.c + m.e - ev.clientX, q.x * m.b + q.y * m.d + m.f - ev.clientY); if (d < bd) { bd = d; best = el; } }
+    });
+    return best;
+  }
+  document.addEventListener('click', ev => { const p = hitOf(ev) || (ev.pointerType === 'touch' || (ev.sourceCapabilities && ev.sourceCapabilities.firesTouchEvents) ? nearest(ev) : null); if (p) { clearTimeout(away); showTip(p, ev.clientX, ev.clientY); away = setTimeout(hideTip, 4000); } else if (tip && !(ev.target.closest && ev.target.closest('.cb-tip'))) hideTip(); }, true);
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && tip) hideTip(); });
   window.addEventListener('scroll', () => { if (tip) hideTip(); }, true);
 

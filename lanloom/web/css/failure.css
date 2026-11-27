@@ -93,12 +93,13 @@ a.fc-row__name:hover { text-decoration: underline; }
 /* the Automations tab marks automations an outage probably reaches */
 .au-row.is-outage { outline: 1px dashed var(--ll-warn); outline-offset: -2px; }
 
-/* ---------------------------------------------------------------- phones: the bar is a sheet above the tab bar, the list open */
+/* ---------------------------------------------------------------- phones: the bar is docked under the board (above the tab bar), the list open.
+   It takes its own room instead of lying over the board: the board shrinks above it, so every tile and every legend entry stays reachable with a finger
+   (the walk of the phone gate found 125 tiles and legend entries under a floating sheet). */
 @media (max-width: 760px) {
   .fc-slot { padding: 0 8px; }
-  .fc-bar { position: fixed; left: 0; right: 0; bottom: calc(60px + env(safe-area-inset-bottom)); z-index: 35; max-height: 62vh; overflow-y: auto;
-    border-radius: var(--ll-radius-lg) var(--ll-radius-lg) 0 0; border-left-width: 1px; border-top: 3px solid var(--ll-accent); box-shadow: var(--ll-shadow-2); padding: 12px 14px; }
-  .fc-bar--sim { border-top-color: var(--ll-danger); }
+  .fc-slot:has(> .fc-bar) { order: 2; padding-bottom: 8px; }
+  .fc-bar { max-height: min(44vh, 400px); overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px; }
   .fc-list { max-height: none; overflow: visible; }
   .fc-bar__tools { width: 100%; justify-content: space-between; }
   /* the outage note takes one line (it was a quarter of the screen): icon, title, "Details" and the cross; the sentence and "Show the chain" open below */

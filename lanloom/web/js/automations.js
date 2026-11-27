@@ -229,7 +229,12 @@
     function tiles() {
       const tt = data.totals;
       const tile = (cls, n, label, m, fnd) => h('button', { class: 'au-tile au-tile--' + cls, type: 'button', onclick: () => {
-        if (m) setMode(m); else { filt.finding = fnd || ''; findSel.value = filt.finding; renderList(); } } },
+        if (m) setMode(m);
+        else {
+          filt.finding = fnd || ''; findSel.value = filt.finding; renderList();
+          // a tile whose filter is already set changes nothing on the list: on a phone the list comes up to the top, so the tap shows something
+          if (window.matchMedia && window.matchMedia('(max-width: 700px)').matches) { try { listBox.scrollIntoView({ block: 'start', behavior: 'instant' }); } catch (e) { /* old engine */ } }
+        } } },
         h('span', { class: 'au-tile__n' }, LL.fmtNum(n)), h('span', { class: 'au-tile__label' }, label));
       return h('div', { class: 'au-tiles' },
         tile('all', tt.automations, t('auto.tile.automations', { on: tt.on, off: tt.off }), null, ''),

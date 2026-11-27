@@ -9,7 +9,7 @@
       its lower part, with the field in it, lies behind the keyboard. While the keyboard is up, the nearest screen-filling fixed layer around the
       focused field follows height and position of window.visualViewport (class ll-kb-layer, variables --ll-vvh / --ll-vvt on <html>), the
       page carries html.ll-kb-open (the page's own rules may make room for the history above the field), and a field outside the visible
-      part is scrolled into view. Never tie such a rule to :focus of the field: a tap on "Send" takes the focus away and the layout jumps under the finger.
+      part is scrolled into view (a scroller that reaches under the keyboard gets room at its end for that). Never tie such a rule to :focus of the field: a tap on "Send" takes the focus away and the layout jumps under the finger.
 
    Nothing here talks to the network and nothing is stored. */
 (function () {
@@ -194,9 +194,28 @@
     }
     return null;
   }
+  // scrollers that reach under the keyboard (a card that is not a fixed layer, a page): while the keyboard is up they get as much room at
+  // their end as the keyboard hides, so a field at the end of their content can be moved above it (centring inside the scroller is not enough)
+  const roomed = new Map();
+  function lift(f, visBottom) {
+    for (let a = f.parentElement; a && a !== document.body && a !== root; a = a.parentElement) {
+      const cs = getComputedStyle(a);
+      if (!/(auto|scroll)/.test(cs.overflowY)) continue;
+      const box = a.getBoundingClientRect();
+      if (box.bottom > visBottom && !roomed.has(a)) {
+        roomed.set(a, a.style.paddingBottom);
+        a.style.paddingBottom = 'calc(' + cs.paddingBottom + ' + ' + Math.ceil(box.bottom - visBottom) + 'px)';
+      }
+      const over = f.getBoundingClientRect().bottom - visBottom;
+      if (over > 0 && a.scrollHeight > a.clientHeight) a.scrollTop += over;
+      if (f.getBoundingClientRect().bottom <= visBottom) return;
+    }
+  }
   function release() {
     if (layer) layer.classList.remove('ll-kb-layer');
     layer = null;
+    roomed.forEach((pad, a) => { a.style.paddingBottom = pad; });
+    roomed.clear();
     root.classList.remove('ll-kb-open');
     root.style.removeProperty('--ll-vvh'); root.style.removeProperty('--ll-vvt');
   }
@@ -216,6 +235,7 @@
       const f = fieldOf(document.activeElement); if (!f) return;
       const r = f.getBoundingClientRect(), top = vv.offsetTop + 8, bottom = vv.offsetTop + vv.height - 8;
       if (r.bottom > bottom || r.top < top) { try { f.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch (e) { /* old engine */ } }
+      if (f.getBoundingClientRect().bottom > bottom) lift(f, bottom);
     });
   }
   if (vv) { vv.addEventListener('resize', guard); vv.addEventListener('scroll', guard); }
