@@ -114,3 +114,24 @@ def test_audit_detail_and_sensors_show_words_not_raw_identifiers():
         k = keys(lang)
         for name in ("scans_keep", "live_min", "paths_hours", "start", "end", "days", "bytes", "format"):
             assert "audit.d." + name in k, (lang, name)
+
+
+def test_failure_chain_sheet_leaves_the_card_head_free_on_a_phone():
+    """With a card open, the chain sheet starts where the card's head ends: the card's title and cross stay in view and can be tapped
+    (fixed at 62 % of the screen the sheet covered the cross once the header grew a row for the site name)."""
+    app, css = read("css", "app.css"), read("css", "failure.css")
+    phone_app = app[app.index("@media (max-width: 700px)"):]
+    assert "--ll-detail-phone-h: 78%" in rule(phone_app, ".main")
+    assert "height: var(--ll-detail-phone-h)" in rule(phone_app, ".detail")
+    phone = css[css.rindex("@media (max-width: 700px)"):]
+    bar = rule(phone, ".main:has(> .detail.is-open) .fc-bar")
+    assert "position: absolute" in bar and "bottom: 0" in bar
+    m = re.search(r"calc\(var\(--ll-detail-phone-h, 78%\) - (\d+)px\)", bar)
+    assert m and int(m.group(1)) >= 18 + 44 + 10 + 1, "the sheet must not reach into the card's head (padding + 44 px cross + border)"
+
+
+def test_whats_new_dot_sits_at_the_text_of_a_44px_link():
+    """The dot of "What's new?" sits at the top of the text line: the link is a 44 px fingertip on a phone, a dot at top: 1px floated above it."""
+    app = read("css", "app.css")
+    dot = rule(app, ".ver-foot__link .wn-dot")
+    assert "top: calc(50% - .75em)" in dot and "top: 1px" not in dot

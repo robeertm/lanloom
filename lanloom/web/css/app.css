@@ -323,7 +323,8 @@ input:focus, .select:focus, select.input:focus { outline: none; border-color: va
   .scan-live { grid-template-columns: 1fr; justify-items: center; }
   .found-counter { width: 150px; }
   .scan-live__right { width: 100%; }
-  .detail { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-width: none; height: 78%; border-radius: var(--ll-radius-lg) var(--ll-radius-lg) 0 0; }
+  .main { --ll-detail-phone-h: 78%; }                 /* the card's share of the view on a phone; the failure chain sheet stops below its head (failure.css) */
+  .detail { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-width: none; height: var(--ll-detail-phone-h); border-radius: var(--ll-radius-lg) var(--ll-radius-lg) 0 0; }
   .device-row { grid-template-columns: auto minmax(0, 1fr) auto; }
   .device-row__kind, .device-row__svc { display: none; }
   .page { padding: 18px 16px 32px; }
@@ -453,7 +454,7 @@ input:focus, .select:focus, select.input:focus { outline: none; border-color: va
 .ver-chip .wn-dot { position: absolute; top: -3px; right: -3px; box-shadow: 0 0 0 2px var(--ll-bg, var(--ll-surface)); }
 .ver-foot { display: none; text-align: center; font-size: var(--ll-fs-xs); padding: 14px 0 0; }   /* only inside the phone's "More" sheet */
 .ver-foot__link { position: relative; background: none; border: 0; padding: 0 12px 0 0; font: inherit; color: var(--ll-accent-text, var(--ll-accent)); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
-.ver-foot__link .wn-dot { position: absolute; top: 1px; right: 0; }
+.ver-foot__link .wn-dot { position: absolute; top: calc(50% - .75em); right: 0; }   /* at the top of the text line, also when the link is a 44 px fingertip (handy.css) */
 @media (max-width: 700px) { .ver-chip { display: none; } .ver-foot { display: block; } }
 
 .wn { display: flex; flex-direction: column; gap: 14px; }

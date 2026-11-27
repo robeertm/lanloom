@@ -114,3 +114,9 @@ a.fc-row__name:hover { text-decoration: underline; }
   .fc-outage.is-open .fc-outage__tools > .btn:not(.btn--icon) { order: 4; flex: 1 0 100%; margin: 0 8px 6px 0; }
   .fc-ed__row { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* a phone with a card open: the chain sheet stops below the card's head, so the card's title and its close button stay in view and can be
+   tapped (fixed at 62 % of the screen it lay over the cross as soon as the header grew a row, e.g. the site name of several sites) */
+@media (max-width: 700px) {
+  .main:has(> .detail.is-open) .fc-bar { position: absolute; bottom: 0; max-height: min(62vh, calc(var(--ll-detail-phone-h, 78%) - 74px)); }   /* 74 px: the head of the card (18 + 44 + 10 + border), the sheet starts where the head ends */
+}
