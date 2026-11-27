@@ -91,9 +91,9 @@
 }
 @media (max-width: 700px) {
   /* a phone: the site has a row of its own under the logo and the buttons, its whole name readable (it was cut to "Ho…" between five buttons) */
-  .topbar:has(.site-switch) { flex-wrap: wrap; align-content: center; row-gap: 4px; height: auto; min-height: calc(52px + env(safe-area-inset-top));
-    padding-top: calc(6px + env(safe-area-inset-top)); padding-bottom: 6px; }
-  .topbar .site-switch { order: 5; flex: 1 0 100%; width: 100%; max-width: none; height: auto; min-height: 36px; padding: 4px 12px; gap: 8px; justify-content: flex-start; text-align: left; white-space: normal; }
+  .topbar:has(.site-switch) { flex-wrap: wrap; align-content: center; row-gap: 8px; height: auto; min-height: calc(52px + env(safe-area-inset-top));
+    padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: 8px; }      /* 8 px between the rows and at the edges: every capsule of the first row keeps a 44 px fingertip with its invisible area */
+  .topbar .site-switch { order: 5; flex: 1 0 100%; width: 100%; max-width: none; height: auto; min-height: 44px; padding: 4px 12px; gap: 8px; justify-content: flex-start; text-align: left; white-space: normal; }
   .topbar .site-switch__name { flex: 1 1 auto; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.25; }
   .topbar .site-switch__caret { margin-left: auto; }
   .site-menu { width: auto; }                                   /* left and right 8 px: the whole width of the phone */

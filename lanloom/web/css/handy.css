@@ -32,7 +32,7 @@
   .pf-bands, .pf-band { max-width: 100%; }           /* a stacked port plate: the bands stay inside the plate, the rows scroll sideways inside them (data-swipe) */
   summary, details > summary, .rail__body details.keep > summary, .ov-card > details > summary, .nt-form summary { min-height: 44px; align-items: center; }
   .ct-row { min-height: 44px; }                       /* a container row of a device card */
-  .talk__names a.talk__name { display: inline-flex; align-items: center; min-height: 44px; }
+  a.talk__name, a.sheet-link { display: inline-flex; align-items: center; min-height: 44px; }      /* a device name in a talk row, the link at the end of a "Now" sheet */
   .talk__link, .change__link, .note-row__link, .inc-row__link, .ov-dev__link, .ov-report__link, .rp-row, .ru-host__link, .focus-row__link { min-height: 44px; align-content: center; }
   .sheet__grip { height: 44px; }                    /* the grip of a sheet is a fingertip high (the bar inside it stays 5 px) */
   .cmdk__close { height: 44px; min-width: 44px; }
