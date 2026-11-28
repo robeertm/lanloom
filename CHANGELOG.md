@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- SummerGlass and WinterGlass: layers that float over the page (the hover card of a tile, the site menu, dialogs, the sheet of a device, the assistant, the command palette, cable and sensor tooltips, the draft bar) are now nearly opaque (97 %) in every palette, light and dark. Before, they used the glass fill of an ordinary box, so cards and plots behind them shone into their text. Ordinary boxes stay glass. One token, `--ll-glass-float`, sets it.
+
 ## [1.66.4] – 2026-11-27
 
 ### Fixed

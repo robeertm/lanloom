@@ -43,9 +43,14 @@
     linear-gradient(180deg, var(--ll-glass-sheen-top, var(--ll-glass-sheen-hi, transparent)) 0, var(--ll-glass-sheen-lo, transparent) 44px, transparent 120px),
     linear-gradient(112deg, transparent 38%, var(--ll-glass-glare, transparent) 50%, transparent 62%),
     linear-gradient(180deg, transparent 40%, var(--ll-glass-shade, transparent) 100%),
-    linear-gradient(var(--ll-glass-fill, transparent), var(--ll-glass-fill, transparent));
+    linear-gradient(var(--ll-glass-float, transparent), var(--ll-glass-float, transparent));
   background-size: 100% 100%, 260% 100%, 100% 100%, 100% 100%;
   background-position: 0 0, 130% 0, 0 0, 0 0;
+}
+/* every layer that floats over the board or the page (hover card of a tile, site menu, dialog, sheet) is nearly opaque: the glass fill lets
+   a third through, so cards and plots behind a floating layer shone into its text. Ordinary boxes stay glass. */
+:where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.tile-hover, .site-menu, .modal__card, .detail, .sheet, .ask, .cmdk__dialog, .fw-draftbar, .cb-tip, .sn-tip, .acc-menu__list) {
+  --ll-surface: var(--ll-glass-float, var(--ll-surface-2));
 }
 /* the big panes (a settings card is as tall as the window) keep their sheen and skip the glare */
 :where([data-palette="summerglass"], [data-palette="winterglass"]) :is(.card, .device-list, .detail):hover { background-position: 0 0, 130% 0, 0 0, 0 0; }

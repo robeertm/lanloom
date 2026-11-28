@@ -665,6 +665,7 @@ html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme=
   --ll-glass-tint-2: rgba(120, 220, 200, .75);
   --ll-glass-tint-3: rgba(255, 200, 140, .70);
   --ll-glass-fill: rgba(255, 255, 255, .62);
+  --ll-glass-float: rgba(250, 251, 252, .97);
   --ll-glass-bar: rgba(250, 251, 252, .84);
   --ll-glass-sheen-hi: rgba(255, 255, 255, .95);
   --ll-glass-sheen-lo: rgba(255, 255, 255, .22);
@@ -686,6 +687,7 @@ html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme=
   --ll-glass-tint-2: rgba(20, 140, 144, .29);
   --ll-glass-tint-3: rgba(118, 84, 204, .40);
   --ll-glass-fill: rgba(14, 19, 23, .62);
+  --ll-glass-float: rgba(23, 29, 33, .97);
   --ll-glass-bar: rgba(20, 26, 30, .86);
   --ll-glass-sheen-hi: rgba(255, 255, 255, .13);
   --ll-glass-sheen-lo: rgba(255, 255, 255, .02);
@@ -708,6 +710,7 @@ html:is([data-palette="summerglass"], [data-palette="winterglass"]) [data-theme=
     --ll-glass-tint-2: rgba(20, 140, 144, .29);
     --ll-glass-tint-3: rgba(118, 84, 204, .40);
     --ll-glass-fill: rgba(14, 19, 23, .62);
+    --ll-glass-float: rgba(23, 29, 33, .97);
     --ll-glass-bar: rgba(20, 26, 30, .86);
     --ll-glass-sheen-hi: rgba(255, 255, 255, .13);
     --ll-glass-sheen-lo: rgba(255, 255, 255, .02);

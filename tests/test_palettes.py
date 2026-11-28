@@ -376,3 +376,16 @@ def test_every_token_in_use_is_defined():
     # tokens with a local fallback or set by a component itself
     local = {k for k in used if k not in defined and re.search(r"var\(%s\s*," % re.escape(k), "".join(read(*r.split("/")) for r in _component_files()))}
     assert used - defined - local == set(), used - defined - local
+
+
+def test_floating_layers_of_the_glass_are_nearly_opaque():
+    """A layer that floats over the board (hover card, menu, dialog, sheet) carries a nearly opaque token, so what lies behind never shines into its text."""
+    light, dark, auto = _glass_extras()
+    css = read("css", "glass.css")
+    rule = re.search(r":is\(([^)]*\.tile-hover[^)]*)\) \{\s*--ll-surface: var\(--ll-glass-float", css)
+    assert rule, "glass.css sets the floating token on the floating layers"
+    for cls in (".tile-hover", ".site-menu", ".modal__card", ".detail", ".sheet", ".ask", ".cmdk__dialog", ".cb-tip"):
+        assert cls in rule.group(1), cls
+    for name, tokens in (("light", light), ("dark", dark), ("auto", auto)):
+        m = re.match(r"rgba\(\s*\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)", tokens["--ll-glass-float"])
+        assert m and float(m.group(1)) >= 0.92, name
