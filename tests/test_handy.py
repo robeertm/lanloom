@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from _board_node import run_node
+
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "lanloom" / "web"
 
@@ -114,3 +116,19 @@ def test_walk_fixes_of_762_stay_in_place():
     assert "const FINGER = 22" in infra and "if (!phone) a.tabindex = '0'" in infra, "on a phone no map line is a control of its own, the finger picks the nearest"
     assert "setAttribute('tabindex', '0')" in read("js", "paths.js") and "max-width: 700px" in read("js", "paths.js")
     assert "'data-swipe': ''" in read("js", "views.js")
+
+
+def test_a_neighbour_scrolled_out_of_sight_takes_no_room():
+    """1.66.5 gate: a report row scrolled behind the page header (laid out at 47.8 px, cut away by the page scroller) shrank the
+    invisible area of "Right now" and "About this view" to 41 px. Only the part of a neighbour that can be seen counts."""
+    o = run_node("hit_room_test.js")
+    assert o["hiddenSeen"] is None, "a control cut away by its scroller is no neighbour"
+    assert o["halfSeen"] == {"top": 105, "left": 315, "bottom": 134, "right": 359}
+    assert o["noClip"] == {"top": 52, "left": 8, "bottom": 96, "right": 382}
+    assert o["twoClips"] == {"top": 50, "left": 10, "bottom": 110, "right": 60}
+    assert o["withHidden"]["b"] == 4, "the gap below the header button is half the 8 px to the site switch row"
+    assert o["withoutClipLogic"]["b"] < 2, "the old way (laid-out box) gave the header button only 1.9 px below"
+    assert o["withHalf"]["b"] == 4
+    assert o["sides"] == {"t": 20, "r": 10, "b": 20, "l": 10}      # left 60..80 -> 20 px gap, right 150 -> 20, above ends at 60 -> 40, below starts at 170 -> 40
+    src = read("js", "handy.js")
+    assert "seen: seenPart(r, clipsOf(el, clipCache))" in src and ".map(n => n.seen)" in src, "room() measures against the seen part"

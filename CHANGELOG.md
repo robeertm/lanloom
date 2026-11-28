@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Phone, fingertips: a control that is scrolled out of sight (a row of a long report behind the page header) no longer shrinks the invisible fingertip area of the header buttons next to it. Only the part of a neighbour that can be seen counts now; *Right now* and *About this view* keep their 44 px on every page, however far it is scrolled.
+
 ## [1.66.5] – 2026-11-28
 
 ### Fixed
